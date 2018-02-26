@@ -1,0 +1,80 @@
+/*
+** Program PWT:
+**
+** Purpose:
+** Uses 1960-1989 RGDP per capita data for 112 countries from PWT and applies
+** clusteralgorithm from
+** 'Asymptotically Perfect and Relative Convergence of Productivity'
+**                      Bart Hobijn and Philip Hans Franses
+** to it.
+**
+** Notes:
+** 1. This program creates an ASCII file called PWT.OUT that contains the result
+**    of the cluster procedure.
+** 2. This program has been test in GAUSS 3.2.1 for DOS. If you have any
+**    problems running it, please send an email to Bart Hobijn at
+**    hobijnb@fasecon.econ.nyu.edu
+** 3. You can adjust the bandwidth and critical p-value parameters to your own
+**    liking.
+*/
+
+/*
+** Loading ascii dataset
+*/
+
+load d[rown,coln] = datt7.csv;
+cntrs = "c"$+ftocv(seqa(1,1,cols(d)),1,0);
+//d = d[2:31,2:113];
+//d = ln(d);
+
+/*
+** In case you prefer to use the GAUSS dataset:
+** comment out the for lines above and remove the comments for the lines
+** below.
+**
+d = loadd("pwt");               @ loading Penn World Table data @
+d = ln(d);
+cntrs = getname("pwt");         @ loading Penn World Table headers @
+*/
+
+//stopval = 0.01;                 @ Critical p-value for cluster-algorithm @
+bandwidt = 2;                   @ bandwidth for Newey-west estimator @
+
+
+@ Clusterprocedure @
+@ C0 : Asymptotically perfectly converging clubs @
+@ C1 : Asymptotically relatively converging clubs @
+
+{ c0 , c1 } = cluster( d , bandwidt , stopval );
+
+@ Generating output file @
+output file=pwt.out reset;
+"===========================================================================";
+"OUTPUT CLUSTER ALGORITHM FOR DATA FROM PENN WORLD TABLE";
+"---------------------------------------------------------------------------";
+format /ld 8,4;
+"Stopcriterion = " stopval ;
+"Bandwidth for Bartlett Window = " bandwidt ;
+" ";
+" ";
+"ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC";
+clusout( c0 , cntrs )
+" ";
+" ";
+"ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC";
+clusout(c1 , cntrs );
+" ";
+"===========================================================================";
+output off;
+/*
+output on;
+output file=f:\dae\lc242\clusterb\output\c0pwt.dat reset;
+print c0;  
+output off;
+output on;
+output file=f:\dae\lc242\clusterb\output\c1pwt.dat reset;
+print c1;  
+output off;
+*/
+
+

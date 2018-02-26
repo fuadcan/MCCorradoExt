@@ -1,0 +1,390 @@
+/*  MISSFILL.SRC                            Thomas Noack an Rainer Schlittgen                                      
+**                                                           16.  March 2001
+**
+**  PEM-Algorithm 
+**
+**  Substitution of missing values in a time series by conditional 
+**  exspectations of AR(p) models
+**
+**  Format
+**  -----------------------------------------------------------------
+**
+**  {a,y}=missar(x,p)
+**
+**
+**  Input: x = (n,1)-matrix, time series
+**         p = integer, the maximal order of ar polynom used to fill the gaps
+**             0 <= p < 18,
+**             if p=0  linear interpolation without iteration
+**
+**  Output : a = (p,p)-matrix, estimated ar coefficients for ar-models 
+**               with orders op to p
+**           y = (n,1)-vector, completed time series
+**
+**  Remarks : - p is retricted to be less than 18: p < 18
+**            - first and last observations mut not be missing
+**            - the order of the ar polynom used is determined by the lenght of the
+**              complete parts surrounding the gap 
+**            - the series is filled by going from the beginning to the end.
+**              in each iteration already filled gaps are dealt with as if they 
+**              were observed.
+**            - iteration stops, when the ar parameters do not change more
+**              than preset tolerance;    
+**            - tolerance operates on the estimated ar parameters
+**              it can be set through global variable _tol_ 
+**              ( default: _tol_ = 0.001 ) 
+**            - set _iterout_ = 1 to watch iteration history         
+**
+** Reference: Miller, R.B. and Ferreiro, O.M. (1984): A strategy to complete
+**            a time series with missing observations; 
+**            In: E. Parzen (ed.): Time series analysis of irregularly observed data;
+**            Berlin: Springer
+*/
+
+PROC (2) = missar(daten,p);
+
+LOCAL n,indexf,m,mu,xcent,a,luecke,t,lz,abbruch,wieder,xneu,
+      f,j,amiss,bmiss,voll,aalt,res,aic,bic,s,cov,stdepar,tol,linint,i,p1;
+
+ tol = _tol_;
+ n = ROWS(daten);
+ 
+ a=0;
+ voll = daten;
+
+ IF (COLS(daten)/=1) OR (ROWS(p)/=1) OR (COLS(p)/=1) OR (p<0) OR
+   (TRUNC(p)/=p);
+   "falsche Eingabewerte !! ... Abbruch !!";
+   GOTO schluss;
+ ENDIF;
+
+ IF ROWS(PACKR(daten))==n;
+   "keine fehlenden Werte !! ... Abbruch !!";
+   GOTO schluss;
+ ENDIF;
+
+ 
+ IF SCALMISS(daten[1]) OR SCALMISS(daten[n]); 
+    PRINT "First and last observation must not be missing";  
+    GOTO schluss;
+ ENDIF;   
+
+
+
+@ ... indexf => Index der fehl. Daten .............................. @
+
+ indexf = INDEXCAT(daten,MISS(0,0));
+ 
+ m = ROWS(indexf);
+
+@ ... Zentrierung der vorhandenen Daten ............................ @
+  mu = tsmean(daten);
+  xcent = daten-mu;
+
+@ ... Startwerte ................................................... @
+@ ... yule-walker-schaetzung für a(1) bis a(p) ...................... @
+
+IF p>0;
+   a = ldrec(acove(xcent,p));
+   a = a[.,1:p]; 
+ENDIF;
+
+@ .................................................................. @
+@ ... Indizes der Lückenraender ..................................... @
+
+IF m==1;                            @ ... nur ein fehlender Wert ... @
+   luecke=indexf~indexf;
+ELSEIF (indexf[m]-indexf[1])==(m-1);@ ... eine Luecke der Länge m .. @
+   luecke=indexf[1]~indexf[m];
+ELSE;                               @ ... sonst .................... @
+   t=PACKR(indexf[2:m]~indexf[1:m-1]~MISS(indexf[2:m]-indexf[1:m-1],1));
+   luecke=(indexf[1]|t[.,1])~(t[.,2]|indexf[m]);
+ENDIF;
+
+lz = ROWS(luecke);
+
+@ .... Iterationsschritte .......................................... @
+  
+  abbruch=0;
+  wieder=0;
+  DO UNTIL abbruch;
+
+   xneu=xcent;
+
+    
+
+      @ .... PE-Schritt ............................................... @
+   
+    f = {};
+    i = 0;
+    DO WHILE i < p;
+      i = i+1;
+      cov = acovth(0,a[i,.]',1,p);   cov=cov[2:p+1]/cov[1];
+      f = f|cov';                     @ IACF @
+    ENDO;
+   
+      amiss = indexf[1];
+      j=1;
+      DO WHILE j < lz;
+         p1 = luecke[j+1,1]-1-luecke[j,2];
+         p1 = MINC(p|p1|(amiss-1)); 
+         IF p1 > 1;
+           p1 = MINC(p|p1);
+           bmiss=luecke[j,2];
+           xneu[amiss:bmiss] = pestep(f[p1,1:p1]',xneu[amiss-p1:bmiss+p1]); 
+                     
+         ELSE;  @ ... Lineare Interpolation ........................... @
+           bmiss=luecke[j,2];
+           linint=(xneu[bmiss+1]-xneu[amiss-1])/(bmiss-amiss+2);
+           xneu[amiss:bmiss]=xneu[amiss-1] + SEQA(linint,linint,bmiss-amiss+1);                       
+         ENDIF;
+         amiss=luecke[j+1,1];
+         j=j+1;
+      ENDO;
+
+      @ ......... letzte Lücke ........................................ @
+      
+      bmiss = indexf[m];
+      IF (n-bmiss) > 1;
+        p1 = MINC(p|(n-bmiss));
+        xneu[amiss:bmiss] = pestep(f[p1,1:p1]',xneu[amiss-p1:bmiss+p1]);
+      ELSE;
+         linint=(xcent[bmiss+1]-xcent[amiss-1])/(bmiss-amiss+2);
+         xneu[amiss:bmiss]=xneu[amiss-1] + SEQA(linint,linint,bmiss-amiss+1);
+      ENDIF;
+
+
+   @ ......... vollständige Reihe .................................. @
+
+   voll = xneu;
+
+      @ .... PM-Schritt ............................................... @
+
+      aalt=a;
+
+      a = ldrec(acove(voll,p));
+      a = a[.,1:p]; 
+
+      @ ............................................................... @
+      @ .... Test auf Abbruch ......................................... @
+
+      IF MAXC(MAXC(ABS(aalt-a))) LE tol;  abbruch=1;  ENDIF;
+
+      wieder=wieder+1; IF wieder > 20; abbruch=1; ENDIF;
+
+IF _iterout_==1;
+ PRINT "Iteration step";;wieder;
+ PRINT "PACF:"; DIAG(a)';
+ PRINT "Maximal difference between paramter values from last iteration:";;MAXC(MAXC(ABS(aalt-a)));
+ENDIF;  
+
+ENDO;
+
+schluss:
+  RETP(a,voll+mu);
+ENDP;
+
+/*********************************************************************/
+
+PROC pestep(f,xt);
+
+   LOCAL p,lrand,rrand,m,indfehl,arg,mat1,b1,b2,b,ind,neu;
+
+   p=ROWS(f);   lrand=xt[p:1];  rrand=xt[ROWS(xt)-p+1:ROWS(xt)];
+   xt=xt[p+1:ROWS(xt)-p];       m=ROWS(xt);
+
+   /** Indizes der fehlenden Werte ***************************/
+
+   indfehl=INDEXCAT(xt,MISS(0,0));
+
+   IF m>1;
+      IF m LE p+1;
+         arg=f[1:m-1];
+      ELSE;
+         arg=f|ZEROS(m-p-1,1);
+      ENDIF;
+
+      mat1=TOEPLITZ(1|arg);
+
+      IF p>1;
+         b1=REV(UPMAT(TOEPLITZ(REV(-f)))')*lrand;
+         b2=LOWMAT(TOEPLITZ(REV(-f)))*rrand;
+      ELSE;
+         b1=-f*lrand;
+         b2=-f*rrand;
+      ENDIF;
+
+      IF m LE p;
+         b=b1[1:m] + b2[p-m+1:p];
+      ELSE;
+         b=(b1|ZEROS(m-p,1)) + (ZEROS(m-p,1)|b2);
+      ENDIF;
+
+      /** eventuell vorhandene Werte ************************/
+
+      IF ROWS(indfehl) < m;
+         ind=PACKR(SEQA(1,1,m)~xt);
+         ind=ind[.,1];
+         b=b - mat1[.,ind]*PACKR(xt);
+         neu=b[indfehl]/mat1[indfehl,indfehl];
+      ELSE;
+         neu=b/mat1;
+      ENDIF;
+
+   ELSE;     /*** nur ein fehlender Wert *******************/
+      neu=SUMC(-f.*(lrand+rrand));
+   ENDIF;
+
+   xt[indfehl]=neu;
+
+   RETP(xt);
+ENDP;
+
+
+/*  MISSLS
+**
+**  Purpose : Minimum Mean Square Error Interpolator to fill missings
+**            using LS approach
+**
+**  Format  :  y = missls(x,p)
+**
+**  Input   :  x = (n,1)-vector, time series with missings
+**             p = scalar, 0, oder prespecified order of AR modell
+**  Output  :  y = (n,1) vector, completed time series
+**  Remarks :  first and last observation mut not be missing
+**             tolerance can be set through global variable _tol_ 
+**               it enters via _tol_*STDC(PACKR(x))
+**               ( default: _tol_ = 0.001 ) 
+**             prespecified  iacore can be incorporated trough global 
+**               variable _theo_ = (k,1)-vector, prespecified iacore 
+**               ( default: _theo_ = 0 )
+**  Reference : 
+**  Brubacker, S. and Wilson, G. (1976): Interpolating time series
+**            with applications to the estimation of holiday effects   
+**            on electricity demand; 
+**            Journal of the Royal Statistical Society, C, 25, 107-116
+*/
+
+
+
+PROC missls(x,p);
+
+ LOCAL n,mu,xcent,y,g,ycov,gcov,xcov,xcor,mat,Q,tol,
+       i,a,rho,abbruch,z,res,aneu,acov,mean,aic,bic,wieder;
+
+ n = ROWS(x);
+ 
+ IF SCALMISS(x[1]) OR SCALMISS(x[n]); 
+    PRINT "First and last observation must not be missing"; STOP;
+ ENDIF;   
+    
+ mu = MEANC(PACKR(x));  
+ xcent = x-mu;
+ tol = _tol_*STDC(PACKR(x));
+
+ IF _theo_==0;
+ 
+ /* fitting of an AR[p] model */
+ 
+  IF p==0; p=trunc(n/10);   ENDIF;
+   
+  /** estimation of ACF **/
+  
+   y = MISSRV(xcent,0);  g=ABS(y).>0;  
+
+   ycov = REV(CONV(y,REV(y),n-p,n));
+   gcov = REV(CONV(g,REV(g),n-p,n));
+
+   xcov = ycov./gcov;
+   xcor = xcov[2:p+1]/xcov[1];
+ 
+ /** Compute Levinson-Durbin recursion **/
+   mat = ZEROS(p,p);         
+   mat[1,1] = xcor[1];
+   Q=1-xcor[1]^2;
+   i=1;                        
+   DO WHILE i < p;
+      mat[i+1,i+1] = (xcor[i+1] - mat[i,1:i]*REV(xcor[1:i]))/Q;
+      mat[i+1,1:i] = mat[i,1:i] - mat[i+1,i+1]*(REV(mat[i,1:i]'))';
+      Q            = Q*(1-mat[i+1,i+1]^2);
+      i=i+1;
+   ENDO;
+ 
+ /** select AR coefficients **/  
+   a = mat[p,1:p]';            
+
+ /**  iacore  **/     
+   rho=acovth(0,a,1,p);         
+   rho=rho[2:p+1]/rho[1];
+
+ ELSE;
+   rho=_theo_;
+   p=ROWS(_theo_);
+ ENDIF;
+
+   wieder=0;
+   abbruch=0;
+   DO UNTIL abbruch;
+
+      z=interpol(rho,xcent);
+
+      IF _theo_==0;     aneu=arest(z,p,"burg");                 
+        IF (MAXC(ABS(a-aneu)) < _tol_);
+          abbruch=1;
+         ELSE;
+          a=aneu;
+          rho =  acovth(0,a,1,p);       @ new iacore @
+          rho=rho[2:p+1]/rho[1];
+        ENDIF;
+      ELSE;
+      abbruch=1;
+      ENDIF;
+
+      wieder=wieder+1;
+      IF wieder > 20; abbruch=1; ENDIF;
+
+    ENDO;
+
+   RETP(z+mu);
+ENDP;
+
+/*******************************************************************/
+
+PROC interpol(rho,xcent);
+
+   LOCAL n,p,fehl,m,z,zt,s,k,bis1,bis2,mat,dist,lp,i;
+
+   n=ROWS(xcent);                    p=ROWS(rho);
+   fehl=indexcat(xcent,MISS(0,0));   m=ROWS(fehl);
+
+   z=MISSRV(xcent,0);
+   zt=ZEROS(m,1);                    @ \tilde{z} @
+   s=fehl[1];
+
+   k=1;
+   DO WHILE k LE m;
+      i=fehl[k]-s;
+      bis1=MINC((n-i-s)|p);
+      bis2=MINC((s+i-1)|p);
+      zt[k]= - SUMC(rho[1:bis1].*z[s+i+1:bis1+s+i])
+             - SUMC(rho[1:bis2].*z[s+i-1:s+i-bis2]);
+      k=k+1;
+   ENDO;
+
+   mat=eye(m);
+   k=1;
+   DO WHILE k < m;
+      dist=fehl[k+1:m]-fehl[k];
+      IF MINC(dist) LE p;
+         lp=INDEXCAT(dist,(0|p));
+         mat[k,k+lp]=rho[dist[lp]]';
+         mat[k+lp,k]=mat[k,k+lp]';
+      ENDIF;
+      k=k+1;
+   ENDO;
+
+   z[fehl]=zt/mat;
+
+   RETP(z);
+
+ENDP;

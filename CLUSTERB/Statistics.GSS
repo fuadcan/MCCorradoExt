@@ -1,0 +1,58 @@
+@k is 66 for NUTS1@
+
+k=68;
+
+
+/*load c0[k,1] = D:\CLUSTERB\output\c1nmshf.dat;*/
+load c0[k,1] = D:\CLUSTERB\output\c1nmshf.dat;
+
+format  6,3;
+i = 0;
+
+@Transform c0 in matrix format@
+
+Mhat = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    Mhat[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+/*print Mhat;*/
+
+
+load d[25,69] = D:\CLUSTERB\pcnms1.txt;
+d = d[25:25,2:69];
+
+
+
+/*print d;*/
+
+e=(Mhat * d')./(sumr(Mhat));
+
+/*print e;*/
+
+meangc=meanc(e);
+sdgc=stdc(e);
+mingc=minc(e);
+maxgc=maxc(e);
+
+
+
+
+print meangc;
+print sdgc;
+print mingc;
+print maxgc;
+
+
+/*print e;*/
+
+

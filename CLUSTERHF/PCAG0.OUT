@@ -1,0 +1,143 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR NUTS0  AGRICULTURE
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  16 
+# Clusters   :  11 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  4 
+Series in cluster: 
+FR       IE       LU                
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  2 
+Series in cluster: 
+DK       NL       
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  2 
+Series in cluster: 
+FI       NO       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  1 
+Series in cluster: 
+UK       
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  1 
+Series in cluster: 
+PT       
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+AT       
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+SE       
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  1 
+Series in cluster: 
+ES       
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  1 
+Series in cluster: 
+GR       
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  1 
+Series in cluster: 
+DE       
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  1 
+Series in cluster: 
+IT       
+ 
+ 
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  16 
+# Clusters   :  8 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  4 
+Series in cluster: 
+FR       IE       LU                
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  3 
+Series in cluster: 
+IT       PT       UK       
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  2 
+Series in cluster: 
+DK       NL       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+GR       SE       
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+FI       NO       
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+AT       
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+ES       
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  1 
+Series in cluster: 
+DE       
+ 
+ 
+END OF OUTPUT
+ 
+ 
+===========================================================================

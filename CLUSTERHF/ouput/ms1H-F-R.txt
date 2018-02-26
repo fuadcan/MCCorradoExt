@@ -1,0 +1,156 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  MS1
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  21 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  9 
+Series in cluster: 
+AT2      BE3      DEB      ES7      FR6      IT9      UKE      UKG      UKM      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  7 
+Series in cluster: 
+BE2      DE3      ES6      IT5      IT8      ITA      ITB      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  4 
+Series in cluster: 
+FR4      IT3      PT1      SE       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  4 
+Series in cluster: 
+AT3      DK       ES2      FR2      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  4 
+Series in cluster: 
+ES1      ES3      ES4      IT1      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  4 
+Series in cluster: 
+DE5      FR5      FR7      IT4      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  4 
+Series in cluster: 
+DE9      DEC      NO       UKH      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+DEA      ES5      GR1      IT7      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+UKD      UKF      UKK      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+AT1      DE2      FR3      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+BE1      FI       LU       
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+GR3      NL1      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  2 
+Series in cluster: 
+IE       UKI      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+DE6      DE7      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+GR2      GR4      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+DE1      FR8      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+IT6      NL2      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+FR1      UKJ      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  2 
+Series in cluster: 
+IT2      NL4      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  2 
+Series in cluster: 
+UKC      UKL      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  1 
+Series in cluster: 
+NL3      
+ 
+ 
+Size Number
+
+ 1        1       
+ 2        9       
+ 3        3       
+ 4        6       
+ 5        0       
+ 6        0       
+ 7        1       
+ 8        0       
+ 9        1       
+end OF OUTPUT
+ 
+ 
+===========================================================================

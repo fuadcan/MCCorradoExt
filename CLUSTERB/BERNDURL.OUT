@@ -1,0 +1,125 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR BERNARD AND DURLAUF DATA
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  4.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  15 
+# Clusters   :  9 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  3 
+Series in cluster: 
+AUT      ITA      NOR      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  2 
+Series in cluster: 
+DNK      NLD      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  2 
+Series in cluster: 
+AUS      UK       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+FRA      SWE      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+FIN      GER      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+JAP      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+CAN      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  1 
+Series in cluster: 
+BEL      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  1 
+Series in cluster: 
+USA      
+ 
+ 
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  15 
+# Clusters   :  7 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  3 
+Series in cluster: 
+AUS      BEL      UK       
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  3 
+Series in cluster: 
+AUT      ITA      NOR      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  3 
+Series in cluster: 
+CAN      DNK      NLD      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+FRA      SWE      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+FIN      GER      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+USA      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+JAP      
+ 
+ 
+END OF OUTPUT
+ 
+ 
+===========================================================================

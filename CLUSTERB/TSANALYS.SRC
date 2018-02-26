@@ -1,0 +1,898 @@
+/*               TSANALYS.SRC                 RAINER SCHLITTGEN   02.NOV. 1997
+*/
+/*
+**      Programs for time series analysis
+**      ( allowing for MISSing values )
+**
+**   Procedure                                                          Line
+**   ________________________________________________________________________
+**   tsmean   : mean of  y                                                47
+**   tsmedian : median of y                                               62
+**   TSVAR    : variance of y                                             75
+**   ACOV     : autocovariancefunctions of y                              90
+**   ACOR     : autocorrelation functions of ts y                        113
+**   TSPLOT   : plot of time serie y                                     121
+**   TSPLOT1  : plot of time serie y                                     128
+**   PLOTBOXCOX : plot for Box-Cox-Transformation                        148
+**   PLOTSYMMETRY : symmetry plot                                        177
+**   RUNMED   : running median                                           197
+**   RUNMEAN  : running mean                                             213
+**   SMOOTHLS : smothing of time series y by ls spline                   229
+**   SMOOTHRB : smothing of time series y by robust spline               254
+**   TSLOESS  : smothing of time series y by loess                       283
+**   SPLINEDECOMP : decomposition of a time series                       297
+**   VARDIF     : table of variance ratios for simple and seasonal d.    402
+**   DIFF       : transformation by differencing                         432
+**   EXPOSMOOTH : exponential smoothing                                  461
+**   HOLTWINT   : Holt Winters exponential smoothing                     507
+**   LDREC      : Levinson Durbin recursion                              540
+**   ROOTCHECK  : computing the norms of the roots of a polynomial       569
+**   TAPER      : tapering of y with a cosine taper or                   579
+**   ARFIT      : fitting of an ar-model via Yule-Walker                 591
+**   ACFARMA    : theoretical acf of an arma(p,q)-PROCess                643
+**   PLOTCOR    : PLOT OF ACF AND PACF                                   &/)
+**   SOME AUXILIARY PROCEDURES :
+**     NELMEAD
+**     MAD ; SIGN(u);  PSIHUB(u); PSIFAIR(u);
+**     PSITGH(u);  PSIBIW(u); PSIHAMP(u);
+**
+**
+*/
+
+
+
+
+/*       {m}=tsmean(x): x is n,k matrix  of k time series of length n
+**                      m is k,1 vector of mean values
+*/
+PROC 1 = tsmean(x);
+  LOCAL i,k,m;
+  k=COLS(x);  m=ZEROS(k,1);
+  i=0;
+  DO WHILE i<k;
+    i=i+1;  m[i]=MEANC(PACKR(x[.,i]));
+   ENDO;
+ RETP(m);
+ENDP;
+
+
+
+/*       {m}=tsmedian(x): x is n,k matrix  of k time series of length n
+**                        m is k,1 vector of mediana of each series
+*/
+PROC 1 = tsmedian(x);
+  LOCAL i,k,m;
+  k=COLS(x);    m=ZEROS(k,1);
+  i=0;
+  DO WHILE i<k;
+    i=i+1;   m[i]=MEDIAN(PACKR(x[.,i]));
+   ENDO;
+ RETP(m);
+ENDP;
+
+/*       {s}=TSVAR(x):  x is n,k matrix  of k time series of length n
+**                      s is k,1 vector of variances
+*/
+PROC 1 = TSVAR(x);
+  LOCAL i,k,s,y;
+    k=COLS(x); s=ZEROS(k,1);
+    i=0;
+    DO WHILE i<k;
+     i=i+1;
+     y=PACKR(x[.,i]);  s[i]=MEANC(y^2)-MEANC(y)^2;
+    ENDO;
+ RETP(s);
+ENDP;
+
+/*       {ac}=ACOV(x,nlag):  x  is n,k matrix  of k time series of length n
+**                           ac is (nlag+1),k matrix of autocovariances
+**                           starting at lag 0 to nlag
+*/
+PROC 1 = ACOV(x,nlag);
+  LOCAL ac,i,k,l,m,n,n1,s,y,z;
+    k = COLS(x);
+    n = ROWS(x);
+    m = tsmean(x);
+    l = trunc(minc(minc(x))-10);
+    n1 = SUMC( MISSRV(x,l)./=(l*ONES(n,1)));
+    y = MISSRV(x,m');
+    ac = ZEROS(nlag+1,k);
+    i=0;
+    DO WHILE i<k;
+      i=i+1;
+      z = (y[.,i]-m[i])'~ZEROS(1,nlag+1);
+      z = RESHAPE(z,nlag+1,n+nlag);
+      ac[.,i]= z*z[1,.]'./n1[i] ;
+    ENDO;
+ RETP(ac);
+ENDP;
+
+/*       {ac}=ACOR(x,nlag):  x  is n,k matrix  of k time series of length n
+**                           ac is (nlag+1),k matrix of autocorelations
+**                           starting at lag 0 to nlag
+*/
+PROC 1 = ACOR(x,nlag);
+   RETP(acov(x,nlag)./tsvar(x)');
+  ENDP;
+
+/*
+**   Plot of a time serie
+*/
+
+PROC (0) = TSPLOT(x);
+  xy(SEQA(1,1,ROWS(x)),x);
+ENDP;
+
+
+
+
+PROC 0 = TSPLOT1(x,c);
+
+ LOCAL a,tit;
+ if c==0;  xy(SEQA(1,1,ROWS(x)),x); ENDIF;
+ if c==1;
+    a = plotratio(x);
+    if a <= 1; _plotsiz = 8|(a*8); else; _plotsiz = (a*8)|8; ENDIF;
+    tit = "Plot of Time Series\Lviewangel" ;
+    tit = tit $+ FTOS(a,"%*.*lf",6,2);
+    title(tit);
+    xy(SEQA(1,1,ROWS(x)),x);
+    graphset;
+ ENDIF;
+ENDP;
+
+
+/*
+**   Box - Cox transformation plot
+*/
+
+ PROC 0 = PLOTBOXCOX(y);
+
+   LOCAL m,mm,n,par,s,tit,yy ;
+    yy = y;
+    n = ROWS(yy);
+    if minc(yy) <= 0;
+      yy = yy - minc(yy) + 1;
+    ENDIF;
+    yy = yy|MISS(ONES(10,1),1);
+    yy = RESHAPE(yy,10,trunc(n/10 +1))';
+    m = ln(tsmean(yy));
+    mm = m^(0~1);
+    s = 0.5*ln(tsvar(yy));
+    par = s/mm;
+    _plctrl = -1|0;
+    tit = "Box-Cox-Diagramm\LSteigung der Regressiongeraden" ;
+    tit = tit $+ FTOS(par[2],"%*.*lf",6,2);
+    title(tit);
+    xlabel("ln(mean(y_i)");
+    ylabel("ln(var(y_i))");
+    xy(m,s~(mm*par));
+    graphset;
+ ENDP;
+
+
+/*
+**  symmetry plot of a time serie
+*/
+
+PROC 0 = PLOTSYMMETRY(y);
+
+ LOCAL n,yy ;
+  yy = PACKR(y);
+  n = ROWS(yy);
+  yy = sortc(yy,1);
+  yy = yy-MEDIAN(yy);
+  graphset;
+  _plctrl = -1;
+  xy(-yy[1:n/2],yy[n:(n/2+1+n%2)]);
+  graphset;
+ENDP;
+
+
+/*
+**  {g} = RUNMED(y,q)   y : time series to be smoothed
+**                      q : span of running median
+**                      g : smooth component
+*/
+
+PROC (1) = RUNMED(y,q);
+
+  LOCAL m,n;
+  if (1-q%2); print "Only for odd sized span"; stop ; ENDIF;
+  n = ROWS(y);
+  m = ZEROS(n,1); m = MISS(m,0);
+  m[(q+1)/2:n+1-(q+1)/2]  = tsmedian(TRIMR(RESHAPE(y,q,n+1)',0,q)');
+ RETP(m);
+ENDP;
+
+/*
+**  {g} = RUNMEAN(y,q)  y : time series to be smoothed
+**                      q : span of moving average
+**                      g : smooth component
+*/
+
+PROC (1) = RUNMEAN(y,q);
+  LOCAL m,n;
+  n = ROWS(y);
+  m = tsmean(TRIMR(RESHAPE(y,q,n+1)',0,q)');
+  if (1-q%2); m = tsmean((m[1:ROWS(m)-1]~m[2:ROWS(m)])'); ENDIF;
+  m  = MISS(ZEROS(q/2,1),0)|m|MISS(ZEROS(q/2,1),0);
+ RETP(m);
+ENDP;
+
+/*
+** {g} = SMOOTHLS(y,q); y    : time series to be smoothed
+**                      beta : smoothing parameter
+**                             (the bigger beta is, the smoother will g be)
+**                      g    : smooth component
+*/
+
+PROC (1) = SMOOTHLS(y,beta);
+
+   LOCAL c,g,ind,it,j,n,pp,x;
+   x=y;
+   n = ROWS(y);
+   ind = PACKR(x~SEQA(1,1,n));
+   ind = ind[.,2];
+   j = ZEROS(n,1);
+   j[ind] = ONES(ROWS(ind),1);
+   x = MISSRV(x,0);
+   pp = ONES(n,3).*(1~-4~6);
+   pp[1,.] = 0~0~1 ; pp[2,.]=0~-2~5; pp[n-1,.]=1~-4~5; pp[n,.] =1~-2~1;
+   c = bandchol((ZEROS(n,2)~j) + beta*pp);
+   g = bandcholsol(x,c);
+  RETP(g);
+ENDP;
+
+
+/*
+** {g} = smoothrb(y,beta,&psi); y : time series to be
+**                           beta : smoothing parameter
+**                            psi : psi-function
+**                              g : smooth component
+*/
+
+PROC (1) = SMOOTHRB(y,beta,&psi);
+
+   LOCAL c,g,g0,ind,ipp,j,m,n,pp,sigm,x,xg,psi:PROC;
+   x=y;
+   n = ROWS(y);
+   ind = PACKR(x~SEQA(1,1,n));
+   ind = ind[.,2];
+   j = ZEROS(n,1);
+   j[ind] = ONES(ROWS(ind),1);
+   pp = ONES(n,5).*(1~-4~6~-4~1);
+     pp[1,.] = 0~0~1~-2~1 ; pp[2,1:3]=0~-2~5;
+     pp[n-1,3:5]=5~-2~0;  pp[n,.] =1~-2~1~0~0;
+   pp =  beta*pp;
+   c = bandchol((ZEROS(n,2)~j) + pp[.,1:3]);
+   g0 = tsmedian(x);
+   g = smoothls(x,beta);
+   xg = x-g;
+   sigm = mad(xg[ind]);
+   do until SQRT(g-g0) < 0.001*sigm;
+   g0 = g;
+   xg = MISSRV(x-g0,0);
+   xg = sigm*psi(xg/sigm);
+   g = g0+  bandcholsol(xg-SUMC((pp.*TRIMR(RESHAPE(0|0|g0,5,n+3)',0,3))'),c);
+   ENDO;
+  RETP(g);
+ENDP;
+/*
+PROC 2 = TSLOESS(y);
+   LOCAL t,ts,yhat,ys;
+        t=SEQA(1,1,ROWS(y));
+        t=PACKR(y~t);
+        {yhat,ys,ts}=loess(t[.,1],t[.,2]);
+  RETP(t,yhat);
+ENDP;
+*/
+
+/*
+**    Zerlegt eine Zeitreihe in Trend, Saison und Rest unter Verwendung
+**    des Splines-Ansatzes. d ist saison, alpha und  beta sind gewichte
+**    welche in das Zielkriterium eingehen
+*/
+
+
+PROC (2) =  SPLINEDECOMP(x,d,alpha,beta);
+
+  LOCAL b,C,g,i,ind,j,k,l,n,pp,RR,S,sais,S1,t,y,z;
+
+  n = ROWS(x);
+  z=ZEROS(n,1);
+  pp = ONES(n,5).*(1~-4~6~-4~1);
+     pp[1,.] = 0~0~1~-2~1 ; pp[2,1:3]=0~-2~5;
+     pp[n-1,3:5]=5~-2~0;  pp[n,.] =1~-2~1~0~0;
+  pp = alpha*pp;
+   ind = PACKR(x~SEQA(1,1,n));
+   ind = ind[.,2];
+   j = ZEROS(n,1);
+   j[ind] = ONES(ROWS(ind),1);
+  pp[.,3] = pp[.,3]+j;
+
+  RR = RESHAPE(ONES(d,1)|ZEROS(d+2,1),d+2,2*d+1);
+  c = band(RR'*RR);
+  c = c[1:d,.]|c[(d+1)*ONES(n-2*d),.]|c[d+2:2*d+1];
+  c = beta*c;
+  i=0;
+  DO WHILE i<n;
+   i=i+1;
+   t=0;
+   j=MAXC(0|(i-d-2));
+   DO WHILE t < minc((2*d+3)|(d+1+i)) and j < n;
+     t=t+1;
+     j=j+1;
+     c[i,t+MAXC(0|(d+2-i))]
+      = TRIMR(z|PP[i,.]'|z,n+3-i,i+2)'*TRIMR(z|RR[.,j]|z,n+d-j,j+d-1);
+   ENDO;
+  ENDO;
+  S=C; S[.,d+2]=S[.,d+2]-1;
+
+@ Berechnen von b=(A-I)*x  @
+
+  b=TRIMR(RESHAPE(ZEROS(4,1)|x,5,n+5)',2,3);
+  b=SUMC((PP.*b)')-x;
+
+/*
+    Loesen von S*z=b. Dazu wird zuerst die L-U-Zerlegung von S berechnet:
+    S=L*U , L ist untere dreieckmatrix mit (nicht gespeicherten) Einsen auf
+    der Hauptdiagonalen, U ist obere Dreiecksmatix
+    Algorithmus bei Golub/vanLoan : Matrix Computation, p.92-94
+    Abspeichern in S=L~U
+    S WIRD GEEIGNET VERLAENGERT, SO DASS GRENZEN UNPROBLEMATISCH
+*/
+  l=(COLS(S)-1)/2;
+  S=S|ZEROS(l,2*l+1);
+  k=0;
+  DO WHILE k<n-1;
+    k=k+1;
+    S1 = RESHAPE(S[k:k+l,.]~ZEROS(l+1,l+1),l+1,3*l+1);
+    S1[2:l+1,l+1]=S1[2:l+1,l+1]/S1[1,l+1];
+    S1[2:l+1,l+2:2*l+1] =
+         S1[2:l+1,l+2:2*l+1] - S1[2:l+1,l+1]*S1[1,l+2:2*l+1];
+    S1 = TRIMR(RESHAPE(S1,l+1,3*l+2)',0,l+1)';
+    S[k:k+l,.] = S1;
+  ENDO;
+  S=S[1:n,.];
+
+ /*
+    Loesen von Ly=b, L=S[.,1:l]
+ */
+  y = ZEROS(l-1,1)|b;
+  k=1;
+  DO WHILE k<n;
+    k=k+1;
+    y[k+l-1] = y[k+l-1] - S[k,1:l]*y[k-1:k+l-2];
+  ENDO;
+  y=TRIMR(y,l-1,0);
+
+ /*
+    Loesen von Uz=y, U=S[.,l+1:2*l+1]
+ */
+
+  y = y|ZEROS(l-1,1);
+  y[n]=y[n]/S[n,l+1];
+  k=n;
+  DO WHILE k>1;
+    k=k-1;
+    y[k] = (y[k] - S[k,l+2:2*l+1]*y[k+1:k+l])/S[k,l+1];
+  ENDO;
+  sais=TRIMR(y,0,l-1);
+
+/*
+     Loesen von A*g=x-sais
+*/
+
+  g = bandchol(PP[.,1:3]);
+  g = bandcholsol(x-sais,g);
+
+  RETP(g,sais);
+ ENDP;
+
+
+
+
+
+
+/*
+** Table of variance ratios for determing the proper orders of differencing
+** of a time series to reach stationarity
+*/
+
+PROC 0 = VARDIF(y,d);
+
+LOCAL m,n,sd,vc,y1;
+ vc = ZEROS(4,4);
+ n = ROWS(y);
+ m = MISS(ONES(3,1),1);
+ y1 = y~(m[1]|conv(y,-1|1,2,n))~(m[1 2]|conv(y,1|-2|1,3,n))~(m|conv(y,-1|3|-3|1,
+4,n));
+ sd = 0;
+ DO WHILE sd < 4;
+ sd=sd+1;
+ if sd > 1; y1 = y1[1:n+1-d,.]-y1[d:n,.]; ENDIF;
+   n=ROWS(y1);
+   vc[.,sd] = tsvar(y1);
+ ENDO;
+ vc = vc/tsvar(y);
+ print "       Table of variance ratios         ";
+ print "       simple differencing (d=0,1,2,3) rowwise";
+ print vc;
+
+ENDP;
+
+/*
+**   {yd} = DIFF(y,d)
+**          input : y = time series to be differenced
+**                  d = vector containing the lags for differencing
+**                      for repeaded differencing use the same lag
+**                      more often ( d={1,1} for simple diff. twice )
+**          output : yd =differenced series
+*/
+
+PROC 1 = DIFF(y,d);
+
+ LOCAL i,n,p,y1;
+  if ROWS(d)==1; d=d'; ENDIF;
+  if ROWS(y)==1; y=y'; ENDIF;
+  p = ROWS(d);
+  n = ROWS(y);
+  y1 = y;
+  i = 0;
+  DO WHILE i < p;
+    i = i+1;
+    y1 = y1[d[i]+1:n] - y1[1:n-d[i]];
+  ENDO;
+RETP(y1);
+ENDP;
+
+/*
+**
+** SIMPLE EXPONENTIAL SMOOTHING
+**   {yhat,b} = EXPOSMOOTH(y,b,lead)
+**        Input : y = (n,1) or (1,n) vector, the time series
+**                b = smoothing constant if 0<b<1
+**                    if b <=0 or >=1 then the smoothing constant is
+**                    determined to optimize the one step prediction error
+**                lead = forecast horizon
+**       Output : yhat = one step predictions; when lead >1, the last
+**                       prediction is repeated lead-1 times
+**                b = smoothing constant
+*/
+
+
+  PROC 2 = EXPOSMOOTH(y,b,lead);
+
+   LOCAL n,s2,t, y1, yhat ;
+    if ROWS(y)==1; y=y'; ENDIF;
+      n = ROWS(y);
+      y1 = y;
+      yhat = y1|0;
+      MISSing: if isMISS(y1[1]); y1=TRIMR(y1,1,0); GOTO MISSing; ENDIF;
+      t = n - ROWS(y1);
+      if 0 < b and b < 1;
+         DO WHILE t < n;
+         t=t+1;
+          if isMISS(y1[t]);  yhat[t+1] = y1[t];
+             else;          yhat[t+1] = b*yhat[t] + (1-b)*y1[t];
+          ENDIF;
+         ENDO;
+      else;
+         b = SEQA(0.1,0.1,9)';
+         DO WHILE t < n;
+         t=t+1;
+          if isMISS(y1[t]);  yhat[t+1,.] = y1[t,.];
+            else;           yhat[t+1,.] = b.*yhat[t,.] + (1-b).*y1[t];
+          ENDIF;
+         ENDO;
+        s2 = SUMC(PACKR((y1[2:n]-yhat[2:n,.])^2));
+        yhat = yhat[.,MININDC(s2)];
+        b = MININDC(s2)*0.1;
+      ENDIF;
+      if lead > 1; yhat=yhat|(yhat[n+1]*ONES(lead-1,1)); ENDIF;
+   RETP(yhat,b);
+ ENDP;
+
+/*
+**
+**   Holt Winters Exponential smoothing
+**   {yhat} = HOLTMINT(y,al,be,ga,per,lead)
+**            y = time series
+**            per = 1 when no seasonal component
+**            al = weight for level
+**            be = weight for ascent
+**            al = weight for seasonal comp.
+**            per = seasonal period
+**            lead = forecasting horizon
+**
+*/
+
+  PROC 1 = HOLTWINT(y,al,be,ga,per,lead);
+
+  LOCAL b,m,n,s,t,yhat;
+    if per < 1;
+       print "seasonal period (per) must be 1 or greater"; stop;
+    ENDIF;
+    if ROWS(y)==1; y=y'; ENDIF;
+    n = ROWS(y);
+    m = tsmean(y[1:MAXC(2|per)])*ONES(MAXC(2|per),1);
+    b = 0;
+    s = MISSRV(y[1:ROWS(m)],m[1])-m;
+    if per == 1; s = 0*s; ENDIF;
+    yhat = y|0;
+    t = per-1;
+    DO WHILE t < n;
+      t = t+1;
+      if  isMISS(y[t]); y[t] = yhat[t]; ENDIF;
+      b = (1-be)*(m[2]-m[1]) + be*b;
+      m = m[2]|((1-al)*(y[t]-s[1]) + al*(m[2]+b));
+      if per >1; s = s[2:per]|((1-ga)*(y[t]-m[2]) + ga*s[1]); ENDIF;
+      yhat[t+1] = m[2] + b + s[1];
+    ENDO;
+    if lead > 1;
+      yhat = yhat|(m[2] + SEQA(2,1,lead-1)*b) + RESHAPE(s[2:per 1],lead-1,1);
+    ENDIF;
+    RETP(yhat);
+  ENDP;
+
+/*
+**   Levinson-Durbin recursion for determing all coefficients a(i,j),
+**   {mat} = LDREC(acf);
+**   1<=i<=j<=maxlag (=p)
+**   input  : acf is (p+1,1)-vector acov(0),...,acov(p)
+**   output : p,p+2 matrix with coefficients in lower triangular,
+**            pacf in the last colum and Q(p) in colum p+1
+**
+*/
+
+PROC (1) = LDREC(acf);
+
+  LOCAL cor,i,mat,p;
+  p = ROWS(acf)-1;
+  mat = ZEROS(p,p+2);
+  cor = TRIMR(acf/acf[1],1,0);
+  mat[1,1] = cor[1];  mat[1,p+1] = 1-cor[1]^2;   mat[1,p+2] = cor[1];
+  i = 1;
+  DO WHILE i < p;
+    mat[i+1,i+1] = (cor[i+1] - mat[i,1:i]*rev(cor[1:i]))/mat[i,p+1];
+    mat[i+1,1:i] = mat[i,1:i]-mat[i+1,i+1]*(rev(mat[i,1:i]'))';
+    mat[i+1,p+2] = mat[i+1,i+1];
+    mat[i+1,p+1] = mat[i,p+1]*(1-mat[i+1,p+2]^2);
+    i = i+1;
+  ENDO;
+ RETP(mat);
+ENDP;
+
+/*
+**    r = ROOTCHECK(a) : computing the norms of the roots of
+**                       1 - a[1]*z -..-  a[p]*z^p = 0
+**                       (non existing coefficients must be set zero)
+*/
+
+PROC 1 = ROOTCHECK(a);
+   RETP(abs(polyroot((-rev(a))|1)));
+ENDP;
+
+
+/*
+**    z = TAPER(y,part) : tapermodifikation  using a cosin-taper
+*/
+
+
+PROC 1 =  TAPER(y,part);
+    LOCAL n,tap;
+    if part < 0 or part > 0.5; print "part must be 0<=part<=0.5"; stop; ENDIF;
+    if ROWS(y)==1; y=y'; ENDIF;
+    n = ROWS(y);
+    tap =  0.5*(1-COS(SEQA(1,1,part*n)*PI/(part*n)));
+    tap = tap|ONES(n-2*ROWS(tap),1)|rev(tap);
+RETP(tsmean(y)+(y-tsmean(y)).*tap);
+ENDP;
+
+
+
+PROC (5) = ARFIT(y,pmax,c);
+
+LOCAL  a,a1,ac,AIC,alpha,BIC,bo,ind,mat,n,p,res,resstar,thcov,yb ;
+  n = ROWS(y);
+  y = y-tsmean(y);
+  ac = acov(taper(y,0.1),pmax);
+  ac = ac/ac[1];
+  mat = ldrec(ac);
+  AIC = ln(mat[.,pmax+1])+2*SEQA(1,1,pmax)/n;
+  BIC = ln(mat[.,pmax+1])+2*SEQA(1,1,pmax)*ln(n)/n;
+  p = MININDC(BIC);
+  alpha =  mat[p,1:p]';
+  res =  CONV(1|-alpha,y,p+1,n);
+  if c $== "asymp";
+   thcov = acfarma(alpha,0,tsvar(res),p-1);
+   if p>1;
+     thcov = RESHAPE(thcov|thcov[p:2],p,2*p-2);
+     thcov = thcov[.,1:p];
+   ENDIF;
+   a = tsvar(res)*inv(thcov)/n;
+  ENDIF;
+  if c $== "boot";
+    ind = SEQA(1,1,p);
+    a = ZEROS(500,p);
+    bo=0;
+    resstar = res[1+rndu(n-p,1)*(n-p)]-MEANC(res);
+    DO WHILE bo < 500;
+       bo = bo+1;
+       yb = y[ind+rndu(1,1)*(n-p)];
+       yb = yb|recserar(resstar,yb,alpha);
+       a1 = acov(yb,p);
+       a1 = ldrec(a1);
+       a[bo,.] = a1[p,1:p];
+    ENDO;
+    a = (1/500)*moment(a-alpha',0);
+  ENDIF;
+RETP(alpha,a,AIC,BIC,res);
+ENDP;
+
+
+/*
+**  thcov = ACFARMA(a,b,s,m);
+**
+**  theoretical acf for lags 0 to m for arma(p,q)-PROCess.
+**    s: variance of error PROCess
+**    a: p,1 vector of ar-coef.: 1-a[1]B-..-a[p]B^p
+**    b: q,1 vector of ma-coef.: 1-b[1]B-..-b[q]B^q
+**       use a=0 / b=0 for pure ma- / ar-PROCesses
+**    m : number of lags
+*/
+
+
+
+PROC (1)= ACFARMA(a,b,s,m);
+
+   LOCAL a1,ac,b1,c,i,m1,p,q;
+   p=ROWS(a);
+   q=ROWS(b);
+   m1=MAXC(p|(q+1))+1;
+   a1= RESHAPE(1~(-a')~ZEROS(1,m1+p+1),m1,m1+2*p+3);
+   a1[2:m1,(2*p+4):(m1+2*p+2)]=rev(a1[2:m1,(2*p+4):(m1+2*p+2)]')';
+   a1=a1[.,1:m1]+a1[.,(2*p+3):(m1+2*p+2)];
+   c = 1|macoeff(a,b,q);
+   c = RESHAPE(c'~ZEROS(1,q+1),q+1,2*q+1);
+   c = (c[.,1:(q+1)]*(1|-b))|ZEROS(m1-q-1,1);
+   ac = s*(c/a1);
+   i=m1;
+    DO WHILE i <= m;
+      ac=ac|(a'*submat(ac,SEQA(i,-1,p),1));
+      i=i+1;
+    ENDO;
+  RETP(ac[1:m+1]);
+ENDP;
+
+
+/*
+**
+**   plot of autocorrelation faunction and partial autocoreelation function
+**    ki = 0  : no limits
+**         1  : with limits ( 2*stdev of acf /pacf )
+**
+*/
+  PROC 0 = PLOTCOR(x,mlag,ki);
+
+    LOCAL acki,bartlett,n,pac,packi,sq1,sq2,tit,y1,y2 ;
+
+      n = ROWS(x);
+      y1 = acor(x,mlag);
+      sq1 = SEQA(1,1,mlag-1);
+      y2 = ldrec(y1);
+      y2 = 1|y2[.,mlag+2];
+      sq2 = SEQA(0,1,mlag+1);
+
+      if ki == 1;
+        bartlett = 2*SQRT((cumSUMC(1|(2*(y1[2:mlag]^2))))/n);
+        bartlett = bartlett[1]|bartlett;
+        acki = ONES(2*(mlag-1),9);
+        acki[.,2] = acki[.,2]*6;
+        acki[1:mlag-1,3] = sq1;
+        acki[mlag:2*(mlag-1),3] = sq1;
+        acki[1:mlag-1,4] = bartlett[1:(mlag-1)];
+        acki[mlag:2*(mlag-1),4] = -bartlett[1:(mlag-1)];
+        acki[1:mlag-1,5] = 1+sq1;
+        acki[mlag:2*(mlag-1),5] = 1+sq1;
+        acki[1:mlag-1,6] = bartlett[2:mlag];
+        acki[mlag:2*(mlag-1),6] = -bartlett[2:mlag];
+        acki[.,7]=acki[.,7]*0;
+        acki[mlag,7] = 1;
+        acki[.,8]=acki[.,8]+1;
+        acki[.,9]=acki[.,9]*0;
+
+        bartlett = 2*SQRT(1/n);
+        packi = ONES(2,9);
+        packi[.,2] = packi[.,2]*6;
+        packi[1,3] = 1;
+        packi[2,3] = 1;
+        packi[1,4] = bartlett;
+        packi[2,4] = -bartlett;
+        packi[1,5] = mlag;
+        packi[2,5] = mlag;
+        packi[1,6] = bartlett;
+        packi[2,6] = -bartlett;
+        packi[.,8]=packi[.,8]+1;
+        packi[.,9]=packi[.,9]*0;
+      ENDIF;
+
+    graphset;
+    _pbartyp = 6~4;
+    _pdate = "";
+    ytics(-1,1,0.1,1);
+    xlabel("Lag");
+      _ptitlht = 0.22;
+      _paxht = 0.2;
+      begwind;
+       window(2,1,0);
+       ylabel("Autocorrelation");
+       if ki == 1;
+         _pline = acki;
+         tit = "ACF (with Bartlett's bounds)";
+         else;
+         tit = "ACF";
+       ENDIF;
+      title(tit);
+      bar(0|sq1|mlag,y1);
+      nextwind;
+      ylabel("Partial Autocorrelation");
+      if ki == 1;
+        _pline = packi;
+        tit = "PACF (with Confidence bounds)";
+        else;
+        tit = "PACF";
+      ENDIF;
+      title(tit);
+      bar(sq2,y2);
+      endwind;
+  ENDP;
+
+
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::**
+**                                                                           **
+**                                                                           **
+**                            Some auxiliary programs                        **
+**                                                                           **
+**                                                                           **
+**:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+
+
+PROC (1)= macoeff(a,b,m);      @ computes coefficients of ma representation of @
+                               @ arma(p,q) PROCess for lags 1 to m.            @
+   LOCAL a1,b1,c,i,p;          @ a: p,1 vector of ar-coef.: 1-a[1]B-..-a[p]B^p @
+   p=ROWS(a);                  @ b: q,1 vector of ma-coef.: 1-b[1]B-..-b[q]B^q @
+   c=ZEROS(p+m,1);  c[p]=1;    @ for no ma-part put 0 for b when calling PROC  @
+   if m==0; GOTO end; ENDIF;
+   a1=rev(a)';  b1=b|ZEROS(m,1);
+   i=1;
+   DO WHILE i<=m;
+     c[i+p]=a1*c[i:(p+i-1)] - b1[i];
+     i=i+1;
+   ENDO;
+ end:
+ RETP(TRIMR(c,p,0));
+ENDP;
+
+
+ _transit={};
+
+PROC 1 = plothelp(a);
+ LOCAL n,s,v,y;
+  y=_transit;
+  n=ROWS(y);
+  v = (y[2:n]-y[1:n-1])/(MAXC(y)-minc(y));
+  s = SQRT((n^-2) + (a*v)^2);
+  s = ((abs(arctan(a*n*v))'*s)/SUMC(s)-pi/4)^2;
+ RETP(s);
+ENDP;
+
+ PROC 1 = plotratio(x);
+   LOCAL a,f,g,r;
+   _transit=x;
+   { f,a } = NELMEAD(&plothelp,1);
+   RETP(a);
+ENDP;
+
+/*     This PROCedure finds the minimum of a function by direct search using
+**     Nelder and Mead's method (somtimes called simplex method). See
+**     B.D.Bunday and G.R.Garside: Optimisation methods in Pascal, London
+**     1987 for reference
+*/
+
+PROC (2)=NELMEAD(&fkt,x);
+  LOCAL alpha,beta,epsilon,gam,f,fc,fe,fo,fr,fs,i,m, p,s,sig,xc,xe,xo,xr;
+  LOCAL fkt:PROC;
+  alpha=1; beta=0.5; epsilon=1E-10; gam=2;
+  p = ROWS(x);
+  s = x~(ONES(1,p).*.x + 0.1*eye(p));    @ Step A: Intialisation of simplex @
+  f = ZEROS(p+1,1);                      @  and computing function values @
+  i=1;
+   DO WHILE i<=p+1;
+      f[i]=fkt(s[.,i]);
+      i=i+1;
+   ENDO;
+
+  repeat:                                         @ repeat until convergence   @
+  fs=f~(s');  fs=sortc(fs,1);                     @ Step B: Ordering           @
+  f=fs[.,1];
+  s=TRIMR(fs',1,0);
+  xo=MEANC(s[.,1:p]');  fo=fkt(xo);               @ Step C: Compute Centroid   @
+  xr=xo + alpha*(xo-s[.,p+1]) ; fr=fkt(xr);       @ Step D: Reflection         @
+  if fr < f[1];                                   @ Step E: Comparison of fo   @
+          xe=xo+gam*(xr-xo); fe=fkt(xe);            @ with min-f and substitu- @
+          if fe < f[1];  s[.,p+1]=xe;  f[p+1]=fe;   @ tion of edge with max-f  @
+             else;       s[.,p+1]=xr;  f[p+1]=fr;   @ if improvement occurs    @
+          ENDIF;
+     GOTO convtest;
+  ENDIF;
+  if fr >= f[1] and fr < f[p];
+          s[.,p+1]=xr;  f[p+1]=fr;
+     GOTO convtest;
+  ENDIF;
+  if fr < f[p+1];                                 @ Step F: Contraction        @
+          s[.,p+1]=xr;  f[p+1]=fr;
+  ENDIF;
+  xc=xo + beta*(s[.,p+1]-xo); fc=fkt(xc);
+  if fc < f[p+1];                                 @ Step G: Comparison         @
+        s[.,p+1]=xc;  f[p+1]=fc;
+     GOTO convtest;
+  ENDIF;
+  s=0.5*(s+s[.,ONES(1,p+1)]);                     @ Step H: Reducing the size  @
+  i=2;                                              @ of the simplex           @
+   DO WHILE i<=p+1;
+      f[i]=fkt(s[.,i]);
+      i=i+1;
+   ENDO;
+
+  convtest:                                       @ Step I: Test of convergence@
+    if stdc(f) > epsilon;  GOTO repeat; ENDIF;
+RETP(f[1],s[.,1]);
+ENDP;
+
+
+
+/* The following PROCedures are psi-functions for (robust) M-estimation of uni-
+   variate location parameters. See H.Spaeth: Math.Softw. zur lin.Reg., p.198 */
+
+PROC (1) = SIGN(u);
+  RETP((u.>0)-(u.<0));
+ENDP;
+
+PROC (1) = PSIHUB(u);
+  RETP( u.*((u.>-1.5).*(u.<1.5)) +  1.5*((u.>-1.5)-(u.<1.5)) );
+ENDP;
+
+PROC (1) = PSIFAIR(u);
+  RETP(u./(1+abs(u/1.4)));
+ENDP;
+
+PROC (1) = PSITGH(u);
+  RETP(1.205*tanh(u/1.205));
+ENDP;
+
+PROC (1) = PSIBIW(u);
+  RETP((abs(u).<=4.685).*(u.*(1-(u/4.685)^2)^2));
+ENDP;
+
+PROC (1) = PSIHAMP(u);
+   LOCAL a,abu,b,c,w;
+   a=1.31;  b=2.039;  c=4;
+   abu = abs(u);
+   w = (abu.<=c).*sign(u).*minc(abu'|(a*ONES(1,ROWS(u)))|abs((c-abu)'*a/(c-b)));
+   RETP(w);
+ENDP;
+
+/*  computes robust scale estimator MAD for univariate samples       */
+
+PROC (1) = MAD(u);
+  LOCAL v;
+  v = PACKR(u);
+  RETP(1.4826*MEDIAN(abs(v-MEDIAN(v))));
+ENDP;
+
+
+  @ Plot of ACF and PACF @
+
+

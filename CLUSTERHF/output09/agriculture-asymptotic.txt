@@ -1,0 +1,131 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  AG asymptotic
+---------------------------------------------------------------------------
+
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  18 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  7 
+Series in cluster: 
+BE3      DE3      DK       FI       FR4      NL4      UKL      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  6 
+Series in cluster: 
+DE6      FR7      FR8      IT2      IT4      IT6      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  5 
+Series in cluster: 
+DEA      FR3      IT3      LU       UKH      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  5 
+Series in cluster: 
+AT1      GR4      IT8      PT1      UKJ      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  5 
+Series in cluster: 
+DE2      ES5      ES7      IT7      IT9      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  5 
+Series in cluster: 
+BE2      FR1      NL1      NL3      UKC      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  4 
+Series in cluster: 
+DE7      ES2      ITA      ITB      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+DE1      DEB      FR6      IT1      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+GR3      UKD      UKE      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+ES3      SE       UKK      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+DE5      IE       UKF      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+FR2      NL2      NO       
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      ES4      IT5      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  3 
+Series in cluster: 
+GR1      UKG      UKI      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  3 
+Series in cluster: 
+BE1      ES1      ES6      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+DEC      FR5      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+GR2      UKM      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+AT2      AT3      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        3       
+ 3        7       
+ 4        2       
+ 5        4       
+ 6        1       
+ 7        1       
+end OF OUTPUT
+ 
+ 

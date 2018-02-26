@@ -1,0 +1,5 @@
+/* 
+**  regar.dec - global declaration file for regar 
+*/
+
+DECLARE matrix  _iterout_ != 0;

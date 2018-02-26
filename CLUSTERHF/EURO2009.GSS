@@ -1,0 +1,136 @@
+/*
+** Program PWT:
+**
+** Purpose:
+** Uses 1960-1989 RGDP per capita data for 112 countries from PWT and applies
+** clusteralgorithm from
+** 'Asymptotically Perfect and Relative Convergence of Productivity'
+**                      Bart Hobijn and Philip Hans Franses
+** to it.
+**
+** Notes:
+** 1. This program creates an ASCII file called PWT.OUT that contains the result
+**    of the cluster procedure.
+** 2. This program has been test in GAUSS 3.2.1 for DOS. If you have any
+**    problems running it, please send an email to Bart Hobijn at
+**    hobijnb@fasecon.econ.nyu.edu
+** 3. You can adjust the bandwidth and critical p-value parameters to your own
+**    liking.
+*/
+
+/*
+** Loading ascii dataset
+*/
+/*load d[21,29] = yudong2.txt;
+**cntrs = d[1,2:29]';
+**d = d[2:21,2:29];
+**d = ln(d);*/
+/*
+load d[26,17] = PCnms0.txt;
+year=d[1:26,1];
+dtr=d[1:26,2:17];
+dtr=dtr';
+dsort=sorthcc(dtr,1);
+d=dsort';
+cntrs= d[1,1:16]';
+d = d[2:26,1:16];
+d = ln(d); 
+*/
+
+
+load d[25,69] = pcnms1.txt;
+print d;
+
+year=d[1:25,1];
+dtr=d[1:25,2:69];
+dtr=dtr';
+/*print dtr[1:3,1:4];*/
+
+dsort=sorthcc(dtr,1);
+d=dsort';
+/*print junk[1:3,1:4];
+print ""; st=junk[1,.];
+print $st;
+wait;*/
+cntrs = d[1,1:68]';
+d = d[2:25,1:68];
+d = ln(d);
+
+@The above 3 lines have been change since we have removed the year identifier (1st column) from the d matrix@
+
+/*
+
+load d[25,69] = pcNMS1.txt;
+cntrs = d[1,2:69]';
+d = d[2:25,2:69];
+d = ln(d);*/
+
+
+
+
+/*
+** In case you prefer to use the GAUSS dataset:
+** comment out the for lines above and remove the comments for the lines
+** below.
+**
+d = loadd("pwt");               @ loading Penn World Table data @
+d = ln(d);
+cntrs = getname("pwt");         @ loading Penn World Table headers @
+*/
+
+stopval = 0.01;                 @ Critical p-value for cluster-algorithm @
+bandwidt =2;                   @ bandwidth for Newey-west estimator @
+
+
+@ Clusterprocedure @
+@ C0 : Asymptotically perfectly converging clubs @
+@ C1 : Asymptotically relatively converging clubs @
+
+{ c0 , c1 } = cluster( d , bandwidt , stopval );
+
+
+@ Generating output file @
+output file=PCAG000.out reset;
+"===========================================================================";
+"OUTPUT CLUSTER ALGORITHM FOR NUTS0  H-F nms1";
+"---------------------------------------------------------------------------";
+format /ld 8,4;
+"Stopcriterion = " stopval ;
+"Bandwidth for Bartlett Window = " bandwidt ;
+" ";
+" ";
+"ASYMPTOTICALLY PERFECT CONVERGENCE";
+
+clusout( c0 , cntrs )
+" ";
+" ";
+"ASYMPTOTICALLY RELATIVE CONVERGENCE";
+
+clusout(c1 , cntrs );
+
+" ";
+"===========================================================================";
+output off;
+
+/*
+output on;
+output file=f:\dae\lc242\clusterb\output09\c0mshf.dat reset;
+print c0;  
+output off;
+output on;
+output file=f:\dae\lc242\clusterb\output09\c1mshf.dat reset;
+print c1;  
+output off;
+
+output on;
+output file=c:\gauss32\cluster\cntrs1.dat reset;
+print $cntrs;
+output off;
+
+y=sorthcc(cntrs,1);
+
+*/
+
+
+
+

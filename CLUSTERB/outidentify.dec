@@ -1,0 +1,6 @@
+
+
+DECLARE   _p_   !=0;
+DECLARE   _ind_ !=0;
+DECLARE   _z_   !=0;
+DECLARE  _type_ !=0;

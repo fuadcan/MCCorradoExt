@@ -1,0 +1,149 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR NUTS0  MANUFACTURING
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  16 
+# Clusters   :  13 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  3 
+Series in cluster: 
+ES       IE                
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  2 
+Series in cluster: 
+DE       FI       
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  1 
+Series in cluster: 
+UK       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  1 
+Series in cluster: 
+SE       
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  1 
+Series in cluster: 
+PT       
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+NO       
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+DK       
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  1 
+Series in cluster: 
+IT       
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  1 
+Series in cluster: 
+FR       
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  1 
+Series in cluster: 
+AT       
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  1 
+Series in cluster: 
+GR       
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  1 
+Series in cluster: 
+NL       
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  1 
+Series in cluster: 
+LU       
+ 
+ 
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  16 
+# Clusters   :  7 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  4 
+Series in cluster: 
+LU       AT       UK       NO       
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  3 
+Series in cluster: 
+DK       FR       PT       
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  3 
+Series in cluster: 
+ES       IE                
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+DE       FI       
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+GR       NL       
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+SE       
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+IT       
+ 
+ 
+END OF OUTPUT
+ 
+ 
+===========================================================================

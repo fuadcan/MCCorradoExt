@@ -1,0 +1,135 @@
+/*
+** Program PWT:
+**
+** Purpose:
+** Uses 1960-1989 RGDP per capita data for 112 countries from PWT and applies
+** clusteralgorithm from
+** 'Asymptotically Perfect and Relative Convergence of Productivity'
+**                      Bart Hobijn and Philip Hans Franses
+** to it.
+**
+** Notes:
+** 1. This program creates an ASCII file called PWT.OUT that contains the result
+**    of the cluster procedure.
+** 2. This program has been test in GAUSS 3.2.1 for DOS. If you have any
+**    problems running it, please send an email to Bart Hobijn at
+**    hobijnb@fasecon.econ.nyu.edu
+** 3. You can adjust the bandwidth and critical p-value parameters to your own
+**    liking.
+*/
+
+
+@  Loading ascii dataset @
+
+load d[25,69] = pcnms1.txt;
+year=d[1:25,1];
+dtr=d[1:25,2:69];
+dtr=dtr';
+
+
+dsort=sorthcc(dtr,1);
+d=dsort';
+
+cntrs = d[1,1:68]';
+dd = d[2:25,1:68];
+rows(dd)~cols(dd);
+i=0;
+do until  i>6;
+e = dd[2+i:18+i,1:68];
+e = ln(e);
+ 
+
+/*
+load d[26,17] = PCnms0.txt;
+cntrs = d[1,2:17]';
+dd = d[2:26,2:17];
+
+
+i=0;
+
+do until  i>6;
+e = dd[2+i:18+i,1:16];
+e = ln(e);
+*/
+
+stopval = 0.01;                 @ Critical p-value for cluster-algorithm @
+bandwidt = y;                   @ bandwidth for Newey-west estimator @
+
+
+@ Clusterprocedure @
+@ C0 : Asymptotically perfectly converging clubs @
+@ C1 : Asymptotically relatively converging clubs @
+
+{ c0 , c1 } = cluster( e , bandwidt , stopval );
+
+@ Generating output file @
+if (i==0);
+/*output file=c:\gauss32\out\time\PCag01.out reset;
+output on;
+output file=c:\gauss32\out\time\pcms10.dat reset;
+print c0;
+output on;
+output file=c:\gauss32\out\time\pcms11.dat reset;
+print c1;
+output off;
+print c1;*/
+endif;
+
+if (i==1);
+/*output file=c:\gauss32\out\time\PCag02.out reset;*/
+endif;
+
+if (i==2);
+/*output file=c:\gauss32\out\time\PCag03.out reset;*/
+endif;
+
+if (i==3);
+/*output file=c:\gauss32\out\time\PCag04.out reset;*/
+endif;
+
+if (i==4);
+/*output file=c:\gauss32\out\time\PCag05.out reset;*/
+endif;
+
+if (i==5);
+/*output file=c:\gauss32\out\time\PCag06.out reset;*/
+endif;
+
+if (i==6);
+/*
+output file=c:\gauss32\out\time\PCag07.out reset;
+output on;
+output file=c:\gauss32\out\time\pcnms70.dat reset;
+print c0;
+output file=c:\gauss32\out\time\pcnms71.dat reset;*/
+output on;
+print c1;
+output off;
+endif;
+
+
+
+
+"===========================================================================";
+"OUTPUT CLUSTER ALGORITHM FOR NUTS0  AGRICULTURE";
+"---------------------------------------------------------------------------";
+format /ld 8,4;
+"Stopcriterion = " stopval ;
+"Bandwidth for Bartlett Window = " bandwidt ;
+" ";
+" ";
+"ASYMPTOTICALLY PERFECT CONVERGENCE";
+clusout( c0 , cntrs )
+" ";
+" ";
+"ASYMPTOTICALLY RELATIVE CONVERGENCE";
+clusout(c1 , cntrs );
+" ";
+"===========================================================================";
+i=i+1;
+endo;
+
+output off;
+
+
+

@@ -1,0 +1,152 @@
+/*   BIVARIAT:SRC                                   Rainer Schlittgen 25.4.99
+**
+**   Procedure                                                          Line
+**   ________________________________________________________________________
+**   BISPECES
+**   CCORE
+**   CCOVE
+**   CCORPLOT    : plot of ccf                                           109
+**   GRANGERCAUS
+**
+**
+*/
+
+
+/*
+**> BISPECES
+**
+** Purpose : indirect spectral estimation of bivariate  series y
+**            using lagwindow
+**
+** Format :  {f,coh,ph} = BISPECES(y,q,&win);
+**
+** Input  :  y = (n,2) vector, the ts
+**               q  : number of covariances used for averaging
+**               win = lawindow  (possible: lagwinba , lagwinpa, lagwinptu)
+**
+** Output :  f = frequencies 0, 1/n, 2/n, ...
+**           coh = estimated coherency at fourierfrequencies 0,1/n,..
+**           ph  = estimated phase at fourierfrequencies 0,1/n,..
+**
+*/
+
+
+PROC (3) = BISPECES(y,q,&win);
+
+  LOCAL a2,a1,cc,coh,f,i,j,lags,n,ph,s,ss,s2,s1,w,win:PROC;
+  n = ROWS(y);
+  w = win(q);
+  a1 = acove(y[.,1],q).*w;
+  a2 = acove(y[.,2],q).*w;
+  {s1,f} = PERIODO4(a1,n/2);
+  {s2,f} = PERIODO4(a2,n/2);
+  {lags,cc} =  ccove(y,-q|q);
+  cc =cc.*(REV(w)|TRIMR(w,1,0));
+  i = COMPLEX(0,1);
+  j = -1;
+  f = {}; coh = {}; ph = {};
+  DO WHILE j < n/2-1;
+   j = j+1;
+   f=f|(j/n);
+   s = cc'*EXP(i*2*PI*lags*j/n);
+   coh = coh|(ABS(s)/SQRT(s1[j+1].*s2[j+1]));
+   ph = ph|ATAN(-IMAG(s)/REAL(s));
+  ENDO;
+ RETP(f,coh,ph);
+ENDP;
+
+
+/*   
+**>  CCOVE 
+**
+**   Format: {lag,cc}=ccove(x,nlag):
+**   Input :    x = (n*2) matrix of two time series of length n
+**            nlag = (2,1) vector of number of lags, (nlag1,nlag2)
+**                   or scalar; then it is expanded to  (-nlag,nlag)
+**   Output : lag = (nlag1+nlag2+1) vector of lags from -nlag1 to nlag2
+**               cc = (nlag1+nlag2+1) vector of crosscovariances 
+**                    \sum_{1 <= t,k <=n} (x1[t]-tsmean(x1))*(x2[t+k]-tsmean(x2))/n
+*/
+
+PROC 2 = ccove(x,nlag);
+  LOCAL lags,m,n,n1,y,y1,y2;
+    IF COLS(x) /= 2; PRINT "x must have 2 columns"; STOP; ENDIF;
+    n = ROWS(x);    
+    IF ROWS(nlag)==1 AND COLS(nlag)==1; nlag = -nlag|nlag; ENDIF;
+    nlag = MAXC(MINC(nlag'|(n~n-1))'|(-(n~n-1)));
+    nlag = SORTC(nlag,1);
+    lags = SEQA(nlag[1],1,nlag[2]+1-nlag[1]);
+    m = tsmean(x);
+    n1 = ROWS(PACKR(x));
+    x = MISSRV(x-m',0);
+    y1 = x[.,1];
+    y2 = x[.,2];
+    y2 = SHIFTR(y2[.,ONES(ROWS(lags),1)]',-lags,0)';
+ RETP(lags,SUMC(y1.*y2)/n1);
+ENDP;
+
+/*    
+**>  CCORE   
+**
+**    Format: {lags,cc}=ccore(x,nlag):  crosscorrelation function
+**
+**    Input :    x = (n,2) matrix of two time series of length n
+**            nlag = (2,1) vector of number of lags, (nlag1,nlag2)
+**                   or scalar; then it is expanded to  (-nlag,nlag)
+**   Output : lags = (nlag[2]-nlag[1]+1,1) vector of lags from nlag1 to nlag2
+**              cc = (nlag[2]-nlag[1]+1,1) vector of crosscocorrelations
+**                      
+*/
+
+PROC 2 = ccore(x,nlag);
+   LOCAL cc,lags;
+   {lags,cc} = ccove(x,nlag);
+    cc = cc/SQRT(PRODC(tsvar(x)));
+  RETP(lags,cc);
+ENDP;
+
+/*
+**   CCORPLOT(x,mlag,lim);
+**   plot of croscorrelation function from -mlag to mlag
+**   Input:  x = (n,2) matrix, containing the 2 time series
+**           mlag  = scalar , maximum lag; plot will reach from -mlag to mlag 
+**           lim = flag, if lim=1, confidence limits are shown
+**                 limits are 2*stdev of ccf for uncorrelated series,
+**                 where one is white noise
+**     
+*/
+
+  PROC 0 = CCORPLOT(x,mlag,lim);
+
+    LOCAL acki,cc,lags,n,tit ;
+    GRAPHSET;
+    {lags,cc}=ccore(x,mlag);
+      
+  IF lim;
+      n = ROWS(x);
+        acki = ONES(2,9);
+        acki[.,2] = acki[.,2]*6;
+        acki[.,3] = lags[1 1];
+        acki[.,4] = 2*SQRT(1/n)*(1|-1);
+        acki[.,5] = (take(lags,-1)*(1|1));
+        acki[.,6] = acki[.,4];
+        acki[.,8] = acki[.,8]+1;
+        acki[.,9] = acki[.,9]*3;
+       _pline = acki;
+    title("CCF (with Confidence bounds)"); 
+  ELSE;
+    title("CCF");    
+  ENDIF;
+    _pbartyp = 6~4;
+    _pdate = "";    
+    _pmcolor = ZEROS(8,1)|15;
+    _pnumht=.3;
+    _paxht=.25;
+    ytics(-1,1,0.1,1);
+    xlabel("Lag"); 
+    _ptitlht = 0.22;
+     ylabel("Crosscorrelation");
+    bar(lags,cc);
+  GRAPHSET;
+ ENDP;
+

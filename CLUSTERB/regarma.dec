@@ -1,0 +1,6 @@
+/* 
+**  regarma.dec - global declaration file for regarma 
+*/
+
+DECLARE matrix  _iterout_ != 0;
+DECLARE matrix  _opts!=0|0;

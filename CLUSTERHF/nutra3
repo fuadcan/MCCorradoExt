@@ -1,0 +1,75 @@
+@ k can be either 67 (NUTS1) or 16 (NUTS0)@
+
+k=67;
+
+load data[188,18] = c:\gauss32\cluster\data.txt; 
+load nuts2str[188,1] = c:\gauss32\cluster\str1.txt; 
+
+print $nuts2str[1:10]; 
+
+nuts2lang=data[1:188,1];
+nuts2agint=data[1:188,7];
+nuts2emiss=data[1:188,9];
+nuts2tran=data[1:188,10];
+/*nuts2agfarm=data[1:188,12];*/
+nuts2loc=data[1:188,13];
+nuts2set=data[1:188,14];
+nuts2peri=data[1:188,15];
+nuts2endang=data[1:188,16];
+nuts2popch=data[1:188,17];
+nuts2eufund=data[1:188,18];
+
+nuts2lang=nuts2lang/100;
+
+nuts2var1=nuts2eufund;
+
+nuts1var1=zeros(k,1);
+
+w=rows(nuts2str);
+print $nuts2str[1:4];
+print "";
+y=0;
+do while ( y < w );
+    y = y+1;
+nuts2str[y]=strsect(nuts2str[y],1,3);
+endo;
+print $nuts2str[1:4];
+
+e=0;
+ind=zeros(14,1);
+do while ( e < 14 );
+    e = e+1;
+ind[e]=e;
+endo;
+
+
+j=1;
+c=1;
+i = 0;
+do while ( i < w);
+
+   i=i+1;
+
+if ( nuts2str[i] - nuts2str[c] /= 0 );
+
+   nuts1var1[j]= maxindc(counts(nuts2var1[c:(i -1)],ind));
+
+print "c i j" c~i~j;
+j=j+1;
+c=i;
+endif;
+
+format 1,2;
+
+endo;
+output on;
+output file=c:\gauss32\out\data\n2eufund.dat reset;
+print nuts1var1;
+output off;
+
+
+
+
+
+    
+

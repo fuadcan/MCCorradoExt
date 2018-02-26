@@ -1,0 +1,240 @@
+print  "Correlation between Asymptotic and Bootsrapped Cluster Outcome for NUTS1 SECTOR ";
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+@k is 66 for NUTS1@
+
+k=67;
+
+
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+
+
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1mshf.dat ;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+M1H = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    M1H[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+
+
+load c1[k,1] =f:\dae\lc242\clusterb\output\c1ms.dat ; 
+
+i=0;
+M1B = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    M1B[i,j] = (c1[i] - c1[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+gms = ((sumc(vech(M1B  .*  M1H))-k) / ((sumc(vech(M1B))- k)^0.5*(sumc(vech(M1H) )- k)^0.5))^0.5;
+
+
+
+@---------------------------------------------------------------------------------------------------------@
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1nmshf.dat ;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+M1H = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    M1H[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+
+
+load c1[k,1] =f:\dae\lc242\clusterb\output\c1nms.dat ; 
+
+i=0;
+M1B = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    M1B[i,j] = (c1[i] - c1[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mperi with Mhat*/
+
+gnms = ((sumc(vech(M1B  .*  M1H))-k) / ((sumc(vech(M1B))- k)^0.5*(sumc(vech(M1H) )- k)^0.5))^0.5;
+
+
+
+
+@---------------------------------------------------------------------------------------------------------@
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1aghf.dat ;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+M1H = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    M1H[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+
+
+load c1[k,1] =f:\dae\lc242\clusterb\output\c1ag.dat ; 
+
+i=0;
+M1B = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    M1B[i,j] = (c1[i] - c1[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mperi with Mhat*/
+
+gag = ((sumc(vech(M1B  .*  M1H))-k) / ((sumc(vech(M1B))- k)^0.5*(sumc(vech(M1H) )- k)^0.5))^0.5;
+
+
+
+
+
+
+
+@---------------------------------------------------------------------------------------------------------@
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1manhf.dat ;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+M1H = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    M1H[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+
+
+load c1[k,1] =f:\dae\lc242\clusterb\output\c1man.dat ; 
+
+i=0;
+M1B = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    M1B[i,j] = (c1[i] - c1[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mperi with Mhat*/
+
+gmanu = ((sumc(vech(M1B  .*  M1H))-k) / ((sumc(vech(M1B))- k)^0.5*(sumc(vech(M1H) )- k)^0.5))^0.5;
+
+
+
+
+
+
+@----------------------------------------------------------------------------------------------------------------------------@
+format  1,3;
+
+print " gag gmanu gms gnms" gag~gmanu~gms~gnms; 
+
+format  1,4;
+
+
+@----------------------------------------------------------------------------------------------------------------------------@
+
+
+output on;
+output file=f:\dae\lc242\clusterb\output\resultcorre\NUTS1SECTOR.dat reset;
+output off;

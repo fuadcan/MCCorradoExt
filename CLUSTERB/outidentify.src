@@ -1,0 +1,169 @@
+/*  
+   OUTIDENTIFY                                      Rainer Schlittgen  3.3.2001 
+*/
+ 
+/* 
+**> OUTIDENTIFY
+**
+**  Purpose : iterative prozedure to identify impact, locations and type 
+**            of outliers in ar processes
+**  Format: {alpha,aus,sigma2}=outidentify(y,p,k)
+**  Input : y (n,1)vector, the time series
+**          p scalar, the order of ar model
+**          k scalar, the level of the tests for deciding which value is to be 
+**            considered an outlier   
+**  Output: alpha (p,1) vector, the ar coefficients
+**          aus = (k,3) matrix with information about outliers:
+**                 aus[.,1] = type of outlier 1 = ao, 2=io
+**                 aus[.,1] = impact
+**                 aus[.,1] = time points where outliers are detected 
+**          sigma2 = estimated residual variance 
+**
+**  Reference:  Wei, W.W.S.(1990): Time Series Analysis, Univariate and 
+**              Multivariate Methods; Redwood City: Addison Wesley
+**              see also: Chang and Tiao (1983)  
+**                
+*/
+
+PROC  (3)= outidentify(y,p,k);
+
+ LOCAL alpha,ao,aoind,ausreisser,e,io,ioind,ltyp,l1,l2,n,sigma,t,tau2,x;
+ LOCAL om,om1,om2,ort,place,ml,par,f;
+ 
+ n = ROWS(y); 
+ l1 = ZEROS(n,1);
+ l2 = ZEROS(n,1); 
+ ao = ZEROS(n,1);
+ io = ZEROS(n,1);
+ ausreisser = ZEROS(1,3);
+ place = SEQA(1,1,n);
+ f ={};
+/**     step 1      **/ 
+  
+ alpha = arest(y,p,"orth");
+ e = ZEROS(p,1)|CONV(y,1|-alpha,p+1,n);
+ sigma = SQRT(e'*e/n);
+
+/**     step 2      **/ 
+
+step2: 
+ x = 1|(-alpha)|ZEROS(n-p-1,1);
+ t = p;
+ DO WHILE t < n-1;
+   t = t+1;
+   tau2 = 1+SUMC(alpha[1:MINC(p|(n-t))]^2);
+   ao[t] = (e[t]-take(e[t+1:n],MINC(p|(n-t)))'*alpha[1:MINC(p|(n-t))])/tau2;
+   l1[t] = SQRT(tau2)*ABS(ao[t])/sigma;
+ ENDO;  
+ io = e ;
+ l2 = ABS(io)/sigma; 
+ t = SETDIF(place,ausreisser[.,3],1);  
+ ltyp = MAXINDC(MAXC(l1[t]~l2[t]));
+ 
+ IF ltyp ==1;
+  ml = MAXC(l1[t]);
+  ort = SELIF(t,l1[t].==ml);
+  om = ao[ort];
+  ELSE;
+  ml = MAXC(l2[t]);
+  ort = SELIF(t,l2[t].==ml); 
+  om = io[ort];
+ ENDIF;
+
+ IF (ml > k); 
+    ausreisser = ausreisser|(ltyp~om~ort);
+ 
+   /**   modify residuals  **/
+ 
+   IF ltyp == 1; 
+     x = take(1|(-alpha)|ZEROS(n,1),n+1-ort);
+     e[ort:n] = e[ort:n] - ao[ort]*x;
+    ELSE; 
+     e[ort] = e[ort] - io[ort];
+   ENDIF;
+   sigma = SQRT(e'*e/n);   
+  GOTO step2; 
+ ENDIF;
+ 
+ IF ROWS(ausreisser)>1;  
+   ausreisser = TRIMR(ausreisser,1,0);
+  ELSE;
+  ausreisser = MISS(0,0);
+  GOTO fin;
+ ENDIF;  
+
+/**  step 4 : final estimation of model  **/ 
+ 
+ _ind_  = ausreisser[.,3];
+ _type_ = ausreisser[.,1];
+ _p_ = p;
+ _z_ = y;
+  
+ 
+ {f,par} = nelmead(&aroutss,alpha|ausreisser[.,2]);
+  alpha = par[1:p];
+  ausreisser[.,1 3]~TRIMR(par,p,0); 
+  
+fin: 
+RETP(alpha,ausreisser,f);
+ENDP;  
+
+/*
+**> AROUTSS
+**
+** Purpose: function which has to be minimized in the second iteration of
+**           outlier identification and estimation
+**  
+** Format: ss = aroutss(par);
+** Input : par = (p+k,1) vector of parameters; 
+**                first p coefficients are ar-parameters followd by
+**                magnitudes of ao's and then of io's
+** Output : ss =scalar, sum of squares of residuals
+**
+** Reference: Wei, W.W.S.(1990): Time Series Analysis, Univariate and Multivariate 
+**            Methods; Redwood City: Addison Wesley
+**
+** Remarks: procedure depens on global variables:
+**          _p_ = order of ar process
+**          _ind_ = zeitindizes mit outliers
+**          _z_   = time series
+**          _type_ = type of outlier =1 for ao, =2 for io
+**
+*/
+ 
+
+
+
+PROC (1) = aroutss(par) ;
+
+  LOCAL alpha,ao,e,i,io,m,n,omega,p_weights,x1,x2,z;  
+  alpha = par[1:_p_];
+  omega = par[_p_+1:ROWS(par)];
+  z = _z_;
+  n = ROWS(z);
+  p_weights = macoeff(alpha,0,n);
+  x1 = {};
+  ao = _type_ .== 1;
+  IF SUMC(ao);
+   ao = SELIF(_ind_,_type_ .== 1)';
+   x1 = DESIGN(ao)';
+   x1 = take(x1|ZEROS(n-ao[1],COLS(x1)),n);
+  ENDIF;
+  x2 = {};
+  io = _type_ .== 2;
+  IF SUMC(io);
+   io = SELIF(_ind_,_type_.==2);
+   m = ROWS(io);
+   x2 = DESIGN(io)';
+   x2 = take(x2|ZEROS(n-io[1],COLS(x2)),n); 
+  ENDIF;
+  i = 0;
+  DO WHILE i<m;
+   i = i+1;
+   x2[io[i]+1:n,i] = take(p_weights,n-io[i]);
+  ENDO; 
+  z = z-(x1~x2)*omega;
+  e = CONV(z,1|-alpha,_p_+1,n);
+  RETP(e'*e/n);
+ ENDP;
+  

@@ -1,0 +1,22 @@
+/* 
+**  armaest.dec - global declaration file for armaest 
+*/
+
+DECLARE matrix  _e_      != 0;
+DECLARE matrix  _p_      != 0;
+DECLARE matrix  _ps_     != 0;
+DECLARE matrix  _pindex_ != 0; 
+DECLARE matrix  _psindex_!= 0; 
+DECLARE matrix  _pnumb_  != 0; 
+DECLARE matrix  _arnumb_ != 0; 
+DECLARE matrix  _psnumb_ != 0;
+DECLARE matrix  _q_      != 0;
+DECLARE matrix  _qs_     != 0;
+DECLARE matrix  _qindex_ != 0;
+DECLARE matrix  _qsindex_!= 0; 
+DECLARE matrix  _qnumb_  != 0; 
+DECLARE matrix  _qsnumb_ != 0; 
+DECLARE matrix  _manumb_ != 0;
+DECLARE matrix  _s2_     != 0;
+DECLARE matrix  _s_      != 0;
+DECLARE matrix  _y_      != 0;  

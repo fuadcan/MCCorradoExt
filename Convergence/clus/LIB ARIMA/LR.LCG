@@ -1,0 +1,56 @@
+/*
+** lr.lcg - Linear Regression Library
+** (C) Copyright 1992-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+lr.dec
+    _lr_ver  : matrix
+    _lreghc  : matrix
+    _lregres : matrix
+    _lregcol : matrix
+    _lresult : matrix
+    _lriter  : matrix
+    _lrpcor  : matrix
+    _lrpcov  : matrix
+    _lrdv    : matrix
+    _lrtol   : matrix
+
+lrset.src
+    lrset    : proc
+
+l2sls.src
+    l2sls    : proc
+
+l3sls.src
+    l3sls    : proc
+    _l2sls   : proc
+
+lreg.src
+    lreg     : proc
+    lregres  : proc
+
+lrtest.src
+    lrtest   : proc
+
+lrutil.src
+    lregprt  : proc
+    lrfetch  : proc
+    lrprt    : proc
+    lrsse    : proc
+    lrerror  : proc
+    lrmatwrt : proc
+    numlst   : proc
+    sqrtabs  : proc
+
+lsur.src
+    lsur     : proc
+
+rmatrix.src
+    rmatrix  : proc
+    rmrestc  : proc
+    rmisnum  : proc
+    srmatrix : proc
+    srmseek  : proc
+    srmcolj  : proc
+

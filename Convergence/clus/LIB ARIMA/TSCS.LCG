@@ -1,0 +1,22 @@
+/*
+** tscs.lcg - Time Series/Cross Sectional Analysis Library
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+tscs.dec
+    _ts_ver  : matrix
+    _tsmodel : matrix
+    _tsstnd  : matrix
+    _tsmeth  : matrix
+    _tsise   : matrix
+    _tsmnsfn : string
+    _ts_mn   : string
+
+tscs.src
+    tscs     : proc
+    grpmeans : proc
+    prtp     : proc
+    tscsset  : proc
+    _tsfile  : proc
+

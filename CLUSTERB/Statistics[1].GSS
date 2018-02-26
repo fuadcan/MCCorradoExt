@@ -1,0 +1,92 @@
+@k is 66 for NUTS1@
+
+k=68;
+
+
+/*load c0[k,1] = D:\CLUSTERB\output\c1nmshf.dat;*/
+load c0[k,1] = D:\CLUSTERB\output\c1ag.dat;
+
+format  6,3;
+i = 0;
+
+@Transform c0 in matrix format@
+
+Mhat = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    Mhat[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+/*print Mhat;*/
+
+
+load d[25,69] = D:\CLUSTERB\pcag1.txt;
+d = d[25:25,2:69];
+
+
+e=(Mhat * d')./(sumr(Mhat));
+
+
+print e;
+
+
+print c0;
+
+
+
+f = maxc(c0);
+
+i = 0;
+R = zeros(k,1);
+
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    R[i,1] = e[i,1]*(c0[i] - c0[j] == 0);
+            
+    
+endo; @ i @
+endo; @ j @
+
+
+V = selif(R, R[.,.] .gt 0);
+
+
+
+
+/*f=vech(Mhat * d');
+print rows(V);
+*(c0[i] - c0[i+1] == 0)
+print d;
+V=delif(R, R[.,1] < 1);
+print f;
+print e;*/
+
+
+
+
+
+
+
+
+
+/*print e;
+meangc=meanc(e);
+sdgc=stdc(e);
+mingc=minc(e);
+maxgc=maxc(e);
+*/
+
+

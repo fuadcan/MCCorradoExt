@@ -1,0 +1,185 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR NUTS0 AGRICOLTURAL GVA
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  28 
+# Clusters   :  16 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  3 
+Series in cluster: 
+Yjiangsu YFJ      YHubei   
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  3 
+Series in cluster: 
+YHenan   YSichuan Yshanxi  
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  3 
+Series in cluster: 
+YJX      YGangxi  YNXia    
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+YGuiz    YGansu   
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+Ybeijing Ytianjin 
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  2 
+Series in cluster: 
+YJilin   Yguangdo 
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  2 
+Series in cluster: 
+YQinghai Yxinjian 
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  2 
+Series in cluster: 
+YZJ      Yhunan   
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  2 
+Series in cluster: 
+Yhebei   YSD      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  1 
+Series in cluster: 
+YAH      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  1 
+Series in cluster: 
+Yyuannan 
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  1 
+Series in cluster: 
+Yliaonin 
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  1 
+Series in cluster: 
+Ymongo   
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  1 
+Series in cluster: 
+Yshanxi  
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  1 
+Series in cluster: 
+YHLJ     
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  1 
+Series in cluster: 
+Yshangha 
+ 
+ 
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  28 
+# Clusters   :  10 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  5 
+Series in cluster: 
+Ybeijing Ytianjin Yshanxi  Yliaonin YAH      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  4 
+Series in cluster: 
+Yshangha YGuiz    Yyuannan YGansu   
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  3 
+Series in cluster: 
+YJX      YGangxi  YNXia    
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  3 
+Series in cluster: 
+Ymongo   YQinghai Yxinjian 
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  3 
+Series in cluster: 
+Yjiangsu YFJ      YHubei   
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  3 
+Series in cluster: 
+YHenan   YSichuan Yshanxi  
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  2 
+Series in cluster: 
+YZJ      Yhunan   
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  2 
+Series in cluster: 
+YJilin   Yguangdo 
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  2 
+Series in cluster: 
+Yhebei   YSD      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  1 
+Series in cluster: 
+YHLJ     
+ 
+ 
+END OF OUTPUT
+ 
+ 
+===========================================================================

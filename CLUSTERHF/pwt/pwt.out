@@ -1,0 +1,632 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR DATA FROM PENN WORLD TABLE
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  112 
+# Clusters   :  61 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  4 
+Series in cluster: 
+IND      KEN      NGA      UGA      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  4 
+Series in cluster: 
+BDI      HVO      MLI      MWI      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  3 
+Series in cluster: 
+AGO      GHA      SOM      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  3 
+Series in cluster: 
+CRI      SUR      ZAF      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  3 
+Series in cluster: 
+DOM      JOR      PNG      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  3 
+Series in cluster: 
+FJI      NAM      PER      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  3 
+Series in cluster: 
+GUY      SLV      SYC      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  3 
+Series in cluster: 
+CAF      GNB      NER      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+MUS      PRT      YUG      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+JAM      PAN      TUR      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+LSO      RWA      TGO      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+LUX      SWE      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  2 
+Series in cluster: 
+MDG      ZMB      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+LKA      PHL      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+CPV      GMB      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+ARG      URY      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+BEL      GBR      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+ITA      TTO      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  2 
+Series in cluster: 
+BEN      MOZ      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  2 
+Series in cluster: 
+BGD      MRT      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  2 
+Series in cluster: 
+BOL      PRY      
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  2 
+Series in cluster: 
+BRA      SYR      
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  2 
+Series in cluster: 
+TCD      ZAR      
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  2 
+Series in cluster: 
+CHE      USA      
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  2 
+Series in cluster: 
+NLD      NOR      
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  2 
+Series in cluster: 
+CHL      IRN      
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  2 
+Series in cluster: 
+GRC      MEX      
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  2 
+Series in cluster: 
+CIV      MAR      
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  2 
+Series in cluster: 
+CMR      PAK      
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  2 
+Series in cluster: 
+FIN      ISL      
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  2 
+Series in cluster: 
+ESP      ISR      
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  2 
+Series in cluster: 
+COG      THA      
+ 
+ 
+CLUSTER  33 
+Number of series in cluster :  2 
+Series in cluster: 
+DZA      ECU      
+ 
+ 
+CLUSTER  34 
+Number of series in cluster :  2 
+Series in cluster: 
+SEN      ZWE      
+ 
+ 
+CLUSTER  35 
+Number of series in cluster :  2 
+Series in cluster: 
+DNK      NZL      
+ 
+ 
+CLUSTER  36 
+Number of series in cluster :  2 
+Series in cluster: 
+DEU      FRA      
+ 
+ 
+CLUSTER  37 
+Number of series in cluster :  2 
+Series in cluster: 
+CYP      GAB      
+ 
+ 
+CLUSTER  38 
+Number of series in cluster :  2 
+Series in cluster: 
+COL      SWZ      
+ 
+ 
+CLUSTER  39 
+Number of series in cluster :  1 
+Series in cluster: 
+KOR      
+ 
+ 
+CLUSTER  40 
+Number of series in cluster :  1 
+Series in cluster: 
+SGP      
+ 
+ 
+CLUSTER  41 
+Number of series in cluster :  1 
+Series in cluster: 
+CSK      
+ 
+ 
+CLUSTER  42 
+Number of series in cluster :  1 
+Series in cluster: 
+EGY      
+ 
+ 
+CLUSTER  43 
+Number of series in cluster :  1 
+Series in cluster: 
+PRI      
+ 
+ 
+CLUSTER  44 
+Number of series in cluster :  1 
+Series in cluster: 
+GIN      
+ 
+ 
+CLUSTER  45 
+Number of series in cluster :  1 
+Series in cluster: 
+GTM      
+ 
+ 
+CLUSTER  46 
+Number of series in cluster :  1 
+Series in cluster: 
+HKG      
+ 
+ 
+CLUSTER  47 
+Number of series in cluster :  1 
+Series in cluster: 
+CAN      
+ 
+ 
+CLUSTER  48 
+Number of series in cluster :  1 
+Series in cluster: 
+HND      
+ 
+ 
+CLUSTER  49 
+Number of series in cluster :  1 
+Series in cluster: 
+BWA      
+ 
+ 
+CLUSTER  50 
+Number of series in cluster :  1 
+Series in cluster: 
+BUR      
+ 
+ 
+CLUSTER  51 
+Number of series in cluster :  1 
+Series in cluster: 
+BRB      
+ 
+ 
+CLUSTER  52 
+Number of series in cluster :  1 
+Series in cluster: 
+HTI      
+ 
+ 
+CLUSTER  53 
+Number of series in cluster :  1 
+Series in cluster: 
+IDN      
+ 
+ 
+CLUSTER  54 
+Number of series in cluster :  1 
+Series in cluster: 
+MYS      
+ 
+ 
+CLUSTER  55 
+Number of series in cluster :  1 
+Series in cluster: 
+IRL      
+ 
+ 
+CLUSTER  56 
+Number of series in cluster :  1 
+Series in cluster: 
+MLT      
+ 
+ 
+CLUSTER  57 
+Number of series in cluster :  1 
+Series in cluster: 
+TUN      
+ 
+ 
+CLUSTER  58 
+Number of series in cluster :  1 
+Series in cluster: 
+AUT      
+ 
+ 
+CLUSTER  59 
+Number of series in cluster :  1 
+Series in cluster: 
+AUS      
+ 
+ 
+CLUSTER  60 
+Number of series in cluster :  1 
+Series in cluster: 
+JPN      
+ 
+ 
+CLUSTER  61 
+Number of series in cluster :  1 
+Series in cluster: 
+VEN      
+ 
+ 
+Size Number
+
+ 1        23      
+ 2        27      
+ 3        9       
+ 4        2       
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  112 
+# Clusters   :  37 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  7 
+Series in cluster: 
+BRA      BRB      CSK      EGY      FIN      ISL      SYR      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  7 
+Series in cluster: 
+AUS      BUR      CRI      LUX      SUR      SWE      ZAF      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  6 
+Series in cluster: 
+BDI      GTM      HND      HVO      MLI      MWI      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  5 
+Series in cluster: 
+CAF      GIN      GNB      NER      VEN      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  5 
+Series in cluster: 
+AUT      CAN      DZA      ECU      PRI      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  5 
+Series in cluster: 
+ARG      CHL      HTI      IRN      URY      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  4 
+Series in cluster: 
+IND      KEN      NGA      UGA      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+CMR      COL      PAK      SWZ      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+AGO      GHA      SOM      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+BWA      HKG      MLT      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+JAM      PAN      TUR      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+IDN      JPN      MYS      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+GUY      SLV      SYC      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  3 
+Series in cluster: 
+LSO      RWA      TGO      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  3 
+Series in cluster: 
+FJI      NAM      PER      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  3 
+Series in cluster: 
+ESP      IRL      ISR      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  3 
+Series in cluster: 
+DOM      JOR      PNG      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  3 
+Series in cluster: 
+MUS      PRT      YUG      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  3 
+Series in cluster: 
+COG      THA      TUN      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  2 
+Series in cluster: 
+CYP      GAB      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  2 
+Series in cluster: 
+CPV      GMB      
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  2 
+Series in cluster: 
+TCD      ZAR      
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  2 
+Series in cluster: 
+DNK      NZL      
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  2 
+Series in cluster: 
+CIV      MAR      
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  2 
+Series in cluster: 
+CHE      USA      
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  2 
+Series in cluster: 
+GRC      MEX      
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  2 
+Series in cluster: 
+ITA      TTO      
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  2 
+Series in cluster: 
+KOR      SGP      
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  2 
+Series in cluster: 
+BOL      PRY      
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  2 
+Series in cluster: 
+BGD      MRT      
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  2 
+Series in cluster: 
+BEN      MOZ      
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  2 
+Series in cluster: 
+BEL      GBR      
+ 
+ 
+CLUSTER  33 
+Number of series in cluster :  2 
+Series in cluster: 
+LKA      PHL      
+ 
+ 
+CLUSTER  34 
+Number of series in cluster :  2 
+Series in cluster: 
+MDG      ZMB      
+ 
+ 
+CLUSTER  35 
+Number of series in cluster :  2 
+Series in cluster: 
+NLD      NOR      
+ 
+ 
+CLUSTER  36 
+Number of series in cluster :  2 
+Series in cluster: 
+SEN      ZWE      
+ 
+ 
+CLUSTER  37 
+Number of series in cluster :  2 
+Series in cluster: 
+DEU      FRA      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        18      
+ 3        11      
+ 4        2       
+ 5        3       
+ 6        1       
+ 7        2       
+END OF OUTPUT
+ 
+ 
+===========================================================================

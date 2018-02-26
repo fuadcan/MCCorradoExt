@@ -1,0 +1,528 @@
+/*               TSPLOT.SRC                 RAINER SCHLITTGEN   02.NOV. 1997
+**
+**      Programs for time series analysis
+**      ( allowing for MISSing values )
+**
+**   Procedure                                                          Line
+**   ________________________________________________________________________
+**   TSPLOT      : plot of time serie y                                   17
+**   TSPLOT1     : plot of time serie y                                   25
+**   BCPLOT      : plot for Box-Cox-Transformation                        49
+**   SYMPLOT     : symmetry plot                                          78
+**   ACORPLOT    : plot of acf and pacf                                   99
+**   CCORPLOT    : plot of ccf                                            99
+**   SEASUBPLOT  : plot of seasonal subseries
+**   DENSPLOT    : plot of density estimation of time series values
+**
+**   AUXILIARY FUNCTIONS :                                               180
+**   PDFFK
+**   FK
+**   PLHELP
+**   PLRATIO
+*/
+
+/*
+**   TSPLOT(y,step,start)  Plot of time series y (may be multivariate as (n,k) matrix)
+** Input:  y = (n,p)-matrix; if p>1 then the first column will be used to determine 
+**             the ticmarks of the abscissa           
+**         step = string, the period of the time series 
+**              step = "year" :  start must be of the form yy or yyyy
+**              step = "quart" : start must be of the form qyy  
+**              step = "month" : start must be of the form mmyy  
+**              else:  step is used for label of x-axis
+**         start scalar, see step  
+*/
+
+PROC (0) = tsplot(y,step,start);
+
+  LOCAL x,s1,s2,ind,timlab,n,t,y1;
+  n = ROWS(y);
+  y1 ={};
+  IF COLS(y)>1;
+    y1 = y[.,2:COLS(y)];
+    y =y[.,1];
+  ENDIF;  
+  
+  IF step $== "year";
+    x =  SEQA(start,1,n);
+    IF (x[1] < 100); 
+     x = x - 100*(x.>=100);
+    ENDIF;
+    XTICS(0,n,n/10,n/20);
+    timlab = FTOS(x[1],"%*.*lf",1,0);
+    t = 0;
+    DO WHILE t < 10;
+      t = t+1;
+      ind = t*n/10;
+      timlab = timlab $| FTOS(x[ind],"%*.*lf",1,0);
+    ENDO;
+    ASCLABEL(timlab,0);
+  
+  ELSEIF step $== "quart";
+     s1 = (start-start%100)/100;
+     s1 = TRIMR(RESHAPE(SEQA(1,1,4),n+4-1,1),s1-1,0);
+     s2 = start%100;
+     s2 = VEC(RESHAPE(SEQA(s2,1,(n+4)/4),4,1+n/4));
+     s2 = s2[s1[1]:n+s1[1]-1];
+     s2 = s2 - 100*(s2.>=100);
+     ind = SEQA(0,4*CEIL(n/40),CEIL(n/4));
+     ind = DELIF(ind,ind.>n);          
+     XTICS(1,n,4*CEIL(n/40),4);
+     timlab = FTOS(s1[1],"%*.*lf",1,0)$+"/"$+FTOS(s2[1],"%*.*lf",1,0);
+     t=1;
+     DO WHILE t< ROWS(ind);
+       t = t+1;
+       timlab = timlab|(FTOS(s1[ind[t]],"%*.*lf",1,0)$+"/"$+FTOS(s2[ind[t]],"%*.*lf",1,0));
+     ENDO;      
+     ASCLABEL(timlab,0);
+  
+  ELSEIF step $== "month";
+     s1 = (start-start%100)/100;
+     s1 = TRIMR(RESHAPE(SEQA(1,1,12),n+s1-1,1),s1-1,0);
+     s2 = start%100;
+     s2 = VEC(RESHAPE(SEQA(s2,1,(n+12)/12),12,1+n/12));
+     s2 =s2[s1[1]:n+s1[1]-1];
+     s2 = s2 - 100*(s2.>=100);      
+     ind = SEQA(1,12*CEIL(n/120),CEIL(n/12)); 
+     ind = DELIF(ind,ind.>n);    
+     XTICS(0,n,12*CEIL(n/120),0);        
+     timlab = FTOS(s1[1],"%*.*lf",1,0)$+"/"$+FTOS(s2[1],"%*.*lf",1,0);
+     t=1;
+     DO WHILE t< ROWS(ind);
+       t = t+1;
+       timlab = timlab|(FTOS(s1[ind[t]],"%*.*lf",1,0)$+"/"$+FTOS(s2[ind[t]],"%*.*lf",1,0));
+     ENDO;  
+   ASCLABEL(timlab,0); 
+  
+  ELSE;  
+ 
+     XLABEL(step);
+    
+  ENDIF; 
+  
+  _pdate="";  
+  XY(0,y~y1);
+  
+ENDP;
+
+
+/*   tsplot1(x,c)
+**   Plot of a time serie with optimization of viewratio
+**   x = time series
+**   c = 1 for computing the viewratio
+*/
+
+PROC 0 = tsplot1(x);
+ LOCAL a;
+    a = plratio(x);
+    IF a <= 1; _plotsiz = 8|(a*8); else; _plotsiz = (a*8)|8; ENDIF;
+    title("Plot of Time Series\Lviewangel" $+ FTOS(a,"%*.*lf",6,2));
+     XY(0,x);
+    GRAPHSET;
+ENDP;
+
+
+/*
+**  bcplot(y)  Box - Cox transformation plot for time series y
+*/
+
+ PROC 0 = bcplot(y);
+
+   LOCAL m,mm,n,par,s,tit,yy ;
+    yy = y;
+    n = ROWS(yy);
+    IF MINC(yy) <= 0;
+      yy = yy - MINC(yy) + 1;
+    ENDIF;
+    yy = yy|MISS(ONES(10,1),1);
+    yy = RESHAPE(yy,10,TRUNC(n/10 +1))';
+    m = LN(tsmean(yy))~(0.5*LN(tsvar(yy)));
+    m = SORTC(m,1);
+    s = m[.,2];
+    m = m[.,1];
+    mm = m^(0~1);
+    par = OLSQR(s,mm);
+    GRAPHSET;
+    _pdate="";
+    _plctrl = -1|0;
+    _pcolor = 0|0;
+    _pltype=6;
+    _plwidth=4;
+    _pmcolor=ZEROS(8,1)|15;
+    _ptitlht=.2;
+    _pnumht=.2;
+    _paxht=.2;
+/*
+    tit = "Box-Cox-Diagramm\LSlope of regression line:" $+ FTOS(par[2],"%*.*lf",6,2);
+*/
+    tit = "Slope of regression line:" $+ FTOS(par[2],"%*.*lf",6,2);
+    TITLE(tit);
+    XLABEL("ln(mean(y]i[))");
+    YLABEL("ln(std(y]i[))");
+    XY(m,s~(mm*par));
+    GRAPHSET;
+ ENDP;
+
+
+/*
+**  symplot(y)  symmetry plot of time series y
+*/
+
+PROC 0 = symplot(y);
+
+ LOCAL n,yy ;
+  yy = PACKR(y);
+  n = ROWS(yy);
+  yy = sortc(yy,1);
+  yy = yy-MEDIAN(yy);
+  GRAPHSET;
+  _plctrl = -1;
+  XY(-yy[1:n/2],yy[n:(n/2+1+n%2)]);
+  GRAPHSET;
+ENDP;
+
+
+/*
+**> acorplot
+**
+**  Purpose: plot of autocorrelation function and partial autocorelation function
+**  Format:  acorplot(x,mlag,ki);
+**  Input:   x (n,1) vector, thetime series
+**           mlag : scalar, the maximum lag
+**    ki = 0  : no limits
+**         1  : with limits ( 2*stdev of acf /pacf )
+**
+*/
+  PROC 0 = acorplot(x,mlag,ki);
+
+    LOCAL acki,bartlett,n,pac,packi,sq1,sq2,tit,y1,y2 ;
+
+      n = ROWS(x);
+      y1 = acore(x,mlag);
+      sq1 = SEQA(1,1,mlag-1);
+      y2 = ldrec(y1);
+      y2 = 1|y2[.,mlag+2];
+      sq2 = SEQA(0,1,mlag+1);
+
+      IF ki == 1;
+        bartlett = 2*SQRT((cumSUMC(1|(2*(y1[2:mlag]^2))))/n);
+        bartlett = bartlett[1]|bartlett;
+        acki = ONES(2*(mlag-1),9);
+        acki[.,2] = acki[.,2]*6;
+        acki[1:mlag-1,3] = sq1;
+        acki[mlag:2*(mlag-1),3] = sq1;
+        acki[1:mlag-1,4] = bartlett[1:(mlag-1)];
+        acki[mlag:2*(mlag-1),4] = -bartlett[1:(mlag-1)];
+        acki[1:mlag-1,5] = 1+sq1;
+        acki[mlag:2*(mlag-1),5] = 1+sq1;
+        acki[1:mlag-1,6] = bartlett[2:mlag];
+        acki[mlag:2*(mlag-1),6] = -bartlett[2:mlag];
+        acki[.,7]=acki[.,7]*0;
+        acki[mlag,7] = 1;
+        acki[.,8]=acki[.,8]*0;
+        acki[.,9]=acki[.,9]*3;         
+             
+        bartlett = 2*SQRT(1/n);
+        packi = ONES(2,9);
+        packi[.,2] = packi[.,2]*6;
+        packi[1,3] = 1;
+        packi[2,3] = 1;
+        packi[1,4] = bartlett;
+        packi[2,4] = -bartlett;
+        packi[1,5] = mlag;
+        packi[2,5] = mlag;
+        packi[1,6] = bartlett;
+        packi[2,6] = -bartlett;
+        packi[.,8]=packi[.,8]*0;
+        packi[.,9]=packi[.,9]*3;
+      ENDIF;
+ 
+   GRAPHSET;
+    _pbartyp = 6~4;
+    _pdate = "";
+    _pmcolor=ZEROS(8,1)|15;
+    ytics(-1,1,0.1,1);
+    xlabel("Lag");
+      _ptitlht = 0.25;
+      _paxht = 0.2;
+      _pnumht = 0.2;
+       begwind;
+       window(2,1,0);
+      ylabel("Autocorrelation");
+        IF ki == 1;
+       _pline = acki;
+         tit = "ACF (with Bartlett's bounds)";
+         ELSE;
+       tit = "ACF";
+       ENDIF; 
+      TITLE(tit);  
+      BAR(0|sq1|mlag,y1);
+      NEXTWIND;
+      YLABEL("Partial Autocorrelation");
+      IF ki == 1;
+        _pline = packi;
+        tit = "PACF (with Confidence bounds)";
+        ELSE;
+        tit = "PACF";
+      ENDIF;
+      TITLE(tit);
+      BAR(sq2,y2);
+      ENDWIND;
+  GRAPHSET;
+  ENDP;
+
+/*
+**   acorteplot(a,b,x,mlag);
+**   plot of theoretical autocorrelation function and partial autocorrelation
+**   function
+**   (optional: one time series for comparing)
+*/
+ 
+PROC 0 = acorteplot(a,b,x,mlag);
+
+  LOCAL y2,y1,ld,i,mlg,k,n,sq2,sq1,t2,t1;
+
+     t1 = acovth(a,b,1,mlag);
+     t1 = t1[1:mlag+1]/t1[1];
+     ld = ldrec(t1);
+     t2 = 1|ld[.,mlag+2];
+
+     sq1 = SEQA(1,1,mlag-1);
+     sq2 = SEQA(0,1,mlag+1);
+
+     y1={}; y2={};
+
+     if x/=0;
+        n = ROWS(x);  k = COLS(x);
+
+        mlg = minc(mlag|(n-1));
+
+        y1 = ZEROS(mlg+1,k);
+        y2 = y1;
+
+        i=0;
+        DO WHILE i<k;
+          i=i+1;
+          y1[.,i] = acore(PACKR(x[.,i]),mlg);
+               ld = ldrec(y1[.,i]);
+          y2[.,i] = 1|ld[.,mlg+2];
+        ENDO;
+
+        if mlg < mlag;
+           y1=y1|ZEROS(mlag-mlg,k);
+           y2=y2|ZEROS(mlag-mlg,k);
+        ENDIF;
+
+     ENDIF;
+
+     graphset;
+      _pbartyp = {6 4,6 2,6 8,6 3};
+      _pdate = "";
+      ytics(-1,1,0.1,1);
+      xlabel("Lag");
+      _ptitlht = 0.22;
+      _paxht = 0.2;
+      _pbarwid = -.55;
+
+      begwind;
+
+        window(2,1,0);
+
+        ylabel("Autocorrelation");
+        title("ACF");
+        bar(0|sq1|mlag,t1~y1);
+
+      nextwind;
+
+        ylabel("Partial Autocorrelation");
+        title("PACF");
+        bar(sq2,t2~y2);
+
+      endwind;
+    graphset;
+ENDP;
+ 
+
+/* 
+**> SEASUBPLOT
+**
+**   Purpose : shows  plot of  seasonal subseries.
+**   Format  : seasubplot(x,d)
+**   Input   :  x = (n,1) vector, the time series or smooth + seasonal component
+**              d = integer, seasonal period
+*/
+
+PROC(0) = seasubplot(x,d);
+
+  LOCAL seas,k,n,rest,dum,seasub,seassubl,seassub,midmean,mv,lines,sq;
+  seas = x;
+  n = ROWS(x);
+  k = CEIL(n/d);
+  rest = n%d;
+  dum = (d-rest)*(rest>0);
+  IF rest > 0;
+    seas = seas|MISS(ZEROS(dum,1),0);
+  ENDIF;
+  seasub = RESHAPE(seas,k,d);
+  midmean = tsmean(seasub);
+  seasub = seasub-midmean';
+  seasub = VEC(MISSRV(seasub,0));
+
+  lines = ZEROS(d+n+dum,4);
+  lines[1:d,1] = SEQA(1,k,d)/k+.5;
+  lines[1:d,2] = midmean;
+  lines[1:d,3] = SEQA(k,k,d)/k+.5;
+  lines[1:d,4] = midmean;
+  midmean = VEC(RESHAPE(midmean,k,d));
+  lines[d+1:d+n+dum,1] = SEQA(1,1,n+dum)/k+.5;
+  lines[d+1:d+n+dum,2] = midmean;
+  lines[d+1:d+n+dum,3] = SEQA(1,1,n+dum)/k+.5;
+  lines[d+1:d+n+dum,4] = midmean+seasub; 
+ /* GRAPHSET; */
+   _pmcolor=ZEROS(8,1)|15; 
+  _pline = ONES(d+n+dum,9);
+  _pline[.,2] = _pline[.,2]*6;
+  _pline[.,3:6] = lines;
+  _pline[.,8] = _pline[.,8]*0;
+  _pline[.,9] = _pline[.,9]*4;
+  _pypmax = 2;
+
+  XLABEL("PERIOD");
+  YLABEL("SAISON");
+  SCALE(0|(d+0.5),MINC(seas)|MAXC(seas));
+  xtics(0,d+1,1,0); 
+  DRAW;
+  GRAPHSET;
+ENDP;
+
+  
+  
+  /*
+    seasplus = seas|MISS(ZEROS(dum,1),0);
+    seassubl = RESHAPE(seasplus,(n+dum)/d,d);
+    seassub = MISSRV(seassubl,0);
+    mv = VEC(seassubl)+(VEC(seassubl).==0);
+    mv = mv./mv;
+  ELSE;
+    seassubl = RESHAPE(seas,n/d,d);
+    seassub = seassubl;
+    mv = ONES(n,1);
+  ENDIF;
+  midmean =  tsmean(seassub);
+  if rest > 0;
+    midmean[rest+1:d]=midmean[rest+1:d]*(n+d-rest)/d/((n+d-rest)/d-1);
+  ENDIF;
+  */
+
+
+
+
+
+
+/*
+** plotten der nichtparametrischen Dichteschätzung der zeitreihenwerte
+*/
+
+PROC 0 = densplot(x);
+
+  LOCAL n,xval,yval;
+
+  n = ROWS(x);
+  graphset;
+   _pdate = "";
+   _pbartyp = 6~3;
+  xval = SEQA(minc(x),(MAXC(x)-minc(x))/100,100);
+  yval = PDFFK(xval,x);
+  title("density-estimate of time series observations ");
+    ylabel("f(x)");
+    xy(xval,yval);
+  graphset;
+ENDP;
+
+
+/*:::::::::::::::: Some auxiliary functions :::::::::::::::::::::::::*/
+
+/*
+** 1 = PDFFK(x,y);
+**   Nonparametric Density estimate using
+**   Fourier coefficient method.
+*/
+
+PROC 1 = PDFFK(x,y);
+  LOCAL n,r,res,mat,rbk,cbk,a,b,k,xtrans,ytrans,m,i,abk,cutoff,nfail;
+  LOCAL bwm,t;
+
+  a = 0.01+minc(y); b = 1/0.99*(MAXC(y)-a);
+  n = ROWS(y);
+  t = 2;
+
+@ Implementiere 'single-term stopping rule' @
+
+  m = 20;
+  start:
+  ytrans = (y-a)/b;
+  xtrans = (x-a)/b;
+  {rbk,cbk} = fk(ytrans,m);
+  abk = SQRT(rbk^2+cbk^2);
+  cutoff = SQRT(2/(1+n));
+  nfail = 0;
+  i = 1; DO WHILE i <= m;
+           if abk[i] > cutoff;
+             k = i;
+             nfail = 0;
+           else;
+             nfail = nfail+1;
+             if nfail>=t; break; ENDIF;
+           ENDIF;
+           i = i+1;
+         ENDO;
+  if nfail < t; m = 2*m; GOTO start; ENDIF;
+
+@ Berechne Watson multipliers @
+
+  bwm = n/(n-1-1/(abk[2:k]^2));
+  bwm = bwm.*(abk[2:k].>cutoff);
+
+@ Berechne Funktionswerte @
+
+  r = SEQA(1,1,k-1);
+  mat = r.*ONES(k-1,ROWS(xtrans)).*xtrans';
+  res = (1+2*SUMC(bwm.*(rbk[2:k].*COS(2*PI*mat) - cbk[2:k].*SIN(2*PI*mat))))/b;
+  RETP(res);
+ENDP;
+
+/*
+** Estimates of first k Fourier coefficients of data
+*/
+
+
+PROC 2 = FK(x,k);
+  LOCAL r,n,M,cbk,rbk;
+  r = SEQA(0,1,k);
+  n = ROWS(x);
+  M = r'.*ONES(n,k).*x;
+  cbk = -SUMC(SIN(2*PI*M))/n;
+  rbk = SUMC(COS(2*PI*M))/n;
+  RETP(rbk,cbk);
+ENDP;
+
+
+ _transit={};
+
+PROC 1 = PLHELP(a);
+ LOCAL n,s,v,y;
+  y=_transit;
+  n=ROWS(y);
+  v = (y[2:n]-y[1:n-1])/(MAXC(y)-minc(y));
+  s = SQRT((n^-2) + (a*v)^2);
+  s = ((abs(arctan(a*n*v))'*s)/SUMC(s)-pi/4)^2;
+ RETP(s);
+ENDP;
+
+ PROC 1 = PLRATIO(x);
+   LOCAL a,f,g,r;
+   _transit=x;
+   { f,a } = NELMEAD(&plhelp,1);
+   RETP(a);
+ENDP;
+

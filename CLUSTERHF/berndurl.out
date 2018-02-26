@@ -1,0 +1,140 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR BERNARD AND DURLAUF DATA
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  4.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  15 
+# Clusters   :  10 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  2 
+Series in cluster: 
+AUS      UK       
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  2 
+Series in cluster: 
+FIN      GER      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  2 
+Series in cluster: 
+DNK      NLD      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+AUT      ITA      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+FRA      NOR      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  1 
+Series in cluster: 
+SWE      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  1 
+Series in cluster: 
+CAN      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  1 
+Series in cluster: 
+BEL      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  1 
+Series in cluster: 
+JAP      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  1 
+Series in cluster: 
+USA      
+ 
+ 
+Size Number
+
+ 1        5       
+ 2        5       
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  15 
+# Clusters   :  7 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  3 
+Series in cluster: 
+AUT      CAN      ITA      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  2 
+Series in cluster: 
+AUS      UK       
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  2 
+Series in cluster: 
+FRA      NOR      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  2 
+Series in cluster: 
+FIN      GER      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  2 
+Series in cluster: 
+DNK      NLD      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  2 
+Series in cluster: 
+BEL      USA      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  2 
+Series in cluster: 
+JAP      SWE      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        6       
+ 3        1       
+END OF OUTPUT
+ 
+ 
+===========================================================================

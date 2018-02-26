@@ -1,0 +1,7 @@
+/* 
+**  missar.dec - global declaration file for missls 
+*/
+
+DECLARE matrix  _tol_    != 0.001;
+DECLARE matrix  _theo_   != 0;
+DECLARE matrix  _iterout_!= 0;

@@ -1,0 +1,151 @@
+/*         AUXIL.SRC            RAINER SCHLITTGEN  & THOMAS NOACK; 5.1.1998
+**
+**
+**  auxilary Programs for time series analysis
+**
+**   Procedure                                                          Line
+**   ________________________________________________________________________
+**   DIFF       : transformation by differencing                          25
+**   NELMEAD    : finding the minimum of a function
+**   SIGN       : sign of a number
+**   TAKE       : auxiliary function for selecting a submatrix            21
+**   TSMAT
+**
+**   The following PROCedures are psi-functions for (robust) M-estimation of uni-
+**   variate location parameters. See H.Spaeth: Math.Softw. zur lin.Reg., p.198
+**   PSIHAMP, PSIHUB, PSIBIW, PSITGH, PSIFAIR, SIGN
+**   MAD computes robust scale estimator MAD for univariate samples
+**
+*/
+
+/*
+**   {yd} = diff(y,d)
+**          input : y = (n,k) matrix, k time series of length n to be differenced
+**                  d = vector containing the lags for differencing;
+**                      for repeaded differencing use the same lag
+**                      more often ( d={1,1} for simple diff. twice )
+**          output : yd =(n,m) matrix, differenced series
+*/
+
+PROC 1 = diff(y,d);
+
+ LOCAL i,p,y1;
+  d = VECR(d);  
+  p = ROWS(d);
+  y1 = y;
+  IF d==0; GOTO fin; ENDIF;
+  i = 0;
+  DO WHILE i < p;
+    i = i+1;
+  IF d[i] > ROWS(y1)-1; 
+    PRINT "to much differencing for this series"  ; 
+    STOP; 
+  ENDIF;
+  y1 = TRIMR(y1,d[i],0)-TRIMR(y1,0,d[i]); 
+  ENDO;
+  fin:
+RETP(y1);
+ENDP;
+
+
+
+/*
+**   nelmead :
+**     This procedure finds the minimum of a function by direct search using
+**     Nelder and Mead's method (somtimes called simplex method). See
+**     B.D.Bunday and G.R.Garside: Optimisation methods in Pascal, London
+**     1987 for reference
+*/
+
+PROC (2)=nelmead(&fkt,x);
+  LOCAL alpha,beta,epsilon,gam,f,fc,fe,fo,fr,fs,i,m, p,s,sig,xc,xe,xo,xr;
+  LOCAL fkt:PROC;
+  alpha=1; beta=0.5; epsilon=1E-10; gam=2;
+  p = ROWS(x);
+  s = x~(ONES(1,p).*.x + 0.1*eye(p));    @ Step A: Intialisation of simplex @
+  f = ZEROS(p+1,1);                      @  and computing function values @
+  i=1;
+   DO WHILE i<=p+1;
+      f[i]=fkt(s[.,i]);
+      i=i+1;
+   ENDO;
+
+  repeat:                                         @ repeat until convergence   @
+  fs=f~(s');  fs=SORTC(fs,1);                     @ Step B: Ordering           @
+  f=fs[.,1];
+  s=TRIMR(fs',1,0);
+  xo=MEANC(s[.,1:p]');  fo=fkt(xo);               @ Step C: Compute Centroid   @
+  xr=xo + alpha*(xo-s[.,p+1]) ; fr=fkt(xr);       @ Step D: Reflection         @
+  IF fr < f[1];                                   @ Step E: Comparison of fo   @
+          xe=xo+gam*(xr-xo); fe=fkt(xe);            @ with min-f and substitu- @
+          IF fe < f[1];  s[.,p+1]=xe;  f[p+1]=fe;   @ tion of edge with max-f  @
+             ELSE;       s[.,p+1]=xr;  f[p+1]=fr;   @ if improvement occurs    @
+          ENDIF;
+     GOTO convtest;
+  ENDIF;
+  IF fr >= f[1] and fr < f[p];
+          s[.,p+1]=xr;  f[p+1]=fr;
+     GOTO convtest;
+  ENDIF;
+  IF fr < f[p+1];                                 @ Step F: Contraction        @
+          s[.,p+1]=xr;  f[p+1]=fr;
+  ENDIF;
+  xc=xo + beta*(s[.,p+1]-xo); fc=fkt(xc);
+  IF fc < f[p+1];                                 @ Step G: Comparison         @
+        s[.,p+1]=xc;  f[p+1]=fc;
+     GOTO convtest;
+  ENDIF;
+  s=0.5*(s+s[.,ONES(1,p+1)]);                     @ Step H: Reducing the size  @
+  i=2;                                              @ of the simplex           @
+   DO WHILE i<=p+1;
+      f[i]=fkt(s[.,i]);
+      i=i+1;
+   ENDO;
+
+  convtest:                                       @ Step I: Test of convergence@
+    IF STDC(f) > epsilon;  GOTO repeat; ENDIF;
+RETP(f[1],s[.,1]);
+ENDP;
+
+
+
+PROC (1) = sign(u);
+  RETP((u.>0)-(u.<0));
+ENDP;
+
+
+/*
+**  {y1}=take(y,q) selecting the first or last ROWS of a matrix
+**
+**      Input : y = n*k matrix
+**              q = number of ROWS to be taken out of y
+**      Output : y1 = q*k matrix
+**                    q > 0 the first q ROWS are taken
+**                    q==0 an empy vector is returned
+**                    q< 0 the last q ROWS are taken
+**
+*/
+
+
+PROC (1) = take(y,q);
+  LOCAL y1;  
+  IF ABS(q) >=ROWS(y); y1=y;
+  ELSEIF q > 0 ; y1 = y[1:q,.];
+  ELSEIF q == 0 ; y1={};
+  ELSEIF q < 0 ; y1 = REV(y); y1 = REV(y1[1:-q,.]);
+  ENDIF;
+ RETP(y1);
+ENDP;
+
+
+
+
+PROC 1 = tsmat(x,p);
+  RETP(REV(TRIMR(RESHAPE(x,p,ROWS(x)+1)',0,p)')');
+ENDP;
+
+
+
+
+
+

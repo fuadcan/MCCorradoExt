@@ -1,0 +1,82 @@
+print  "Correlation between Asymptotic and Bootsrapped Cluster Outcome for NUTS GVA TOT ";
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+@k is 66 for NUTS1@
+
+k=67;
+
+
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+
+
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1nuts2hf.dat ;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+M1H = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    M1H[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+
+
+load c1[k,1] =f:\dae\lc242\clusterb\output\c1nuts2.dat ; 
+
+i=0;
+M1B = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    M1B[i,j] = (c1[i] - c1[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+gtot = ((sumc(vech(M1B  .*  M1H))-k) / ((sumc(vech(M1B))- k)^0.5*(sumc(vech(M1H) )- k)^0.5))^0.5;
+
+
+
+
+
+@----------------------------------------------------------------------------------------------------------------------------@
+format  1,3;
+
+print " gtotnuts2" gtot; 
+
+format  1,4;
+
+
+@----------------------------------------------------------------------------------------------------------------------------@
+
+
+output on;
+output file=f:\dae\lc242\clusterb\output\resultcorre\NUTS2GVATOT.dat reset;
+print  "CORRELATION ASY and BOOT RES for NUTS2-GVATOT  ";
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+output off;

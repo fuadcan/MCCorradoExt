@@ -1,0 +1,192 @@
+/*
+**  tsagauss - library
+** 
+*/
+
+armaest.src
+         armallik    : proc 
+         armaest     : proc 
+         gesamt      : proc 
+                  
+     
+armaest.dec
+         _e_         : matrix          
+         _p_         : matrix 
+         _ps_        : matrix 
+         _pindex_    : matrix
+         _pnumb_     : matrix
+         _psindex_   : matrix 
+         _psnumb_    : matrix 
+         _arnumb_    : matrix 
+         _q_         : matrix 
+         _qs_        : matrix 
+         _qindex_    : matrix
+         _qnumb_     : matrix 
+         _qsindex_   : matrix 
+         _qsnumb_    : matrix
+         _manumb_    : matrix  
+         _s2_        : matrix 
+         _s_         : matrix 
+         _y_         : matrix  
+                      
+                      
+arimafit.src
+    acovth           : proc
+    arest            : proc
+    arfit            : proc
+    armadhr          : proc
+    armamlcv         : proc
+    armaresid        : proc 
+    arsubfit         : proc
+    bpltest          : proc
+    innovrec         : proc
+    ldrec            : proc
+    macoeff          : proc
+    rootcheck        : proc
+    modr             : proc
+    permut           : proc
+    partar           : proc 
+
+auxilary.src
+    diff             : proc
+    nelmead          : proc
+    sign             : proc
+    take             : proc
+    tsmat            : proc
+
+bivariat.src
+    bispeces         : proc
+    ccore            : proc
+    ccorplot         : proc
+    ccove            : proc
+
+linfilt.src
+    bandfilt         : proc
+    linfilt          : proc
+    taper            : proc
+
+missfill.src
+    missar           : proc 
+    pestep           : proc
+    missls           : proc
+    interpol         : proc
+
+missfill.dec
+    _tol_            : matrix
+    _theo_           : matrix
+    _iterout_        : matrix 
+
+outidentify.src
+    aroutss          : proc
+    outidentify      : proc
+
+outidentify.dec
+    _p_              : matrix 
+    _ind_            : matrix 
+    _z_              : matrix 
+    _type_           : matrix  
+
+predict.src
+  trendextrapol      : proc
+  arimapred          : proc
+    
+regar.dec
+    _iterout_        : matrix   
+    
+regar.src
+    regar            : proc       
+
+regarma.src
+    armadiff         : proc 
+    regarma          : proc  
+    w_schritt        : proc
+
+
+regarma.dec
+    _iterout_        : matrix
+
+spectrum.src
+    acf2per          : proc
+    fourier          : proc
+    fourinv          : proc
+    lagwinpa         : proc
+    lagwinba         : proc
+    lagwintu         : proc
+    perwinpa         : proc
+    perwinba         : proc
+    perwintu         : proc
+    perwintp         : proc
+    per2acf          : proc
+    periodo1         : proc
+    periodo2         : proc
+    periodo3         : proc
+    periodo4         : proc
+    specarma         : proc
+    specestar        : proc
+    specestd         : proc
+    specesti         : proc
+    wntest          : proc
+
+tsdecomp.src
+    exposmooth       : proc
+    exposmooth1      : proc
+    holtwint         : proc
+    runmean          : proc
+    runmed           : proc
+    smoothls         : proc
+    splinedecomp     : proc
+
+tsmoment.src
+    acove            : proc
+    acore            : proc
+    iacf             : proc
+    tsmean           : proc
+    tsmedian         : proc
+    tsvar            : proc
+    vardiff          : proc
+    veccor           : proc
+    veccore          : proc
+    parcorr          : proc 
+    parburg          : proc 
+    variogram        : proc 
+
+
+tsplot.src
+    acorplot         : proc
+    acorteplot       : proc
+    bcplot           : proc
+    seasubplot       : proc
+    symplot          : proc
+    tsplot           : proc
+    tsplot1          : proc
+    pdffk            : proc
+    fk               : proc
+    plhelp           : proc
+    plratio          : proc
+
+
+tsrobust.src
+    acorrb           : proc  
+    acovrb           : proc
+    arestrb          : proc
+    mad              : proc
+    periodorb        : proc 
+    psibiw           : proc
+    psihamp          : proc
+    psihub           : proc
+    psifair          : proc
+    psithg           : proc
+    smoothrb         : proc
+    tsloess          : proc
+    tsmeanrb         : proc
+    tsregrbm         : proc 
+
+tsrobust.dec
+    _cormat          : matrix
+
+
+tssim.src
+    randar           : proc
+    randarma         : proc
+
+

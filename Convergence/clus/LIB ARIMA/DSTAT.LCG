@@ -1,0 +1,65 @@
+/*
+** dstat.lcg - Descriptive Statistics Library
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+dstat.dec
+    _ds_ver  : matrix
+    _dstat   : matrix
+    _dspause : matrix
+    _dscase  : matrix
+    _dsrow   : matrix
+    _dscol   : matrix
+    _dsrowp  : matrix
+    _dscolp  : matrix
+    _dstotp  : matrix
+    _ds_tp   : matrix
+    _dsnomis : matrix
+    _dsfrtp  : matrix
+    _dsfreq  : matrix
+    _dsgrpnm : matrix
+    _dscut   : matrix
+    _dscor   : matrix
+    _dsvc    : matrix
+    _dsmmt   : matrix
+    _dst     : matrix
+
+crosstab.src
+    crosstab : proc
+    _ctprt   : proc
+    _cttable : proc
+    _ctinit  : proc
+    _ctmkcat : proc
+    sbscatch : proc
+
+destat.src
+    corr     : proc
+    means    : proc
+
+dstatset.src
+    dstatset : proc
+
+freq.src
+    freq     : proc
+    _frinit  : proc
+    _frmkcat : proc
+    _frtable : proc
+    countch  : proc
+    cntchwt  : proc
+
+freqstat.src
+    freqstat : proc
+
+getfreq.src
+    getfreq  : proc
+
+matwrt.src
+    matwrt   : proc
+
+tblstat.src
+    tblstat  : proc
+
+ttest.src
+    ttest    : proc
+

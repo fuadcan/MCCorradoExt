@@ -1,0 +1,70 @@
+
+@k is 66 for NUTS1@
+
+k=67;
+
+
+load c0[k,1] = f:\dae\lc242\clusterb\output\c1manhf.dat;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+Mhat = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    Mhat[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+load d[25,69] = pcMAN1.txt;
+cntrs = d[1,2:69]';
+d = d[25:25,2:69];
+/*d = ln(d);*/
+
+
+
+@Create null of country membership@
+
+  @Select element of strings which define country membership@
+
+load cntrs[k,1] = f:\dae\lc242\clusterb\output\data\cntrs1.dat;  
+/*print $cntrs;*/
+y=0;
+do while ( y < k );
+    y = y+1;
+cntrs[y]=strsect(cntrs[y],1,2);
+endo;
+@output file = c:\gauss32\cluster\MatrixM.dat;          @
+i = 0;
+    @Transform cntrs in matrix format@
+
+Mcountry = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mcountry[i,j] = (cntrs[i] - cntrs[j] == 0);
+
+@ print i~j;   @         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mcountry with Mhat*/
+
+gc = ((sumc(vech(Mcountry  .*  Mhat))-k) / ((sumc(vech(Mcountry))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+

@@ -1,0 +1,78 @@
+
+/*  LINFILT.SRC                 RAINER SCHLITTGEN  29.03.1998
+**
+**  BANDFILT
+**  LINFILT
+**  TAPER      : tapering of y with a cosine taper or                    89
+**
+*/
+
+/*  
+**> BANDFILT
+**
+**  Purpose : bandpass filtering of a time series
+**
+**  Format:  yf = bandfilt(y,q,l0,lc)
+**  Input :   y = (n,1) vector, the time series
+**            q = scalar, gives half of length of symmetric weights
+**            l0 = scalar, half the desired broadnes of the filter (in frequency terms)
+**            lc = scalar, the frequency at which the filter is centered
+**  Output :  yf = (n,1) vector, the filtered time series
+**                 q values at the beginning and at the end are set to missing
+**                 
+**                     
+*/
+PROC 1 = bandfilt(y,q,l0,lc);
+ LOCAL f,s;
+ s = SEQA(1,1,q);
+ f = SIN(2*PI*l0*s)./(PI*s);
+ f = f.* SIN(2*PI*s/(2*q+1))./(2*PI*s/(2*q+1));
+ f = REV(f)|(2*l0)|f;
+ f = f.*COS(2*PI*lc*SEQA(-q,1,2*q+1));
+ RETP(MISS(ZEROS(q,1),0)|conv(y,f,q+1,ROWS(y)-q)|MISS(ZEROS(q,1),0));
+ENDP;
+
+
+/*  
+**> LINFILT
+**
+**  Purpose :  filtering of a time series
+**
+**  Format: yf = linfilt(y,f,s)
+**  Input :   y = (n,1) vector, the time series
+**            f = (m,1) vector, the filter weights
+**            s = scalar, index of first filter weight
+**  Output :  yf = (nf,1) vector, the filtered time series
+**                 -  not output values are set to missing
+**                 -  nf > n if s>0 ! (because there is a time
+**                    shift into the future)
+*/
+
+PROC 1 = LINFILT(y,f,s);
+  LOCAL l,n,nf,yf;
+  n = ROWS(y);
+  l = ROWS(f);
+  yf = tsmat(y,l)*f;
+  IF s < 0;  yf = yf|MISS(ONES(-s,1),1); ENDIF;
+  nf = ROWS(yf);
+  IF s < 0 AND nf > n; yf = take(yf,-n); ENDIF;
+  IF s < 0 AND nf < n; yf = MISS(ONES(n-nf,1),1)|yf; ENDIF;
+  IF s == 0 AND nf < n; yf = MISS(ONES(n-nf,1),1)|yf; ENDIF;
+  IF s > 0 AND nf < n; yf = MISS(ONES(l+s-1,1),1)|yf; ENDIF;
+  RETP(yf);
+ENDP;
+
+/*
+**    z = TAPER(y,part) : tapermodification  using a cosin-taper
+*/
+
+
+PROC 1 =  TAPER(y,part);
+    LOCAL n,tap;
+    IF part <= 0 OR part >= 0.5; PRINT "part must be 0<part<0.5"; STOP; ENDIF;
+    IF ROWS(y)==1; y=y'; ENDIF;
+    n = ROWS(y);
+    tap =  0.5*(1-COS(SEQA(1,1,part*n)*PI/(part*n)));
+    tap = tap|ONES(n-2*ROWS(tap),1)|REV(tap);
+RETP(tsmean(y)+(y-tsmean(y)).*tap);
+ENDP;

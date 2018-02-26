@@ -1,0 +1,342 @@
+print  "Test of Hypotheses for PER  convergence NUTS1 MAN ";
+
+print "----------------------------------------------------------------------------------------------------------------------------";
+
+@k is 66 for NUTS1@
+
+k=67;
+
+
+load c0[k,1] = c:\gauss32\out\prova\pcms71.dat;
+
+format  6,0;
+i = 0;
+
+@Transform c0 in matrix format@
+
+Mhat = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+    
+    Mhat[i,j] = (c0[i] - c0[j] == 0);
+
+            
+    endo; @ j @
+endo; @ i @
+
+
+
+
+
+@Create null of country membership@
+
+  @Select element of strings which define country membership@
+
+load cntrs[k,1] = c:\gauss32\out\data\cntrs1.dat;  
+/*print $cntrs;*/
+y=0;
+do while ( y < k );
+    y = y+1;
+cntrs[y]=strsect(cntrs[y],1,2);
+endo;
+@output file = c:\gauss32\cluster\MatrixM.dat;          @
+i = 0;
+    @Transform cntrs in matrix format@
+
+Mcountry = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mcountry[i,j] = (cntrs[i] - cntrs[j] == 0);
+
+@ print i~j;   @         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mcountry with Mhat*/
+
+gc = ((sumc(vech(Mcountry  .*  Mhat))-k) / ((sumc(vech(Mcountry))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of periphery-central@
+
+
+load peri[k,1] = c:\gauss32\out\data\n2peri.dat; 
+
+i=0;
+Mperi = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mperi[i,j] = (peri[i] - peri[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mperi with Mhat*/
+
+gpe = ((sumc(vech(Mperi  .*  Mhat))-k) / ((sumc(vech(Mperi))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of settlement@
+
+
+load set[k,1] = c:\gauss32\out\data\n2set.dat; 
+
+i=0;
+Mset = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mset[i,j] = (set[i] - set[j] == 0);
+      
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mset with Mhat*/
+
+gs= ((sumc(vech(Mset  .*  Mhat))-k) / ((sumc(vech(Mset))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of localisation@
+
+
+load loc[k,1] = c:\gauss32\out\data\n2loc.dat; 
+
+i=0;
+Mloc = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mloc[i,j] = (loc[i] - loc[j] == 0);
+     
+    endo; @ j @
+endo; @ i @
+
+
+/* Now compare Mloc with Mhat*/
+
+gl = ((sumc(vech(Mloc  .*  Mhat))-k) / ((sumc(vech(Mloc))- k)^0.5*(sumc(vech(Mhat))- k)^0.5))^0.5;
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of transp@
+
+
+load trans[k,1] = c:\gauss32\out\data\n2tran.dat; 
+
+i=0;
+Mtrans= zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mtrans[i,j] = (trans[i] - trans[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mtrans with Mhat*/
+
+gtr = ((sumc(vech(Mtrans  .*  Mhat))-k) / ((sumc(vech(Mtrans))- k)^0.5 * (sumc(vech(Mhat))- k)^0.5))^0.5;
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of Agricultural Intensification@
+
+
+load agint[k,1] = c:\gauss32\out\data\n2agint.dat; 
+
+i=0;
+Magint= zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Magint[i,j] = (agint[i] - agint[j] == 0);
+         
+    endo; @ j @
+endo; @ i @
+
+
+
+/* Now compare Mint with Mhat*/
+
+gai= ((sumc(vech(Magint  .*  Mhat))-k) / ((sumc(vech(Magint))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of endanger@
+
+
+load endang[k,1] = c:\gauss32\out\data\n2endang.dat; 
+
+i=0;
+Menda = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Menda[i,j] = (endang[i] - endang[j] == 0);
+     
+    endo; @ j @
+endo; @ i @
+
+
+/* Now compare Mloc with Mhat*/
+
+gen= ((sumc(vech(Menda  .*  Mhat))-k) / ((sumc(vech(Menda))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+@---------------------------------------------------------------------------------------------------------@
+
+@---------------------------------------------------------------------------------------------------------@
+
+@Create null of localisation@
+
+
+load popch[k,1] = c:\gauss32\out\data\n2popch.dat; 
+
+i=0;
+Mpop = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mpop[i,j] = (popch[i] - popch[j] == 0);
+     
+    endo; @ j @
+endo; @ i @
+
+
+/* Now compare Mloc with Mhat*/
+
+gpo= ((sumc(vech(Mpop  .*  Mhat))-k) / ((sumc(vech(Mpop))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+@---------------------------------------------------------------------------------------------------------@
+@Create null of localisation@
+
+
+load fund[k,1] = c:\gauss32\out\data\n2eufund.dat; 
+
+i=0;
+Mfund = zeros(k,k);
+do while ( i < k );
+    i = i+1;
+
+    j = 0;
+    do while ( j < k );
+        j = j+1;
+      
+    Mfund[i,j] = (fund[i] - fund[j] == 0);
+     
+    endo; @ j @
+endo; @ i @
+
+
+/* Now compare Mloc with Mhat*/
+
+gf= ((sumc(vech(Mfund  .*  Mhat))-k) / ((sumc(vech(Mfund))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+
+
+
+
+
+/* Test for joint Hypotheses  Agricolture*/
+
+g1 = ((sumc(vech(Mcountry .* Mpop .* Mhat))-k) / ((sumc(vech(Mcountry .* Mpop))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+g2 = ((sumc(vech(Mcountry .* Mperi .* Mhat))-k) / ((sumc(vech(Mcountry .* Mperi ))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+g3 = ((sumc(vech(Mcountry .* Mperi   .* Mhat))-k) / ((sumc(vech(Mcountry .* Mperi  .* Mloc))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+g4a = ((sumc(vech(Mcountry .* Mloc   .* Magint .* Mhat))-k) / ((sumc(vech(Mcountry  .* Mloc .* Magint))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+g5a = ((sumc(vech(Mcountry .* Mloc   .* Mfund  .* Mhat))-k) / ((sumc(vech(Mcountry   .* Mloc .* Mfund))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+g3m = ((sumc(vech(Mcountry .* Mloc   .* Mtrans .* Mhat))-k) / ((sumc(vech(Mcountry .* Mloc   .* Mtrans))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+g4m = ((sumc(vech(Mcountry .* Mloc   .* Mperi .* Mhat))-k) / ((sumc(vech(Mcountry .* Mloc   .* Mperi))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+g5m = ((sumc(vech(Mcountry .* Mloc   .* Mfund .* Mhat))-k) / ((sumc(vech(Mcountry .* Mloc   .* Mfund))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+
+
+g4s = ((sumc(vech(Mcountry .* Mloc .* Mpop .* Mhat))-k) / ((sumc(vech(Mcountry   .* Mloc .* Mpop))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+g5s = ((sumc(vech(Mcountry .* Mloc .* Mfund .* Mhat))-k) / ((sumc(vech(Mcountry  .* Mloc .* Mfund ))- k)^0.5*(sumc(vech(Mhat) )- k)^0.5))^0.5;
+
+@----------------------------------------------------------------------------------------------------------------------------@
+format  1,3;
+
+print "  gc  gpo gpe gs gl gt gai gf  " gc~gpo~gpe~gs~gl~gtr~gai~gf; 
+
+format  1,4;
+
+
+@----------------------------------------------------------------------------------------------------------------------------@
+
+print "  g4 g5  "     g4s~g5s;
+
+/*a=(Mcountry .* Mloc   .* Mperi .* Mhat);
+
+output on;
+output file=c:\gauss32\out\test.dat reset;
+print a;
+output off;*/

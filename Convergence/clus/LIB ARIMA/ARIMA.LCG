@@ -1,0 +1,45 @@
+/*
+** arima.lcg - ARIMA Models Library
+** (C) Copyright 1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+arima.dec
+    _am_ver  : matrix
+    _am_y    : matrix
+    _am_n    : matrix
+    _am_p    : matrix
+    _am_d    : matrix
+    _am_q    : matrix
+    _amconst : matrix
+    _am_m    : matrix
+    _am_k    : matrix
+    _am_b    : matrix
+    _aminter : matrix
+    _am_varn : matrix
+    _am_e    : matrix
+    _am_opts : matrix
+    _am_itol : matrix
+
+forecast.dec
+    _amcritl : matrix
+    _amfprnt : matrix
+
+arima.src
+    arima    : proc
+    lfunc    : proc
+    startv   : proc
+    arimaset : proc
+    acf      : proc
+    pacf     : proc
+
+forecast.src
+    forecast : proc
+    critz    : proc
+
+simarma.src
+    simarma  : proc
+
+tautocov.src
+    tautocov : proc
+

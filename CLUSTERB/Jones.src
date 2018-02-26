@@ -1,0 +1,78 @@
+a={0.5,-0.3,0.4,-0.5};
+b={1.5,-0.8};
+
+_p_=4; _aindex_=seqa(1,1,4); 
+_q_=2; _bindex_=seqa(1,1,2); 
+_s2_=0; 
+  
+/*
+  y = randarma(a,b,1,30);
+*/
+
+
+PROC ARMALLIK(par);
+
+LOCAL a,b,n,m,g,F,H,c,z,e,v,P,gamm,zwi,t,yt,ll,s,D ;
+  
+
+  a = ZEROS(MAXC(_p_|_q_),1); 
+  b = a;
+ IF NOT _p_==0;   
+  a[_aindex_] = par[1:_p_];  
+ ENDIF;
+ IF NOT _q_==0; 
+   b[_bindex_] = par[_p_+1:ROWS(par)];
+ ENDIF;
+
+ n = ROWS(y);
+ m = MAXC(_p_|(_q_+1));                  @  2.3    @ 
+  
+ g = (1|-b)/LOWMAT(TOEPLITZ(1|-a));      @  2.13   @ 
+ F = (ZEROS(m-1,1)~EYE(m-1))|REV(a)';    @  2.15   @ 
+ H = 1~ZEROS(1,m-1); 
+ 
+ c = acovth(a,b,1,m);
+ 
+/*  - - - Initialisierung - - -*/
+ 
+ z = ZEROS(m,1);
+ e = MISS(ONES(n,1),1);
+ v = MISS(ONES(n,1),1);
+ 
+ P = SHIFTR(RESHAPE(c[1:m],m,m),SEQA(0,1,m),0);       @   4.12   @                                              
+ gamm = RESHAPE(g[1:m-1],m-1,m-1);                    
+ zwi =  LOWMAT(gamm)*SHIFTR(gamm,-SEQA(0,1,m-1),0);
+ P[1:m-1,1:m-1] = P[1:m-1,1:m-1] - zwi - zwi[m-1:1,m-1:1] + DIAG(zwi);
+
+ /*  --  Iteration  --  */
+
+ t = 0;
+ DO WHILE t < n;
+   t = t+1;
+   z = F*z;                                @  3.1  @ 
+   P = F*P*F' + g[1:m]*g[1:m]';            @  3.2  @
+   yt = z[1];                              @  3.3  @
+   
+   IF NOT SCALMISS(y[t]);
+    v[t] = P[1,1]+R;                        @  3.10 @ 
+    D = P[.,1]/V[t];                        @  3.5  @
+    z = z + D*(y[t]-yt);                    @  3.4  @
+    P = P-D*H*P;                            @  3.7  @
+   ENDIF;
+   
+   e[t] = y[t]-yt;                         @  3.8  @  
+ ENDO;
+   v = PACKR(v);
+   e = PACKR(e);
+  
+ ll = SUMC(LN(v)) + n*LN(SUMC(e^2./v));   @ 3.15  @
+ 
+ _s2_ = MEANC(e^2/v);                         @ 3.14  @
+ 
+ 
+  RETP(ll);  
+ENDP;
+
+ARMALLIK(a|b);
+ 
+ 

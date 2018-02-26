@@ -1,0 +1,413 @@
+Clustering... Asymptotically relative convergence
+Clustering... Asymptotically perfect convergence
+ 34      
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  H-F ms1
+---------------------------------------------------------------------------
+Stopcriterion =  0.0500  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  40 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  4 
+Series in cluster: 
+DE3      IT8      ITA      ITB      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  4 
+Series in cluster: 
+DE5      FR5      FR7      IT4      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  4 
+Series in cluster: 
+AT2      BE3      ES7      IT9      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  4 
+Series in cluster: 
+AT3      DK       ES2      FR2      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  3 
+Series in cluster: 
+AT1      DE2      FR3      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      DEC      NO       
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  3 
+Series in cluster: 
+BE1      FI       LU       
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  3 
+Series in cluster: 
+UKD      UKF      UKK      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  2 
+Series in cluster: 
+DE1      FR8      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  2 
+Series in cluster: 
+UKE      UKG      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  2 
+Series in cluster: 
+BE2      IT5      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+ES3      IT1      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  2 
+Series in cluster: 
+IT6      NL2      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+IT2      NL4      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+ES5      IT7      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+FR4      IT3      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  1 
+Series in cluster: 
+GR3      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  1 
+Series in cluster: 
+GR2      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  1 
+Series in cluster: 
+GR1      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  1 
+Series in cluster: 
+UKM      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  1 
+Series in cluster: 
+GR4      
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  1 
+Series in cluster: 
+FR1      
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  1 
+Series in cluster: 
+ES6      
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  1 
+Series in cluster: 
+IE       
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  1 
+Series in cluster: 
+ES4      
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  1 
+Series in cluster: 
+NL1      
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  1 
+Series in cluster: 
+ES1      
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  1 
+Series in cluster: 
+DEB      
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  1 
+Series in cluster: 
+DEA      
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  1 
+Series in cluster: 
+NL3      
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  1 
+Series in cluster: 
+DE7      
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  1 
+Series in cluster: 
+DE6      
+ 
+ 
+CLUSTER  33 
+Number of series in cluster :  1 
+Series in cluster: 
+PT1      
+ 
+ 
+CLUSTER  34 
+Number of series in cluster :  1 
+Series in cluster: 
+SE       
+ 
+ 
+CLUSTER  35 
+Number of series in cluster :  1 
+Series in cluster: 
+UKC      
+ 
+ 
+CLUSTER  36 
+Number of series in cluster :  1 
+Series in cluster: 
+UKH      
+ 
+ 
+CLUSTER  37 
+Number of series in cluster :  1 
+Series in cluster: 
+UKI      
+ 
+ 
+CLUSTER  38 
+Number of series in cluster :  1 
+Series in cluster: 
+UKJ      
+ 
+ 
+CLUSTER  39 
+Number of series in cluster :  1 
+Series in cluster: 
+UKL      
+ 
+ 
+CLUSTER  40 
+Number of series in cluster :  1 
+Series in cluster: 
+FR6      
+ 
+ 
+Size Number
+
+ 1        24      
+ 2        8       
+ 3        4       
+ 4        4       
+end OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  21 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  7 
+Series in cluster: 
+BE2      DE3      ES6      IT5      IT8      ITA      ITB      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  5 
+Series in cluster: 
+AT2      BE3      ES7      IT9      UKL      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  5 
+Series in cluster: 
+DEA      FR4      IT3      PT1      SE       
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  5 
+Series in cluster: 
+BE1      DEB      FI       GR1      LU       
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  4 
+Series in cluster: 
+ES1      ES3      ES4      IT1      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  4 
+Series in cluster: 
+AT3      DK       ES2      FR2      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  4 
+Series in cluster: 
+DE5      FR5      FR7      IT4      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+FR6      UKE      UKG      UKM      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  4 
+Series in cluster: 
+DE7      GR2      IE       UKI      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+DE6      UKC      UKH      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+AT1      DE2      FR3      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+UKD      UKF      UKK      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      DEC      NO       
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+FR1      UKJ      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+ES5      IT7      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+DE1      FR8      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+GR3      NL1      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+IT6      NL2      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  2 
+Series in cluster: 
+IT2      NL4      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  1 
+Series in cluster: 
+GR4      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  1 
+Series in cluster: 
+NL3      
+ 
+ 
+Size Number
+
+ 1        2       
+ 2        6       
+ 3        4       
+ 4        5       
+ 5        3       
+ 6        0       
+ 7        1       
+end OF OUTPUT
+ 
+ 
+===========================================================================

@@ -1,0 +1,357 @@
+                                                                         
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  nms1
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  32 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  5 
+Series in cluster: 
+IT4      IT5      IT7      IT8      IT9      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  4 
+Series in cluster: 
+BE1      ES6      UKE      UKG      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  4 
+Series in cluster: 
+DE3      DE6      DEA      IT3      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  3 
+Series in cluster: 
+AT1      DE7      DEC      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  3 
+Series in cluster: 
+DE2      DE5      FR1      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  3 
+Series in cluster: 
+AT3      ITA      ITB      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  3 
+Series in cluster: 
+DK       FR3      UKJ      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  3 
+Series in cluster: 
+AT2      IT1      IT2      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+ES1      UKC      UKD      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  2 
+Series in cluster: 
+GR2      GR4      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  2 
+Series in cluster: 
+ES7      UKI      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+FR5      FR7      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  2 
+Series in cluster: 
+BE2      UKK      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+FR2      FR6      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+FI       IE       
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+SE       UKM      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+ES5      UKF      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+ES4      UKH      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  2 
+Series in cluster: 
+BE3      NO       
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  2 
+Series in cluster: 
+ES2      UKL      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  2 
+Series in cluster: 
+DE1      FR8      
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  2 
+Series in cluster: 
+NL1      NL4      
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  2 
+Series in cluster: 
+DE9      DEB      
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  1 
+Series in cluster: 
+LU       
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  1 
+Series in cluster: 
+IT6      
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  1 
+Series in cluster: 
+GR1      
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  1 
+Series in cluster: 
+ES3      
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  1 
+Series in cluster: 
+FR4      
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  1 
+Series in cluster: 
+NL2      
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  1 
+Series in cluster: 
+NL3      
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  1 
+Series in cluster: 
+PT1      
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  1 
+Series in cluster: 
+GR3      
+ 
+ 
+Size Number
+
+ 1        9       
+ 2        14      
+ 3        6       
+ 4        2       
+ 5        1       
+end OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  20 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  8 
+Series in cluster: 
+DE1      ES5      FR8      GR1      IT6      LU       NL3      UKF      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  7 
+Series in cluster: 
+AT3      ES3      ES4      ITA      ITB      NL2      UKH      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  6 
+Series in cluster: 
+BE3      ES7      NL1      NL4      NO       UKI      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  5 
+Series in cluster: 
+IT4      IT5      IT7      IT8      IT9      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  4 
+Series in cluster: 
+DE3      DE6      DEA      IT3      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  4 
+Series in cluster: 
+BE1      ES6      UKE      UKG      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  3 
+Series in cluster: 
+AT1      DE7      DEC      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  3 
+Series in cluster: 
+GR2      GR4      PT1      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+DE2      DE5      FR1      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+ES1      UKC      UKD      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+DK       FR3      UKJ      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      DEB      FR4      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+AT2      IT1      IT2      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+ES2      UKL      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+FR5      FR7      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  2 
+Series in cluster: 
+BE2      UKK      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  2 
+Series in cluster: 
+FR2      FR6      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  2 
+Series in cluster: 
+SE       UKM      
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  2 
+Series in cluster: 
+FI       IE       
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  1 
+Series in cluster: 
+GR3      
+ 
+ 
+Size Number
+
+ 1        1       
+ 2        6       
+ 3        7       
+ 4        2       
+ 5        1       
+ 6        1       
+ 7        1       
+ 8        1       
+end OF OUTPUT
+ 

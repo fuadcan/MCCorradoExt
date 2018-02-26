@@ -1,0 +1,99 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  AG Bootstrapped
+---------------------------------------------------------------------------
+
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  12 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  10 
+Series in cluster: 
+AT1      AT2      AT3      BE2      FR1      NL1      NL3      NL4      UKC      UKI      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  9 
+Series in cluster: 
+DE5      FR3      GR3      IE       IT2      IT4      UKD      UKE      UKF      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  8 
+Series in cluster: 
+DE6      DEA      FR6      FR7      IT3      IT6      LU       UKH      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  8 
+Series in cluster: 
+BE3      DE3      DK       FI       FR2      FR4      NL2      UKL      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  8 
+Series in cluster: 
+DE1      DE7      DEB      ES2      IT1      IT5      ITA      ITB      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  7 
+Series in cluster: 
+BE1      DE2      ES5      ES6      ES7      IT7      IT9      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  5 
+Series in cluster: 
+ES3      SE       UKJ      UKK      UKM      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+DEC      ES1      FR5      PT1      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+GR1      GR4      IT8      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  2 
+Series in cluster: 
+NO       UKG      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  2 
+Series in cluster: 
+ES4      GR2      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+DE9      FR8      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        3       
+ 3        1       
+ 4        1       
+ 5        1       
+ 6        0       
+ 7        1       
+ 8        3       
+ 9        1       
+ 10       1       
+end OF OUTPUT
+ 
+ 
+===========================================================================

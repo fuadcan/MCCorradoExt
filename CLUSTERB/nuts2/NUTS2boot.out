@@ -1,0 +1,671 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR NUTS2
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  253 
+# Clusters   :  54 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  9 
+Series in cluster: 
+DED      DED1     DED2     DED3     DEE      DEE1     DEE2     DEE3     
+DEG      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  8 
+Series in cluster: 
+DK02     DEA3     DEB2     FR21     FR23     FR4      FR82     SE09     
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  8 
+Series in cluster: 
+GR24     ES51     UKD4     UKE      UKE1     UKE2     UKI2     UKM3     
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  8 
+Series in cluster: 
+GR13     ES11     ES42     ITF3     ITF4     ITF5     ITG1     UKK3     
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  8 
+Series in cluster: 
+DE26     DE73     DEC      FR42     FR71     NL1      NL3      AT2      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  8 
+Series in cluster: 
+BE31     FR25     FR52     FR63     FR72     ITC      NL22     FI19     
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  7 
+Series in cluster: 
+ES24     UKC      UKC2     UKF3     UKH3     UKJ4     UKK2     
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  7 
+Series in cluster: 
+DE12     DE25     DEA2     NL11     AT33     AT34     SE01     
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  7 
+Series in cluster: 
+BE21     DK03     DE13     DE27     DE92     DEA4     NL32     
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  7 
+Series in cluster: 
+ES22     ES3      ITE2     UKF2     UKG3     UKJ3     UKL2     
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  6 
+Series in cluster: 
+BE22     ITD2     NL12     NL2      NL42     UKJ1     
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  6 
+Series in cluster: 
+ES5      ITF1     UKC1     UKE3     UKG2     UKL      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  6 
+Series in cluster: 
+GR11     GR14     GR22     GR25     GR41     NL23     
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  6 
+Series in cluster: 
+GR3      GR42     ES1      ES62     ITF      ITG      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  6 
+Series in cluster: 
+ES21     ES53     UKD1     UKH      UKH1     UKM      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  6 
+Series in cluster: 
+BE3      ES64     ITD4     ITE      NL21     UKD2     
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  6 
+Series in cluster: 
+ITD3     ITE1     ITE4     AT11     FI13     UKH2     
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  6 
+Series in cluster: 
+BE34     BE35     ITC3     ITE3     UKJ2     UKM2     
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  5 
+Series in cluster: 
+ES52     ITG2     PT17     UKD5     UKN      
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  5 
+Series in cluster: 
+GR21     GR23     ES43     PT1      PT15     
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  5 
+Series in cluster: 
+DE72     DE94     AT12     SE04     UKI      
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  5 
+Series in cluster: 
+GR12     GR2      GR43     ES6      ITF6     
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  5 
+Series in cluster: 
+FR24     FR26     ITC2     ITD1     SE02     
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  5 
+Series in cluster: 
+DE22     DE23     DEF      AT22     FI18     
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  5 
+Series in cluster: 
+BE33     FR81     FR83     ITC1     FI1A     
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  5 
+Series in cluster: 
+DEB1     FR7      NL33     SE08     SE0A     
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  5 
+Series in cluster: 
+DE24     DE91     DEA5     DEB      AT21     
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  5 
+Series in cluster: 
+DE93     FR22     FR41     FR62     NL13     
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  5 
+Series in cluster: 
+BE24     FR43     FR6      FR8      ITC4     
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  4 
+Series in cluster: 
+BE32     UKD      UKE4     UKF      
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  4 
+Series in cluster: 
+ES12     ES41     ES7      UKL1     
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  4 
+Series in cluster: 
+ES13     IE01     ITF2     UKM4     
+ 
+ 
+CLUSTER  33 
+Number of series in cluster :  4 
+Series in cluster: 
+BE23     FR5      ITD5     NL41     
+ 
+ 
+CLUSTER  34 
+Number of series in cluster :  4 
+Series in cluster: 
+GR1      GR4      ES61     ES63     
+ 
+ 
+CLUSTER  35 
+Number of series in cluster :  4 
+Series in cluster: 
+BE25     FR51     NL4      UKM1     
+ 
+ 
+CLUSTER  36 
+Number of series in cluster :  4 
+Series in cluster: 
+ES2      ES23     UKD3     UKF1     
+ 
+ 
+CLUSTER  37 
+Number of series in cluster :  4 
+Series in cluster: 
+DE14     DEA      DEB3     AT31     
+ 
+ 
+CLUSTER  38 
+Number of series in cluster :  4 
+Series in cluster: 
+BE2      NL34     FI1      SE06     
+ 
+ 
+CLUSTER  39 
+Number of series in cluster :  4 
+Series in cluster: 
+DE1      DE7      AT3      FI2      
+ 
+ 
+CLUSTER  40 
+Number of series in cluster :  3 
+Series in cluster: 
+DE11     DE71     AT32     
+ 
+ 
+CLUSTER  41 
+Number of series in cluster :  3 
+Series in cluster: 
+PT11     PT16     PT18     
+ 
+ 
+CLUSTER  42 
+Number of series in cluster :  3 
+Series in cluster: 
+DK01     DE5      FR1      
+ 
+ 
+CLUSTER  43 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      NL31     SE07     
+ 
+ 
+CLUSTER  44 
+Number of series in cluster :  3 
+Series in cluster: 
+IE02     UKG      UKK      
+ 
+ 
+CLUSTER  45 
+Number of series in cluster :  3 
+Series in cluster: 
+FR3      FR53     ITD      
+ 
+ 
+CLUSTER  46 
+Number of series in cluster :  2 
+Series in cluster: 
+UKJ      UKK1     
+ 
+ 
+CLUSTER  47 
+Number of series in cluster :  2 
+Series in cluster: 
+UKG1     UKK4     
+ 
+ 
+CLUSTER  48 
+Number of series in cluster :  2 
+Series in cluster: 
+FR2      FR61     
+ 
+ 
+CLUSTER  49 
+Number of series in cluster :  2 
+Series in cluster: 
+DE21     UKI1     
+ 
+ 
+CLUSTER  50 
+Number of series in cluster :  2 
+Series in cluster: 
+DE6      AT13     
+ 
+ 
+CLUSTER  51 
+Number of series in cluster :  2 
+Series in cluster: 
+DEA1     AT1      
+ 
+ 
+CLUSTER  52 
+Number of series in cluster :  1 
+Series in cluster: 
+BE1      
+ 
+ 
+CLUSTER  53 
+Number of series in cluster :  1 
+Series in cluster: 
+ES4      
+ 
+ 
+CLUSTER  54 
+Number of series in cluster :  1 
+Series in cluster: 
+DE2      
+ 
+ 
+Size Number
+
+ 1        3       
+ 2        6       
+ 3        6       
+ 4        10      
+ 5        11      
+ 6        8       
+ 7        4       
+ 8        5       
+ 9        1       
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  253 
+# Clusters   :  49 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  9 
+Series in cluster: 
+DED      DED1     DED2     DED3     DEE      DEE1     DEE2     DEE3     
+DEG      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  8 
+Series in cluster: 
+DE26     DE73     DEC      FR42     FR71     NL1      NL3      AT2      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  8 
+Series in cluster: 
+GR13     ES11     ES42     ITF3     ITF4     ITF5     ITG1     UKK3     
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  8 
+Series in cluster: 
+BE31     FR25     FR52     FR63     FR72     ITC      NL22     FI19     
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  8 
+Series in cluster: 
+DK02     DEA3     DEB2     FR21     FR23     FR4      FR82     SE09     
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  8 
+Series in cluster: 
+GR24     ES51     UKD4     UKE      UKE1     UKE2     UKI2     UKM3     
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  7 
+Series in cluster: 
+DE93     FR2      FR22     FR41     FR61     FR62     NL13     
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  7 
+Series in cluster: 
+DE12     DE25     DEA2     NL11     AT33     AT34     SE01     
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  7 
+Series in cluster: 
+BE21     DK03     DE13     DE27     DE92     DEA4     NL32     
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  7 
+Series in cluster: 
+ES24     UKC      UKC2     UKF3     UKH3     UKJ4     UKK2     
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  7 
+Series in cluster: 
+ES22     ES3      ITE2     UKF2     UKG3     UKJ3     UKL2     
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  7 
+Series in cluster: 
+DE2      ES21     ES53     UKD1     UKH      UKH1     UKM      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  6 
+Series in cluster: 
+GR11     GR14     GR22     GR25     GR41     NL23     
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  6 
+Series in cluster: 
+BE22     ITD2     NL12     NL2      NL42     UKJ1     
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  6 
+Series in cluster: 
+BE3      ES64     ITD4     ITE      NL21     UKD2     
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  6 
+Series in cluster: 
+GR3      GR42     ES1      ES62     ITF      ITG      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  6 
+Series in cluster: 
+ITD3     ITE1     ITE4     AT11     FI13     UKH2     
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  6 
+Series in cluster: 
+BE34     BE35     ITC3     ITE3     UKJ2     UKM2     
+ 
+ 
+CLUSTER  19 
+Number of series in cluster :  6 
+Series in cluster: 
+BE1      DK01     DE5      DE6      FR1      AT13     
+ 
+ 
+CLUSTER  20 
+Number of series in cluster :  6 
+Series in cluster: 
+ES5      ITF1     UKC1     UKE3     UKG2     UKL      
+ 
+ 
+CLUSTER  21 
+Number of series in cluster :  5 
+Series in cluster: 
+FR24     FR26     ITC2     ITD1     SE02     
+ 
+ 
+CLUSTER  22 
+Number of series in cluster :  5 
+Series in cluster: 
+GR12     GR2      GR43     ES6      ITF6     
+ 
+ 
+CLUSTER  23 
+Number of series in cluster :  5 
+Series in cluster: 
+DEB1     FR7      NL33     SE08     SE0A     
+ 
+ 
+CLUSTER  24 
+Number of series in cluster :  5 
+Series in cluster: 
+BE24     FR43     FR6      FR8      ITC4     
+ 
+ 
+CLUSTER  25 
+Number of series in cluster :  5 
+Series in cluster: 
+BE33     FR81     FR83     ITC1     FI1A     
+ 
+ 
+CLUSTER  26 
+Number of series in cluster :  5 
+Series in cluster: 
+GR21     GR23     ES43     PT1      PT15     
+ 
+ 
+CLUSTER  27 
+Number of series in cluster :  5 
+Series in cluster: 
+DE72     DE94     AT12     SE04     UKI      
+ 
+ 
+CLUSTER  28 
+Number of series in cluster :  5 
+Series in cluster: 
+ES52     ITG2     PT17     UKD5     UKN      
+ 
+ 
+CLUSTER  29 
+Number of series in cluster :  5 
+Series in cluster: 
+DE24     DE91     DEA5     DEB      AT21     
+ 
+ 
+CLUSTER  30 
+Number of series in cluster :  5 
+Series in cluster: 
+DE22     DE23     DEF      AT22     FI18     
+ 
+ 
+CLUSTER  31 
+Number of series in cluster :  4 
+Series in cluster: 
+GR1      GR4      ES61     ES63     
+ 
+ 
+CLUSTER  32 
+Number of series in cluster :  4 
+Series in cluster: 
+ES13     IE01     ITF2     UKM4     
+ 
+ 
+CLUSTER  33 
+Number of series in cluster :  4 
+Series in cluster: 
+DE14     DEA      DEB3     AT31     
+ 
+ 
+CLUSTER  34 
+Number of series in cluster :  4 
+Series in cluster: 
+BE23     FR5      ITD5     NL41     
+ 
+ 
+CLUSTER  35 
+Number of series in cluster :  4 
+Series in cluster: 
+BE2      NL34     FI1      SE06     
+ 
+ 
+CLUSTER  36 
+Number of series in cluster :  4 
+Series in cluster: 
+DE1      DE7      AT3      FI2      
+ 
+ 
+CLUSTER  37 
+Number of series in cluster :  4 
+Series in cluster: 
+BE25     FR51     NL4      UKM1     
+ 
+ 
+CLUSTER  38 
+Number of series in cluster :  4 
+Series in cluster: 
+ES12     ES41     ES7      UKL1     
+ 
+ 
+CLUSTER  39 
+Number of series in cluster :  4 
+Series in cluster: 
+ES2      ES23     UKD3     UKF1     
+ 
+ 
+CLUSTER  40 
+Number of series in cluster :  4 
+Series in cluster: 
+BE32     UKD      UKE4     UKF      
+ 
+ 
+CLUSTER  41 
+Number of series in cluster :  3 
+Series in cluster: 
+PT11     PT16     PT18     
+ 
+ 
+CLUSTER  42 
+Number of series in cluster :  3 
+Series in cluster: 
+DE9      NL31     SE07     
+ 
+ 
+CLUSTER  43 
+Number of series in cluster :  3 
+Series in cluster: 
+IE02     UKG      UKK      
+ 
+ 
+CLUSTER  44 
+Number of series in cluster :  3 
+Series in cluster: 
+DE11     DE71     AT32     
+ 
+ 
+CLUSTER  45 
+Number of series in cluster :  3 
+Series in cluster: 
+FR3      FR53     ITD      
+ 
+ 
+CLUSTER  46 
+Number of series in cluster :  3 
+Series in cluster: 
+ES4      UKJ      UKK1     
+ 
+ 
+CLUSTER  47 
+Number of series in cluster :  2 
+Series in cluster: 
+DE21     UKI1     
+ 
+ 
+CLUSTER  48 
+Number of series in cluster :  2 
+Series in cluster: 
+DEA1     AT1      
+ 
+ 
+CLUSTER  49 
+Number of series in cluster :  2 
+Series in cluster: 
+UKG1     UKK4     
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        3       
+ 3        6       
+ 4        10      
+ 5        10      
+ 6        8       
+ 7        6       
+ 8        5       
+ 9        1       
+END OF OUTPUT
+ 
+ 
+===========================================================================

@@ -1,0 +1,84 @@
+/*
+** Program PWT:
+**
+** Purpose:
+** Uses 1960-1989 RGDP per capita data for 112 countries from PWT and applies
+** clusteralgorithm from
+** 'Asymptotically Perfect and Relative Convergence of Productivity'
+**                      Bart Hobijn and Philip Hans Franses
+** to it.
+**
+** Notes:
+** 1. This program creates an ASCII file called PWT.OUT that contains the result
+**    of the cluster procedure.
+** 2. This program has been test in GAUSS 3.2.1 for DOS. If you have any
+**    problems running it, please send an email to Bart Hobijn at
+**    hobijnb@fasecon.econ.nyu.edu
+** 3. You can adjust the bandwidth and critical p-value parameters to your own
+**    liking.
+*/
+
+
+@  Loading ascii dataset @
+
+load d[25,69] = pcnms1.txt;
+year=d[1:25,1];
+dtr=d[1:25,2:69];
+dtr=dtr';
+
+
+dsort=sorthcc(dtr,1);
+d=dsort';
+
+cntrs = d[1,1:68]';
+dd = d[2:25,1:68];
+rows(dd)~cols(dd);
+i=0;
+
+e = dd[2+i:18+i,1:68];
+e = ln(e);
+ 
+
+
+stopval = 0.01;                 @ Critical p-value for cluster-algorithm @
+bandwidt =2;                   @ bandwidth for Newey-west estimator @
+
+
+@ Clusterprocedure @
+@ C0 : Asymptotically perfectly converging clubs @
+@ C1 : Asymptotically relatively converging clubs @
+
+{ c0 , c1 } = cluster( e , bandwidt , stopval );
+
+@ Generating output file @
+
+
+/*output file=c:\gauss32\out\prova\pcnms11.out reset;*/
+"===========================================================================";
+"OUTPUT CLUSTER ALGORITHM FOR NUTS0  AGRICULTURE";
+"---------------------------------------------------------------------------";
+format /ld 8,4;
+"Stopcriterion = " stopval ;
+"Bandwidth for Bartlett Window = " bandwidt ;
+" ";
+" ";
+"ASYMPTOTICALLY PERFECT CONVERGENCE";
+clusout( c0 , cntrs )
+" ";
+" ";
+"ASYMPTOTICALLY RELATIVE CONVERGENCE";
+clusout(c1 , cntrs );
+" ";
+"===========================================================================";
+
+output off;
+
+/*
+output on;
+
+output file=c:\gauss32\out\prova\pcag71.dat reset;
+print c1;
+output off;
+
+output file=c:\gauss32\out\prova\pcag10.dat reset;
+*/

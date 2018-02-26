@@ -1,0 +1,128 @@
+/*  MISSKQ
+**
+**  Purpose : Minimum Mean Square Error Interpolator to fill MISSings
+**            using LS approach
+**
+**  Format  :  y = MISSkq(x,tol,theo,p)
+**
+**  Input   :  x = (n,1)-vector, time seires with MISSings
+**             tol = scalar, tolerance
+**             theo = (k,1)-vector, prespecified  iacore   or
+**                  = 0
+**             p = scalar, 0, oder prespecified order of AR modell
+**
+**  Output  :  y = (n,1) vector, completed time series
+**
+**
+*/
+
+PROC MISSkq(x,tol,theo,p);
+
+ LOCAL n,mu,xcent,y,g,ycov,gcov,xcov,xcor,mat,Q,
+       i,a,rho,abbruch,z,res,aneu,acov,mean,aic,bic,wieder;
+
+ n=ROWS(x);   mu=MEANC(PACKR(x));  xcent=x-mu;
+
+ if theo==0;
+
+   if p==0; p=trunc(n/10);  @ Anpassung eines AR[p]-Modells @ ENDIF;
+
+   y=MISSRV(xcent,0);  g=abs(y).>0;  @ Sch„tzung der ACF @
+
+   ycov = REV(conv(y,rev(y),n-p,n));
+   gcov = REV(conv(g,rev(g),n-p,n));
+
+   xcov = ycov./gcov;
+   xcor = xcov[2:p+1]/xcov[1];
+
+   mat=ZEROS(p,p);
+   mat[1,1]=xcor[1];
+   Q=1-xcor[1]^2;
+
+   i=1;                        @ Compute Levinson-Durbin recursion @
+   DO WHILE i < p;
+      mat[i+1,i+1] = (xcor[i+1] - mat[i,1:i]*rev(xcor[1:i]))/Q;
+      mat[i+1,1:i] = mat[i,1:i] - mat[i+1,i+1]*(rev(mat[i,1:i]'))';
+      Q            = Q*(1-mat[i+1,i+1]^2);
+      i=i+1;
+   ENDO;
+   a = mat[p,1:p]';            @ AR-Koeffizienten @
+
+   rho=acovth(a,0,1,p);        @ iacore @
+   rho=rho[2:p+1]/rho[1];
+
+ ELSE;
+
+   rho=theo;
+   p=ROWS(theo);
+
+ ENDIF;
+
+   wieder=0;
+   abbruch=0;
+   DO UNTIL abbruch;
+
+      z=interpol(rho,xcent);
+
+      IF theo==0;     
+         {aneu,acov,aic,bic,res}=arfit(y,p,"aic","asymp");
+/*       {res,aneu,mean,aic,p}=aryw(z,p);                     */   
+        IF (MAXC(abs(a-aneu)) < tol);
+          abbruch=1;
+         ELSE;
+          a=aneu;
+          rho =  acovth(a,0,1,p);       @ neue iacore @
+          rho=rho[2:p+1]/rho[1];
+        ENDIF;
+      ELSE;
+      abbruch=1;
+      ENDIF;
+
+      wieder=wieder+1;
+      IF wieder > 20; abbruch=1; ENDIF;
+
+    ENDO;
+
+   RETP(z+mu);
+ENDP;
+
+/*******************************************************************/
+
+PROC interpol(rho,xcent);
+
+   LOCAL n,p,fehl,m,z,zt,s,k,bis1,bis2,mat,dist,lp,i;
+
+   n=ROWS(xcent);                    p=ROWS(rho);
+   fehl=indexcat(xcent,MISS(0,0));   m=ROWS(fehl);
+
+   z=MISSRV(xcent,0);
+   zt=ZEROS(m,1);                    @ \tilde{z} @
+   s=fehl[1];
+
+   k=1;
+   DO WHILE k le m;
+      i=fehl[k]-s;
+      bis1=minc((n-i-s)|p);
+      bis2=minc((s+i-1)|p);
+      zt[k]= - SUMC(rho[1:bis1].*z[s+i+1:bis1+s+i])
+             - SUMC(rho[1:bis2].*z[s+i-1:s+i-bis2]);
+      k=k+1;
+   ENDO;
+
+   mat=eye(m);
+   k=1;
+   DO WHILE k < m;
+      dist=fehl[k+1:m]-fehl[k];
+      if minc(dist) le p;
+         lp=indexcat(dist,(0|p));
+         mat[k,k+lp]=rho[dist[lp]]';
+         mat[k+lp,k]=mat[k,k+lp]';
+      ENDIF;
+      k=k+1;
+   ENDO;
+
+   z[fehl]=zt/mat;
+
+   RETP(z);
+
+ENDP;

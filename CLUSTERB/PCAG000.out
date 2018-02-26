@@ -1,0 +1,239 @@
+===========================================================================
+OUTPUT CLUSTER ALGORITHM FOR NUTS0  MANUFACTURING
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY PERFECT CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  18 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  7 
+Series in cluster: 
+DE7      FR3      IT6      ITB      NL2      SE       UKF      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  6 
+Series in cluster: 
+ES1      ES5      ES7      FI       FR6      UKI      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  6 
+Series in cluster: 
+AT2      DE3      FR4      IT9      NL4      UKH      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  6 
+Series in cluster: 
+BE2      DE1      DE2      ES3      IT3      ITA      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  6 
+Series in cluster: 
+DE5      DEB      ES4      FR5      FR8      NL3      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  6 
+Series in cluster: 
+DE6      FR7      IT4      NO       UKK      UKL      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  5 
+Series in cluster: 
+AT1      DEA      FR1      IT2      IT7      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  5 
+Series in cluster: 
+DE9      DEC      DK       ES2      FR2      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  4 
+Series in cluster: 
+BE1      GR2      GR3      UKG      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  4 
+Series in cluster: 
+AT3      IT8      LU       NL1      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+BE3      ES6      IE       
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  2 
+Series in cluster: 
+UKE      UKM      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  2 
+Series in cluster: 
+UKC      UKD      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+GR1      GR4      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  1 
+Series in cluster: 
+UKJ      
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  1 
+Series in cluster: 
+IT5      
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  1 
+Series in cluster: 
+IT1      
+ 
+ 
+CLUSTER  18 
+Number of series in cluster :  1 
+Series in cluster: 
+PT1      
+ 
+ 
+Size Number
+
+ 1        4       
+ 2        3       
+ 3        1       
+ 4        2       
+ 5        2       
+ 6        5       
+ 7        1       
+END OF OUTPUT
+ 
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  14 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  7 
+Series in cluster: 
+DE7      FR3      IT6      ITB      NL2      SE       UKF      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  6 
+Series in cluster: 
+DE6      FR7      IT4      NO       UKK      UKL      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  6 
+Series in cluster: 
+AT2      DE3      FR4      IT9      NL4      UKH      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  6 
+Series in cluster: 
+BE2      DE1      DE2      ES3      IT3      ITA      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  6 
+Series in cluster: 
+ES1      ES5      ES7      FI       FR6      UKI      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  6 
+Series in cluster: 
+DE5      DEB      ES4      FR5      FR8      NL3      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  5 
+Series in cluster: 
+AT1      DEA      FR1      IT2      IT7      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  5 
+Series in cluster: 
+DE9      DEC      DK       ES2      FR2      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  5 
+Series in cluster: 
+IT1      IT5      PT1      UKE      UKM      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  4 
+Series in cluster: 
+AT3      IT8      LU       NL1      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  4 
+Series in cluster: 
+BE1      GR2      GR3      UKG      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+UKC      UKD      UKJ      
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+BE3      ES6      IE       
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+GR1      GR4      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        1       
+ 3        2       
+ 4        2       
+ 5        3       
+ 6        5       
+ 7        1       
+END OF OUTPUT
+ 
+ 
+===========================================================================

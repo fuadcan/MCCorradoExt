@@ -1,0 +1,139 @@
+/*
+** maxlik.lcg - Maximum Likelihood Estimation with
+**                General Nonlinear Constraints
+**
+** (C) Copyright 1988-1995  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+maxlik.dec
+    _ml_ver                          : matrix
+    _max_options                     : matrix
+    _max_algorithm                   : matrix
+    _max_linesearch                  : matrix
+    _max_covpar                      : matrix
+    _max_gradmethod                  : matrix
+    _max_parnames                    : matrix
+    _max_gradtol                     : matrix
+    _max_hessproc                    : matrix
+    _max_gradproc                    : matrix
+    _max_maxiters                    : matrix
+    _max_iterdata                    : matrix
+    _max_randradius                  : matrix
+    _max_usersearch                  : matrix
+    _max_usernumgrad                 : matrix
+    _max_usernumhess                 : matrix
+    _max_extrap                      : matrix
+    _max_interp                      : matrix
+    _max_delta                       : matrix
+    _max_maxtry                      : matrix
+    _max_lag                         : matrix
+    _max_finalhess                   : matrix
+    _max_numobs                      : matrix
+    _max_hesscov                     : matrix
+    _max_xprodcov                    : matrix
+    _max_key                         : matrix
+    _max_maxtime                     : matrix
+    _max_active                      : matrix
+    _max_gradstep                    : matrix
+    _max_crosstab                    : matrix
+    _max_cutpoint                    : matrix
+    _max_increment                   : matrix
+    _max_center                      : matrix
+    _max_width                       : matrix
+    _max_numsample                   : matrix
+    _max_numcat                      : matrix
+    _max_select                      : matrix
+    _max_diagnostic                  : matrix
+    _max_gradchecktol                : matrix
+    _max_alpha                       : matrix
+    _max_switch                      : matrix
+    _max_bayesalpha                  : matrix
+    _max_priorproc                   : matrix
+    _max_bootfname                   : string
+    _max_kernel                      : matrix
+    _max_smoothing                   : matrix
+    _max_endpoints                   : matrix
+    _max_numpoints                   : matrix
+    _max_truncate                    : matrix
+    _max_dsn                         : string
+    _max_dat                         : matrix
+    _max_row                         : matrix
+    _max_eps2                        : matrix
+    _max_eps3                        : matrix
+
+maxlik.src
+    maxlik                           : proc
+    maxset                           : proc
+    maxclr                           : proc
+    maxprt                           : proc
+    maxclprt                         : proc
+    maxtlimits                       : proc
+
+maxutil.src
+    _max                             : proc
+    _max_sctu                        : proc
+    _max_stepl                       : proc
+    _max_bhhhstp                     : proc
+    _max_stepbt                      : proc
+    _max_usrsch                      : proc
+    _max_bracket                     : proc
+    _max_brent                       : proc
+    _max_half                        : proc
+    _max_rdd                         : proc
+    _max_deriv                       : proc
+    _max_grdfd                       : proc
+    _max_grdcd                       : proc
+    _max_grdf1                       : proc
+    _max_grdc1                       : proc
+    _max_hssp                        : proc
+
+mlcheck.src
+    _ml_check                        : proc
+    _eps                             : proc
+
+maxdens.src                           
+    maxdensity                       : proc
+
+maxhist.src
+    maxhist                          : proc
+
+maxboot.src
+    maxboot                          : proc
+    _rnd3                            : proc
+
+maxblim.src
+    maxblimits                       : proc
+
+maxprof.src
+    maxprofile                       : proc
+
+mlgradre.src
+    mlgradre                         : proc
+
+maxdens.src
+    maxdensity                       : proc
+
+maxbayes.src
+    maxbayes                         : proc
+    rndp                             : proc
+    _rndp                            : proc
+
+maxpflcl.src
+    maxpflclimits                    : proc
+    _mxpf_magnitude                  : proc
+    _mxpf_quad                       : proc
+

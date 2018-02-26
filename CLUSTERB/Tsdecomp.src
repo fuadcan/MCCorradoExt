@@ -1,0 +1,316 @@
+/*               TSDECOMP.SRC                 RAINER SCHLITTGEN   24.NOV. 1997
+
+
+**      Programs for time series analysis
+**      ( allowing for MISSing values )
+**
+**   Procedure                                                          Line
+**   ________________________________________________________________________
+**   RUNMED   : running median                                           21
+**   RUNMEAN  : running mean                                             37
+**   SMOOTHLS : smothing of time series y by ls spline                   52
+**   SPLINEDECOMP : decomposition of a time series                      122
+**   EXPOSMOOTH : exponential smoothing, local constant mean            229
+**   EXPOSMOOTH1 : exponential smoothing local linear trend             229
+**   HOLTWINT   : Holt Winters exponential smoothing                    275
+*/
+
+
+/*
+**  {g} = RUNMED(y,q)   y : time series to be smoothed
+**                      q : span of running median
+**                      g : smooth component
+*/
+
+PROC (1) = RUNMED(y,q);
+
+  LOCAL m,n;
+  if (1-q%2); print "Only for odd sized span"; STOP ; ENDIF;
+  n = ROWS(y);
+  m = ZEROS(n,1); m = MISS(m,0);
+  m[(q+1)/2:n+1-(q+1)/2]  = tsmedian(TRIMR(RESHAPE(y,q,n+1)',0,q)');
+ RETP(m);
+ENDP;
+
+/*
+**  {g} = RUNMEAN(y,q)  y : time series to be smoothed
+**                      q : span of moving average
+**                      g : smooth component
+*/
+
+PROC (1) = RUNMEAN(y,q);
+  LOCAL m,n;
+  n = ROWS(y);
+  m = tsmean(TRIMR(RESHAPE(y,q,n+1)',0,q)');
+  if (1-q%2); m = tsmean((m[1:ROWS(m)-1]~m[2:ROWS(m)])'); ENDIF;
+  m  = MISS(ZEROS(q/2,1),0)|m|MISS(ZEROS(q/2,1),0);
+ RETP(m);
+ENDP;
+
+/*
+** {g} = SMOOTHLS(y,beta); y    : time series to be smoothed
+**                      beta : smoothing parameter
+**                             (the bigger beta is, the smoother will g be)
+**                      g    : smooth component
+*/
+
+PROC (1) = SMOOTHLS(y,beta);
+
+   LOCAL c,g,ind,it,j,n,pp,x;
+   x=y;
+   n = ROWS(y);
+   ind = PACKR(x~SEQA(1,1,n));
+   ind = ind[.,2];
+   j = ZEROS(n,1);
+   j[ind] = ONES(ROWS(ind),1);
+   x = MISSRV(x,0);
+   pp = ONES(n,3).*(1~-4~6);
+   pp[1,.] = 0~0~1 ; pp[2,.]=0~-2~5; pp[n-1,.]=1~-4~5; pp[n,.] =1~-2~1;
+   c = BANDCHOL((ZEROS(n,2)~j) + beta*pp);
+   g = BANDCHOLSOL(x,c);
+  RETP(g);
+ENDP;
+
+
+
+
+/*   {g,s} = SPLINEDECOMP(x,d,alpha,beta)
+**   Input : x = time series
+**           d = seasonal component
+**           alpha,beta weights for smooth and seasonal components
+**    Output : g = smooth component
+**             s = seasonal component
+**
+*/
+
+PROC (2) =  SPLINEDECOMP(x,d,alpha,beta);
+
+  LOCAL b,C,g,i,j,k,l,n,PP,RR,S,sais,S1,t,y,z;
+
+  n = ROWS(x);
+  z=ZEROS(n,1);
+  PP = (0~0~1~-2~1)|(0~-2~5~-4~1)|(ONES(n-4,5).*(1~-4~6~-4~1));
+  PP = alpha*(PP|rev(PP[2 1,.]')');
+  PP[.,3] = PP[.,3]+1;
+  RR = RESHAPE(ONES(d,1)|ZEROS(d+1,1),d+1,2*d);
+  RR=RR'*RR;
+  RR=rev(RR);
+  RR= RR[2:2*d,1:d-1]~RR[2:2*d,d*ONES(n-2*(d-1),1)]~RR[1:2*d-1,d+2:2*d];
+  RR = beta*RR;
+  RR[d,.] = RR[d,.]+1;
+  C = ZEROS(n,2*d+3);
+  i=0;
+  DO WHILE i<n;
+   i=i+1;
+   t=0;
+   j=MAXC(0|(i-d-2));
+   DO WHILE t < minc((2*d+3)|(d+1+i)) and j < n;
+     t=t+1;
+     j=j+1;
+     c[i,t+MAXC(0|(d+2-i))]
+      = TRIMR(z|PP[i,.]'|z,n+3-i,i+2)'*TRIMR(z|RR[.,j]|z,n+d-j,j+d-1);
+   ENDO;
+  ENDO;
+  S=C; S[.,d+2]=S[.,d+2]-1;
+
+@ Berechnen von b=(A-I)*x  @
+
+  b=TRIMR(RESHAPE(ZEROS(4,1)|x,5,n+5)',2,3);
+  b=SUMC((PP.*b)')-x;
+
+/*
+    Loesen von S*z=b. Dazu wird zuerst die L-U-Zerlegung von S berechnet:
+    S=L*U , L ist untere dreieckmatrix mit (nicht gespeicherten) Einsen auf
+    der Hauptdiagonalen, U ist obere Dreiecksmatix
+    Algorithmus bei Golub/vanLoan : Matrix Computation, p.92-94
+    Abspeichern in S=L~U
+    S wird geeignet verlaengert, so dass grenzen unproblematisch
+*/
+  l=(COLS(S)-1)/2;
+  S=S|ZEROS(l,2*l+1);
+  k=0;
+  DO WHILE k<n-1;
+    k=k+1;
+    S1 = RESHAPE(S[k:k+l,.]~ZEROS(l+1,l+1),l+1,3*l+1);
+    S1[2:l+1,l+1]=S1[2:l+1,l+1]/S1[1,l+1];
+    S1[2:l+1,l+2:2*l+1] =
+         S1[2:l+1,l+2:2*l+1] - S1[2:l+1,l+1]*S1[1,l+2:2*l+1];
+    S1 = TRIMR(RESHAPE(S1,l+1,3*l+2)',0,l+1)';
+    S[k:k+l,.] = S1;
+  ENDO;
+  S=S[1:n,.];
+
+ /*
+    Loesen von Ly=b, L=S[.,1:l]
+ */
+  y = ZEROS(l-1,1)|b;
+  k=1;
+  DO WHILE k<n;
+    k=k+1;
+    y[k+l-1] = y[k+l-1] - S[k,1:l]*y[k-1:k+l-2];
+  ENDO;
+  y=TRIMR(y,l-1,0);
+
+ /*
+    Loesen von Uz=y, U=S[.,l+1:2*l+1]
+ */
+
+  y = y|ZEROS(l-1,1);
+  y[n]=y[n]/S[n,l+1];
+  k=n;
+  DO WHILE k>1;
+    k=k-1;
+    y[k] = (y[k] - S[k,l+2:2*l+1]*y[k+1:k+l])/S[k,l+1];
+  ENDO;
+  sais=TRIMR(y,0,l-1);
+
+/*
+     Loesen von A*g=x-sais
+*/
+
+  g = BANDCHOL(PP[.,1:3]);
+  g = BANDCHOLSOL(x-sais,g);
+
+  RETP(g,sais);
+ ENDP;
+
+
+/* 
+**> EXPOSMOOTH
+**
+** Purpose:Simple exponential smoothing - local constant model
+**
+** Format: y = exposmooth(x,b,lead,start)
+** Input:  x = (n,1) vector, the time series
+**         b = scalar, the smoothing constant, 0<b<1;
+**             if b <=0 or b>=1, it is determined opimally 
+**             over the grid 0.1,0.2,..0.9  
+**      lead = scalar, forecast horizon
+**     start = scalar, gives the index from which on the
+**             one-step-predictions are shown
+** Output : y = (n-start+lead,2) vector. the first column give
+**              the time index and the second the one-step-forecasts
+*/
+
+
+PROC (2) = exposmooth(x,b,start,lead);
+
+  LOCAL n,xd;
+  n = ROWS(x);
+  IF ((b<=0) OR (b>=1));
+   b = SEQA(.1,.1,9)';
+   xd = RECSERAR((1-b).*x,x[1]*ONES(1,9),b);
+   xd = x[2:n,.] - xd[1:n-1,.];
+   b=b[MININDC(MEANC(xd[(n/3):n-1,.]^2))];
+  ENDIF;
+  xd = RECSERAR((1-b)*x,x[1],b);
+  xd = xd[1]|xd;
+  IF lead >1;
+    xd = xd|(xd[n+1]*ONES(lead-1,1));
+  ENDIF;
+  xd = TRIMR(SEQA(1,1,ROWS(xd))~xd,start-1,0);
+  XY(xd[.,1],xd[.,2]~(x[xd[1,1]:n]|MISS(ONES(lead,1),1)));
+  RETP(xd,b);  
+  ENDP;  
+
+/* 
+**> EXPOSMOOTH1
+**
+**   Purpose: Simple exponential smoothing - LOCAL linear trend model
+**
+** Format: y = exposmooth1(x,ab,start,lead)
+** Input:  x = (n,1) vector, the time series
+**         ab = (2,1)-vector, the smoothing constants, 0<a,b<1
+**     start = scalar, gives the index from which on the
+**             one-step-predictions are shown
+**      lead = scalar, forecast horizon
+** Output : y = (n-start+lead,2) vector. the first column give
+**              the time index and the second the one-step-forecasts
+*/  
+  
+PROC 1 = exposmooth1(x,ab,start,lead);
+
+  LOCAL n,alpha,beta,t,xd,m,b;
+  n = ROWS(x);
+  alpha = ab[1];
+  beta = ab[2];
+    
+  b = ZEROS(n+lead,1);
+  m = x|ZEROS(lead,1);
+  xd = x;
+ 
+  t = 3;
+  DO WHILE t<n;
+    t = t+1;            
+    b[t] = beta*(m[t-1]-m[t-2]) +(1-beta)*b[t-1];
+    m[t] = alpha*(m[t-1]+b[t]) + (1-alpha)*x[t] ;
+    xd[t] = m[t-1] + b[t-1];
+  ENDO;
+  
+  xd = xd|(m[n]+SEQA(1,1,lead)*b[n]);
+  xd = SEQA(start,1,n+1-start+lead)~xd[start:n+lead];
+  GRAPHSET;
+  _pltype = 6;
+  _pdate = "";
+  _pmcolor = ZEROS(8,1)|15;
+  _pcolor=1|4;
+  XY(xd[.,1],xd[.,2]~(x[start:n]|(ONES(lead,1)*MISS(1,1))));
+  GRAPHSET;
+  RETP(xd);  
+  ENDP;  
+
+/* 
+**> HOLTWINT
+**
+**   Purpose: Simple exponential smoothing - LOCAL linear trend model
+**
+** Format: z = holtwint(y,abc,d,start,lead)
+** Input:  y = (n,1) vector, the time series
+**         abc = (3,1)-vector, the smoothing constants, 0<a,b,c<1
+**          d  = scalar, saisonal component
+**     start = scalar, gives the index from which on the
+**             one-step-predictions are shown
+**      lead = scalar, forecast horizon
+** Output : z = (n-start+lead,2) vector. the first column give
+**              the time index and the second the one-step-forecasts
+*/  
+  
+
+PROC holtwint(x,abc,d,start,lead);
+
+  LOCAL n,alpha,beta,delta,t,xd,m,b,s;
+  n = ROWS(x);
+  alpha = abc[1];
+  beta = abc[2];
+  delta = abc[3];
+  
+  b = ZEROS(n+lead,1);
+  m = x|ZEROS(lead,1);
+  s = (x[1:d]-MEANC(x[1:d]))|ZEROS(n+1-d+lead,1);
+  xd = x;
+  
+  t = d+1;
+  DO WHILE t<n;
+    t = t+1;            
+    b[t] = beta*b[t-1] +(1-beta)*(m[t-1]-m[t-2]);
+    m[t] = alpha*(m[t-1]+b[t]) + (1-alpha)*(x[t]-s[t-d]) ;
+    s[t] = delta*s[t-d] + (1-delta)*(x[t]-m[t]);
+    xd[t] = m[t-1] + b[t-1] + s[t-d];
+  ENDO;
+  
+  xd = xd|(m[n]+SEQA(1,1,lead)*b[n] + RESHAPE(s[n-d+1:n],lead,1));
+  xd = SEQA(start,1,n+1-start+lead)~xd[start:n+lead];
+   GRAPHSET;
+   _pmcolor=ZEROS(8,1)|15;
+   _pcolor = 4|0;
+  _pltype = 6;
+  _pdate = "";
+  XY(xd[.,1],(x[start:n]|(ONES(lead,1)*MISS(1,1)))~xd[.,2]);
+  GRAPHSET;
+  RETP(xd);  
+  ENDP;  
+  
+
+
+
+

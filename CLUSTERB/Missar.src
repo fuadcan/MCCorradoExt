@@ -1,0 +1,292 @@
+/*
+**  PEM-Algorithmus
+**
+**  Ersetzung fehlender Werte einer Zeitreihe mittels bedingter
+**  Erwartungswerte eines AR(p)-Modells
+**
+**  Einschränkung: p < 18
+**
+**  Format
+**  -----------------------------------------------------------------
+**
+**  {a,y}=MISSar(a0,x,p,tol,mod)
+**
+**
+**  Input
+**  -----------------------------------------------------------------
+**  a0...(p*1)-vector, Startwerte
+**  x....(n*1)-matrix, Zeitreihe
+**  p....scalar, integer, 0 <= p < 18
+**                p=0...  lineare Interpolation, ohne Iteration
+**  tol..scalar, Toleranz für Iterationsabbruch
+**  mod..scalar, integer, Schätzmethode
+**
+**
+**  Output
+**  -----------------------------------------------------------------
+**  a....(p*1)-vector, geschätzte Parameter
+**  y....(n*1)-vector, vollst.Zeitreihe
+**
+**
+**  Variables
+**  -----------------------------------------------------------------
+**  n ....... Zeitreihenlänge
+**  mu0 ..... Mittelwert der vorhandenen Daten
+**  x ....... zentrierte (vorh.) Daten
+**  indexf .. Indizes der fehlenden Werte
+**  m ....... Anzahl der fehlenden Werte
+**  luecke .. Indizes von Lückenanfang und -ende
+**  lz ...... Anzahl der Lücken
+**  pmax .... kürzestes Randstück
+**
+*/
+
+PROC(2) = MISSAR(a0,daten,p,tol,mod);
+
+ LOCAL n,indexf,m,pmax,mu,xcent,a,luecke,t,lz,abbruch,wieder,xneu,
+      f,j,aMISS,bMISS,voll,aalt,res,mean,aic,ll,covb,sbc;
+
+   n=ROWS(daten);
+
+  if (COLS(daten)/=1) or (ROWS(p)/=1) or (COLS(p)/=1) or (p<0) or
+    (trunc(p)/=p);
+    "falsche Eingabewerte !! ... Abbruch !!";
+     a=0;voll=daten;wieder=0;
+    wait;
+    GOTO schluss;
+  ENDIF;
+
+ if ROWS(PACKR(daten))==n;
+   "keine fehlenden Werte !! ... Abbruch !!";
+   a=0;voll=daten;wieder=0;
+   wait;
+   GOTO schluss;
+ ENDIF;
+
+ if SUMC(a0./=0);
+   if (COLS(a0)/=1) or (ROWS(a0)/=p);
+   "falsche Startwerte !! ..";
+   a0=0;
+   wait;
+   ENDIF;
+ ENDIF;
+
+@ ... indexf => Index der fehl. Daten .............................. @
+indexf=indexcat(daten,MISS(0,0));
+m=ROWS(indexf);
+
+@ ... maximale Ordnung aus der Länge der Randstücke ................ @
+pmax=minc((indexf[1]-1)|(n-indexf[m]));
+
+if (p>pmax) or (pmax==0);
+   format 1,0;
+   "zu kurze Teilstücke am Rand für einen AR[";;p;;"]-Prozess !!";
+   "maximale Ordnung: ";;pmax;
+   a=0;voll=daten;wieder=0;
+   wait;
+   GOTO schluss;
+ENDIF;
+
+@ ... Zentrierung der vorhandenen Daten ............................ @
+ mu = MEANC(PACKR(daten));
+ xcent = daten-mu;
+
+@ ... Startwerte ................................................... @
+@ ... yule-walker-schätzung für a(1) bis a(p) ...................... @
+
+if p>0;
+   if SUMC(a0./=0); a=a0; else; a=ywstart(xcent,p); ENDIF;
+ENDIF;
+
+@ .................................................................. @
+@ ... Indizes der Lückenränder ..................................... @
+
+if m==1;                            @ ... nur ein fehlender Wert ... @
+   luecke=indexf~indexf;
+elseif (indexf[m]-indexf[1])==(m-1);@ ... eine Luecke der Länge m .. @
+   luecke=indexf[1]~indexf[m];
+else;                               @ ... sonst .................... @
+   t=PACKR(indexf[2:m]~indexf[1:m-1]~MISS(indexf[2:m]-indexf[1:m-1],1));
+   luecke=(indexf[1]|t[.,1])~(t[.,2]|indexf[m]);
+ENDIF;
+
+lz=ROWS(luecke);
+
+@ .... Iterationsschritte .......................................... @
+abbruch=0;
+wieder=0;
+do until abbruch;
+
+   xneu=xcent;
+
+   if p>0;
+
+      @ .... PE-Schritt ............................................... @
+
+      f=tautocov(a,0,p);   f=f[2:p+1]/f[1];                      @ iacore @
+
+      aMISS=indexf[1];
+      j=1;
+      DO WHILE j < lz;
+         if (luecke[j+1,1]-luecke[j,2]) > p;
+            bMISS=luecke[j,2];
+            xneu[aMISS:bMISS]=pestep(f,xcent[aMISS-p:bMISS+p]);
+            aMISS=luecke[j+1,1];
+         ENDIF;
+         j=j+1;
+      ENDO;
+
+      @ ......... letzte Lücke ........................................ @
+
+      bMISS=indexf[m];
+      xneu[aMISS:bMISS]=pestep(f,xcent[aMISS-p:bMISS+p]);
+
+   else;
+
+      @ ... Lineare Interpolation ..................................... @
+
+      aMISS=indexf[1];
+      j=1;
+      DO WHILE j < lz;
+         bMISS=luecke[j,2];
+         f=(x[bMISS+1]-x[aMISS-1])/(bMISS-aMISS+2);
+         xneu[aMISS:bMISS]=x[aMISS-1] + SEQA(f,f,bMISS-aMISS+1);
+         aMISS=luecke[j+1,1];
+         j=j+1;
+      ENDO;
+
+      @ ......... letzte Lücke ........................................ @
+
+      bMISS=indexf[m];
+      f=(xcent[bMISS+1]-xcent[aMISS-1])/(bMISS-aMISS+2);
+      xneu[aMISS:bMISS]=xcent[aMISS-1] + SEQA(f,f,bMISS-aMISS+1);
+
+   ENDIF;
+
+   @ ......... vollständige Reihe .................................. @
+
+   voll = xneu;
+
+   if p>0;
+
+      @ .... PM-Schritt ............................................... @
+
+      aalt=a;
+
+      if mod==0;      @ ... yule-walker-schätzung ..... @
+         {res,a,mean,aic,p}=aryw(voll,p);
+      elseif mod==1;  @ ... OLS-Schätzer .............................. @
+         {a,res}=arols(voll,p,0);
+      elseif mod==2;  @ ... ML-Schätzer ............................... @
+         {a,ll,res,covb,aic,sbc}=arima(0,voll,p,0,0,0);
+      ENDIF;
+
+      @ ............................................................... @
+      @ .... Test auf Abbruch ......................................... @
+
+      if MAXC(abs(aalt-a)) le tol;  abbruch=1;  ENDIF;
+
+      wieder=wieder+1;
+      if wieder > 20; abbruch=1; ENDIF;
+
+   else; abbruch=1; ENDIF;
+
+  ENDO;
+
+ schluss:
+  RETP(voll+mu,wieder);
+ENDP;
+
+/*********************************************************************/
+
+PROC PESTEP(f,xt);
+
+   LOCAL p,lrand,rrand,m,indfehl,arg,mat1,b1,b2,b,ind,neu;
+
+   p=ROWS(f);   lrand=xt[p:1];  rrand=xt[ROWS(xt)-p+1:ROWS(xt)];
+   xt=xt[p+1:ROWS(xt)-p];       m=ROWS(xt);
+
+   /** Indizes der fehlenden Werte ***************************/
+
+   indfehl=indexcat(xt,MISS(0,0));
+
+   if m>1;
+      if m le p+1;
+         arg=f[1:m-1];
+      else;
+         arg=f|ZEROS(m-p-1,1);
+      ENDIF;
+
+      mat1=toeplitz(1|arg);
+
+      if p>1;
+         b1=rev(upmat(toeplitz(rev(-f)))')*lrand;
+         b2=lowmat(toeplitz(rev(-f)))*rrand;
+      else;
+         b1=-f*lrand;
+         b2=-f*rrand;
+      ENDIF;
+
+      if m le p;
+         b=b1[1:m] + b2[p-m+1:p];
+      else;
+         b=(b1|ZEROS(m-p,1)) + (ZEROS(m-p,1)|b2);
+      ENDIF;
+
+      /** eventuell vorhandene Werte ************************/
+
+      if ROWS(indfehl) < m;
+         ind=PACKR(SEQA(1,1,m)~xt);
+         ind=ind[.,1];
+         b=b - mat1[.,ind]*PACKR(xt);
+         neu=b[indfehl]/mat1[indfehl,indfehl];
+      else;
+         neu=b/mat1;
+      ENDIF;
+
+   else;     /*** nur ein fehlender Wert *******************/
+      neu=SUMC(-f.*(lrand+rrand));
+   ENDIF;
+
+   xt[indfehl]=neu;
+
+   RETP(xt);
+ENDP;
+
+/******************************************************************/
+
+PROC ywstart(daten,p);
+
+     LOCAL n,y,g,gcov,ycov,xcov,y0,cor,mat,Q,i;
+
+     n = ROWS(daten);
+     y = MISSRV(daten,0);
+
+     g = abs(daten).>0;
+     gcov = REV(conv(g,rev(g),n-p,n));     @ compute 'acovf' of g @
+
+     if SUMC(gcov.==0)==0;               @ compute acf of daten @
+        ycov=rev(conv(y,rev(y),n-p,n));
+        xcov=ycov./gcov;
+     else;
+        y0=y[1:minc(indexcat(daten,MISS(0,0)))-1];
+        xcov=rev(conv(y0,rev(y0),ROWS(y0)-p,ROWS(y0)));
+     ENDIF;
+     cor=xcov[2:p+1]/xcov[1];
+
+     mat=ZEROS(p,p);
+     Q=ZEROS(p,1);
+     mat[1,1]=cor[1];
+     Q[1]=1-cor[1]^2;
+
+     i=1;                                @ Compute Levinson-Durbin recursion @
+     DO WHILE i < p;
+        mat[i+1,i+1] = (cor[i+1] - mat[i,1:i]*rev(cor[1:i]))/Q[i];
+        mat[i+1,1:i] = mat[i,1:i] - mat[i+1,i+1]*(rev(mat[i,1:i]'))';
+        Q[i+1]       = Q[i]*(1-mat[i+1,i+1]^2);
+        i=i+1;
+     ENDO;
+
+  RETP(mat[p,1:p]');
+ENDP;
+

@@ -1,0 +1,102 @@
+
+
+PROC (4) = sdmodel_hw(y,s,sigx,sigy,start,lead);
+ 
+  LOCAL a,b,mu,beta,sais,x,p,ytilde,n,t,k,c;
+  
+  IF lead<0; PRINT "lead must be ge 0"; STOP; ENDIF;
+  
+  n = ROWS(y);
+  a = ZEROS(s+2,s+2);        @ Uebergangsmatrix @
+  a[1,1 2] = 1~1;
+  a[2,2] =1;
+  a[3,s+2] = 1;
+  a[4:s+2,3:s+1] =EYE(s-1);
+  b = EYE(3)|ZEROS(s-1,3);    @ Matrix für Stoerung @
+  c = ONES(1,3)~ZEROS(1,s-1); @ Beobachtungsmatrix  @
+  ytilde = MISS(ZEROS(n+lead,1),0);
+    
+  mu = start[1];     @ Startswerte         @
+  beta = start[2];
+  sais = start[3:s+2];
+  x = mu|beta|sais;
+  p = 1000*EYE(s+2);
+  mu = SEQA(mu,0,s)|ZEROS(n-s+lead,1);
+  sais = sais|ZEROS(n-s+lead,1);
+  
+  t=s;
+  DO WHILE t<n;  
+   t=t+1;
+   x = a*x;                   @ Prädiktionsschritt  @
+   ytilde[t] = c*x;
+   p = a*p*a'+b*sigx*b'; 
+  
+   k = p*c'*INV(c*p*c'+sigy);   @ Korrekturschritt  @
+   x = x +k*(y[t]-ytilde[t]);
+   p = p-k*c*p;
+  mu[t] = x[1];
+  sais[t] = x[3];
+  ENDO;
+ 
+  IF lead>0;  
+   DO WHILE t<n+lead;  
+    t = t+1;
+    x = a*x;                   @ Prädiktionsschritt  @
+    mu[t] = x[1];
+    sais[t] = x[3];
+    ytilde[t] = c*x;
+    p = a*p*a'+b*sigx*b'; 
+   ENDO;
+  ENDIF; 
+  
+  RETP(mu,sais,p,ytilde);
+  ENDP;
+
+
+s=12; 
+
+
+PROC (1) = sdmodel_hw_est(par);
+ 
+  LOCAL a,b,mu,beta,sais,x,sigx,sigy,p,ytilde,n,t,k,c,res;
+   
+  n = Rows(y);
+  res=ZEROS(n,1);
+  a = ZEROS(s+2,s+2);        @ Uebergangsmatrix @
+  a[1,1 2] = 1~1;
+  a[2,2] =1;
+  a[3,s+2] = 1;
+  a[4:s+2,3:s+1] =EYE(s-1);
+  b = EYE(3)|ZEROS(s-1,3);    @ Matrix für Stoerung @
+  c = ONES(1,3)~ZEROS(1,s-1); @ Beobachtungsmatrix  @
+  sigx = EYE(3).*par[1:3]^2;              @ Kovarianzmatrix von x @
+  sigy = par[4]^2;  
+  
+  mu = par[5];     @ Startswerte         @
+  beta = par[6];
+  sais = par[7:s+6];
+  x = mu|beta|sais;
+  p = 1000*EYE(s+2);
+  mu = SEQA(mu,0,s)|ZEROS(n-s,1);
+  sais = sais|ZEROS(n-s,1);
+  
+  t=s;
+  DO WHILE t<n;  
+   t=t+1;
+   x = a*x;                   @ Prädiktionsschritt  @
+   ytilde = c*x;
+   p = a*p*a'+b*sigx*b'; 
+  
+   k = p*c'*INV(c*p*c'+sigy);   @ Korrekturschritt  @
+   res[t]=(y[t]-ytilde)^2/(c*p*c'+sigy); 
+   x = x +k*(y[t]-ytilde);
+   p = p-k*c*p;
+  ENDO;
+  RETP(sumc(res)/n);
+  ENDP;
+
+/*   
+ mu0=tsmean(y[1:12]);
+{ param,f,g,retcode } = QNewton(&sdmodel_hw_est,.01|ones(3,1)|mu0|0|(y[1:12]-mu0))  
+
+*/

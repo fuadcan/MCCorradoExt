@@ -1,0 +1,2668 @@
+               
+===========================================================================
+OUTPUT CLUSTER ALGORITHM for NUTS0  MANUFACTURING
+---------------------------------------------------------------------------
+Stopcriterion =  0.0100  
+Bandwidth for Bartlett Window =  2.0000  
+ 
+ 
+ASYMPTOTICALLY RELATIVE CONVERGENCE
+OUTPUT CLUSTER ALGORITHM:
+ 
+# Series     :  68 
+# Clusters   :  15 
+ 
+ 
+CLUSTER  1 
+Number of series in cluster :  9 
+Series in cluster: 
+ES1      FR1      GR2      IT6      NO       UKE      UKG      UKH      UKM      
+ 
+ 
+CLUSTER  2 
+Number of series in cluster :  8 
+Series in cluster: 
+DE1      DE7      DE9      FR4      IT1      ITA      SE       UKC      
+ 
+ 
+CLUSTER  3 
+Number of series in cluster :  6 
+Series in cluster: 
+BE3      ES7      FR5      IT3      IT8      UKI      
+ 
+ 
+CLUSTER  4 
+Number of series in cluster :  6 
+Series in cluster: 
+BE1      DE5      IT4      ITB      LU       UKJ      
+ 
+ 
+CLUSTER  5 
+Number of series in cluster :  6 
+Series in cluster: 
+AT1      BE2      FI       FR2      FR7      IT2      
+ 
+ 
+CLUSTER  6 
+Number of series in cluster :  5 
+Series in cluster: 
+DE2      DEC      ES6      IT5      IT9      
+ 
+ 
+CLUSTER  7 
+Number of series in cluster :  5 
+Series in cluster: 
+AT2      ES2      ES3      IT7      NL2      
+ 
+ 
+CLUSTER  8 
+Number of series in cluster :  4 
+Series in cluster: 
+DE3      FR8      NL1      NL3      
+ 
+ 
+CLUSTER  9 
+Number of series in cluster :  3 
+Series in cluster: 
+GR1      GR3      PT1      
+ 
+ 
+CLUSTER  10 
+Number of series in cluster :  3 
+Series in cluster: 
+AT3      FR3      NL4      
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  3 
+Series in cluster: 
+DEA      DEB      FR6      
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  3 
+Series in cluster: 
+DK       ES4      IE       
+ 
+ 
+CLUSTER  13 
+Number of series in cluster :  3 
+Series in cluster: 
+ES5      UKD      UKK      
+ 
+ 
+CLUSTER  14 
+Number of series in cluster :  2 
+Series in cluster: 
+GR4      UKF      
+ 
+ 
+CLUSTER  15 
+Number of series in cluster :  2 
+Series in cluster: 
+DE6      UKL      
+ 
+ 
+Size Number
+
+ 1        0       
+ 2        2       
+ 3        5       
+ 4        1       
+ 5        2       
+ 6        3       
+ 7        0       
+ 8        1       
+ 9        1       
+end OF OUTPUT
+ 
+ 
+===========================================================================
+
+»  15       clusters, out of  68       series 
+ 16       clusters, out of  68       series 
+ 17       clusters, out of  68       series 
+ 18       clusters, out of  68       series 
+ 19       clusters, out of  68       series 
+                                                                         
+
+ 20       clusters, out of  68       series 
+clusmin clusmax clussize 14       18       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 21       clusters, out of  68       series 
+clusmin clusmax clussize 10       11       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 22       clusters, out of  68       series 
+clusmin clusmax clussize 18       22       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 23       clusters, out of  68       series 
+clusmin clusmax clussize 14       22       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 24       clusters, out of  68       series 
+clusmin clusmax clussize 22       24       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 25       clusters, out of  68       series 
+clusmin clusmax clussize 9        25       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 26       clusters, out of  68       series 
+clusmin clusmax clussize 16       18       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 27       clusters, out of  68       series 
+clusmin clusmax clussize 16       23       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 28       clusters, out of  68       series 
+clusmin clusmax clussize 8        16       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 29       clusters, out of  68       series 
+clusmin clusmax clussize 1        5        6       
+rows cols c, rows cols cluscntr  68       1        6        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 30       clusters, out of  68       series 
+clusmin clusmax clussize 5        16       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 31       clusters, out of  68       series 
+clusmin clusmax clussize 5        18       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 32       clusters, out of  68       series 
+clusmin clusmax clussize 18       24       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 33       clusters, out of  68       series 
+clusmin clusmax clussize 18       19       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 34       clusters, out of  68       series 
+clusmin clusmax clussize 20       28       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 35       clusters, out of  68       series 
+clusmin clusmax clussize 12       19       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 36       clusters, out of  68       series 
+clusmin clusmax clussize 13       15       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 37       clusters, out of  68       series 
+clusmin clusmax clussize 3        20       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 38       clusters, out of  68       series 
+clusmin clusmax clussize 3        32       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 39       clusters, out of  68       series 
+clusmin clusmax clussize 6        21       6       
+rows cols c, rows cols cluscntr  68       1        6        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 40       clusters, out of  68       series 
+clusmin clusmax clussize 8        30       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 41       clusters, out of  68       series 
+clusmin clusmax clussize 14       38       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 42       clusters, out of  68       series 
+clusmin clusmax clussize 4        30       6       
+rows cols c, rows cols cluscntr  68       1        6        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 43       clusters, out of  68       series 
+clusmin clusmax clussize 4        10       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 44       clusters, out of  68       series 
+clusmin clusmax clussize 4        34       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 45       clusters, out of  68       series 
+clusmin clusmax clussize 4        35       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 46       clusters, out of  68       series 
+clusmin clusmax clussize 39       44       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 47       clusters, out of  68       series 
+clusmin clusmax clussize 15       45       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 48       clusters, out of  68       series 
+clusmin clusmax clussize 8        14       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 49       clusters, out of  68       series 
+clusmin clusmax clussize 14       35       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 50       clusters, out of  68       series 
+clusmin clusmax clussize 2        35       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 51       clusters, out of  68       series 
+clusmin clusmax clussize 17       31       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 52       clusters, out of  68       series 
+clusmin clusmax clussize 14       19       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 53       clusters, out of  68       series 
+clusmin clusmax clussize 7        46       8       
+rows cols c, rows cols cluscntr  68       1        8        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 54       clusters, out of  68       series 
+clusmin clusmax clussize 7        12       7       
+rows cols c, rows cols cluscntr  68       1        7        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 55       clusters, out of  68       series 
+clusmin clusmax clussize 12       34       6       
+rows cols c, rows cols cluscntr  68       1        6        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 56       clusters, out of  68       series 
+clusmin clusmax clussize 12       41       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 57       clusters, out of  68       series 
+clusmin clusmax clussize 12       49       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 58       clusters, out of  68       series 
+clusmin clusmax clussize 12       25       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 59       clusters, out of  68       series 
+clusmin clusmax clussize 12       13       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 60       clusters, out of  68       series 
+clusmin clusmax clussize 2        47       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 61       clusters, out of  68       series 
+clusmin clusmax clussize 2        19       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 62       clusters, out of  68       series 
+clusmin clusmax clussize 2        19       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 63       clusters, out of  68       series 
+clusmin clusmax clussize 4        61       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 64       clusters, out of  68       series 
+clusmin clusmax clussize 6        44       5       
+rows cols c, rows cols cluscntr  68       1        5        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 65       clusters, out of  68       series 
+clusmin clusmax clussize 6        40       4       
+rows cols c, rows cols cluscntr  68       1        4        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 66       clusters, out of  68       series 
+clusmin clusmax clussize 6        63       3       
+rows cols c, rows cols cluscntr  68       1        3        1       
+rowsp0mat colsp0mat 68.00    68.00   
+ 67       clusters, out of  68       series 
+clusmin clusmax clussize 6        24       2       
+rows cols c, rows cols cluscntr  68       1        2        1       
+                                                                         
+rowsp0mat colsp0mat 68.00    68.00   
+
+combination  2346.00  of  2346.00 
+combination  2345.00  of  2346.00 
+combination  2344.00  of  2346.00 
+combination  2343.00  of  2346.00 
+combination  2342.00  of  2346.00 
+combination  2341.00  of  2346.00 
+combination  2340.00  of  2346.00 
+combination  2339.00  of  2346.00 
+combination  2338.00  of  2346.00 
+combination  2337.00  of  2346.00 
+combination  2336.00  of  2346.00 
+combination  2335.00  of  2346.00 
+combination  2334.00  of  2346.00 
+combination  2333.00  of  2346.00 
+combination  2332.00  of  2346.00 
+combination  2331.00  of  2346.00 
+combination  2330.00  of  2346.00 
+combination  2329.00  of  2346.00 
+combination  2328.00  of  2346.00 
+combination  2327.00  of  2346.00 
+combination  2326.00  of  2346.00 
+combination  2325.00  of  2346.00 
+combination  2324.00  of  2346.00 
+combination  2323.00  of  2346.00 
+combination  2322.00  of  2346.00 
+combination  2321.00  of  2346.00 
+combination  2320.00  of  2346.00 
+combination  2319.00  of  2346.00 
+combination  2318.00  of  2346.00 
+combination  2317.00  of  2346.00 
+combination  2316.00  of  2346.00 
+combination  2315.00  of  2346.00 
+combination  2314.00  of  2346.00 
+combination  2313.00  of  2346.00 
+combination  2312.00  of  2346.00 
+combination  2311.00  of  2346.00 
+combination  2310.00  of  2346.00 
+combination  2309.00  of  2346.00 
+combination  2308.00  of  2346.00 
+combination  2307.00  of  2346.00 
+combination  2306.00  of  2346.00 
+combination  2305.00  of  2346.00 
+combination  2304.00  of  2346.00 
+combination  2303.00  of  2346.00 
+combination  2302.00  of  2346.00 
+combination  2301.00  of  2346.00 
+combination  2300.00  of  2346.00 
+combination  2299.00  of  2346.00 
+combination  2298.00  of  2346.00 
+combination  2297.00  of  2346.00 
+combination  2296.00  of  2346.00 
+combination  2295.00  of  2346.00 
+combination  2294.00  of  2346.00 
+combination  2293.00  of  2346.00 
+combination  2292.00  of  2346.00 
+combination  2291.00  of  2346.00 
+combination  2290.00  of  2346.00 
+combination  2289.00  of  2346.00 
+combination  2288.00  of  2346.00 
+combination  2287.00  of  2346.00 
+combination  2286.00  of  2346.00 
+combination  2285.00  of  2346.00 
+combination  2284.00  of  2346.00 
+combination  2283.00  of  2346.00 
+combination  2282.00  of  2346.00 
+combination  2281.00  of  2346.00 
+combination  2280.00  of  2346.00 
+combination  2279.00  of  2346.00 
+combination  2278.00  of  2346.00 
+combination  2277.00  of  2346.00 
+combination  2276.00  of  2346.00 
+combination  2275.00  of  2346.00 
+combination  2274.00  of  2346.00 
+combination  2273.00  of  2346.00 
+combination  2272.00  of  2346.00 
+combination  2271.00  of  2346.00 
+combination  2270.00  of  2346.00 
+combination  2269.00  of  2346.00 
+combination  2268.00  of  2346.00 
+combination  2267.00  of  2346.00 
+combination  2266.00  of  2346.00 
+combination  2265.00  of  2346.00 
+combination  2264.00  of  2346.00 
+combination  2263.00  of  2346.00 
+combination  2262.00  of  2346.00 
+combination  2261.00  of  2346.00 
+combination  2260.00  of  2346.00 
+combination  2259.00  of  2346.00 
+combination  2258.00  of  2346.00 
+combination  2257.00  of  2346.00 
+combination  2256.00  of  2346.00 
+combination  2255.00  of  2346.00 
+combination  2254.00  of  2346.00 
+combination  2253.00  of  2346.00 
+combination  2252.00  of  2346.00 
+combination  2251.00  of  2346.00 
+combination  2250.00  of  2346.00 
+combination  2249.00  of  2346.00 
+combination  2248.00  of  2346.00 
+combination  2247.00  of  2346.00 
+combination  2246.00  of  2346.00 
+combination  2245.00  of  2346.00 
+combination  2244.00  of  2346.00 
+combination  2243.00  of  2346.00 
+combination  2242.00  of  2346.00 
+combination  2241.00  of  2346.00 
+combination  2240.00  of  2346.00 
+combination  2239.00  of  2346.00 
+combination  2238.00  of  2346.00 
+combination  2237.00  of  2346.00 
+combination  2236.00  of  2346.00 
+combination  2235.00  of  2346.00 
+combination  2234.00  of  2346.00 
+combination  2233.00  of  2346.00 
+combination  2232.00  of  2346.00 
+combination  2231.00  of  2346.00 
+combination  2230.00  of  2346.00 
+combination  2229.00  of  2346.00 
+combination  2228.00  of  2346.00 
+combination  2227.00  of  2346.00 
+combination  2226.00  of  2346.00 
+combination  2225.00  of  2346.00 
+combination  2224.00  of  2346.00 
+combination  2223.00  of  2346.00 
+combination  2222.00  of  2346.00 
+combination  2221.00  of  2346.00 
+combination  2220.00  of  2346.00 
+combination  2219.00  of  2346.00 
+combination  2218.00  of  2346.00 
+combination  2217.00  of  2346.00 
+combination  2216.00  of  2346.00 
+combination  2215.00  of  2346.00 
+combination  2214.00  of  2346.00 
+combination  2213.00  of  2346.00 
+combination  2212.00  of  2346.00 
+combination  2211.00  of  2346.00 
+combination  2210.00  of  2346.00 
+combination  2209.00  of  2346.00 
+combination  2208.00  of  2346.00 
+combination  2207.00  of  2346.00 
+combination  2206.00  of  2346.00 
+combination  2205.00  of  2346.00 
+combination  2204.00  of  2346.00 
+combination  2203.00  of  2346.00 
+combination  2202.00  of  2346.00 
+combination  2201.00  of  2346.00 
+combination  2200.00  of  2346.00 
+combination  2199.00  of  2346.00 
+combination  2198.00  of  2346.00 
+combination  2197.00  of  2346.00 
+combination  2196.00  of  2346.00 
+combination  2195.00  of  2346.00 
+combination  2194.00  of  2346.00 
+combination  2193.00  of  2346.00 
+combination  2192.00  of  2346.00 
+combination  2191.00  of  2346.00 
+combination  2190.00  of  2346.00 
+combination  2189.00  of  2346.00 
+combination  2188.00  of  2346.00 
+combination  2187.00  of  2346.00 
+combination  2186.00  of  2346.00 
+combination  2185.00  of  2346.00 
+combination  2184.00  of  2346.00 
+combination  2183.00  of  2346.00 
+combination  2182.00  of  2346.00 
+combination  2181.00  of  2346.00 
+combination  2180.00  of  2346.00 
+combination  2179.00  of  2346.00 
+combination  2178.00  of  2346.00 
+combination  2177.00  of  2346.00 
+combination  2176.00  of  2346.00 
+combination  2175.00  of  2346.00 
+combination  2174.00  of  2346.00 
+combination  2173.00  of  2346.00 
+combination  2172.00  of  2346.00 
+combination  2171.00  of  2346.00 
+combination  2170.00  of  2346.00 
+combination  2169.00  of  2346.00 
+combination  2168.00  of  2346.00 
+combination  2167.00  of  2346.00 
+combination  2166.00  of  2346.00 
+combination  2165.00  of  2346.00 
+combination  2164.00  of  2346.00 
+combination  2163.00  of  2346.00 
+combination  2162.00  of  2346.00 
+combination  2161.00  of  2346.00 
+combination  2160.00  of  2346.00 
+combination  2159.00  of  2346.00 
+combination  2158.00  of  2346.00 
+combination  2157.00  of  2346.00 
+combination  2156.00  of  2346.00 
+combination  2155.00  of  2346.00 
+combination  2154.00  of  2346.00 
+combination  2153.00  of  2346.00 
+combination  2152.00  of  2346.00 
+combination  2151.00  of  2346.00 
+combination  2150.00  of  2346.00 
+combination  2149.00  of  2346.00 
+combination  2148.00  of  2346.00 
+combination  2147.00  of  2346.00 
+combination  2146.00  of  2346.00 
+combination  2145.00  of  2346.00 
+combination  2144.00  of  2346.00 
+combination  2143.00  of  2346.00 
+combination  2142.00  of  2346.00 
+combination  2141.00  of  2346.00 
+combination  2140.00  of  2346.00 
+combination  2139.00  of  2346.00 
+combination  2138.00  of  2346.00 
+combination  2137.00  of  2346.00 
+combination  2136.00  of  2346.00 
+combination  2135.00  of  2346.00 
+combination  2134.00  of  2346.00 
+combination  2133.00  of  2346.00 
+combination  2132.00  of  2346.00 
+combination  2131.00  of  2346.00 
+combination  2130.00  of  2346.00 
+combination  2129.00  of  2346.00 
+combination  2128.00  of  2346.00 
+combination  2127.00  of  2346.00 
+combination  2126.00  of  2346.00 
+combination  2125.00  of  2346.00 
+combination  2124.00  of  2346.00 
+combination  2123.00  of  2346.00 
+combination  2122.00  of  2346.00 
+combination  2121.00  of  2346.00 
+combination  2120.00  of  2346.00 
+combination  2119.00  of  2346.00 
+combination  2118.00  of  2346.00 
+combination  2117.00  of  2346.00 
+combination  2116.00  of  2346.00 
+combination  2115.00  of  2346.00 
+combination  2114.00  of  2346.00 
+combination  2113.00  of  2346.00 
+combination  2112.00  of  2346.00 
+combination  2111.00  of  2346.00 
+combination  2110.00  of  2346.00 
+combination  2109.00  of  2346.00 
+combination  2108.00  of  2346.00 
+combination  2107.00  of  2346.00 
+combination  2106.00  of  2346.00 
+combination  2105.00  of  2346.00 
+combination  2104.00  of  2346.00 
+combination  2103.00  of  2346.00 
+combination  2102.00  of  2346.00 
+combination  2101.00  of  2346.00 
+combination  2100.00  of  2346.00 
+combination  2099.00  of  2346.00 
+combination  2098.00  of  2346.00 
+combination  2097.00  of  2346.00 
+combination  2096.00  of  2346.00 
+combination  2095.00  of  2346.00 
+combination  2094.00  of  2346.00 
+combination  2093.00  of  2346.00 
+combination  2092.00  of  2346.00 
+combination  2091.00  of  2346.00 
+combination  2090.00  of  2346.00 
+combination  2089.00  of  2346.00 
+combination  2088.00  of  2346.00 
+combination  2087.00  of  2346.00 
+combination  2086.00  of  2346.00 
+combination  2085.00  of  2346.00 
+combination  2084.00  of  2346.00 
+combination  2083.00  of  2346.00 
+combination  2082.00  of  2346.00 
+combination  2081.00  of  2346.00 
+combination  2080.00  of  2346.00 
+combination  2079.00  of  2346.00 
+combination  2078.00  of  2346.00 
+combination  2077.00  of  2346.00 
+combination  2076.00  of  2346.00 
+combination  2075.00  of  2346.00 
+combination  2074.00  of  2346.00 
+combination  2073.00  of  2346.00 
+combination  2072.00  of  2346.00 
+combination  2071.00  of  2346.00 
+combination  2070.00  of  2346.00 
+combination  2069.00  of  2346.00 
+combination  2068.00  of  2346.00 
+combination  2067.00  of  2346.00 
+combination  2066.00  of  2346.00 
+combination  2065.00  of  2346.00 
+combination  2064.00  of  2346.00 
+combination  2063.00  of  2346.00 
+combination  2062.00  of  2346.00 
+combination  2061.00  of  2346.00 
+combination  2060.00  of  2346.00 
+combination  2059.00  of  2346.00 
+combination  2058.00  of  2346.00 
+combination  2057.00  of  2346.00 
+combination  2056.00  of  2346.00 
+combination  2055.00  of  2346.00 
+combination  2054.00  of  2346.00 
+combination  2053.00  of  2346.00 
+combination  2052.00  of  2346.00 
+combination  2051.00  of  2346.00 
+combination  2050.00  of  2346.00 
+combination  2049.00  of  2346.00 
+combination  2048.00  of  2346.00 
+combination  2047.00  of  2346.00 
+combination  2046.00  of  2346.00 
+combination  2045.00  of  2346.00 
+combination  2044.00  of  2346.00 
+combination  2043.00  of  2346.00 
+combination  2042.00  of  2346.00 
+combination  2041.00  of  2346.00 
+combination  2040.00  of  2346.00 
+combination  2039.00  of  2346.00 
+combination  2038.00  of  2346.00 
+combination  2037.00  of  2346.00 
+combination  2036.00  of  2346.00 
+combination  2035.00  of  2346.00 
+combination  2034.00  of  2346.00 
+combination  2033.00  of  2346.00 
+combination  2032.00  of  2346.00 
+combination  2031.00  of  2346.00 
+combination  2030.00  of  2346.00 
+combination  2029.00  of  2346.00 
+combination  2028.00  of  2346.00 
+combination  2027.00  of  2346.00 
+combination  2026.00  of  2346.00 
+combination  2025.00  of  2346.00 
+combination  2024.00  of  2346.00 
+combination  2023.00  of  2346.00 
+combination  2022.00  of  2346.00 
+combination  2021.00  of  2346.00 
+combination  2020.00  of  2346.00 
+combination  2019.00  of  2346.00 
+combination  2018.00  of  2346.00 
+combination  2017.00  of  2346.00 
+combination  2016.00  of  2346.00 
+combination  2015.00  of  2346.00 
+combination  2014.00  of  2346.00 
+combination  2013.00  of  2346.00 
+combination  2012.00  of  2346.00 
+combination  2011.00  of  2346.00 
+combination  2010.00  of  2346.00 
+combination  2009.00  of  2346.00 
+combination  2008.00  of  2346.00 
+combination  2007.00  of  2346.00 
+combination  2006.00  of  2346.00 
+combination  2005.00  of  2346.00 
+combination  2004.00  of  2346.00 
+combination  2003.00  of  2346.00 
+combination  2002.00  of  2346.00 
+combination  2001.00  of  2346.00 
+combination  2000.00  of  2346.00 
+combination  1999.00  of  2346.00 
+combination  1998.00  of  2346.00 
+combination  1997.00  of  2346.00 
+combination  1996.00  of  2346.00 
+combination  1995.00  of  2346.00 
+combination  1994.00  of  2346.00 
+combination  1993.00  of  2346.00 
+combination  1992.00  of  2346.00 
+combination  1991.00  of  2346.00 
+combination  1990.00  of  2346.00 
+combination  1989.00  of  2346.00 
+combination  1988.00  of  2346.00 
+combination  1987.00  of  2346.00 
+combination  1986.00  of  2346.00 
+combination  1985.00  of  2346.00 
+combination  1984.00  of  2346.00 
+combination  1983.00  of  2346.00 
+combination  1982.00  of  2346.00 
+combination  1981.00  of  2346.00 
+combination  1980.00  of  2346.00 
+combination  1979.00  of  2346.00 
+combination  1978.00  of  2346.00 
+combination  1977.00  of  2346.00 
+combination  1976.00  of  2346.00 
+combination  1975.00  of  2346.00 
+combination  1974.00  of  2346.00 
+combination  1973.00  of  2346.00 
+combination  1972.00  of  2346.00 
+combination  1971.00  of  2346.00 
+combination  1970.00  of  2346.00 
+combination  1969.00  of  2346.00 
+combination  1968.00  of  2346.00 
+combination  1967.00  of  2346.00 
+combination  1966.00  of  2346.00 
+combination  1965.00  of  2346.00 
+combination  1964.00  of  2346.00 
+combination  1963.00  of  2346.00 
+combination  1962.00  of  2346.00 
+combination  1961.00  of  2346.00 
+combination  1960.00  of  2346.00 
+combination  1959.00  of  2346.00 
+combination  1958.00  of  2346.00 
+combination  1957.00  of  2346.00 
+combination  1956.00  of  2346.00 
+combination  1955.00  of  2346.00 
+combination  1954.00  of  2346.00 
+combination  1953.00  of  2346.00 
+combination  1952.00  of  2346.00 
+combination  1951.00  of  2346.00 
+combination  1950.00  of  2346.00 
+combination  1949.00  of  2346.00 
+combination  1948.00  of  2346.00 
+combination  1947.00  of  2346.00 
+combination  1946.00  of  2346.00 
+combination  1945.00  of  2346.00 
+combination  1944.00  of  2346.00 
+combination  1943.00  of  2346.00 
+combination  1942.00  of  2346.00 
+combination  1941.00  of  2346.00 
+combination  1940.00  of  2346.00 
+combination  1939.00  of  2346.00 
+combination  1938.00  of  2346.00 
+combination  1937.00  of  2346.00 
+combination  1936.00  of  2346.00 
+combination  1935.00  of  2346.00 
+combination  1934.00  of  2346.00 
+combination  1933.00  of  2346.00 
+combination  1932.00  of  2346.00 
+combination  1931.00  of  2346.00 
+combination  1930.00  of  2346.00 
+combination  1929.00  of  2346.00 
+combination  1928.00  of  2346.00 
+combination  1927.00  of  2346.00 
+combination  1926.00  of  2346.00 
+combination  1925.00  of  2346.00 
+combination  1924.00  of  2346.00 
+combination  1923.00  of  2346.00 
+combination  1922.00  of  2346.00 
+combination  1921.00  of  2346.00 
+combination  1920.00  of  2346.00 
+combination  1919.00  of  2346.00 
+combination  1918.00  of  2346.00 
+combination  1917.00  of  2346.00 
+combination  1916.00  of  2346.00 
+combination  1915.00  of  2346.00 
+combination  1914.00  of  2346.00 
+combination  1913.00  of  2346.00 
+combination  1912.00  of  2346.00 
+combination  1911.00  of  2346.00 
+combination  1910.00  of  2346.00 
+combination  1909.00  of  2346.00 
+combination  1908.00  of  2346.00 
+combination  1907.00  of  2346.00 
+combination  1906.00  of  2346.00 
+combination  1905.00  of  2346.00 
+combination  1904.00  of  2346.00 
+combination  1903.00  of  2346.00 
+combination  1902.00  of  2346.00 
+combination  1901.00  of  2346.00 
+combination  1900.00  of  2346.00 
+combination  1899.00  of  2346.00 
+combination  1898.00  of  2346.00 
+combination  1897.00  of  2346.00 
+combination  1896.00  of  2346.00 
+combination  1895.00  of  2346.00 
+combination  1894.00  of  2346.00 
+combination  1893.00  of  2346.00 
+combination  1892.00  of  2346.00 
+combination  1891.00  of  2346.00 
+combination  1890.00  of  2346.00 
+combination  1889.00  of  2346.00 
+combination  1888.00  of  2346.00 
+combination  1887.00  of  2346.00 
+combination  1886.00  of  2346.00 
+combination  1885.00  of  2346.00 
+combination  1884.00  of  2346.00 
+combination  1883.00  of  2346.00 
+combination  1882.00  of  2346.00 
+combination  1881.00  of  2346.00 
+combination  1880.00  of  2346.00 
+combination  1879.00  of  2346.00 
+combination  1878.00  of  2346.00 
+combination  1877.00  of  2346.00 
+combination  1876.00  of  2346.00 
+combination  1875.00  of  2346.00 
+combination  1874.00  of  2346.00 
+combination  1873.00  of  2346.00 
+combination  1872.00  of  2346.00 
+combination  1871.00  of  2346.00 
+combination  1870.00  of  2346.00 
+combination  1869.00  of  2346.00 
+combination  1868.00  of  2346.00 
+combination  1867.00  of  2346.00 
+combination  1866.00  of  2346.00 
+combination  1865.00  of  2346.00 
+combination  1864.00  of  2346.00 
+combination  1863.00  of  2346.00 
+combination  1862.00  of  2346.00 
+combination  1861.00  of  2346.00 
+combination  1860.00  of  2346.00 
+combination  1859.00  of  2346.00 
+combination  1858.00  of  2346.00 
+combination  1857.00  of  2346.00 
+combination  1856.00  of  2346.00 
+combination  1855.00  of  2346.00 
+combination  1854.00  of  2346.00 
+combination  1853.00  of  2346.00 
+combination  1852.00  of  2346.00 
+combination  1851.00  of  2346.00 
+combination  1850.00  of  2346.00 
+combination  1849.00  of  2346.00 
+combination  1848.00  of  2346.00 
+combination  1847.00  of  2346.00 
+combination  1846.00  of  2346.00 
+combination  1845.00  of  2346.00 
+combination  1844.00  of  2346.00 
+combination  1843.00  of  2346.00 
+combination  1842.00  of  2346.00 
+combination  1841.00  of  2346.00 
+combination  1840.00  of  2346.00 
+combination  1839.00  of  2346.00 
+combination  1838.00  of  2346.00 
+combination  1837.00  of  2346.00 
+combination  1836.00  of  2346.00 
+combination  1835.00  of  2346.00 
+combination  1834.00  of  2346.00 
+combination  1833.00  of  2346.00 
+combination  1832.00  of  2346.00 
+combination  1831.00  of  2346.00 
+combination  1830.00  of  2346.00 
+combination  1829.00  of  2346.00 
+combination  1828.00  of  2346.00 
+combination  1827.00  of  2346.00 
+combination  1826.00  of  2346.00 
+combination  1825.00  of  2346.00 
+combination  1824.00  of  2346.00 
+combination  1823.00  of  2346.00 
+combination  1822.00  of  2346.00 
+combination  1821.00  of  2346.00 
+combination  1820.00  of  2346.00 
+combination  1819.00  of  2346.00 
+combination  1818.00  of  2346.00 
+combination  1817.00  of  2346.00 
+combination  1816.00  of  2346.00 
+combination  1815.00  of  2346.00 
+combination  1814.00  of  2346.00 
+combination  1813.00  of  2346.00 
+combination  1812.00  of  2346.00 
+combination  1811.00  of  2346.00 
+combination  1810.00  of  2346.00 
+combination  1809.00  of  2346.00 
+combination  1808.00  of  2346.00 
+combination  1807.00  of  2346.00 
+combination  1806.00  of  2346.00 
+combination  1805.00  of  2346.00 
+combination  1804.00  of  2346.00 
+combination  1803.00  of  2346.00 
+combination  1802.00  of  2346.00 
+combination  1801.00  of  2346.00 
+combination  1800.00  of  2346.00 
+combination  1799.00  of  2346.00 
+combination  1798.00  of  2346.00 
+combination  1797.00  of  2346.00 
+combination  1796.00  of  2346.00 
+combination  1795.00  of  2346.00 
+combination  1794.00  of  2346.00 
+combination  1793.00  of  2346.00 
+combination  1792.00  of  2346.00 
+combination  1791.00  of  2346.00 
+combination  1790.00  of  2346.00 
+combination  1789.00  of  2346.00 
+combination  1788.00  of  2346.00 
+combination  1787.00  of  2346.00 
+combination  1786.00  of  2346.00 
+combination  1785.00  of  2346.00 
+combination  1784.00  of  2346.00 
+combination  1783.00  of  2346.00 
+combination  1782.00  of  2346.00 
+combination  1781.00  of  2346.00 
+combination  1780.00  of  2346.00 
+combination  1779.00  of  2346.00 
+combination  1778.00  of  2346.00 
+combination  1777.00  of  2346.00 
+combination  1776.00  of  2346.00 
+combination  1775.00  of  2346.00 
+combination  1774.00  of  2346.00 
+combination  1773.00  of  2346.00 
+combination  1772.00  of  2346.00 
+combination  1771.00  of  2346.00 
+combination  1770.00  of  2346.00 
+combination  1769.00  of  2346.00 
+combination  1768.00  of  2346.00 
+combination  1767.00  of  2346.00 
+combination  1766.00  of  2346.00 
+combination  1765.00  of  2346.00 
+combination  1764.00  of  2346.00 
+combination  1763.00  of  2346.00 
+combination  1762.00  of  2346.00 
+combination  1761.00  of  2346.00 
+combination  1760.00  of  2346.00 
+combination  1759.00  of  2346.00 
+combination  1758.00  of  2346.00 
+combination  1757.00  of  2346.00 
+combination  1756.00  of  2346.00 
+combination  1755.00  of  2346.00 
+combination  1754.00  of  2346.00 
+combination  1753.00  of  2346.00 
+combination  1752.00  of  2346.00 
+combination  1751.00  of  2346.00 
+combination  1750.00  of  2346.00 
+combination  1749.00  of  2346.00 
+combination  1748.00  of  2346.00 
+combination  1747.00  of  2346.00 
+combination  1746.00  of  2346.00 
+combination  1745.00  of  2346.00 
+combination  1744.00  of  2346.00 
+combination  1743.00  of  2346.00 
+combination  1742.00  of  2346.00 
+combination  1741.00  of  2346.00 
+combination  1740.00  of  2346.00 
+combination  1739.00  of  2346.00 
+combination  1738.00  of  2346.00 
+combination  1737.00  of  2346.00 
+combination  1736.00  of  2346.00 
+combination  1735.00  of  2346.00 
+combination  1734.00  of  2346.00 
+combination  1733.00  of  2346.00 
+combination  1732.00  of  2346.00 
+combination  1731.00  of  2346.00 
+combination  1730.00  of  2346.00 
+combination  1729.00  of  2346.00 
+combination  1728.00  of  2346.00 
+combination  1727.00  of  2346.00 
+combination  1726.00  of  2346.00 
+combination  1725.00  of  2346.00 
+combination  1724.00  of  2346.00 
+combination  1723.00  of  2346.00 
+combination  1722.00  of  2346.00 
+combination  1721.00  of  2346.00 
+combination  1720.00  of  2346.00 
+combination  1719.00  of  2346.00 
+combination  1718.00  of  2346.00 
+combination  1717.00  of  2346.00 
+combination  1716.00  of  2346.00 
+combination  1715.00  of  2346.00 
+combination  1714.00  of  2346.00 
+combination  1713.00  of  2346.00 
+combination  1712.00  of  2346.00 
+combination  1711.00  of  2346.00 
+combination  1710.00  of  2346.00 
+combination  1709.00  of  2346.00 
+combination  1708.00  of  2346.00 
+combination  1707.00  of  2346.00 
+combination  1706.00  of  2346.00 
+combination  1705.00  of  2346.00 
+combination  1704.00  of  2346.00 
+combination  1703.00  of  2346.00 
+combination  1702.00  of  2346.00 
+combination  1701.00  of  2346.00 
+combination  1700.00  of  2346.00 
+combination  1699.00  of  2346.00 
+combination  1698.00  of  2346.00 
+combination  1697.00  of  2346.00 
+combination  1696.00  of  2346.00 
+combination  1695.00  of  2346.00 
+combination  1694.00  of  2346.00 
+combination  1693.00  of  2346.00 
+combination  1692.00  of  2346.00 
+combination  1691.00  of  2346.00 
+combination  1690.00  of  2346.00 
+combination  1689.00  of  2346.00 
+combination  1688.00  of  2346.00 
+combination  1687.00  of  2346.00 
+combination  1686.00  of  2346.00 
+combination  1685.00  of  2346.00 
+combination  1684.00  of  2346.00 
+combination  1683.00  of  2346.00 
+combination  1682.00  of  2346.00 
+combination  1681.00  of  2346.00 
+combination  1680.00  of  2346.00 
+combination  1679.00  of  2346.00 
+combination  1678.00  of  2346.00 
+combination  1677.00  of  2346.00 
+combination  1676.00  of  2346.00 
+combination  1675.00  of  2346.00 
+combination  1674.00  of  2346.00 
+combination  1673.00  of  2346.00 
+combination  1672.00  of  2346.00 
+combination  1671.00  of  2346.00 
+combination  1670.00  of  2346.00 
+combination  1669.00  of  2346.00 
+combination  1668.00  of  2346.00 
+combination  1667.00  of  2346.00 
+combination  1666.00  of  2346.00 
+combination  1665.00  of  2346.00 
+combination  1664.00  of  2346.00 
+combination  1663.00  of  2346.00 
+combination  1662.00  of  2346.00 
+combination  1661.00  of  2346.00 
+combination  1660.00  of  2346.00 
+combination  1659.00  of  2346.00 
+combination  1658.00  of  2346.00 
+combination  1657.00  of  2346.00 
+combination  1656.00  of  2346.00 
+combination  1655.00  of  2346.00 
+combination  1654.00  of  2346.00 
+combination  1653.00  of  2346.00 
+combination  1652.00  of  2346.00 
+combination  1651.00  of  2346.00 
+combination  1650.00  of  2346.00 
+combination  1649.00  of  2346.00 
+combination  1648.00  of  2346.00 
+combination  1647.00  of  2346.00 
+combination  1646.00  of  2346.00 
+combination  1645.00  of  2346.00 
+combination  1644.00  of  2346.00 
+combination  1643.00  of  2346.00 
+combination  1642.00  of  2346.00 
+combination  1641.00  of  2346.00 
+combination  1640.00  of  2346.00 
+combination  1639.00  of  2346.00 
+combination  1638.00  of  2346.00 
+combination  1637.00  of  2346.00 
+combination  1636.00  of  2346.00 
+combination  1635.00  of  2346.00 
+combination  1634.00  of  2346.00 
+combination  1633.00  of  2346.00 
+combination  1632.00  of  2346.00 
+combination  1631.00  of  2346.00 
+combination  1630.00  of  2346.00 
+combination  1629.00  of  2346.00 
+combination  1628.00  of  2346.00 
+combination  1627.00  of  2346.00 
+combination  1626.00  of  2346.00 
+combination  1625.00  of  2346.00 
+combination  1624.00  of  2346.00 
+combination  1623.00  of  2346.00 
+combination  1622.00  of  2346.00 
+combination  1621.00  of  2346.00 
+combination  1620.00  of  2346.00 
+combination  1619.00  of  2346.00 
+combination  1618.00  of  2346.00 
+combination  1617.00  of  2346.00 
+combination  1616.00  of  2346.00 
+combination  1615.00  of  2346.00 
+combination  1614.00  of  2346.00 
+combination  1613.00  of  2346.00 
+combination  1612.00  of  2346.00 
+combination  1611.00  of  2346.00 
+combination  1610.00  of  2346.00 
+combination  1609.00  of  2346.00 
+combination  1608.00  of  2346.00 
+combination  1607.00  of  2346.00 
+combination  1606.00  of  2346.00 
+combination  1605.00  of  2346.00 
+combination  1604.00  of  2346.00 
+combination  1603.00  of  2346.00 
+combination  1602.00  of  2346.00 
+combination  1601.00  of  2346.00 
+combination  1600.00  of  2346.00 
+combination  1599.00  of  2346.00 
+combination  1598.00  of  2346.00 
+combination  1597.00  of  2346.00 
+combination  1596.00  of  2346.00 
+combination  1595.00  of  2346.00 
+combination  1594.00  of  2346.00 
+combination  1593.00  of  2346.00 
+combination  1592.00  of  2346.00 
+combination  1591.00  of  2346.00 
+combination  1590.00  of  2346.00 
+combination  1589.00  of  2346.00 
+combination  1588.00  of  2346.00 
+combination  1587.00  of  2346.00 
+combination  1586.00  of  2346.00 
+combination  1585.00  of  2346.00 
+combination  1584.00  of  2346.00 
+combination  1583.00  of  2346.00 
+combination  1582.00  of  2346.00 
+combination  1581.00  of  2346.00 
+combination  1580.00  of  2346.00 
+combination  1579.00  of  2346.00 
+combination  1578.00  of  2346.00 
+combination  1577.00  of  2346.00 
+combination  1576.00  of  2346.00 
+combination  1575.00  of  2346.00 
+combination  1574.00  of  2346.00 
+combination  1573.00  of  2346.00 
+combination  1572.00  of  2346.00 
+combination  1571.00  of  2346.00 
+combination  1570.00  of  2346.00 
+combination  1569.00  of  2346.00 
+combination  1568.00  of  2346.00 
+combination  1567.00  of  2346.00 
+combination  1566.00  of  2346.00 
+combination  1565.00  of  2346.00 
+combination  1564.00  of  2346.00 
+combination  1563.00  of  2346.00 
+combination  1562.00  of  2346.00 
+combination  1561.00  of  2346.00 
+combination  1560.00  of  2346.00 
+combination  1559.00  of  2346.00 
+combination  1558.00  of  2346.00 
+combination  1557.00  of  2346.00 
+combination  1556.00  of  2346.00 
+combination  1555.00  of  2346.00 
+combination  1554.00  of  2346.00 
+combination  1553.00  of  2346.00 
+combination  1552.00  of  2346.00 
+combination  1551.00  of  2346.00 
+combination  1550.00  of  2346.00 
+combination  1549.00  of  2346.00 
+combination  1548.00  of  2346.00 
+combination  1547.00  of  2346.00 
+combination  1546.00  of  2346.00 
+combination  1545.00  of  2346.00 
+combination  1544.00  of  2346.00 
+combination  1543.00  of  2346.00 
+combination  1542.00  of  2346.00 
+combination  1541.00  of  2346.00 
+combination  1540.00  of  2346.00 
+combination  1539.00  of  2346.00 
+combination  1538.00  of  2346.00 
+combination  1537.00  of  2346.00 
+combination  1536.00  of  2346.00 
+combination  1535.00  of  2346.00 
+combination  1534.00  of  2346.00 
+combination  1533.00  of  2346.00 
+combination  1532.00  of  2346.00 
+combination  1531.00  of  2346.00 
+combination  1530.00  of  2346.00 
+combination  1529.00  of  2346.00 
+combination  1528.00  of  2346.00 
+combination  1527.00  of  2346.00 
+combination  1526.00  of  2346.00 
+combination  1525.00  of  2346.00 
+combination  1524.00  of  2346.00 
+combination  1523.00  of  2346.00 
+combination  1522.00  of  2346.00 
+combination  1521.00  of  2346.00 
+combination  1520.00  of  2346.00 
+combination  1519.00  of  2346.00 
+combination  1518.00  of  2346.00 
+combination  1517.00  of  2346.00 
+combination  1516.00  of  2346.00 
+combination  1515.00  of  2346.00 
+combination  1514.00  of  2346.00 
+combination  1513.00  of  2346.00 
+combination  1512.00  of  2346.00 
+combination  1511.00  of  2346.00 
+combination  1510.00  of  2346.00 
+combination  1509.00  of  2346.00 
+combination  1508.00  of  2346.00 
+combination  1507.00  of  2346.00 
+combination  1506.00  of  2346.00 
+combination  1505.00  of  2346.00 
+combination  1504.00  of  2346.00 
+combination  1503.00  of  2346.00 
+combination  1502.00  of  2346.00 
+combination  1501.00  of  2346.00 
+combination  1500.00  of  2346.00 
+combination  1499.00  of  2346.00 
+combination  1498.00  of  2346.00 
+combination  1497.00  of  2346.00 
+combination  1496.00  of  2346.00 
+combination  1495.00  of  2346.00 
+combination  1494.00  of  2346.00 
+combination  1493.00  of  2346.00 
+combination  1492.00  of  2346.00 
+combination  1491.00  of  2346.00 
+combination  1490.00  of  2346.00 
+combination  1489.00  of  2346.00 
+combination  1488.00  of  2346.00 
+combination  1487.00  of  2346.00 
+combination  1486.00  of  2346.00 
+combination  1485.00  of  2346.00 
+combination  1484.00  of  2346.00 
+combination  1483.00  of  2346.00 
+combination  1482.00  of  2346.00 
+combination  1481.00  of  2346.00 
+combination  1480.00  of  2346.00 
+combination  1479.00  of  2346.00 
+combination  1478.00  of  2346.00 
+combination  1477.00  of  2346.00 
+combination  1476.00  of  2346.00 
+combination  1475.00  of  2346.00 
+combination  1474.00  of  2346.00 
+combination  1473.00  of  2346.00 
+combination  1472.00  of  2346.00 
+combination  1471.00  of  2346.00 
+combination  1470.00  of  2346.00 
+combination  1469.00  of  2346.00 
+combination  1468.00  of  2346.00 
+combination  1467.00  of  2346.00 
+combination  1466.00  of  2346.00 
+combination  1465.00  of  2346.00 
+combination  1464.00  of  2346.00 
+combination  1463.00  of  2346.00 
+combination  1462.00  of  2346.00 
+combination  1461.00  of  2346.00 
+combination  1460.00  of  2346.00 
+combination  1459.00  of  2346.00 
+combination  1458.00  of  2346.00 
+combination  1457.00  of  2346.00 
+combination  1456.00  of  2346.00 
+combination  1455.00  of  2346.00 
+combination  1454.00  of  2346.00 
+combination  1453.00  of  2346.00 
+combination  1452.00  of  2346.00 
+combination  1451.00  of  2346.00 
+combination  1450.00  of  2346.00 
+combination  1449.00  of  2346.00 
+combination  1448.00  of  2346.00 
+combination  1447.00  of  2346.00 
+combination  1446.00  of  2346.00 
+combination  1445.00  of  2346.00 
+combination  1444.00  of  2346.00 
+combination  1443.00  of  2346.00 
+combination  1442.00  of  2346.00 
+combination  1441.00  of  2346.00 
+combination  1440.00  of  2346.00 
+combination  1439.00  of  2346.00 
+combination  1438.00  of  2346.00 
+combination  1437.00  of  2346.00 
+combination  1436.00  of  2346.00 
+combination  1435.00  of  2346.00 
+combination  1434.00  of  2346.00 
+combination  1433.00  of  2346.00 
+combination  1432.00  of  2346.00 
+combination  1431.00  of  2346.00 
+combination  1430.00  of  2346.00 
+combination  1429.00  of  2346.00 
+combination  1428.00  of  2346.00 
+combination  1427.00  of  2346.00 
+combination  1426.00  of  2346.00 
+combination  1425.00  of  2346.00 
+combination  1424.00  of  2346.00 
+combination  1423.00  of  2346.00 
+combination  1422.00  of  2346.00 
+combination  1421.00  of  2346.00 
+combination  1420.00  of  2346.00 
+combination  1419.00  of  2346.00 
+combination  1418.00  of  2346.00 
+combination  1417.00  of  2346.00 
+combination  1416.00  of  2346.00 
+combination  1415.00  of  2346.00 
+combination  1414.00  of  2346.00 
+combination  1413.00  of  2346.00 
+combination  1412.00  of  2346.00 
+combination  1411.00  of  2346.00 
+combination  1410.00  of  2346.00 
+combination  1409.00  of  2346.00 
+combination  1408.00  of  2346.00 
+combination  1407.00  of  2346.00 
+combination  1406.00  of  2346.00 
+combination  1405.00  of  2346.00 
+combination  1404.00  of  2346.00 
+combination  1403.00  of  2346.00 
+combination  1402.00  of  2346.00 
+combination  1401.00  of  2346.00 
+combination  1400.00  of  2346.00 
+combination  1399.00  of  2346.00 
+combination  1398.00  of  2346.00 
+combination  1397.00  of  2346.00 
+combination  1396.00  of  2346.00 
+combination  1395.00  of  2346.00 
+combination  1394.00  of  2346.00 
+combination  1393.00  of  2346.00 
+combination  1392.00  of  2346.00 
+combination  1391.00  of  2346.00 
+combination  1390.00  of  2346.00 
+combination  1389.00  of  2346.00 
+combination  1388.00  of  2346.00 
+combination  1387.00  of  2346.00 
+combination  1386.00  of  2346.00 
+combination  1385.00  of  2346.00 
+combination  1384.00  of  2346.00 
+combination  1383.00  of  2346.00 
+combination  1382.00  of  2346.00 
+combination  1381.00  of  2346.00 
+combination  1380.00  of  2346.00 
+combination  1379.00  of  2346.00 
+combination  1378.00  of  2346.00 
+combination  1377.00  of  2346.00 
+combination  1376.00  of  2346.00 
+combination  1375.00  of  2346.00 
+combination  1374.00  of  2346.00 
+combination  1373.00  of  2346.00 
+combination  1372.00  of  2346.00 
+combination  1371.00  of  2346.00 
+combination  1370.00  of  2346.00 
+combination  1369.00  of  2346.00 
+combination  1368.00  of  2346.00 
+combination  1367.00  of  2346.00 
+combination  1366.00  of  2346.00 
+combination  1365.00  of  2346.00 
+combination  1364.00  of  2346.00 
+combination  1363.00  of  2346.00 
+combination  1362.00  of  2346.00 
+combination  1361.00  of  2346.00 
+combination  1360.00  of  2346.00 
+combination  1359.00  of  2346.00 
+combination  1358.00  of  2346.00 
+combination  1357.00  of  2346.00 
+combination  1356.00  of  2346.00 
+combination  1355.00  of  2346.00 
+combination  1354.00  of  2346.00 
+combination  1353.00  of  2346.00 
+combination  1352.00  of  2346.00 
+combination  1351.00  of  2346.00 
+combination  1350.00  of  2346.00 
+combination  1349.00  of  2346.00 
+combination  1348.00  of  2346.00 
+combination  1347.00  of  2346.00 
+combination  1346.00  of  2346.00 
+combination  1345.00  of  2346.00 
+combination  1344.00  of  2346.00 
+combination  1343.00  of  2346.00 
+combination  1342.00  of  2346.00 
+combination  1341.00  of  2346.00 
+combination  1340.00  of  2346.00 
+combination  1339.00  of  2346.00 
+combination  1338.00  of  2346.00 
+combination  1337.00  of  2346.00 
+combination  1336.00  of  2346.00 
+combination  1335.00  of  2346.00 
+combination  1334.00  of  2346.00 
+combination  1333.00  of  2346.00 
+combination  1332.00  of  2346.00 
+combination  1331.00  of  2346.00 
+combination  1330.00  of  2346.00 
+combination  1329.00  of  2346.00 
+combination  1328.00  of  2346.00 
+combination  1327.00  of  2346.00 
+combination  1326.00  of  2346.00 
+combination  1325.00  of  2346.00 
+combination  1324.00  of  2346.00 
+combination  1323.00  of  2346.00 
+combination  1322.00  of  2346.00 
+combination  1321.00  of  2346.00 
+combination  1320.00  of  2346.00 
+combination  1319.00  of  2346.00 
+combination  1318.00  of  2346.00 
+combination  1317.00  of  2346.00 
+combination  1316.00  of  2346.00 
+combination  1315.00  of  2346.00 
+combination  1314.00  of  2346.00 
+combination  1313.00  of  2346.00 
+combination  1312.00  of  2346.00 
+combination  1311.00  of  2346.00 
+combination  1310.00  of  2346.00 
+combination  1309.00  of  2346.00 
+combination  1308.00  of  2346.00 
+combination  1307.00  of  2346.00 
+combination  1306.00  of  2346.00 
+combination  1305.00  of  2346.00 
+combination  1304.00  of  2346.00 
+combination  1303.00  of  2346.00 
+combination  1302.00  of  2346.00 
+combination  1301.00  of  2346.00 
+combination  1300.00  of  2346.00 
+combination  1299.00  of  2346.00 
+combination  1298.00  of  2346.00 
+combination  1297.00  of  2346.00 
+combination  1296.00  of  2346.00 
+combination  1295.00  of  2346.00 
+combination  1294.00  of  2346.00 
+combination  1293.00  of  2346.00 
+combination  1292.00  of  2346.00 
+combination  1291.00  of  2346.00 
+combination  1290.00  of  2346.00 
+combination  1289.00  of  2346.00 
+combination  1288.00  of  2346.00 
+combination  1287.00  of  2346.00 
+combination  1286.00  of  2346.00 
+combination  1285.00  of  2346.00 
+combination  1284.00  of  2346.00 
+combination  1283.00  of  2346.00 
+combination  1282.00  of  2346.00 
+combination  1281.00  of  2346.00 
+combination  1280.00  of  2346.00 
+combination  1279.00  of  2346.00 
+combination  1278.00  of  2346.00 
+combination  1277.00  of  2346.00 
+combination  1276.00  of  2346.00 
+combination  1275.00  of  2346.00 
+combination  1274.00  of  2346.00 
+combination  1273.00  of  2346.00 
+combination  1272.00  of  2346.00 
+combination  1271.00  of  2346.00 
+combination  1270.00  of  2346.00 
+combination  1269.00  of  2346.00 
+combination  1268.00  of  2346.00 
+combination  1267.00  of  2346.00 
+combination  1266.00  of  2346.00 
+combination  1265.00  of  2346.00 
+combination  1264.00  of  2346.00 
+combination  1263.00  of  2346.00 
+combination  1262.00  of  2346.00 
+combination  1261.00  of  2346.00 
+combination  1260.00  of  2346.00 
+combination  1259.00  of  2346.00 
+combination  1258.00  of  2346.00 
+combination  1257.00  of  2346.00 
+combination  1256.00  of  2346.00 
+combination  1255.00  of  2346.00 
+combination  1254.00  of  2346.00 
+combination  1253.00  of  2346.00 
+combination  1252.00  of  2346.00 
+combination  1251.00  of  2346.00 
+combination  1250.00  of  2346.00 
+combination  1249.00  of  2346.00 
+combination  1248.00  of  2346.00 
+combination  1247.00  of  2346.00 
+combination  1246.00  of  2346.00 
+combination  1245.00  of  2346.00 
+combination  1244.00  of  2346.00 
+combination  1243.00  of  2346.00 
+combination  1242.00  of  2346.00 
+combination  1241.00  of  2346.00 
+combination  1240.00  of  2346.00 
+combination  1239.00  of  2346.00 
+combination  1238.00  of  2346.00 
+combination  1237.00  of  2346.00 
+combination  1236.00  of  2346.00 
+combination  1235.00  of  2346.00 
+combination  1234.00  of  2346.00 
+combination  1233.00  of  2346.00 
+combination  1232.00  of  2346.00 
+combination  1231.00  of  2346.00 
+combination  1230.00  of  2346.00 
+combination  1229.00  of  2346.00 
+combination  1228.00  of  2346.00 
+combination  1227.00  of  2346.00 
+combination  1226.00  of  2346.00 
+combination  1225.00  of  2346.00 
+combination  1224.00  of  2346.00 
+combination  1223.00  of  2346.00 
+combination  1222.00  of  2346.00 
+combination  1221.00  of  2346.00 
+combination  1220.00  of  2346.00 
+combination  1219.00  of  2346.00 
+combination  1218.00  of  2346.00 
+combination  1217.00  of  2346.00 
+combination  1216.00  of  2346.00 
+combination  1215.00  of  2346.00 
+combination  1214.00  of  2346.00 
+combination  1213.00  of  2346.00 
+combination  1212.00  of  2346.00 
+combination  1211.00  of  2346.00 
+combination  1210.00  of  2346.00 
+combination  1209.00  of  2346.00 
+combination  1208.00  of  2346.00 
+combination  1207.00  of  2346.00 
+combination  1206.00  of  2346.00 
+combination  1205.00  of  2346.00 
+combination  1204.00  of  2346.00 
+combination  1203.00  of  2346.00 
+combination  1202.00  of  2346.00 
+combination  1201.00  of  2346.00 
+combination  1200.00  of  2346.00 
+combination  1199.00  of  2346.00 
+combination  1198.00  of  2346.00 
+combination  1197.00  of  2346.00 
+combination  1196.00  of  2346.00 
+combination  1195.00  of  2346.00 
+combination  1194.00  of  2346.00 
+combination  1193.00  of  2346.00 
+combination  1192.00  of  2346.00 
+combination  1191.00  of  2346.00 
+combination  1190.00  of  2346.00 
+combination  1189.00  of  2346.00 
+combination  1188.00  of  2346.00 
+combination  1187.00  of  2346.00 
+combination  1186.00  of  2346.00 
+combination  1185.00  of  2346.00 
+combination  1184.00  of  2346.00 
+combination  1183.00  of  2346.00 
+combination  1182.00  of  2346.00 
+combination  1181.00  of  2346.00 
+combination  1180.00  of  2346.00 
+combination  1179.00  of  2346.00 
+combination  1178.00  of  2346.00 
+combination  1177.00  of  2346.00 
+combination  1176.00  of  2346.00 
+combination  1175.00  of  2346.00 
+combination  1174.00  of  2346.00 
+combination  1173.00  of  2346.00 
+combination  1172.00  of  2346.00 
+combination  1171.00  of  2346.00 
+combination  1170.00  of  2346.00 
+combination  1169.00  of  2346.00 
+combination  1168.00  of  2346.00 
+combination  1167.00  of  2346.00 
+combination  1166.00  of  2346.00 
+combination  1165.00  of  2346.00 
+combination  1164.00  of  2346.00 
+combination  1163.00  of  2346.00 
+combination  1162.00  of  2346.00 
+combination  1161.00  of  2346.00 
+combination  1160.00  of  2346.00 
+combination  1159.00  of  2346.00 
+combination  1158.00  of  2346.00 
+combination  1157.00  of  2346.00 
+combination  1156.00  of  2346.00 
+combination  1155.00  of  2346.00 
+combination  1154.00  of  2346.00 
+combination  1153.00  of  2346.00 
+combination  1152.00  of  2346.00 
+combination  1151.00  of  2346.00 
+combination  1150.00  of  2346.00 
+combination  1149.00  of  2346.00 
+combination  1148.00  of  2346.00 
+combination  1147.00  of  2346.00 
+combination  1146.00  of  2346.00 
+combination  1145.00  of  2346.00 
+combination  1144.00  of  2346.00 
+combination  1143.00  of  2346.00 
+combination  1142.00  of  2346.00 
+combination  1141.00  of  2346.00 
+combination  1140.00  of  2346.00 
+combination  1139.00  of  2346.00 
+combination  1138.00  of  2346.00 
+combination  1137.00  of  2346.00 
+combination  1136.00  of  2346.00 
+combination  1135.00  of  2346.00 
+combination  1134.00  of  2346.00 
+combination  1133.00  of  2346.00 
+combination  1132.00  of  2346.00 
+combination  1131.00  of  2346.00 
+combination  1130.00  of  2346.00 
+combination  1129.00  of  2346.00 
+combination  1128.00  of  2346.00 
+combination  1127.00  of  2346.00 
+combination  1126.00  of  2346.00 
+combination  1125.00  of  2346.00 
+combination  1124.00  of  2346.00 
+combination  1123.00  of  2346.00 
+combination  1122.00  of  2346.00 
+combination  1121.00  of  2346.00 
+combination  1120.00  of  2346.00 
+combination  1119.00  of  2346.00 
+combination  1118.00  of  2346.00 
+combination  1117.00  of  2346.00 
+combination  1116.00  of  2346.00 
+combination  1115.00  of  2346.00 
+combination  1114.00  of  2346.00 
+combination  1113.00  of  2346.00 
+combination  1112.00  of  2346.00 
+combination  1111.00  of  2346.00 
+combination  1110.00  of  2346.00 
+combination  1109.00  of  2346.00 
+combination  1108.00  of  2346.00 
+combination  1107.00  of  2346.00 
+combination  1106.00  of  2346.00 
+combination  1105.00  of  2346.00 
+combination  1104.00  of  2346.00 
+combination  1103.00  of  2346.00 
+combination  1102.00  of  2346.00 
+combination  1101.00  of  2346.00 
+combination  1100.00  of  2346.00 
+combination  1099.00  of  2346.00 
+combination  1098.00  of  2346.00 
+combination  1097.00  of  2346.00 
+combination  1096.00  of  2346.00 
+combination  1095.00  of  2346.00 
+combination  1094.00  of  2346.00 
+combination  1093.00  of  2346.00 
+combination  1092.00  of  2346.00 
+combination  1091.00  of  2346.00 
+combination  1090.00  of  2346.00 
+combination  1089.00  of  2346.00 
+combination  1088.00  of  2346.00 
+combination  1087.00  of  2346.00 
+combination  1086.00  of  2346.00 
+combination  1085.00  of  2346.00 
+combination  1084.00  of  2346.00 
+combination  1083.00  of  2346.00 
+combination  1082.00  of  2346.00 
+combination  1081.00  of  2346.00 
+combination  1080.00  of  2346.00 
+combination  1079.00  of  2346.00 
+combination  1078.00  of  2346.00 
+combination  1077.00  of  2346.00 
+combination  1076.00  of  2346.00 
+combination  1075.00  of  2346.00 
+combination  1074.00  of  2346.00 
+combination  1073.00  of  2346.00 
+combination  1072.00  of  2346.00 
+combination  1071.00  of  2346.00 
+combination  1070.00  of  2346.00 
+combination  1069.00  of  2346.00 
+combination  1068.00  of  2346.00 
+combination  1067.00  of  2346.00 
+combination  1066.00  of  2346.00 
+combination  1065.00  of  2346.00 
+combination  1064.00  of  2346.00 
+combination  1063.00  of  2346.00 
+combination  1062.00  of  2346.00 
+combination  1061.00  of  2346.00 
+combination  1060.00  of  2346.00 
+combination  1059.00  of  2346.00 
+combination  1058.00  of  2346.00 
+combination  1057.00  of  2346.00 
+combination  1056.00  of  2346.00 
+combination  1055.00  of  2346.00 
+combination  1054.00  of  2346.00 
+combination  1053.00  of  2346.00 
+combination  1052.00  of  2346.00 
+combination  1051.00  of  2346.00 
+combination  1050.00  of  2346.00 
+combination  1049.00  of  2346.00 
+combination  1048.00  of  2346.00 
+combination  1047.00  of  2346.00 
+combination  1046.00  of  2346.00 
+combination  1045.00  of  2346.00 
+combination  1044.00  of  2346.00 
+combination  1043.00  of  2346.00 
+combination  1042.00  of  2346.00 
+combination  1041.00  of  2346.00 
+combination  1040.00  of  2346.00 
+combination  1039.00  of  2346.00 
+combination  1038.00  of  2346.00 
+combination  1037.00  of  2346.00 
+combination  1036.00  of  2346.00 
+combination  1035.00  of  2346.00 
+combination  1034.00  of  2346.00 
+combination  1033.00  of  2346.00 
+combination  1032.00  of  2346.00 
+combination  1031.00  of  2346.00 
+combination  1030.00  of  2346.00 
+combination  1029.00  of  2346.00 
+combination  1028.00  of  2346.00 
+combination  1027.00  of  2346.00 
+combination  1026.00  of  2346.00 
+combination  1025.00  of  2346.00 
+combination  1024.00  of  2346.00 
+combination  1023.00  of  2346.00 
+combination  1022.00  of  2346.00 
+combination  1021.00  of  2346.00 
+combination  1020.00  of  2346.00 
+combination  1019.00  of  2346.00 
+combination  1018.00  of  2346.00 
+combination  1017.00  of  2346.00 
+combination  1016.00  of  2346.00 
+combination  1015.00  of  2346.00 
+combination  1014.00  of  2346.00 
+combination  1013.00  of  2346.00 
+combination  1012.00  of  2346.00 
+combination  1011.00  of  2346.00 
+combination  1010.00  of  2346.00 
+combination  1009.00  of  2346.00 
+combination  1008.00  of  2346.00 
+combination  1007.00  of  2346.00 
+combination  1006.00  of  2346.00 
+combination  1005.00  of  2346.00 
+combination  1004.00  of  2346.00 
+combination  1003.00  of  2346.00 
+combination  1002.00  of  2346.00 
+combination  1001.00  of  2346.00 
+combination  1000.00  of  2346.00 
+combination  999.00   of  2346.00 
+combination  998.00   of  2346.00 
+combination  997.00   of  2346.00 
+combination  996.00   of  2346.00 
+combination  995.00   of  2346.00 
+combination  994.00   of  2346.00 
+combination  993.00   of  2346.00 
+combination  992.00   of  2346.00 
+combination  991.00   of  2346.00 
+combination  990.00   of  2346.00 
+combination  989.00   of  2346.00 
+combination  988.00   of  2346.00 
+combination  987.00   of  2346.00 
+combination  986.00   of  2346.00 
+combination  985.00   of  2346.00 
+combination  984.00   of  2346.00 
+combination  983.00   of  2346.00 
+combination  982.00   of  2346.00 
+combination  981.00   of  2346.00 
+combination  980.00   of  2346.00 
+combination  979.00   of  2346.00 
+combination  978.00   of  2346.00 
+combination  977.00   of  2346.00 
+combination  976.00   of  2346.00 
+combination  975.00   of  2346.00 
+combination  974.00   of  2346.00 
+combination  973.00   of  2346.00 
+combination  972.00   of  2346.00 
+combination  971.00   of  2346.00 
+combination  970.00   of  2346.00 
+combination  969.00   of  2346.00 
+combination  968.00   of  2346.00 
+combination  967.00   of  2346.00 
+combination  966.00   of  2346.00 
+combination  965.00   of  2346.00 
+combination  964.00   of  2346.00 
+combination  963.00   of  2346.00 
+combination  962.00   of  2346.00 
+combination  961.00   of  2346.00 
+combination  960.00   of  2346.00 
+combination  959.00   of  2346.00 
+combination  958.00   of  2346.00 
+combination  957.00   of  2346.00 
+combination  956.00   of  2346.00 
+combination  955.00   of  2346.00 
+combination  954.00   of  2346.00 
+combination  953.00   of  2346.00 
+combination  952.00   of  2346.00 
+combination  951.00   of  2346.00 
+combination  950.00   of  2346.00 
+combination  949.00   of  2346.00 
+combination  948.00   of  2346.00 
+combination  947.00   of  2346.00 
+combination  946.00   of  2346.00 
+combination  945.00   of  2346.00 
+combination  944.00   of  2346.00 
+combination  943.00   of  2346.00 
+combination  942.00   of  2346.00 
+combination  941.00   of  2346.00 
+combination  940.00   of  2346.00 
+combination  939.00   of  2346.00 
+combination  938.00   of  2346.00 
+combination  937.00   of  2346.00 
+combination  936.00   of  2346.00 
+combination  935.00   of  2346.00 
+combination  934.00   of  2346.00 
+combination  933.00   of  2346.00 
+combination  932.00   of  2346.00 
+combination  931.00   of  2346.00 
+combination  930.00   of  2346.00 
+combination  929.00   of  2346.00 
+combination  928.00   of  2346.00 
+combination  927.00   of  2346.00 
+combination  926.00   of  2346.00 
+combination  925.00   of  2346.00 
+combination  924.00   of  2346.00 
+combination  923.00   of  2346.00 
+combination  922.00   of  2346.00 
+combination  921.00   of  2346.00 
+combination  920.00   of  2346.00 
+combination  919.00   of  2346.00 
+combination  918.00   of  2346.00 
+combination  917.00   of  2346.00 
+combination  916.00   of  2346.00 
+combination  915.00   of  2346.00 
+combination  914.00   of  2346.00 
+combination  913.00   of  2346.00 
+combination  912.00   of  2346.00 
+combination  911.00   of  2346.00 
+combination  910.00   of  2346.00 
+combination  909.00   of  2346.00 
+combination  908.00   of  2346.00 
+combination  907.00   of  2346.00 
+combination  906.00   of  2346.00 
+combination  905.00   of  2346.00 
+combination  904.00   of  2346.00 
+combination  903.00   of  2346.00 
+combination  902.00   of  2346.00 
+combination  901.00   of  2346.00 
+combination  900.00   of  2346.00 
+combination  899.00   of  2346.00 
+combination  898.00   of  2346.00 
+combination  897.00   of  2346.00 
+combination  896.00   of  2346.00 
+combination  895.00   of  2346.00 
+combination  894.00   of  2346.00 
+combination  893.00   of  2346.00 
+combination  892.00   of  2346.00 
+combination  891.00   of  2346.00 
+combination  890.00   of  2346.00 
+combination  889.00   of  2346.00 
+combination  888.00   of  2346.00 
+combination  887.00   of  2346.00 
+combination  886.00   of  2346.00 
+combination  885.00   of  2346.00 
+combination  884.00   of  2346.00 
+combination  883.00   of  2346.00 
+combination  882.00   of  2346.00 
+combination  881.00   of  2346.00 
+combination  880.00   of  2346.00 
+combination  879.00   of  2346.00 
+combination  878.00   of  2346.00 
+combination  877.00   of  2346.00 
+combination  876.00   of  2346.00 
+combination  875.00   of  2346.00 
+combination  874.00   of  2346.00 
+combination  873.00   of  2346.00 
+combination  872.00   of  2346.00 
+combination  871.00   of  2346.00 
+combination  870.00   of  2346.00 
+combination  869.00   of  2346.00 
+combination  868.00   of  2346.00 
+combination  867.00   of  2346.00 
+combination  866.00   of  2346.00 
+combination  865.00   of  2346.00 
+combination  864.00   of  2346.00 
+combination  863.00   of  2346.00 
+combination  862.00   of  2346.00 
+combination  861.00   of  2346.00 
+combination  860.00   of  2346.00 
+combination  859.00   of  2346.00 
+combination  858.00   of  2346.00 
+combination  857.00   of  2346.00 
+combination  856.00   of  2346.00 
+combination  855.00   of  2346.00 
+combination  854.00   of  2346.00 
+combination  853.00   of  2346.00 
+combination  852.00   of  2346.00 
+combination  851.00   of  2346.00 
+combination  850.00   of  2346.00 
+combination  849.00   of  2346.00 
+combination  848.00   of  2346.00 
+combination  847.00   of  2346.00 
+combination  846.00   of  2346.00 
+combination  845.00   of  2346.00 
+combination  844.00   of  2346.00 
+combination  843.00   of  2346.00 
+combination  842.00   of  2346.00 
+combination  841.00   of  2346.00 
+combination  840.00   of  2346.00 
+combination  839.00   of  2346.00 
+combination  838.00   of  2346.00 
+combination  837.00   of  2346.00 
+combination  836.00   of  2346.00 
+combination  835.00   of  2346.00 
+combination  834.00   of  2346.00 
+combination  833.00   of  2346.00 
+combination  832.00   of  2346.00 
+combination  831.00   of  2346.00 
+combination  830.00   of  2346.00 
+combination  829.00   of  2346.00 
+combination  828.00   of  2346.00 
+combination  827.00   of  2346.00 
+combination  826.00   of  2346.00 
+combination  825.00   of  2346.00 
+combination  824.00   of  2346.00 
+combination  823.00   of  2346.00 
+combination  822.00   of  2346.00 
+combination  821.00   of  2346.00 
+combination  820.00   of  2346.00 
+combination  819.00   of  2346.00 
+combination  818.00   of  2346.00 
+combination  817.00   of  2346.00 
+combination  816.00   of  2346.00 
+combination  815.00   of  2346.00 
+combination  814.00   of  2346.00 
+combination  813.00   of  2346.00 
+combination  812.00   of  2346.00 
+combination  811.00   of  2346.00 
+combination  810.00   of  2346.00 
+combination  809.00   of  2346.00 
+combination  808.00   of  2346.00 
+combination  807.00   of  2346.00 
+combination  806.00   of  2346.00 
+combination  805.00   of  2346.00 
+combination  804.00   of  2346.00 
+combination  803.00   of  2346.00 
+combination  802.00   of  2346.00 
+combination  801.00   of  2346.00 
+combination  800.00   of  2346.00 
+combination  799.00   of  2346.00 
+combination  798.00   of  2346.00 
+combination  797.00   of  2346.00 
+combination  796.00   of  2346.00 
+combination  795.00   of  2346.00 
+combination  794.00   of  2346.00 
+combination  793.00   of  2346.00 
+combination  792.00   of  2346.00 
+combination  791.00   of  2346.00 
+combination  790.00   of  2346.00 
+combination  789.00   of  2346.00 
+combination  788.00   of  2346.00 
+combination  787.00   of  2346.00 
+combination  786.00   of  2346.00 
+combination  785.00   of  2346.00 
+combination  784.00   of  2346.00 
+combination  783.00   of  2346.00 
+combination  782.00   of  2346.00 
+combination  781.00   of  2346.00 
+combination  780.00   of  2346.00 
+combination  779.00   of  2346.00 
+combination  778.00   of  2346.00 
+combination  777.00   of  2346.00 
+combination  776.00   of  2346.00 
+combination  775.00   of  2346.00 
+combination  774.00   of  2346.00 
+combination  773.00   of  2346.00 
+combination  772.00   of  2346.00 
+combination  771.00   of  2346.00 
+combination  770.00   of  2346.00 
+combination  769.00   of  2346.00 
+combination  768.00   of  2346.00 
+combination  767.00   of  2346.00 
+combination  766.00   of  2346.00 
+combination  765.00   of  2346.00 
+combination  764.00   of  2346.00 
+combination  763.00   of  2346.00 
+combination  762.00   of  2346.00 
+combination  761.00   of  2346.00 
+combination  760.00   of  2346.00 
+combination  759.00   of  2346.00 
+combination  758.00   of  2346.00 
+combination  757.00   of  2346.00 
+combination  756.00   of  2346.00 
+combination  755.00   of  2346.00 
+combination  754.00   of  2346.00 
+combination  753.00   of  2346.00 
+combination  752.00   of  2346.00 
+combination  751.00   of  2346.00 
+combination  750.00   of  2346.00 
+combination  749.00   of  2346.00 
+combination  748.00   of  2346.00 
+combination  747.00   of  2346.00 
+combination  746.00   of  2346.00 
+combination  745.00   of  2346.00 
+combination  744.00   of  2346.00 
+combination  743.00   of  2346.00 
+combination  742.00   of  2346.00 
+combination  741.00   of  2346.00 
+combination  740.00   of  2346.00 
+combination  739.00   of  2346.00 
+combination  738.00   of  2346.00 
+combination  737.00   of  2346.00 
+combination  736.00   of  2346.00 
+combination  735.00   of  2346.00 
+combination  734.00   of  2346.00 
+combination  733.00   of  2346.00 
+combination  732.00   of  2346.00 
+combination  731.00   of  2346.00 
+combination  730.00   of  2346.00 
+combination  729.00   of  2346.00 
+combination  728.00   of  2346.00 
+combination  727.00   of  2346.00 
+combination  726.00   of  2346.00 
+combination  725.00   of  2346.00 
+combination  724.00   of  2346.00 
+combination  723.00   of  2346.00 
+combination  722.00   of  2346.00 
+combination  721.00   of  2346.00 
+combination  720.00   of  2346.00 
+combination  719.00   of  2346.00 
+combination  718.00   of  2346.00 
+combination  717.00   of  2346.00 
+combination  716.00   of  2346.00 
+combination  715.00   of  2346.00 
+combination  714.00   of  2346.00 
+combination  713.00   of  2346.00 
+combination  712.00   of  2346.00 
+combination  711.00   of  2346.00 
+combination  710.00   of  2346.00 
+combination  709.00   of  2346.00 
+combination  708.00   of  2346.00 
+combination  707.00   of  2346.00 
+combination  706.00   of  2346.00 
+combination  705.00   of  2346.00 
+combination  704.00   of  2346.00 
+combination  703.00   of  2346.00 
+combination  702.00   of  2346.00 
+combination  701.00   of  2346.00 
+combination  700.00   of  2346.00 
+combination  699.00   of  2346.00 
+combination  698.00   of  2346.00 
+combination  697.00   of  2346.00 
+combination  696.00   of  2346.00 
+combination  695.00   of  2346.00 
+combination  694.00   of  2346.00 
+combination  693.00   of  2346.00 
+combination  692.00   of  2346.00 
+combination  691.00   of  2346.00 
+combination  690.00   of  2346.00 
+combination  689.00   of  2346.00 
+combination  688.00   of  2346.00 
+combination  687.00   of  2346.00 
+combination  686.00   of  2346.00 
+combination  685.00   of  2346.00 
+combination  684.00   of  2346.00 
+combination  683.00   of  2346.00 
+combination  682.00   of  2346.00 
+combination  681.00   of  2346.00 
+combination  680.00   of  2346.00 
+combination  679.00   of  2346.00 
+combination  678.00   of  2346.00 
+combination  677.00   of  2346.00 
+combination  676.00   of  2346.00 
+combination  675.00   of  2346.00 
+combination  674.00   of  2346.00 
+combination  673.00   of  2346.00 
+combination  672.00   of  2346.00 
+combination  671.00   of  2346.00 
+combination  670.00   of  2346.00 
+combination  669.00   of  2346.00 
+combination  668.00   of  2346.00 
+combination  667.00   of  2346.00 
+combination  666.00   of  2346.00 
+combination  665.00   of  2346.00 
+combination  664.00   of  2346.00 
+combination  663.00   of  2346.00 
+combination  662.00   of  2346.00 
+combination  661.00   of  2346.00 
+combination  660.00   of  2346.00 
+combination  659.00   of  2346.00 
+combination  658.00   of  2346.00 
+combination  657.00   of  2346.00 
+combination  656.00   of  2346.00 
+combination  655.00   of  2346.00 
+combination  654.00   of  2346.00 
+combination  653.00   of  2346.00 
+combination  652.00   of  2346.00 
+combination  651.00   of  2346.00 
+combination  650.00   of  2346.00 
+combination  649.00   of  2346.00 
+combination  648.00   of  2346.00 
+combination  647.00   of  2346.00 
+combination  646.00   of  2346.00 
+combination  645.00   of  2346.00 
+combination  644.00   of  2346.00 
+combination  643.00   of  2346.00 
+combination  642.00   of  2346.00 
+combination  641.00   of  2346.00 
+combination  640.00   of  2346.00 
+combination  639.00   of  2346.00 
+combination  638.00   of  2346.00 
+combination  637.00   of  2346.00 
+combination  636.00   of  2346.00 
+combination  635.00   of  2346.00 
+combination  634.00   of  2346.00 
+combination  633.00   of  2346.00 
+combination  632.00   of  2346.00 
+combination  631.00   of  2346.00 
+combination  630.00   of  2346.00 
+combination  629.00   of  2346.00 
+combination  628.00   of  2346.00 
+combination  627.00   of  2346.00 
+combination  626.00   of  2346.00 
+combination  625.00   of  2346.00 
+combination  624.00   of  2346.00 
+combination  623.00   of  2346.00 
+combination  622.00   of  2346.00 
+combination  621.00   of  2346.00 
+combination  620.00   of  2346.00 
+combination  619.00   of  2346.00 
+combination  618.00   of  2346.00 
+combination  617.00   of  2346.00 
+combination  616.00   of  2346.00 
+combination  615.00   of  2346.00 
+combination  614.00   of  2346.00 
+combination  613.00   of  2346.00 
+combination  612.00   of  2346.00 
+combination  611.00   of  2346.00 
+combination  610.00   of  2346.00 
+combination  609.00   of  2346.00 
+combination  608.00   of  2346.00 
+combination  607.00   of  2346.00 
+combination  606.00   of  2346.00 
+combination  605.00   of  2346.00 
+combination  604.00   of  2346.00 
+combination  603.00   of  2346.00 
+combination  602.00   of  2346.00 
+combination  601.00   of  2346.00 
+combination  600.00   of  2346.00 
+combination  599.00   of  2346.00 
+combination  598.00   of  2346.00 
+combination  597.00   of  2346.00 
+combination  596.00   of  2346.00 
+combination  595.00   of  2346.00 
+combination  594.00   of  2346.00 
+combination  593.00   of  2346.00 
+combination  592.00   of  2346.00 
+combination  591.00   of  2346.00 
+combination  590.00   of  2346.00 
+combination  589.00   of  2346.00 
+combination  588.00   of  2346.00 
+combination  587.00   of  2346.00 
+combination  586.00   of  2346.00 
+combination  585.00   of  2346.00 
+combination  584.00   of  2346.00 
+combination  583.00   of  2346.00 
+combination  582.00   of  2346.00 
+combination  581.00   of  2346.00 
+combination  580.00   of  2346.00 
+combination  579.00   of  2346.00 
+combination  578.00   of  2346.00 
+combination  577.00   of  2346.00 
+combination  576.00   of  2346.00 
+combination  575.00   of  2346.00 
+combination  574.00   of  2346.00 
+combination  573.00   of  2346.00 
+combination  572.00   of  2346.00 
+combination  571.00   of  2346.00 
+combination  570.00   of  2346.00 
+combination  569.00   of  2346.00 
+combination  568.00   of  2346.00 
+combination  567.00   of  2346.00 
+combination  566.00   of  2346.00 
+combination  565.00   of  2346.00 
+combination  564.00   of  2346.00 
+combination  563.00   of  2346.00 
+combination  562.00   of  2346.00 
+combination  561.00   of  2346.00 
+combination  560.00   of  2346.00 
+combination  559.00   of  2346.00 
+combination  558.00   of  2346.00 
+combination  557.00   of  2346.00 
+combination  556.00   of  2346.00 
+combination  555.00   of  2346.00 
+combination  554.00   of  2346.00 
+combination  553.00   of  2346.00 
+combination  552.00   of  2346.00 
+combination  551.00   of  2346.00 
+combination  550.00   of  2346.00 
+combination  549.00   of  2346.00 
+combination  548.00   of  2346.00 
+combination  547.00   of  2346.00 
+combination  546.00   of  2346.00 
+combination  545.00   of  2346.00 
+combination  544.00   of  2346.00 
+combination  543.00   of  2346.00 
+combination  542.00   of  2346.00 
+combination  541.00   of  2346.00 
+combination  540.00   of  2346.00 
+combination  539.00   of  2346.00 
+combination  538.00   of  2346.00 
+combination  537.00   of  2346.00 
+combination  536.00   of  2346.00 
+combination  535.00   of  2346.00 
+combination  534.00   of  2346.00 
+combination  533.00   of  2346.00 
+combination  532.00   of  2346.00 
+combination  531.00   of  2346.00 
+combination  530.00   of  2346.00 
+combination  529.00   of  2346.00 
+combination  528.00   of  2346.00 
+combination  527.00   of  2346.00 
+combination  526.00   of  2346.00 
+combination  525.00   of  2346.00 
+combination  524.00   of  2346.00 
+combination  523.00   of  2346.00 
+combination  522.00   of  2346.00 
+combination  521.00   of  2346.00 
+combination  520.00   of  2346.00 
+combination  519.00   of  2346.00 
+combination  518.00   of  2346.00 
+combination  517.00   of  2346.00 
+combination  516.00   of  2346.00 
+combination  515.00   of  2346.00 
+combination  514.00   of  2346.00 
+combination  513.00   of  2346.00 
+combination  512.00   of  2346.00 
+combination  511.00   of  2346.00 
+combination  510.00   of  2346.00 
+combination  509.00   of  2346.00 
+combination  508.00   of  2346.00 
+combination  507.00   of  2346.00 
+combination  506.00   of  2346.00 
+combination  505.00   of  2346.00 
+combination  504.00   of  2346.00 
+combination  503.00   of  2346.00 
+combination  502.00   of  2346.00 
+combination  501.00   of  2346.00 
+combination  500.00   of  2346.00 
+combination  499.00   of  2346.00 
+combination  498.00   of  2346.00 
+combination  497.00   of  2346.00 
+combination  496.00   of  2346.00 
+combination  495.00   of  2346.00 
+combination  494.00   of  2346.00 
+combination  493.00   of  2346.00 
+combination  492.00   of  2346.00 
+combination  491.00   of  2346.00 
+combination  490.00   of  2346.00 
+combination  489.00   of  2346.00 
+combination  488.00   of  2346.00 
+combination  487.00   of  2346.00 
+combination  486.00   of  2346.00 
+combination  485.00   of  2346.00 
+combination  484.00   of  2346.00 
+combination  483.00   of  2346.00 
+combination  482.00   of  2346.00 
+combination  481.00   of  2346.00 
+combination  480.00   of  2346.00 
+combination  479.00   of  2346.00 
+combination  478.00   of  2346.00 
+combination  477.00   of  2346.00 
+combination  476.00   of  2346.00 
+combination  475.00   of  2346.00 
+combination  474.00   of  2346.00 
+combination  473.00   of  2346.00 
+combination  472.00   of  2346.00 
+combination  471.00   of  2346.00 
+combination  470.00   of  2346.00 
+combination  469.00   of  2346.00 
+combination  468.00   of  2346.00 
+combination  467.00   of  2346.00 
+combination  466.00   of  2346.00 
+combination  465.00   of  2346.00 
+combination  464.00   of  2346.00 
+combination  463.00   of  2346.00 
+combination  462.00   of  2346.00 
+combination  461.00   of  2346.00 
+combination  460.00   of  2346.00 
+combination  459.00   of  2346.00 
+combination  458.00   of  2346.00 
+combination  457.00   of  2346.00 
+combination  456.00   of  2346.00 
+combination  455.00   of  2346.00 
+combination  454.00   of  2346.00 
+combination  453.00   of  2346.00 
+combination  452.00   of  2346.00 
+combination  451.00   of  2346.00 
+combination  450.00   of  2346.00 
+combination  449.00   of  2346.00 
+combination  448.00   of  2346.00 
+combination  447.00   of  2346.00 
+combination  446.00   of  2346.00 
+combination  445.00   of  2346.00 
+combination  444.00   of  2346.00 
+combination  443.00   of  2346.00 
+combination  442.00   of  2346.00 
+combination  441.00   of  2346.00 
+combination  440.00   of  2346.00 
+combination  439.00   of  2346.00 
+combination  438.00   of  2346.00 
+combination  437.00   of  2346.00 
+combination  436.00   of  2346.00 
+combination  435.00   of  2346.00 
+combination  434.00   of  2346.00 
+combination  433.00   of  2346.00 
+combination  432.00   of  2346.00 
+combination  431.00   of  2346.00 
+combination  430.00   of  2346.00 
+combination  429.00   of  2346.00 
+combination  428.00   of  2346.00 
+combination  427.00   of  2346.00 
+combination  426.00   of  2346.00 
+combination  425.00   of  2346.00 
+combination  424.00   of  2346.00 
+combination  423.00   of  2346.00 
+combination  422.00   of  2346.00 
+combination  421.00   of  2346.00 
+combination  420.00   of  2346.00 
+combination  419.00   of  2346.00 
+combination  418.00   of  2346.00 
+combination  417.00   of  2346.00 
+combination  416.00   of  2346.00 
+combination  415.00   of  2346.00 
+combination  414.00   of  2346.00 
+combination  413.00   of  2346.00 
+combination  412.00   of  2346.00 
+combination  411.00   of  2346.00 
+combination  410.00   of  2346.00 
+combination  409.00   of  2346.00 
+combination  408.00   of  2346.00 
+combination  407.00   of  2346.00 
+combination  406.00   of  2346.00 
+combination  405.00   of  2346.00 
+combination  404.00   of  2346.00 
+combination  403.00   of  2346.00 
+combination  402.00   of  2346.00 
+combination  401.00   of  2346.00 
+combination  400.00   of  2346.00 
+combination  399.00   of  2346.00 
+combination  398.00   of  2346.00 
+combination  397.00   of  2346.00 
+combination  396.00   of  2346.00 
+combination  395.00   of  2346.00 
+combination  394.00   of  2346.00 
+combination  393.00   of  2346.00 
+combination  392.00   of  2346.00 
+combination  391.00   of  2346.00 
+combination  390.00   of  2346.00 
+combination  389.00   of  2346.00 
+combination  388.00   of  2346.00 
+combination  387.00   of  2346.00 
+combination  386.00   of  2346.00 
+combination  385.00   of  2346.00 
+combination  384.00   of  2346.00 
+combination  383.00   of  2346.00 
+combination  382.00   of  2346.00 
+combination  381.00   of  2346.00 
+combination  380.00   of  2346.00 
+combination  379.00   of  2346.00 
+combination  378.00   of  2346.00 
+combination  377.00   of  2346.00 
+combination  376.00   of  2346.00 
+combination  375.00   of  2346.00 
+combination  374.00   of  2346.00 
+combination  373.00   of  2346.00 
+combination  372.00   of  2346.00 
+combination  371.00   of  2346.00 
+combination  370.00   of  2346.00 
+combination  369.00   of  2346.00 
+combination  368.00   of  2346.00 
+combination  367.00   of  2346.00 
+combination  366.00   of  2346.00 
+combination  365.00   of  2346.00 
+combination  364.00   of  2346.00 
+combination  363.00   of  2346.00 
+combination  362.00   of  2346.00 
+combination  361.00   of  2346.00 
+combination  360.00   of  2346.00 
+combination  359.00   of  2346.00 
+combination  358.00   of  2346.00 
+combination  357.00   of  2346.00 
+combination  356.00   of  2346.00 
+combination  355.00   of  2346.00 
+combination  354.00   of  2346.00 
+combination  353.00   of  2346.00 
+combination  352.00   of  2346.00 
+combination  351.00   of  2346.00 
+combination  350.00   of  2346.00 
+combination  349.00   of  2346.00 
+combination  348.00   of  2346.00 
+combination  347.00   of  2346.00 
+combination  346.00   of  2346.00 
+combination  345.00   of  2346.00 
+combination  344.00   of  2346.00 
+combination  343.00   of  2346.00 
+combination  342.00   of  2346.00 
+combination  341.00   of  2346.00 
+combination  340.00   of  2346.00 
+combination  339.00   of  2346.00 
+combination  338.00   of  2346.00 
+combination  337.00   of  2346.00 
+combination  336.00   of  2346.00 
+combination  335.00   of  2346.00 
+combination  334.00   of  2346.00 
+combination  333.00   of  2346.00 
+combination  332.00   of  2346.00 
+combination  331.00   of  2346.00 
+combination  330.00   of  2346.00 
+combination  329.00   of  2346.00 
+combination  328.00   of  2346.00 
+combination  327.00   of  2346.00 
+combination  326.00   of  2346.00 
+combination  325.00   of  2346.00 
+combination  324.00   of  2346.00 
+combination  323.00   of  2346.00 
+combination  322.00   of  2346.00 
+combination  321.00   of  2346.00 
+combination  320.00   of  2346.00 
+combination  319.00   of  2346.00 
+combination  318.00   of  2346.00 
+combination  317.00   of  2346.00 
+combination  316.00   of  2346.00 
+combination  315.00   of  2346.00 
+combination  314.00   of  2346.00 
+combination  313.00   of  2346.00 
+combination  312.00   of  2346.00 
+combination  311.00   of  2346.00 
+combination  310.00   of  2346.00 
+combination  309.00   of  2346.00 
+combination  308.00   of  2346.00 
+combination  307.00   of  2346.00 
+combination  306.00   of  2346.00 
+combination  305.00   of  2346.00 
+combination  304.00   of  2346.00 
+combination  303.00   of  2346.00 
+combination  302.00   of  2346.00 
+combination  301.00   of  2346.00 
+combination  300.00   of  2346.00 
+combination  299.00   of  2346.00 
+combination  298.00   of  2346.00 
+combination  297.00   of  2346.00 
+combination  296.00   of  2346.00 
+combination  295.00   of  2346.00 
+combination  294.00   of  2346.00 
+combination  293.00   of  2346.00 
+combination  292.00   of  2346.00 
+combination  291.00   of  2346.00 
+combination  290.00   of  2346.00 
+combination  289.00   of  2346.00 
+combination  288.00   of  2346.00 
+combination  287.00   of  2346.00 
+combination  286.00   of  2346.00 
+combination  285.00   of  2346.00 
+combination  284.00   of  2346.00 
+combination  283.00   of  2346.00 
+combination  282.00   of  2346.00 
+combination  281.00   of  2346.00 
+combination  280.00   of  2346.00 
+combination  279.00   of  2346.00 
+combination  278.00   of  2346.00 
+combination  277.00   of  2346.00 
+combination  276.00   of  2346.00 
+combination  275.00   of  2346.00 
+combination  274.00   of  2346.00 
+combination  273.00   of  2346.00 
+combination  272.00   of  2346.00 
+combination  271.00   of  2346.00 
+combination  270.00   of  2346.00 
+combination  269.00   of  2346.00 
+combination  268.00   of  2346.00 
+combination  267.00   of  2346.00 
+combination  266.00   of  2346.00 
+combination  265.00   of  2346.00 
+combination  264.00   of  2346.00 
+combination  263.00   of  2346.00 
+combination  262.00   of  2346.00 
+combination  261.00   of  2346.00 
+combination  260.00   of  2346.00 
+combination  259.00   of  2346.00 
+combination  258.00   of  2346.00 
+combination  257.00   of  2346.00 
+combination  256.00   of  2346.00 
+combination  255.00   of  2346.00 
+combination  254.00   of  2346.00 
+combination  253.00   of  2346.00 
+combination  252.00   of  2346.00 
+combination  251.00   of  2346.00 
+combination  250.00   of  2346.00 
+combination  249.00   of  2346.00 
+combination  248.00   of  2346.00 
+combination  247.00   of  2346.00 
+combination  246.00   of  2346.00 
+combination  245.00   of  2346.00 
+combination  244.00   of  2346.00 
+combination  243.00   of  2346.00 
+combination  242.00   of  2346.00 
+combination  241.00   of  2346.00 
+combination  240.00   of  2346.00 
+combination  239.00   of  2346.00 
+combination  238.00   of  2346.00 
+combination  237.00   of  2346.00 
+combination  236.00   of  2346.00 
+combination  235.00   of  2346.00 
+combination  234.00   of  2346.00 
+combination  233.00   of  2346.00 
+combination  232.00   of  2346.00 
+combination  231.00   of  2346.00 
+combination  230.00   of  2346.00 
+combination  229.00   of  2346.00 
+combination  228.00   of  2346.00 
+combination  227.00   of  2346.00 
+combination  226.00   of  2346.00 
+combination  225.00   of  2346.00 
+combination  224.00   of  2346.00 
+combination  223.00   of  2346.00 
+combination  222.00   of  2346.00 
+combination  221.00   of  2346.00 
+combination  220.00   of  2346.00 
+combination  219.00   of  2346.00 
+combination  218.00   of  2346.00 
+combination  217.00   of  2346.00 
+combination  216.00   of  2346.00 
+combination  215.00   of  2346.00 
+combination  214.00   of  2346.00 
+combination  213.00   of  2346.00 
+combination  212.00   of  2346.00 
+combination  211.00   of  2346.00 
+combination  210.00   of  2346.00 
+combination  209.00   of  2346.00 
+combination  208.00   of  2346.00 
+combination  207.00   of  2346.00 
+combination  206.00   of  2346.00 
+combination  205.00   of  2346.00 
+combination  204.00   of  2346.00 
+combination  203.00   of  2346.00 
+combination  202.00   of  2346.00 
+combination  201.00   of  2346.00 
+combination  200.00   of  2346.00 
+combination  199.00   of  2346.00 
+combination  198.00   of  2346.00 
+combination  197.00   of  2346.00 
+combination  196.00   of  2346.00 
+combination  195.00   of  2346.00 
+combination  194.00   of  2346.00 
+combination  193.00   of  2346.00 
+combination  192.00   of  2346.00 
+combination  191.00   of  2346.00 
+combination  190.00   of  2346.00 
+combination  189.00   of  2346.00 
+combination  188.00   of  2346.00 
+combination  187.00   of  2346.00 
+combination  186.00   of  2346.00 
+combination  185.00   of  2346.00 
+combination  184.00   of  2346.00 
+combination  183.00   of  2346.00 
+combination  182.00   of  2346.00 
+combination  181.00   of  2346.00 
+combination  180.00   of  2346.00 
+combination  179.00   of  2346.00 
+combination  178.00   of  2346.00 
+combination  177.00   of  2346.00 
+combination  176.00   of  2346.00 
+combination  175.00   of  2346.00 
+combination  174.00   of  2346.00 
+combination  173.00   of  2346.00 
+combination  172.00   of  2346.00 
+combination  171.00   of  2346.00 
+combination  170.00   of  2346.00 
+combination  169.00   of  2346.00 
+combination  168.00   of  2346.00 
+combination  167.00   of  2346.00 
+combination  166.00   of  2346.00 
+combination  165.00   of  2346.00 
+combination  164.00   of  2346.00 
+combination  163.00   of  2346.00 
+combination  162.00   of  2346.00 
+combination  161.00   of  2346.00 
+combination  160.00   of  2346.00 
+combination  159.00   of  2346.00 
+combination  158.00   of  2346.00 
+combination  157.00   of  2346.00 
+combination  156.00   of  2346.00 
+combination  155.00   of  2346.00 
+combination  154.00   of  2346.00 
+combination  153.00   of  2346.00 
+combination  152.00   of  2346.00 
+combination  151.00   of  2346.00 
+combination  150.00   of  2346.00 
+combination  149.00   of  2346.00 
+combination  148.00   of  2346.00 
+combination  147.00   of  2346.00 
+combination  146.00   of  2346.00 
+combination  145.00   of  2346.00 
+combination  144.00   of  2346.00 
+combination  143.00   of  2346.00 
+combination  142.00   of  2346.00 
+combination  141.00   of  2346.00 
+combination  140.00   of  2346.00 
+combination  139.00   of  2346.00 
+combination  138.00   of  2346.00 
+combination  137.00   of  2346.00 
+combination  136.00   of  2346.00 
+combination  135.00   of  2346.00 
+combination  134.00   of  2346.00 
+combination  133.00   of  2346.00 
+combination  132.00   of  2346.00 
+combination  131.00   of  2346.00 
+combination  130.00   of  2346.00 
+combination  129.00   of  2346.00 
+combination  128.00   of  2346.00 
+combination  127.00   of  2346.00 
+combination  126.00   of  2346.00 
+combination  125.00   of  2346.00 
+combination  124.00   of  2346.00 
+combination  123.00   of  2346.00 
+combination  122.00   of  2346.00 
+combination  121.00   of  2346.00 
+combination  120.00   of  2346.00 
+combination  119.00   of  2346.00 
+combination  118.00   of  2346.00 
+combination  117.00   of  2346.00 
+combination  116.00   of  2346.00 
+combination  115.00   of  2346.00 
+combination  114.00   of  2346.00 
+combination  113.00   of  2346.00 
+combination  112.00   of  2346.00 
+combination  111.00   of  2346.00 
+combination  110.00   of  2346.00 
+combination  109.00   of  2346.00 
+combination  108.00   of  2346.00 
+combination  107.00   of  2346.00 
+combination  106.00   of  2346.00 
+combination  105.00   of  2346.00 
+combination  104.00   of  2346.00 
+combination  103.00   of  2346.00 
+combination  102.00   of  2346.00 
+combination  101.00   of  2346.00 
+combination  100.00   of  2346.00 
+combination  99.00    of  2346.00 
+combination  98.00    of  2346.00 
+combination  97.00    of  2346.00 
+combination  96.00    of  2346.00 
+combination  95.00    of  2346.00 
+combination  94.00    of  2346.00 
+combination  93.00    of  2346.00 
+combination  92.00    of  2346.00 
+combination  91.00    of  2346.00 
+combination  90.00    of  2346.00 
+combination  89.00    of  2346.00 
+combination  88.00    of  2346.00 
+combination  87.00    of  2346.00 
+combination  86.00    of  2346.00 
+combination  85.00    of  2346.00 
+combination  84.00    of  2346.00 
+combination  83.00    of  2346.00 
+combination  82.00    of  2346.00 
+combination  81.00    of  2346.00 
+combination  80.00    of  2346.00 
+combination  79.00    of  2346.00 
+combination  78.00    of  2346.00 
+combination  77.00    of  2346.00 
+combination  76.00    of  2346.00 
+combination  75.00    of  2346.00 
+combination  74.00    of  2346.00 
+combination  73.00    of  2346.00 
+combination  72.00    of  2346.00 
+combination  71.00    of  2346.00 
+combination  70.00    of  2346.00 
+combination  69.00    of  2346.00 
+combination  68.00    of  2346.00 
+combination  67.00    of  2346.00 
+combination  66.00    of  2346.00 
+combination  65.00    of  2346.00 
+combination  64.00    of  2346.00 
+combination  63.00    of  2346.00 
+combination  62.00    of  2346.00 
+combination  61.00    of  2346.00 
+combination  60.00    of  2346.00 
+combination  59.00    of  2346.00 
+combination  58.00    of  2346.00 
+combination  57.00    of  2346.00 
+combination  56.00    of  2346.00 
+combination  55.00    of  2346.00 
+combination  54.00    of  2346.00 
+combination  53.00    of  2346.00 
+combination  52.00    of  2346.00 
+combination  51.00    of  2346.00 
+combination  50.00    of  2346.00 
+combination  49.00    of  2346.00 
+combination  48.00    of  2346.00 
+combination  47.00    of  2346.00 
+combination  46.00    of  2346.00 
+combination  45.00    of  2346.00 
+combination  44.00    of  2346.00 
+combination  43.00    of  2346.00 
+combination  42.00    of  2346.00 
+combination  41.00    of  2346.00 
+combination  40.00    of  2346.00 
+combination  39.00    of  2346.00 
+combination  38.00    of  2346.00 
+combination  37.00    of  2346.00 
+combination  36.00    of  2346.00 
+combination  35.00    of  2346.00 
+combination  34.00    of  2346.00 
+combination  33.00    of  2346.00 
+combination  32.00    of  2346.00 
+combination  31.00    of  2346.00 
+combination  30.00    of  2346.00 
+combination  29.00    of  2346.00 
+combination  28.00    of  2346.00 
+combination  27.00    of  2346.00 
+combination  26.00    of  2346.00 
+combination  25.00    of  2346.00 
+combination  24.00    of  2346.00 
+combination  23.00    of  2346.00 
+combination  22.00    of  2346.00 
+combination  21.00    of  2346.00 
+combination  20.00    of  2346.00 
+combination  19.00    of  2346.00 
+combination  18.00    of  2346.00 
+combination  17.00    of  2346.00 
+combination  16.00    of  2346.00 
+combination  15.00    of  2346.00 
+combination  14.00    of  2346.00 
+combination  13.00    of  2346.00 
+combination  12.00    of  2346.00 
+combination  11.00    of  2346.00 
+combination  10.00    of  2346.00 
+combination  9.00     of  2346.00 
+combination  8.00     of  2346.00 
+combination  7.00     of  2346.00 
+combination  6.00     of  2346.00 
+combination  5.00     of  2346.00 
+combination  4.00     of  2346.00 
+combination  3.00     of  2346.00 
+combination  2.00     of  2346.00 
+combination  1.00     of  2346.00 

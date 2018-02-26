@@ -1,0 +1,165 @@
+/*
+**> TRENDEXTRAPOL
+**  
+**  Purpose: extrapolation of polynomial trend with prediction intervals
+**  Format : {pred,low,up,beta}=trendextrapol(y,p,alpha,lead);
+**  Input  : y (n,1) vector, the time series 
+**           p scalar, the order of the polynom
+**           alpha = probability to determine (1-alpha)-prediction intervals   
+**           lead = scalar, prediction horizon
+**  Output : pred = (lead,1) vector, the forecaste for time points n+1,...,n+lead
+**           low = (lead,1) vector, lower bounds of prediction intervals
+**           up = (lead,1) vector, upper bounds of prediction intervals
+**           beta = (p+1,1) vector of estimated coefficients for t^0,t^1,...,t^p 
+*/
+
+PROC (4) = trendextrapol(y,p,alpha,lead);
+
+  LOCAL n,t,mx,b,sigma2,pred,bound,xx,xxc;
+  n = ROWS(y);
+  t = SEQA(1,1,n);
+  xx = t^(SEQA(1,1,p)');
+  mx = MEANC(xx);
+  xxc = xx-mx';
+  xxc = INV(xxc'*xxc);
+  b = y/(ONES(n,1)~xx);
+  sigma2 = SUMC((y-b[1]-xx*b[2:p+1])^2)/(n-p-1); 
+  xx = SEQA(n+1,1,lead)^(SEQA(1,1,p)');
+  pred = b[1]+xx*b[2:p+1];
+  bound = ZEROS(lead,1);
+  t=0;
+  DO WHILE t<lead;
+    t = t+1;
+    bound[t] = 
+     CDFTCI(alpha/2,n-p-1)*SQRT(sigma2*(1 + 1/n + (xx[t,.]-mx')*xxc*(xx[t,.]'-mx)));
+  ENDO;
+  RETP(pred,pred-bound,pred+bound,b);
+ENDP;  
+
+
+/*
+**> ARIMAPRED
+**
+**  Purpose: computing forcasts with prediction intervals for ARIMA models
+**
+**  Format : pred = arimapred(y,d,par,p_index,ps_index,q_index,qs_index,s,lead,a);
+**  Input  : y = (n,1) vector, the (possibly instationary) time series
+**           d = (c,1) vector, the differences which were applied to y before armaest 
+**                     was used 
+**           par = = (p1+p2+q1+q2,1) vector of parameter values
+*            p_index = (p1,1)-vector, the indices of the first ar polynom or
+**                   = 0 if no non-seasonal ar polynom is present  
+**           ps_index = (p2,1)-vector, the indices of the second ar polynom or
+**                   = 0 if no seasonal ar polynom is present
+**           q_index = (q1,1)-vector the indices of the first ma polynom or
+**                   = 0 if no non-seasonal ma polynom is present
+**           qs_index = (q2,1)-vector the indices of the second ma polynom or
+**                   = 0 if no non-seasonal ma polynom is present
+**           s = scalar, seasonal period
+**           lead = scalar, the forecast horizon 
+**           a = scalar, (1-a) is the confidence level of prediction intervals     
+**  Output : pred = (lead,3) matrix,
+**                   first column: the forecasts
+**                   second column: the lower bound of prediction intervals
+**                   third column: the upper bound of prediction intervals
+**
+**  Reference: Granger, C.W.J. and Newbold, P. (1986): Forecasting economic
+**             time series; San Diego: Academic Press 
+**
+**
+*/ 
+
+
+PROC (1) = arimapred(y,d,par,p_index,ps_index,q_index,qs_index,s,lead,a);
+
+  LOCAL alpha,phi,theta,kappa,p,pnumb,ps,psnumb,q,qnumb,qs,qsnumb,sigma2,n;
+  LOCAL von,arpoly,arnumb,mapoly,manumb,am,r,i,t,e,res,pred,differenz,vh;
+  
+  n = ROWS(y);
+  alpha = 0;
+  phi=0;
+  theta = 0;
+  kappa = 0;
+
+  p = MAXC(p_index);
+  pnumb = ROWS(p_index)*(p>0); 
+  ps = MAXC(ps_index);
+  psnumb  = ROWS(ps_index)*(ps>0);
+  q = MAXC(q_index);
+  qnumb  = ROWS(q_index)*(q>0);
+  qs = MAXC(qs_index); 
+  qsnumb  = ROWS(qs_index)*(qs>0);
+  
+ IF p ;   
+  alpha = ZEROS(p,1);
+  alpha[p_index] = par[1:pnumb];  
+ ENDIF;
+ IF ps; 
+   phi = ZEROS(ps*s,1);
+   von = 1+pnumb;
+   phi[ps_index*s] = par[SEQA(von,1,psnumb)];  
+ ENDIF;
+ IF q;
+   theta = ZEROS(q,1);
+   von = 1+pnumb +psnumb;
+   theta[q_index] = par[SEQA(von,1,qnumb)];
+ ENDIF;
+ IF qs;
+   kappa = ZEROS(qs*s,1);
+   von = 1+pnumb +psnumb+qnumb;
+   kappa[qs_index*s] = par[SEQA(von,1,qsnumb)];
+ ENDIF;
+ 
+   
+ mapoly = gesamt(theta,kappa);
+ manumb = ROWS(mapoly); 
+ 
+ IF q OR qs;
+   r = rootcheck(mapoly);
+   IF NOT r > 1;
+      PRINT "MA polynom not invertible."; 
+      PRINT "No forecasts can be obtained.";
+      STOP; 
+   ENDIF;  
+ ENDIF; 
+    
+ arpoly = gesamt(alpha,phi);
+ 
+ /*  obtaining residuals */
+  
+ e = armaresid(diff(y,d),arpoly,mapoly); 
+ sigma2 = e'*e/n;
+
+ /*  construction of combined ar and differencing filter */
+ 
+ IF d > 0;
+  i = 0;
+  DO WHILE i < ROWS(d);
+   i = i+1; 
+   differenz = ZEROS(d[i],1);
+   differenz[d[i]]=1; 
+   arpoly = gesamt(arpoly,differenz);
+  ENDO;  
+ ENDIF;
+ 
+ arnumb = ROWS(arpoly);
+ am = MAXC(arnumb|manumb); 
+ pred =  take(y,-am)|ZEROS(lead,1);
+ res = take(e,-am)|ZEROS(lead,1);
+ t = am;
+ DO WHILE t < am+lead;
+   t=t+1;
+   pred[t] = arpoly'*pred[t-1:t-arnumb]-mapoly'*res[t-1:t-manumb];
+ ENDO;
+ vh = macoeff(arpoly,mapoly,lead);
+ vh = sigma2*take(CUMSUMC(1|vh^2),lead);
+ vh = CDFNI(1-a/2)*SQRT(vh);
+ pred = take(pred,-lead);
+ 
+ RETP(pred~(pred-vh)~(pred+vh));
+ ENDP;  
+   
+  
+  
+  
+  

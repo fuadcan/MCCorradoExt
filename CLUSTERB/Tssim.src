@@ -1,0 +1,94 @@
+/*          TSSIM.SRC                         RAINER SCHLITTGEN 30.MARCH 1999
+**
+**     Programs for simulation of time series
+**                                                         Line
+**     RANDAR   :  Gaussian AR[p] PROCess                   13
+**     RANDARMA :  Gaussian ARMA[p,q] PROCess               41
+**
+**
+**
+*/
+
+/*
+**  {x} = RANDAR(a,s,n) :  one realisation of length n from an
+**                         Gaussian  AR[p] PROCess
+**  Input :     a = p,1-vector of ar-p: 1-a[1]B-..a[p]B^p
+**              s = variance of error PROCess
+**              n = length of time series
+*/
+PROC (1) = RANDAR(a,s,n);
+
+LOCAL acf,e,m,ma,p,q,t,v,x;
+  p=ROWS(a);
+  acf=acovth(a,0,s,p);  v=acf[1];
+  ma = ldrec(acf);
+  e = RNDN(n,1);
+  x = ZEROS(n,1);
+  x[1]=e[1]*v^0.5;
+  t = 1;
+  DO WHILE t < p;
+    m = ma[t,1:t]*x[SEQA(t,-1,t)];
+    v = (1-ma[t,t]^2)*v;
+    x[t+1] = m + e[t+1]*v^0.5;
+    t = t+1;
+  ENDO;
+  e=(s^0.5)*e;
+  x = RECSERAR(e,x[1:p],a);
+ RETP(x);
+ENDP;
+
+/*
+** {1} = RANDARMA(a,b,s,n)  one realisation of length n from an Gaussian
+**                       ARMA[p,q] PROCess  by the method of
+**                       McLeod/Hipel, Water ResourceRes,14,969ff
+**  Input:  a: p,1-vector of ar-p: 1-a[1]B-..a[p]B^p @
+**          b: q,1-vector of ma-p: 1-b[1]B-..b[q]B^q @
+**          s: variance of error PROCess
+**          n: length of time series
+*/
+
+PROC (1) = RANDARMA(a,b,s,n);
+
+LOCAL acf,delt,delt1,e,m,ma,p,q,t,z,z1;
+    p=ROWS(a);   q=ROWS(b);
+    acf=acovth(a,b,1,p);
+    if p==1 and a==0;  p = 0; ENDIF;
+    if q==1 and b==0;  q = 0; ENDIF;
+    e = rndn(n+p+q,1);
+    if p == 0 and q == 0;
+      GOTO end;
+    ENDIF;
+    if p == 0 and q > 0;
+      delt = eye(q);
+    ENDIF;
+    if p > 0 ;
+       delt = RESHAPE( (acf|rev(acf[2:p+1]))',p,2*p);
+       delt = delt[.,1:p];
+    ENDIF;
+    if p > 0 and q > 0;
+       delt1 = TRIMR(1|macoeff(a,b,q),0,1);
+       delt1 = RESHAPE(delt1'~ZEROS(1,p+q),p,p+2*q-1);
+       delt1 = delt1[.,1:q];
+       delt = (delt~delt1)|(delt1'~eye(q));
+    ENDIF;
+    m = chol(delt)';
+    a = 0|a; a = REV(a[1:p+1]);
+    b = 1|-b; b = REV( b[1:q+1]);
+    z = ZEROS(n,1);
+    z1 =m*e[1:p+q];
+    e = (s^0.5)*TRIMR(e,p,0);
+    if p > 0;
+      z[1:p] = REV(z1[1:p]);
+    ENDIF;
+    if q > 0;
+      e[1:q] = REV(z1[p+1:p+q]);
+    ENDIF;
+    t=p+1;
+    DO WHILE t<= n;
+      z[t] = a'*z[t-p:t] + b'*e[t-p:t-p+q];
+      t=t+1;
+   ENDO;
+  end:
+ RETP(z);
+ENDP;
+
