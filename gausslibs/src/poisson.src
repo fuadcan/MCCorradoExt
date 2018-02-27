@@ -1,0 +1,217 @@
+/*
+** poisson.src - Poisson Regression Model (with Optional Truncation-at-zero)
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**  FORMAT:    { b,vc,llik }  =  poisson(dataset,dep,ind);
+**
+**  INPUT:
+**      dataset  =  name of Gauss dataset on disk or matrix in memory
+**      dep      =  dependent variable name, or column number of input matrix
+**      ind      =  vector of independent variable names, or column numbers
+**                of input matrix
+**
+**  OUTPUT:
+**      b     =  vector of effect parameters that maximize the likelihood
+**      vc    =  variance-covariance matrix of b
+**      llik  =  value of the log-likelihood at the maximum
+**
+**  GLOBALS:
+**    _cn_Inference    = MAXLIK for maximum likelihood estimates
+**                    = BOOT for bootstrapped estimates
+**                    = PROFILE for likelihood profile and profile t traces
+**
+**      _cn_Fix      0 = do nothing extra (default),
+**              symbol = include this variable from a dataset,
+**                       constraining its coefficient to 1.0.
+**             integer = include log of this column of input matrix,
+**                       constraining its coefficient to 1.0.
+**
+**      _cn_ZeroTruncate     1 = Poisson model (default),
+**                   0 = truncated-at-zero Poisson model
+**
+**      _cn_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = vector stored in _cn_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      _cn_Dispersion   starting value for scalar dispersion parameter.
+**                 Default = 3.
+**
+**      __output    1 = print output to screen (default),
+**                  0 = do not print to screen
+**
+**  OTHER GLOBALS, INCLUDING TRANSFORMATIONS:
+**      see MAXLIK.
+**
+**  EXAMPLE:
+**      let dep = wars;
+**      let ind = age party unem;
+**      dataset = "\\gauss\\prg\\sample";
+**      call Poisson(dataset,dep,ind);
+**
+**  REFERENCE:  Gary King. 1988. "Statistical Models for Political Science
+**              Event Counts:  Bias in Conventional Procedures and Evidence
+**              for the Exponential Poisson Regression Model," AMERICAN JOURNAL
+**              OF POLITICAL SCIENCE. 32, 3 (August): 838-863.
+*/
+
+#include count.ext
+#include gauss.ext
+#include maxlik.ext
+
+proc _cn_svpoi(dataset,dep,ind);
+    local pars,b;
+    if ind==0;
+        pars = 1;
+    else;
+        pars = rows(ind)+1;
+    endif;
+    if _cn_Start==0;
+        if pars==1;
+            b = 0;
+        else;
+            b = lols(dataset,dep,ind);
+        endif;
+    elseif _cn_Start==1;
+        b = _cn_StartValues;
+        if rows(b)/=pars;
+            errorlog "b is the wrong size for _cn_Start\g";
+            end;
+        endif;
+    elseif _cn_Start==2;
+        b = rndu(pars,1)-0.5;
+    elseif _cn_Start==3;
+        b = zeros(pars,1);
+    else;
+        b = _cn_Start;
+        if rows(b)/=pars;
+            errorlog "rows(_cn_Start) is wrong.\g";
+            end;
+        endif;
+    endif;
+    retp(b);
+endp;
+
+proc _cn_lipoi(b,dta);
+    local y,x,fixone,xvrs,xb,n,res,c;
+
+    if _cn_Fix==0;
+        fixone = 0;
+    else;
+        fixone = ln(dta[.,cols(dta)]);
+    endif;
+
+    n = rows(dta);
+    c = cols(dta)-(_cn_Fix/=0);
+    y = dta[.,1];
+    if _cn_ZeroTruncate==0;
+        if sumc(y.==0)>0;
+            print "Model not admissable.  Use _cn_ZeroTruncate==0 only if y"\
+                " is truncated so that zeros do not appear in the data set."\
+                "\g";
+            end;
+        endif;
+    endif;
+    x = ones(n,1);
+    if c>1;
+        x = x~dta[.,2:c];
+    endif;
+    xb = x*b;
+    if _cn_ZeroTruncate==1;
+        res = (xb.*y)-exp(xb+fixone);
+    elseif _cn_ZeroTruncate==0;
+        res = (xb.*y)-ln(exp(exp(xb+fixone))-1);
+    else;
+        errorlog "_cn_ZeroTruncate must equal 0 or 1\g";
+        end;
+    endif;
+    retp(res);
+endp;
+
+proc 3 = Poisson(dataset,dep,ind);
+    local vars,se,b,logl,g,vc,st,ret;
+    _max_CovPar = 3;
+    _cn_fn = dataset;
+    if (type(dataset)==13) and (type(_cn_Fix)==13);
+        _cn_Fix = indcv(_cn_Fix,getname(dataset));
+    endif;
+    if dep$==0;
+        errorlog "DEP must = variable name or number\g";
+        end;
+    endif;
+    if ((type(dataset)/=13) and (_cn_Fix>cols(dataset)));
+        errorlog "If dataset=matrix, _cn_Fix must= 0 or a col of dataset\g";
+        end;
+    endif;
+    if ((type(dataset)/=13) and ((maxc(ind)>cols(dataset)) or
+        (dep>cols(dataset))) );
+        errorlog "If DATASET=matrix, DEP and IND must be column numbers\g";
+        end;
+    endif;
+    st = _cn_svpoi(dataset,dep,ind);
+    if __title $== "";
+        if _cn_ZeroTruncate == 0;
+            __title = "Truncated ";
+        else;
+            __title = "";
+        endif;
+        __title = __title $+ "Poisson Regression Model";
+    endif;
+    if ind==0;
+        vars = dep;
+    else;
+        vars = dep|ind;
+    endif;
+    if _cn_Fix/=0;
+        vars = vars|_cn_Fix;
+    endif;
+    local infm,inf0,lcInf;
+    infm = { MAXLIK, BOOT };
+    inf0 = { 1, 2 };
+    LcInf = _ml_check(_cn_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,g,vc,ret } = maxlik(dataset,vars,&_cn_lipoi,st);
+    elseif LcInf == 2;
+        { b,logl,g,vc,ret } = maxboot(dataset,vars,&_cn_lipoi,st);
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+    if type(dataset) == 13;
+        vars = "beta0";
+        if ind /= 0;
+            vars = vars|ind;
+        endif;
+    else;
+        vars = "beta0";
+        if ind/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind),1))$+_cn_ftosm(ind,2));
+        endif;
+    endif;
+    _cn_vr = vars;
+    _cn_dp = dep;
+    ndpclex;
+    retp(b,vc,logl*_max_NumObs);
+endp;
+

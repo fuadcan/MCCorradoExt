@@ -1,0 +1,399 @@
+/*
+** gmm.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {theta,stderr,Mcov,Qmin} = GMM(&H,sv);
+**                                Generalized method of moments            15
+**
+*/
+
+
+/*
+** GMM
+**
+** Purpose: Generalized method of moments
+**
+** Format:  {theta,stderr,Mcov,Qmin} = GMM(&H,sv);
+**
+** Input: &H - pointer to a procedure which computes the
+**             Nobs*m matrix H(theta)
+**        sv - np*1 vector or g*1 vector, starting values for
+**             the maximization algorithm
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           Qmin - scalar, value of the criterion function
+**
+** Globals:  _print - scalar 1 (default), print the statistics
+**                    scalar 0, do not print the statistics
+**         _gmm_tol - scalar, convergence criterion for the
+**                    iterative algorithm (default = 0.001)
+**        _gmm_iter - scalar, maximum number of iterations (default = 20)
+** _gmm_Jacobian_proc - pointer to a procedure which computes the m*np
+**                     Jacobian matrix of g(theta)
+**                     - or -
+**                     scalar 0, numerical Jacobian
+**        _gmm_lags - scalar (default = 0), lag truncation parameter p
+**          _gmm_RR - scalar 0 for no linear restriction
+**                     - or -
+**                    np*g matrix, the R matrix of the restricted equation
+**           _gmm_r - scalar 0 for no linear restriction
+**                     - or -
+**                    np*1 vector, the r vector of the restricted equation
+**       _tsm_parnm - np*1 vector, names of the parameters
+**                    - or -
+**                    scalar, default names
+**
+**       _gmm_Jtest - 2*1 vector, values of Hansen's test of overidentifying
+**                    restrictions J and the associated p-value
+**
+** Remarks:
+**           The CV matrix and the standard errors of the estimated coefficients
+**           are not computed if _tsm_Mcov = 0
+**
+*/
+
+
+proc (4) = GMM(h,sv);
+  local h:proc;
+  local Np,g,h0,N,Nobs,m,D0,j,_gamma,theta,Qmin,grd,retcode,W,Winv;
+  local D,DWD,Mcov,stderr,tstudent,pvalue,ddl;
+  local oldtrap,cn,parnm,CVretcode,gmm_title,Jtest,Jproc;
+  local ce;
+
+  output off;
+
+  Np = rows(sv);
+
+  ce = 1;
+  if _gmm_RR == 0 and _gmm_r == 0;
+    ce = 0;
+    _gmm_RR = eye(Np);
+    _gmm_r = zeros(Np,1);
+  endif;
+
+  Np = rows(_gmm_RR); g = rows(sv);
+
+  if ( cols(_gmm_RR) /= g ) or ( cols(_gmm_r) /= 1 ) or ( Np /= rows(_gmm_r) );
+
+    ERRORLOG "error: Wrong size format of the RR, r or sv matrices.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  h0 = h(_gmm_RR*sv + _gmm_r);
+  N = rows(h0);
+  h0 = packr(h0);
+  Nobs = rows(h0); m = cols(h0);
+
+  if m < g;
+    ERRORLOG "error: Not enough moment conditions.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+  endif;
+
+  if _gmm_Jacobian_proc /= 0;
+    Jproc = _gmm_Jacobian_proc;
+    local Jproc:proc;
+    D0 = Jproc(_gmm_RR*sv + _gmm_r);
+
+    if ( cols(D0) /= Np ) or ( rows(D0) /= m );
+      ERRORLOG "error: The procedure to compute the Jacobian does not conform.";
+      ERRORLOG "       It must return a m*np matrix.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+    endif;
+
+  endif;
+
+  _gmm_function = &h;
+  Winv = eye(m);
+  _gmm_Winv = Winv;
+
+  if __title $== "";
+    gmm_title = "Generalized Method of Moments";
+  else;
+    gmm_title = __title;
+  endif;
+
+  _opgdprc = &_gmm_gradp;
+
+  j = 1;
+  do until j > _gmm_iter;
+
+    __title = gmm_title $+ ftos(j," (iter = %lf)",1,0);
+    {_gamma,Qmin,grd,retcode} = optmum(&_gmm2,sv);
+
+    theta = _gmm_RR*_gamma + _gmm_r;
+
+    if retcode == 1;
+      break;
+    endif;
+
+    if maxc(abs(_gamma-sv)) < _gmm_tol;
+      break;
+    endif;
+
+    W = _gmm_bartlett(&h,theta);
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Winv = invpd(W);
+    trap oldtrap,1;
+    if scalerr(Winv);
+      _tsm_retcode = retcode;
+      _opgdprc = 0;
+
+      if gmm_title $== "Generalized Method of Moments";
+        __title = "";
+      else;
+        __title = gmm_title;
+      endif;
+
+      if ce == 0;
+        _gmm_RR = 0;
+        _gmm_r = 0;
+      endif;
+
+      ERRORLOG "error: The matrix W is not invertible.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+
+    endif;
+
+    _gmm_Winv = Winv;
+    sv = _gamma;
+
+    j = j + 1;
+  endo;
+
+  _tsm_retcode = retcode;
+  if j == _gmm_iter+1;
+    _tsm_retcode = -1;
+  endif;
+  _opgdprc = 0;
+
+  if gmm_title $== "Generalized Method of Moments";
+    __title = "";
+  else;
+    __title = gmm_title;
+  endif;
+
+  CVretcode = 0;
+
+  if _tsm_Mcov == 0;
+
+    Mcov = miss(zeros(Np,Np),0);
+    stderr = diag(Mcov);
+    retp(theta,stderr,Mcov,Qmin);
+
+  else;
+
+    print "Computing the covariance matrix...";
+
+  endif;
+
+  output on;
+
+  if _gmm_Jacobian_proc /= 0;
+    D = Jproc(theta);
+    D = D*_gmm_RR;
+  else;
+    D = gradp(&_gmm1,_gamma);
+  endif;
+
+  DWD = D'*Winv*D;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Mcov = invpd(DWD);
+  trap oldtrap,1;
+  if scalerr(Mcov);
+    Mcov = miss(zeros(Np,Np),0);
+    CVretcode = 1;
+  endif;
+  Mcov = _gmm_RR*Mcov*_gmm_RR';
+  Mcov = Mcov/Nobs;
+
+  if hasimag(Mcov) == 0;
+    Mcov = real(Mcov);
+  else;
+    Mcov = miss(zeros(Np,Np),0);
+    CVretcode = 1;
+  endif;
+
+  stderr = sqrt(diag(Mcov));
+
+  if iscplx(stderr);
+
+    Mcov = miss(zeros(Np,Np),0);
+    stderr = diag(Mcov);
+    CVretcode = 1;
+
+  endif;
+
+  ddl = Nobs - g;
+  tstudent = theta./miss(stderr,0);
+  pvalue = 2*cdftc(abs(tstudent),ddl);
+
+  if m > g;
+    Jtest = Nobs*Qmin;
+    _gmm_Jtest = Jtest|cdfchic(Jtest,m-g);
+  else;
+    _gmm_Jtest = miss(0,0)|miss(0,0);
+  endif;
+
+  if _print == 1;
+    cn = N|Nobs|Np|ddl|m|Qmin;
+
+    if ( _tsm_parnm /= 0 ) and ( rows(_tsm_parnm) == Np);
+      parnm = _tsm_parnm;
+    else;
+    parnm = {};
+      parnm = 0$+"P"$+ftocv(seqa(1,1,Np),2,0);
+    endif;
+
+    cls;
+    call _gmm_print(parnm,theta,stderr,tstudent,pvalue,cn,CVretcode);
+  endif;
+
+  if ce == 0;
+    _gmm_RR = 0;
+    _gmm_r = 0;
+  endif;
+
+  retp(theta,stderr,Mcov,Qmin);
+endp;
+
+proc (1) = _gmm_bartlett(h,theta);
+  local h:proc;
+  local h0,Nobs,m,cov,W,l,i,hi;
+
+  h0 = h(theta);
+  h0 = packr(h0);
+  Nobs = rows(h0);
+  m = cols(h0);
+
+  cov = (h0'h0)/Nobs;
+  W = cov;
+
+  l = _gmm_lags;
+
+  i = 1;
+  do until i > l;
+    hi = shiftr(h0',i*ones(m,1),0)';
+    cov = (h0'hi)/Nobs;
+    W = W + (1-i/(l+1))*(cov+cov');
+    i = i + 1;
+  endo;
+
+  retp(W);
+endp;
+
+proc (1) = _gmm1(_gamma);
+  local theta,h,h0,g;
+
+  theta = _gmm_RR*_gamma + _gmm_r;
+
+  h = _gmm_function;
+  local h:proc;
+
+  h0 = h(theta);
+  h0 = packr(h0);
+  g = meanc(H0);
+  retp(g);
+endp;
+
+
+proc (1) = _gmm2(_gamma);
+  local g,Winv,Q;
+
+  g = _gmm1(_gamma);
+  Winv = _gmm_Winv;
+  Q = g'*Winv*g;
+
+  retp(Q);
+endp;
+
+proc _gmm_gradp(_gamma);
+  local theta,Jproc,D,g,Winv,jac;
+
+  theta = _gmm_RR*_gamma + _gmm_r;
+
+  if _gmm_Jacobian_proc /= 0;
+
+    Jproc = _gmm_Jacobian_proc;
+    local Jproc:proc;
+
+    D = Jproc(theta);
+    D = D*_gmm_RR;
+
+  else;
+
+    D = gradp(&_gmm1,_gamma);
+
+  endif;
+
+
+  g = _gmm1(_gamma);
+  Winv = _gmm_Winv;
+
+  jac = 2*D'*Winv*g;
+
+  retp(jac');
+endp;
+
+
+proc (0) = _gmm_print(parnm,theta,stderr,tstudent,pvalue,cn,CVretcode);
+  local mask,fmt,omat,st;
+
+  mask=0~1~1~1~1;
+  let fmt[5,3]=  "-*.*s"  8 8  "*.*lf" 16 6 "*.*lf" 16 6
+                 "*.*lf" 17 6  "*.*lf" 16 6;
+  omat = parnm~theta~stderr~tstudent~pvalue;
+  print;
+  st = "Total observations:                              %*.*lf  ";
+  print ftos(cn[1],st,15,0);
+  st = "Usable observations:                             %*.*lf  ";
+  print ftos(cn[2],st,15,0);
+  st = "Number of parameters to be estimated:            %*.*lf  ";
+  print ftos(cn[3],st,15,0);
+  st = "Degrees of freedom:                              %*.*lf  ";
+  print ftos(cn[4],st,15,0);
+  st = "Number of moment conditions:                     %*.*lf  ";
+  print ftos(cn[5],st,15,0);
+  st = "Value of the criterion function:                 %*.*lf  ";
+  print ftos(cn[6],st,15,5);
+  print;  print;
+  if not ismiss(_gmm_Jtest);
+    st = "Hansen's test of overidentifying restrictions:   %*.*lf  ";
+    print ftos(_gmm_Jtest[1],st,15,5);
+    st = "p-value:                                         %*.*lf  ";
+    print ftos(_gmm_Jtest[2],st,15,5);
+    print;  print;
+  endif;
+  print "Parameters      estimates       std.err.    "\
+        "  t-statistic         p-value   ";
+  print "-----------------------------------------"\
+        "---------------------------------";
+  call printfm(omat,mask,fmt);
+
+  print;
+  if CVretcode == 1;
+    print "Failed to compute the covariance matrix.";
+  endif;
+  if _tsm_retcode == -1;
+    print "Maximum number of iterations exceeded.";
+  endif;
+  if _tsm_retcode == 1;
+    print "The convergence has been forced.";
+  endif;
+
+  retp;
+endp;
+

@@ -1,0 +1,468 @@
+/*
+** gdt_export_ASCII.src - Compute frequency distribution
+**
+** (C) Copyright 2003-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Purpose:
+**
+**      To translate a GAUSS data set to an ASCII file.
+**
+** Format:
+**
+**      { r,errstr } = _gdt_export_ASCII(data, args, names, types);
+**
+** Inputs:
+**
+**      data      NxK matrix, data to translate.
+**
+**      args      Lx1 string array, keywords for export ASCII options
+**
+**                  output   name of output file to write
+**
+**      names     Kx1 vector with names of variables in data
+**
+**      types     Kx1 vector, types of variables in data, 0 character,
+**                     1 - numeric, 2 - date
+**
+** Outputs:
+**
+**     r        scalar, return code
+**
+**     errstr   error string
+**
+**
+** Examples:
+**
+*/
+proc (2) = __gdt_token(str);
+    local i,n,cmdvec,tok;
+    if strlen(str) == 0;
+        retp("","");
+    endif;
+    cmdvec = vals(str);
+    cmdvec = miss(cmdvec,13);
+    cmdvec = miss(cmdvec,10);
+    cmdvec = missrv(cmdvec,32);
+    n = rows(cmdvec);
+    i = 1;
+    do while i <= rows(cmdvec);
+        if cmdvec[i] /= 32;
+            break;
+        endif;
+        i = i+1;
+    endo;
+    if i > rows(cmdvec);
+        retp("","");
+    endif;
+    tok = cmdvec[i];
+    i = i+1;
+    do while i <= rows(cmdvec);
+        if cmdvec[i] == 32;
+            do while i <= rows(cmdvec);
+                if cmdvec[i] /= 32;
+                    break;
+                endif;
+                i = i+1;
+            endo;
+            if i > n;
+                break;
+            endif;
+            do while i <= rows(cmdvec);
+                if cmdvec[i] /= 32;
+                    break;
+                endif;
+                i = i+1;
+            endo;
+            break;
+        endif;
+        tok = tok|cmdvec[i];
+        i = i+1;
+    endo;
+    if i <= rows(cmdvec);
+        cmdvec = chrs(cmdvec[i:rows(cmdvec)]);
+    else;
+        cmdvec = "";
+    endif;
+    retp(chrs(tok),cmdvec);
+endp;
+
+proc (2) = __gdt_getstring(str);
+	local indx, substr, strleft;
+	if (strsect(str,1,1) $== "'");
+		indx = strindx(str, "'", 2);
+		substr = strsect(str, 2, indx-2);
+        if (strsect(str,indx+1,1) $== " ");
+		    strleft = strsect(str, indx+2, strlen(str)-indx);
+        else;
+            strleft = strsect(str, indx+1, strlen(str)-indx);
+        endif;
+	elseif (strsect(str,1,1) $== "\"");
+		indx = strindx(str, "\"", 2);
+		substr = strsect(str, 2, indx-2);
+        if (strsect(str,indx+1,1) $== " ");
+		    strleft = strsect(str, indx+2, strlen(str)-indx);
+        else;
+            strleft = strsect(str, indx+1, strlen(str)-indx);
+        endif;
+	else;
+		{ substr, strleft } = token(str);
+	endif;
+		
+	retp(substr,strleft);
+endp;
+
+
+proc (2) = _gdt_export_ASCII(data,args,names,types);
+	local i,col,s1,s2,fp,dsa,tmpm,tmpsa,linenum,writevnames,writevtypes,tvsa,vts,
+		datefmt,noquote,datetmp,dlen,j,found,outfname,overwrite,opentyp,dropcols,
+        vardelim,obsdelim,finaldelim;
+
+    col = rows(types);
+	writevnames = 0;
+	writevtypes = 0;
+	noquote = 0;
+    overwrite = 0;
+    opentyp = "w";
+    outfname = "";
+	datefmt = reshape("YYYY-MO-DD",col,1);
+    vardelim = ",";
+    obsdelim = "";
+    finaldelim = "";
+
+	for i (1,rows(args),1);
+
+		if args[i] $/= "";
+
+     		{ s1,s2 } = __gdt_token(args[i]);
+     		if lower(s1) $== "output";
+				{ s1, s2 } = token(s2);
+                outfname = s1;
+			elseif lower(s1 $== "writevarnames");
+				writevnames = 1;
+			elseif lower(s1 $== "writevartypes");
+				writevtypes = 1;
+			elseif lower(s1 $== "noquote");
+				noquote = 1;
+            elseif lower(s1 $== "overwrite");
+                overwrite = 1;
+            elseif lower(s1 $== "append");
+                opentyp = "a";
+            elseif lower(s1 $== "vardelim");
+                if strsect(s2,1,1) $== "'";
+                    if strsect(s2,strlen(s2),1) $== "'";
+                        vardelim = strsect(s2,2,strlen(s2)-2);
+                    else;
+                        retp(-1,"Unclosed string in vardelim");
+                    endif;
+                else;
+                   vardelim = s2;
+                endif;
+            elseif lower(s1 $== "obsdelim");
+                if strsect(s2,1,1) $== "'";
+                    if strsect(s2,strlen(s2),1) $== "'";
+                        obsdelim = strsect(s2,2,strlen(s2)-2);
+                    else;
+                        retp(-2, "Unclosed string in obsdelim");
+                    endif;
+                else;
+                   obsdelim = s2;
+                endif;
+            elseif lower(s1 $== "finaldelim");
+                if strsect(s2,1,1) $== "'";
+                    if strsect(s2,strlen(s2),1) $== "'";
+                        finaldelim = strsect(s2,2,strlen(s2)-2);
+                    else;
+                        retp(-3,"Unclosed string in finaldelim");
+                    endif;
+                else;
+                   finaldelim = s2;
+                endif;
+            elseif lower(s1 $== "drop");
+                dropcols = seqa(1,1,col);
+
+                do while s2 $/= "";
+                    found = 0;
+                    { s1, s2 } = token(s2);
+    
+                    for j (1,col,1);
+                        if lower(s1) $== lower(names[j]);
+                            dropcols[j] = error(0);
+                            found = 1;
+                            break;
+                        endif;
+                    endfor;
+
+                    if not found;
+                        retp(-4, "Variable not found: " $+ s1);
+                    endif;
+                endo;
+
+                dropcols = packr(dropcols);
+                data = data[.,dropcols];
+                names = names[dropcols];
+                types = types[dropcols];
+                datefmt = datefmt[dropcols];
+                col = rows(dropcols);
+            elseif lower(s1 $== "keep");
+                dropcols = {};
+
+                do while s2 $/= "";
+                    found = 0;
+                    { s1, s2 } = token(s2);
+    
+                    for j (1,col,1);
+                        if lower(s1) $== lower(names[j]);
+                            dropcols = dropcols|j;
+                            found = 1;
+                            break;
+                        endif;
+                    endfor;
+
+                    if not found;
+                        retp(-4, "Variable not found: " $+ s1);
+                    endif;
+                endo;
+
+                data = data[.,dropcols];
+                names = names[dropcols];
+                types = types[dropcols];
+                datefmt = datefmt[dropcols];
+                col = rows(dropcols);
+			elseif lower(s1 $== "dateformat");
+				{ s1, s2 } = __gdt_getstring(s2);
+
+				dlen = strlen(s1);
+
+				datefmt = reshape(s1,col,1);
+
+				do while s2 $/= "";
+					{ datetmp,s2 } = __gdt_getstring(s2);
+
+					dlen = strlen(datetmp);
+
+					if s2 $== "";
+						retp(-5,"Invalid arguments for dateformat");
+					endif;
+
+					do while (s2 $/= "") and (strsect(s2,1,1) $/= "'") and (strsect(s2,1,1) $/= "\"");
+						{ s1, s2 } = token(s2);
+
+						found = 0;
+
+						for j (1,col,1);
+							if (lower(s1) $== lower(names[j]));
+								datefmt[j] = datetmp;
+								found = 1;
+								break;
+							endif;
+						endfor;
+
+						if not found;
+							retp(-4,"Variable not found: " $+ s1);
+						endif;
+					endo;
+
+				endo;
+			endif;
+
+		endif;
+
+	endfor;
+
+    if outfname $== "";
+        retp(-6, "No output file specified");
+    endif;
+
+    fp = fopen(outfname,"r");
+    
+    if (fp != 0 and not (overwrite or opentyp $== "a"));
+        retp(-7, outfname $+ " already exists");
+    endif;
+    
+    fp = close(fp);
+
+	fp = fopen(outfname,opentyp);
+
+	if (fp == 0);
+		retp(-8,"Could not open output file: " $+ outfname);
+	endif;
+
+	dsa = {};
+
+	for i (1,col,1);
+		tmpm = data[.,i];
+	
+		if (types[i] == 0);
+			tmpsa = "" $+ tmpm;
+			
+			if (noquote);
+				tmpsa = satostrC(tmpsa, "%s");
+			else;
+				tmpsa = satostrC(tmpsa, "\"%s\"");
+			endif;
+
+		elseif (types[i] == 1);
+			tmpsa = ftostrC(tmpm, "%.16g");
+		elseif (types[i] == 2);
+
+			if (noquote);
+				tmpsa = satostrC(dttostr(tmpm, datefmt[i]), "%s");
+			else;
+				tmpsa = satostrC(dttostr(tmpm, datefmt[i]), "\"%s\"");
+			endif;
+
+		endif;
+
+		dsa = dsa $~ tmpsa;
+	endfor;
+
+	if (writevtypes);
+		vts = "$" $| "#" $| "%";  
+		tvsa = vts[types+1];
+
+		if not (types /= 2);
+			for i (1,col,1);	
+				if (types[i] == 2);
+					tvsa[i] = tvsa[i] $+ "('" $+ datefmt[i] $+ "')"; 
+				endif;
+			endfor;
+		endif;
+
+		if (noquote);
+			tvsa = satostrC(tvsa, "%s");
+		else;
+			tvsa = satostrC(tvsa, "\"%s\"");
+		endif;
+
+		dsa = tvsa'$|dsa;
+	endif;
+
+
+	if (writevnames);
+		names = "" $+ names;
+
+		if (noquote);
+			names = satostrC(names, "%s");
+		else;
+			names = satostrC(names, "\"%s\"");
+		endif;
+
+		dsa = names'$|dsa;
+	endif;
+	
+    obsdelim = reshape(obsdelim,rows(dsa)-1,1) $| finaldelim;
+    linenum = fputst(fp, strcombine(dsa, reshape(vardelim, col-1,1)$|"",0) $+ obsdelim);
+
+	if linenum /= rows(data)+writevnames+writevtypes;
+		fp = close(fp);
+		retp(-9,"Write failed");
+	endif;
+
+	fp = close(fp);
+
+	retp(0,"");
+endp;
+
+
+    proc(0) = _gdt_export_ASCII_help;
+
+       local s1;
+
+       s1 = "
+Purpose: Translates a GAUSS data set to an ASCII file
+
+Format:  export ASCII
+         [options]
+
+Example: export ASCII
+         output data1.asc 
+
+Options: output output_file     name of output file to write
+     writevarnames              write variable names to output file
+     writevartypes              write variable types to output file
+     overwrite                  overwrite existing output file
+     append                     append to existing file
+     noquote                    do not quote character and date data in
+                                output file
+     drop variable_name...      writes all variables except those specified
+     keep variable_name...      writes only specified variables
+     vardelim d                 specify delimiter to be written between
+                                each variable within an observation
+     obsdelim d                 specify delimiter to be written after
+                                each observation except the final
+     finaldelim d               specify delimiter to be written at end 
+                                of file
+     dateformat default_date_format date_format variable_name...  
+          specify formats for date data, where default_data_format sets a
+          default which can be overriden on a per variable basis";
+
+       print s1;
+
+    endp;
+
+
+    proc(0) = _gdt_import_ASCII_help;
+
+       local s1;
+
+       s1 = "
+Purpose:  Translates an ASCII file to a GAUSS data set
+
+Format:  import ASCII
+         [options]
+
+Example: import ASCII
+         input data1.asc
+         output data1
+         invarline 1
+         skip 1
+         vartype # $ %(\"MO/DD/YYYY\") #
+         open
+
+Options: input input_file             name of ASCII input file
+     output output_file               name of GAUSS data set 
+
+     invar var_type var_name var_type var_name...    specify input variables
+       var_type:   $ character,  # numeric(default), %(format_string)
+       soft delimited -> invar age $sex #pay nvar[1:10] $svar[005]
+       hard delimited -> invar delimit(,N) age $sex svar[01:3]
+       packed ASCII   -> invar record = 80 $(1,1) sex #(*,8.2) vol[4] (60,10) total
+
+     invarline line_number 
+
+     outvar var_name var_name...      specify output variables
+       delimited files only -> outvar age svar001 svar003 nvar[02-6]
+
+     delimit (d,N)                    specify delimiter in input file 
+     vartype var_type var_type...     specify types of input variables, 
+                                      $ - character data, # - numeric data,
+                                      %(format_string) - date data
+     vartypeline line_number          specify line number in input file from
+                                      which to get variable types 
+     outtyp d       [ d ]             specify numerical accuracy of output file,
+                                      i - integer,  f - float,  d - double
+     skip number_of_lines             skip specified number of lines from 
+                                      beginning of input file   
+     cmdfile                          name of an ATOG command file to run
+     append         [ NOAPPEND ]      append data to existing data file
+     open                             open data set after conversion 
+     nocheck        [ CHECK ]         don't check/reset record length and type
+     typecase                         change case of variable names to reflect type 
+     msym &         [ . ]             missing value character
+     complex        [ REAL ]          convert as complex data ( x + yi )";
+
+       print s1;
+	endp;
+

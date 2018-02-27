@@ -1,0 +1,3456 @@
+/*
+** maxutil.src
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+#include maxlik.ext
+
+proc(14) = _max( dataset,var,lfct,start, Lmaxalgr, Lmaxdiag, Lmaxgdchk,
+    Lmaxlnsch, Lmaxcovp, Lmaxgdmd, Lmaxgrdh, Lmaxdelta, Lmaxextrp,
+    Lmaxgdprc, Lmaxgtol, Lmaxhsprc, Lmaxintrp, Lmaxkey, Lmaxlag, Lmaxmiter,
+    Lmaxmtime, Lmaxmxtry, Lmaxnobs, Lmaxparnm, Lmaxrteps, Lmaxoption,lmaxswch,
+    Lmaxusrsch, Lmaxusrgd, Lmaxusrhs, LmaxActive, Lmax_dat,
+    Lmax_dsn, Lmax_row, LLaltnam, LLoutput, LLrow, LLtitle, LLweight );
+
+    local Lmaxfhess, Lmaxhsvcp, LmaxCpvcp, Lmaxitdta, TToutput;
+    local oldfmt,x,g,s,h,iter,ky,old,vof,x0,d,fhandle,parnms,bksteps,dx,
+        algrm,stepm,covpm,gradm,outm,algr0,step0,covp0,grad0,out0, pg,k0,
+        k1,k2,lr,lf,ll,np,tme,f0,smallval,relgrad,stout, tstart,w0,w1,w2,
+        w3,w4,w5,w6,w7,w9,w10,h0,h1,ds,start1, ttime,isctu,mask,fmt,
+        omat,row,vof1,it,rteps,oldt,dfct, x1,ib,dd,relgrad1,wgts,dum,skip,
+        cpmeth,y,htype,vofs, vnames,vindx,ret,idat,m0,beta,tmpop,ldiag,ok,
+        oaw,obw,vv,wnl,numRows,rz,jsw,ksw,msw,isw;
+
+    clear bksteps,s,dfct,fhandle,h,iter,skip,idat,beta;
+    start = vec(start);
+    Lmaxfhess = { . };
+    Lmaxitdta = { .,.,. };
+    Lmaxcpvcp = { . };
+    Lmaxhsvcp = { . };
+    dx = 1;
+    isctu = 1;
+    pg = 1;
+    smallval = 1e-15;
+    if LLoutput == 2;
+        call csrtype(0);
+    endif;
+    let w1 = 2 1 2 80 0 7;
+    let w2 = 5 1 24 80 0 7;
+    let w3 = 1 1 1 80 0 112;
+    let w4 = 3 1 4 80 0 112;
+    let w5 = 5 1 25 80 0 7;
+    let w9 = 1 1 4 80 0 7;
+    let w10 = 3 1 25 80 0 7;
+
+#ifUNIX
+    wnl = minc(25|9+ceil(rows(start)/3));
+    w2[3] = wnl - 1;
+    w5[3] = wnl;
+    w10[3] = wnl;
+#endif
+
+
+    w6 = chrs(vals(" ")~vals("-")*ones(1,74)~vals(" "));
+    w7 = chrs(vals("|")~(32*ones(1,24))~vals("|")~(32*ones(1,24))~
+                     vals("|")~(32*ones(1,24))~vals("|"));
+
+    if strlen(LLtitle) > 80;
+        LLtitle = strsect(LLtitle,1,78);
+    endif;
+    w0 = "" $+ chrs(32*ones(40-floor(strlen(LLtitle)/2),1)) $+ LLtitle;
+
+    algrm = { STEEP, BFGS, DFP, NEWTON, BHHH, PRCG, BFGS-SC, DFP-SC, NR };
+    algr0 = { 1, 2, 3, 4, 5, 6, 7, 8, 4 };
+    stepm = { 1.0, STEPBT, HALF, BRENT, BHHHSTEP, 1, ONE, GOLDEN };
+    step0 = { 1, 2, 3, 4, 5, 1, 1, 4 };
+    covpm = { NOCOVP, INFO, XPROD, HETCON, NOCOV, HESS, QML };
+    covp0 = { 0, 1, 2, 3, 0, 1, 3 };
+    gradm = { CENTRAL, FORWARD };
+    grad0 = { 0, 1 };
+    outm = { NOOUT, FILE, SCREEN, NOOUTPUT, NO_OUTPUT, NONE };
+    out0 = { 0, 1, 2, 0, 0, 0 };
+
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+    stout = 1;
+    if LLoutput >= 5;
+        stout = LLoutput;
+        LLoutput = 1;
+    endif;
+
+    Lmaxalgr = _ml_check(Lmaxoption,Lmaxalgr,algrm,algr0,2);
+    Lmaxlnsch = _ml_check(Lmaxoption,Lmaxlnsch,stepm,step0,2);
+    Lmaxcovp = _ml_check(Lmaxoption,Lmaxcovp,covpm,covp0,1);
+    Lmaxgdmd = _ml_check(Lmaxoption,Lmaxgdmd,gradm,grad0,1);
+    LLoutput = _ml_check(Lmaxoption,LLoutput,outm,out0,2);
+
+    isw = 1;
+    ksw = 1;
+    msw = 1;
+    if not scalmiss(Lmaxswch);
+        if rows(Lmaxswch) < 4;
+            if cols(Lmaxswch) == 1;
+                Lmaxswch = Lmaxswch[1,1];
+                Lmaxswch = Lmaxswch | .001 | 10 | .001;
+            else;
+                Lmaxswch = Lmaxswch[1,.];
+                Lmaxswch = Lmaxswch | (.001~.001) | (10~10) | (.001~.001);
+            endif;
+        endif;
+    endif;
+
+    if Lmaxusrgd /= 0;
+        Lmaxgdmd = 3;
+    endif;
+
+#ifUNIX
+    if LLoutput == 2;
+        if sysstate(26,0) /= 2;
+           if not trapchk(4);
+              errorlog "MAXLIK:  not in X-windows"\
+               " environment";
+           endif;
+           goto OUT(start,error(0),error(0),error(0),error(97));
+        endif;
+        oaw = WinGetActive;
+        vv = { 100,100,25,80,25,80,1,6,0,15,2,0,0 };
+        if wnl < 25;
+            vv[3] = wnl;
+            vv[5] = wnl;
+        endif;
+        obw = WinOpenText(vv,"Iterations","");
+        call WinSetActive(obw);
+    endif;
+#endif
+
+
+    if LLoutput == 2;
+        cls;
+        scroll w3;
+        scroll w4;
+        printdos "\27[7m";
+        printdos w0;
+        printdos "\27[0m";
+    endif;
+
+    if scalmiss(Lmaxdiag);
+        ldiag = 0;
+    else;
+        ldiag = Lmaxdiag;
+        Lmaxdiag = 0;
+        LLoutput = 1;
+    endif;
+
+    if not(LmaxActive == 1) and (rows(LmaxActive) /= rows(start));
+        if not trapchk(4);
+            errorlog "ERROR:  _max_Active not conformable to start vector";
+        endif;
+        goto OUT(start,error(0),error(0),error(0),error(10));
+    endif;
+
+    if type(var) == 13;
+        var = stof(var);
+    endif;
+
+    if type(LLweight) == 13;
+        LLweight = stof(LLweight);
+    endif;
+
+    if scalmiss(Lmax_dat) and dataset $== "";
+        if not trapchk(4);
+            errorlog "dataset could not be found";
+        endif;
+        if LLoutput == 2;
+            cls;
+        endif;
+        goto OUT(start,error(0),error(0),error(0),error(34));
+    elseif type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        Lmax_dsn = "" $+ dataset;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            if LLoutput == 2;
+                cls;
+            endif;
+            goto OUT(start,error(0),error(0),error(0),error(34));
+        endif;
+        if var $== 0;
+            vindx = 0;
+        else;
+            { vnames,vindx } = indices(dataset,var);
+        endif;
+        if not(LLweight $== 0);
+            numRows = rowsf(fhandle);
+            if rows(LLweight) == 1;
+                { dum, wgts } = indices(dataset,LLweight);
+                if scalmiss(wgts);
+                    if not trapchk(4);
+                        errorlog "weights could not be found in "$+dataset;
+                    endif;
+                    goto OUT(start,error(0),error(0),error(0),error(12));
+                endif;
+                Lmaxnobs = 0;
+            else;
+                wgts = LLweight;
+                if rows(wgts) /= rowsf(fhandle);
+                    if not trapchk(4);
+                        errorlog "weight vector not conformable";
+                    endif;
+                    goto OUT(start,error(0),error(0),error(0),error(12));
+                endif;
+                Lmaxnobs = sumc(wgts);
+            endif;
+        else;
+            wgts = 0;
+            Lmaxnobs = rowsf(fhandle);
+            numRows = rowsf(fhandle);
+        endif;
+        k1 = getnr(6,rows(var));
+
+        if k1 >= rowsf(fhandle);
+            if LLoutput == 2;
+                scroll w4;
+                locate 3,1;
+                printdos "\27[7m";
+                printdos " Reading data into memory.......";
+                printdos "\27[0m";
+                locate 2,1;
+                printdos " Reading case";
+            endif;
+            call seekr(fhandle,1);
+            dataset = { };
+
+            k1 = getnr(6,colsf(fhandle));
+            do until eof(fhandle);
+                y = readr(fhandle,k1);
+                dataset = dataset|y[.,vindx];
+                if not(LLweight $== 0) and rows(LLweight) == 1;
+                    Lmaxnobs = Lmaxnobs + sumc(y[.,wgts]);
+                endif;
+            endo;
+            clear y;
+            if LLweight $== 0 or rows(LLweight) /= 1;
+                Lmaxnobs = rows(dataset);
+            endif;
+            if LLoutput == 2;
+                scroll w1;
+                scroll w4;
+            endif;
+            if fhandle > 0;
+                fhandle = close(fhandle);
+            endif;
+            if LLrow > 0;
+                row = LLrow;
+            else;
+                row = 0;
+            endif;
+            idat = 1;
+        else;
+            if not(LLweight $== 0) and rows(LLweight) == 1;
+                Lmaxnobs = 0;
+                call seekr(fhandle,1);
+                do until eof(fhandle);
+                    y = readr(fhandle,k1);
+                    Lmaxnobs = Lmaxnobs + sumc(y[.,wgts]);
+                endo;
+                clear y;
+            else;
+                Lmaxnobs = rowsf(fhandle);
+            endif;
+
+            if LLrow <= 0;
+                if vindx[1] == 0;
+                    k0 = maxc(colsf(fhandle)|rows(start));
+                else;
+                    k0 = maxc(rows(vnames)|rows(start));
+                endif;
+                row = getnr(6,k0);
+            else;
+                row = LLrow;
+            endif;
+            dataset = fhandle;
+        endif;
+        idat = 1;
+    elseif type(dataset) == 6;
+        numRows = rows(dataset);
+        if LLaltnam[1] $/= "" and var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,indcv(var,LLweight)];
+                Lmaxnobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,indcv(var,LLaltnam)];
+        elseif var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,LLweight];
+                Lmaxnobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,var];
+        endif;
+        if not(LLweight == 0) and rows(LLweight) > 1;
+            wgts = LLweight;
+            Lmaxnobs = sumc(wgts);
+        else;
+            wgts = 0;
+            Lmaxnobs = rows(dataset);
+        endif;
+
+        vindx = 0;
+        if LLrow > 0;
+            row = LLrow;
+        else;
+            row = 0;
+        endif;
+    else;
+        if rows(Lmax_dat) == 1;
+            if dataset $== "";
+                dataset = Lmax_dsn;
+            endif;
+
+            open fhandle = ^dataset;
+            if fhandle == -1;
+                if not trapchk(4);
+                    errorlog dataset $+ " could not be opened";
+                endif;
+                if LLoutput == 2;
+                    cls;
+                endif;
+                goto OUT(start,error(0),error(0),error(0),error(34));
+            endif;
+            if var $== "";
+                vindx = 0;
+            else;
+                { vnames,vindx } = indices(dataset,var);
+            endif;
+            if not(LLweight $/= 0) and rows(LLweight) == 1;
+                { dum, wgts } = indices(dataset,LLweight);
+            elseif not(LLweight $/= 0) and rows(LLweight) > 1;
+                wgts = LLweight;
+            else;
+                wgts = 0;
+            endif;
+            dataset = fhandle;
+        else;
+            dataset = Lmax_dat[.,var];
+            if not(LLweight $/= 0) and rows(LLweight) == 1;
+                wgts = dataset[.,LLweight];
+                Lmaxnobs = sumc(wgts);
+            elseif not(LLweight $/= 0) and rows(LLweight) > 1;
+                wgts = LLweight;
+                Lmaxnobs = sumc(wgts);
+            else;
+                wgts = 0;
+                Lmaxnobs = rows(dataset);
+            endif;
+            vindx = 0;
+        endif;
+        row = Lmax_row;
+    endif;
+    clear LLweight;
+
+    if Lmaxlag /= 0 and row /= 1;
+        if not trapchk(4);
+            errorlog "WARNING: if Lmaxlag is nonzero LLROW must equal 1";
+        endif;
+        row = 1;
+    endif;
+
+    x0 = start;
+
+/*****************************************************************/
+/*****************************************************************/
+
+    if Lmaxparnm $/= 0 and rows(Lmaxparnm) /= rows(x0);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "vector of parameter labels does not conform to ve"\
+                    "ctor of starting values";
+            endif;
+        endif;
+        parnms = 0;
+    else;
+        parnms = Lmaxparnm;
+    endif;
+    if parnms $== 0;
+        let mask[1,3] = 1 1 1;
+        let fmt[3,3] = "lf " 8 0 "lf" 18 4 "lf" 18 4;
+    else;
+        let mask[1,3] = 0 1 1;
+        let fmt[3,3] = "s " 8 8 "lf" 18 4 "lf" 18 4;
+    endif;
+
+    start1 = start + (start .== 0) * 1e200;
+    x0 = packr(miss(start1.*(LmaxActive ./= 0),0));
+    x0 = x0 .* (x0 ./= 1e200);
+    if not(LmaxActive == 1);
+        LmaxActive = (LmaxActive .== 0).*(start+1e-200);
+        ib = packr(miss(seqa(1,1,rows(LmaxActive)).*(LmaxActive .== 0),0));
+        dd = trimr(design(ib|rows(LmaxActive)),0,1)';
+    else;
+        ib = 0;
+        dd = 1;
+        LmaxActive = 0;
+    endif;
+
+@**************************************************************************@
+@                     BEGIN OPTIMIZATION                                   @
+@**************************************************************************@
+    tstart = date;
+    vof = _max_rdd(lfct,0,x0,0,0,0,LLoutput,Lmaxlag,dataset,vindx,row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+
+    if scalInfNanMiss(vof);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "ERROR:  function cannot be computed at initial pa"\
+                    "rameter values";
+            endif;
+        endif;
+        goto OUT(start,vof,error(0),error(0),error(8));
+    endif;
+
+    np = rows(x0);          /* Number of parameters to estimate */
+    g = _max_deriv(x0,1,lfct,Lmaxgdmd,Lmaxgdprc,Lmaxhsprc,LLoutput,Lmaxlag,
+        dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,
+        LmaxActive,ib,dd,wgts);
+
+    if Lmaxgdprc /= 0 and Lmaxgdchk;
+        h1 = _max_deriv(x0,1,lfct,Lmaxgdmd,0,Lmaxhsprc,LLoutput,Lmaxlag,
+            dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,
+            LmaxActive,ib,dd,wgts);
+        if rows(h1) /= rows(g);
+            errorlog "ERROR:  length of gradient inconsistent";
+        elseif not(abs((h1-g)./g).> Lmaxgdchk) == 0;
+            errorlog "analytical and numerical gradients differ";
+            if LLoutput;
+                print "numerical    analytical";
+                call printfmt(h1~g,1);
+            endif;
+            goto OUT(start,vof,g,error(0),error(7));
+        endif;
+    endif;
+    if scalmiss(g);
+        if not trapchk(4);
+            if not trapchk(4);
+                errorlog "gradient function failed at initial values";
+            endif;
+        endif;
+        goto OUT(start,vof,dd*g+LmaxActive,error(0),error(7));
+    endif;
+
+    if not(rows(x0) == 1 and rows(x0) == 1);
+        if rows(g) == 1 and cols(g) == rows(x0);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,1;
+                endif;
+                if not trapchk(4);
+                    errorlog "The gradient function has returned a column v"\
+                        "ector rather than the required row vector";
+                endif;
+            endif;
+            goto OUT(start,vof,dd*g+LmaxActive,error(0),error(9));
+        endif;
+    endif;
+    if rows(g) /= rows(x0);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "The number of elements in the gradient functionis"\
+                    " inconsistent with the number of starting values";
+            endif;
+        endif;
+        goto OUT(start,vof,dd*g+LmaxActive,error(0),error(8));
+    endif;
+    relgrad = (abs(g).*maxc(abs(x0)'|ones(1,rows(x0))))/maxc(abs(vof)|1);
+    if abs(g) < smallval or relgrad < Lmaxgtol or Lmaxmiter == 0;
+        x = x0;
+        if Lmaxmiter == 0;
+            ret = error(2);
+        else;
+            ret = error(0);
+        endif;
+        ttime = date;
+        if Lmaxcovp == 0;
+            h = error(0);
+        endif;
+        goto A98;
+    endif;
+
+    if Lmaxalgr == 1 or Lmaxalgr == 6;
+        h = 1;
+    elseif Lmaxalgr == 4;
+        gosub hssn(3);
+        pop h;
+        if Lmaxhsprc and Lmaxgdchk;
+            h1 = _max_deriv(x0,htype,lfct,Lmaxgdmd,Lmaxgdprc,0,LLoutput,
+                Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,
+                Lmaxusrhs,LmaxActive,ib,dd,wgts);
+            if rows(h1) /= rows(h);
+                errorlog "ERROR:  size of Hessian inconsistent";
+            elseif not(abs((h1-h)./h).> Lmaxgdchk) == 0;
+                errorlog "analytical and numerical gradients differ";
+                if LLoutput;
+                    print "numerical";
+                    call printfmt(h1,1);
+                    print "analytical";
+                    call printfmt(h,1);
+                endif;
+                goto OUT(start,vof,g,error(0),error(5));
+            endif;
+        endif;
+    elseif Lmaxalgr == 5;
+        gosub hssn(2);
+        pop h;
+    else;
+        if LLoutput == 2;
+            locate 2,1;
+            printdos "H set to identity matrix";
+        endif;
+        h = eye(np)*maxc(sqrt(abs(vof))|1);
+    endif;
+
+    if LLoutput == 2;
+        gosub BAR;
+    endif;
+
+    if np gt 48 and LLoutput == 2;
+        locate 25,15;
+        printdos "\27[7m";
+        print "  <PgDn>, <PgUp>  page parameters and gradient ";
+        printdos "\27[0m";
+    endif;
+    ttime = date;
+A0:
+
+/* ********* Start of iteration loop ********** */
+    iter = iter + 1;
+    f0 = vof;
+    if LLoutput;
+        x1 = dd*x0 + LmaxActive;
+        relgrad1 = dd*relgrad;
+    endif;
+    if LLoutput == 2;
+        scroll w1;
+        gosub BAR;
+        gosub PARBOX;
+        printdos "\27[7m";
+        locate 3,29;
+        printdos ftos(vof,"%-*.*lf",10,5);
+        locate 4,13;
+        printdos ftos(ethsec(tstart,date)/100,"%-*.*lf",4,2);
+        locate 3,52;
+        printdos algrm[Lmaxalgr];
+        locate 3,66;
+        printdos stepm[Lmaxlnsch];
+        locate 4,70;
+        printdos ftos(s,"%-*.*lf",5,3);
+        if iter > 1;
+            locate 4,27;
+            printdos ftos(dfct,"%*.*lE",10,2);
+        endif;
+        locate 4,52;
+        printdos ftos(bksteps,"%-*.*lf",1,0);
+        locate 3,7;
+        printdos ftos(iter,"%-*.*lf",1,0);
+        printdos "\27[0m";
+
+        k0 = lf;
+        for k2(1,lr,1);
+            for k1(1,3,1);
+                locate 7+k2,(k1-1)*25+2;
+                if parnms == 0;
+                    printdos ftos(k0,"%*.*lf",3,0);
+                    printdos ftos(x1[k0],"%*.*lf",9,4);
+                    printdos ftos(relgrad1[k0],"%*.*lf",9,5);
+                else;
+                    printdos parnms[k0];
+                    printdos " ";
+                    printdos ftos(x1[k0],"%*.*lf",6,3);
+                    printdos ftos(relgrad1[k0],"%*.*lf",7,4);
+                endif;
+                k0 = k0+1;
+                if k0 gt rows(x1);
+                    goto A1;
+                endif;
+            endfor;
+        endfor;
+
+    elseif LLoutput == 1 and iter%stout == 0;
+        print;
+        print "============================================================"\
+            "====================";
+        print w0;
+        print;
+        oldfmt = sysstate(19,0);
+        format /ld 4,0;
+        print "   iteration: " iter;
+        format 6,6;
+        print "   algorithm: " $algrm[Lmaxalgr];;
+        print "      step method: " $stepm[Lmaxlnsch];
+        format /ld 10,5;
+        print "   function: " vof;;
+        print "   step length: " s;;
+        format 3,0;
+        print "   backsteps: " bksteps;
+        print "------------------------------------------------------------"\
+            "--------------------";
+        print "   param.      param. value     relative grad.";
+
+        call sysstate(19,oldfmt);
+
+        if parnms $== 0;
+            omat = seqa(1,1,rows(x1))~x1~relgrad1;
+        else;
+            omat = parnms~x1~relgrad1;
+        endif ;
+        call printfm(omat,mask,fmt);
+#ifDLLCALL
+        print /flush "";;
+#endif
+    endif;
+A1:
+
+    tstart = date;
+    if ldiag == 1 or ldiag == 3;
+        print;
+        print "parameters ";
+        call printfmt(x0',1);
+        print;
+        print "function ";
+        call printfmt(vof,1);
+        print;
+        print "gradient ";
+        call printfmt(g,1);
+        print;
+
+        if Lmaxalgr == 2;
+            h1 = h'h;
+            print;
+            print "Hessian estimate ";
+        elseif Lmaxalgr == 3;
+            h1 = h'h;
+            print;
+            print "Inverse Hessian estimate ";
+        elseif Lmaxalgr <= 5;
+            h1 = h;
+            print;
+            print "Hessian ";
+        elseif Lmaxalgr >= 7;
+            h1 = h*h';
+            print;
+            print "Hessian estimate ";
+        endif;
+        call printfmt(h1,1);
+        print;
+        print "Condition = ";;
+        call printfmt(cond(h1),1);
+#ifDLLCALL
+        print /flush "";
+#else
+        print;
+#endif
+    endif;
+    if ldiag == 2 or ldiag == 3;
+        Lmaxdiag = vput(Lmaxdiag,x0,"params");
+        Lmaxdiag = vput(Lmaxdiag,vof,"function");
+        Lmaxdiag = vput(Lmaxdiag,g,"gradient");
+
+        if Lmaxalgr == 2;
+            Lmaxdiag = vput(Lmaxdiag,h'h,"Hessian");
+        elseif Lmaxalgr == 3;
+            Lmaxdiag = vput(Lmaxdiag,invpd(h'h),"Hessian");
+        elseif Lmaxalgr <= 5;
+            Lmaxdiag = vput(Lmaxdiag,h,"Hessian");
+        elseif Lmaxalgr >= 7;
+            Lmaxdiag = vput(Lmaxdiag,h*h',"Hessian");
+        endif;
+    endif;
+
+    if Lmaxalgr == 1;
+        d = -g;
+    elseif Lmaxalgr == 2;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -cholsol(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+            d = -cholsol(g,h);
+        endif;
+    elseif Lmaxalgr == 3;
+        d = -h'h*g;
+    elseif Lmaxalgr == 4;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -solpd(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            local q1, q2;
+            if Lmaxdelta /= 0;
+                { q1,q2 } = eigrs2(h);
+                q1 = q1 + Lmaxdelta - minc(q1);
+                oldt = trapchk(1);
+                trap 1,1;
+                d = solpd(g,q2*diagrv(eye(rows(q1)),q1)*q2');
+                trap oldt,1;
+            endif;
+            if Lmaxdelta == 0 or scalmiss(d);
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+                oldt = trapchk(1);
+                trap 1,1;
+                d = -solpd(g,h);
+                trap oldt,1;
+            endif;
+        endif;
+    elseif Lmaxalgr == 5;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -solpd(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        endif;
+    elseif Lmaxalgr == 6;
+        d = -g + beta;
+    elseif Lmaxalgr == 7;
+        d = -h*h'*g;
+    elseif Lmaxalgr == 8;
+        d = -h*h'*g;
+    endif;
+
+    { s,bksteps } = _max_stepl(g,vof,x0,d,lfct,Lmaxlnsch,Lmaxusrsch,
+        Lmaxintrp,Lmaxextrp,LLoutput,Lmaxlag,dataset,vindx,row,Lmaxnobs,
+        numRows,Lmaxmxtry,Lmaxgrdh,LmaxActive,dd,wgts);
+
+    if ldiag == 1 or ldiag == 3;
+        print;
+        print "line search step length = ";;
+        call printfmt(s,1);
+        print;
+    endif;
+
+    if ldiag == 2 or ldiag == 3;
+        Lmaxdiag = vput(Lmaxdiag,s,"step");
+    endif;
+
+    if not scalmiss(s);
+        if LLoutput == 2;
+            locate 2,1;
+            printdos " Function";
+        endif;
+        vof1 = _max_rdd(lfct,0,x0+s*d,0,0,0,LLoutput,Lmaxlag,dataset,vindx,
+            row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+        if scalInfNanMiss(vof1);
+            s = error(0);
+        endif;
+
+#ifUNIX
+    if LLoutput == 2;
+        call winrefresh(obw);
+    endif;
+#endif
+
+    else;
+        vof1 = 0;
+    endif;
+    if scalmiss(s) or vof1 > vof;
+        if Lmaxrteps;
+            s = 1;
+            vof1 = vof + 1;
+            vofs = 1e200;
+            ds = 1;
+            if LLoutput == 2;
+                locate 2,15;
+                printdos " Random Search";
+            endif;
+            for it(1,Lmaxmxtry,1);
+                if vof1 <= vof;
+                    break;
+                endif;
+
+                if LLoutput == 2;
+                    locate 2,30;
+                    printdos ftos(it,"%-*.*lf",1,0);
+                endif;
+                rteps = 10^trunc(log(meanc(abs(g)))) * Lmaxrteps;
+                if _max_RandType;
+                    { rz, _max_state } = rndLCu(rows(d),1,_max_state);
+                else;
+                    { rz, _max_state } = rndKMu(rows(d),1,_max_state);
+                endif;
+                d = rteps*(2*rz-1).*x0;
+
+                vof1 = _max_rdd(lfct,0,x0+d,0,0,0,LLoutput,Lmaxlag,dataset,
+                    vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+                if scalInfNanMiss(vof1);
+                    vof1 = vofs;
+                    d = ds;
+                elseif vof1 < vofs;
+                    vofs = vof1;
+                    ds = d;
+                endif;
+            endfor;
+            if vof1 > vof;
+                vof1 = vofs;
+                d = ds;
+            endif;
+            if scalInfNanMiss(vof1);
+                ret = error(3);
+                x = x0;
+                goto A98;
+            endif;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+            if Lmaxalgr == 4 or Lmaxalgr == 5;
+                isctu = 1;
+            elseif Lmaxalgr == 6;
+                beta = 0;
+                isctu = 0;
+            else;
+                h = eye(np)*maxc(sqrt(abs(vof1))|1);
+                isctu = 0;
+            endif;
+        else;
+            if not trapchk(4);
+                if scalerr(s) == 6;
+                    if not trapchk(4);
+                        errorlog "step length calculation failed";
+                    endif;
+                elseif scalerr(s) == 3;
+                    if not trapchk(4);
+                        errorlog "function calculation failed";
+                    endif;
+                endif;
+            endif;
+            if LLoutput == 2;
+                cls;
+            endif;
+            x = x0;
+            ret = error(6);
+            goto A98;
+        endif;
+    endif;
+
+    if ldiag == 1 or ldiag == 3;
+        print;
+        print "direction";;
+        call printfmt(d',1);
+        print;
+    endif;
+
+    if ldiag == 2 or ldiag == 3;
+        Lmaxdiag = vput(Lmaxdiag,d,"direct");
+    endif;
+
+
+    dx = s*d;
+    x = x0 + dx;
+    x0 = x;
+    vof = vof1;
+    if isctu;
+        { g,h,beta } = _max_sctu(x,vof,smallval,g,h,dx,d,s,lfct, Lmaxgdmd,
+            Lmaxgdprc,Lmaxhsprc,LLoutput,Lmaxlag, dataset,vindx,row,
+            Lmaxnobs,numRows,Lmaxalgr,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,
+            LmaxActive,ib,dd,wgts);
+        Lmaxfhess = h;
+        if scalmiss(g);
+            ret = error(4);
+            goto A98;
+        elseif scalmiss(h);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        endif;
+    else;
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "gradient";
+        endif;
+        g = _max_deriv(x,1,lfct,Lmaxgdmd,Lmaxgdprc,Lmaxhsprc,LLoutput,
+            Lmaxlag, dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,
+            Lmaxusrhs, LmaxActive,ib,dd,wgts);
+        if scalmiss(g);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,40;
+                endif;
+                if not trapchk(4);
+                    errorlog "gradient calculation failed";
+                endif;
+            endif;
+            ret = error(4);
+            goto A98;
+        endif;
+        isctu = 1;
+    endif;
+
+    tme = ethsec(ttime,date)/6000;
+    if iter >= Lmaxmiter or tme > Lmaxmtime;
+        if iter >= Lmaxmiter;
+            ret = error(2);
+        elseif tme > Lmaxmtime;
+            ret = error(11);
+        else;
+            ret = error(0);
+        endif;
+        goto A98;
+    endif;
+
+@  test for convergence  @
+
+    dfct = f0-vof;
+    relgrad = (abs(g).*maxc(abs(x0)'|ones(1,rows(x0))))/maxc(abs(vof)|1);
+    if abs(g) < smallval or relgrad < Lmaxgtol;
+        ret = error(0);
+        goto A98;
+    endif;
+
+    if not scalmiss(Lmaxswch);
+        jsw = 0;
+        if ksw >= Lmaxswch[3,isw];
+            jsw = 1;
+        elseif dfct < Lmaxswch[2,isw] or s < Lmaxswch[4,isw];
+            msw = msw + 1;
+            if msw > 5;
+                jsw = 1;
+                msw = 1;
+            else;
+                jsw = 0;
+            endif;
+        endif;
+
+        if jsw;
+            if cols(Lmaxswch) == 2;
+                if isw == 1;
+                    isw = 2;
+                else;
+                    isw = 1;
+                endif;
+            endif;
+
+            if lmaxalgr == 2;
+                h = h'h;
+            elseif lmaxalgr == 3;
+                h = invpd(h'h);
+            elseif lmaxalgr == 7 or lmaxalgr == 8;
+                h = h*h';
+            endif;
+
+            Lmaxalgr = Lmaxswch[1,isw];
+
+            trap 1,1;
+            if lmaxalgr == 2;
+                h = chol(h);
+            elseif lmaxalgr == 3;
+                h = chol(invpd(h));
+            elseif lmaxalgr == 7 or lmaxalgr == 8;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            trap oldt,1;
+            if scalmiss(h);
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+
+            jsw = 0;
+            ksw = 1;
+        else;
+            ksw = ksw + 1;
+        endif;
+    endif;
+
+    if Lmaxkey;
+        gosub help;
+    endif;
+
+    if LLoutput == 2;
+        scroll w1;
+    endif;
+
+
+    goto A0;
+A98:
+
+    tme = ethsec(ttime,date)/6000;
+    /* ******************** End of iteration loop ****************** */
+    if LLoutput == 2;
+        scroll w10;
+        scroll w4;
+    endif;
+
+    ok = scalerr(ret) <= 2 or scalerr(ret) == 11;
+    if Lmaxcovp == 0 and ok;
+        if Lmaxalgr == 2;
+            oldt = trapchk(1);
+            trap 1,1;
+            h = cholsol(eye(rows(h)),h)/Lmaxnobs;
+            trap oldt,1;
+        elseif Lmaxalgr == 3;
+            h = h'h/Lmaxnobs;
+        elseif Lmaxalgr == 4 or Lmaxalgr == 5;
+            oldt = trapchk(1);
+            trap 1,1;
+            h = solpd(eye(rows(h)),h)/Lmaxnobs;
+            trap oldt,1;
+        elseif Lmaxalgr == 7;
+            h = h*h'/Lmaxnobs;
+        elseif Lmaxalgr == 8;
+            h = h*h'/Lmaxnobs;
+        endif;
+        if Lmaxalgr == 1 or Lmaxalgr == 6;
+                        /* if steepest descent or PRCG and Lmaxcovp=
+                        :: 0
+                        */
+            h = { . };      /* then set covariance matrix to missing  */
+            cpmeth = 0 $+ "NOCOVP";
+        elseif Lmaxalgr == 4;
+            cpmeth = 0 $+ "HESS";
+        elseif Lmaxalgr == 5;
+            cpmeth = 0 $+ "XPROD";
+        else;
+            cpmeth = 0 $+ "SECANT";
+        endif;
+    elseif Lmaxcovp == 1 and ok;
+        if LLoutput == 2;
+            printdos "\27[7m";
+            locate 3,1;
+            printdos " computing covariance matrix of parameters from Hessi"\
+                "an.......";
+            printdos "\27[0m";
+        endif;
+        gosub hssn(3);
+        pop h;
+        if scalmiss(h);
+            cpmeth = "NOTPD";
+            h = error(0);
+            Lmaxhsvcp = error(0);
+        else;
+            cpmeth = "HESS";
+            oldt = trapchk(1);
+            trap 1,1;
+            h = solpd(eye(rows(h)),h)/Lmaxnobs;
+            trap oldt,1;
+            if scalmiss(h);
+                if not trapchk(4);
+                    if LLoutput == 2;
+                        locate 2,40;
+                    endif;
+                    if not trapchk(4);
+                        errorlog "Hessian calculation failed";
+                    endif;
+                endif;
+                h = error(0);
+            endif;
+            Lmaxhsvcp = h;
+        endif;
+    elseif Lmaxcovp == 2 and ok;
+        if LLoutput == 2;
+            locate 3,1;
+            printdos "\27[7m";
+            printdos " covariance matrix of parameters from cross-product o"\
+                "f first derivatives......";
+            printdos "\27[0m";
+        endif;
+        gosub hssn(2);
+        pop h;
+        oldt = trapchk(1);
+        trap 1,1;
+        h = solpd(eye(rows(h)),h)/Lmaxnobs;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,40;
+                endif;
+                if not trapchk(4);
+                    errorlog "Cross-Product calculation failed";
+                endif;
+            endif;
+            h = error(0);
+            cpmeth = "NOTPD";
+        else;
+            cpmeth = "XPROD";
+        endif;
+    elseif Lmaxcovp == 3 and ok;
+        if LLoutput == 2;
+            locate 3,1;
+            printdos "\27[7m";
+            printdos " computing quasi-maximum likelihood covariance matr"\
+                "ix of the parameters......";
+            printdos "\27[0m";
+        endif;
+        gosub hssn(2);
+        pop m0;
+        gosub hssn(3);
+        pop h0;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        h = solpd(eye(rows(m0)),m0)/Lmaxnobs;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,40;
+                endif;
+                if not trapchk(4);
+                    errorlog "Cross-Product calculation failed";
+                endif;
+            endif;
+            h = error(0);
+        endif;
+        Lmaxcpvcp = h;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        h = solpd(eye(rows(h0)),h0)/Lmaxnobs;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,40;
+                endif;
+                if not trapchk(4);
+                    errorlog "Hessian calculation failed";
+                endif;
+            endif;
+            h = error(0);
+        endif;
+        Lmaxhsvcp = h;
+
+        if scalmiss(Lmaxcpvcp) and not scalmiss(Lmaxhsvcp);
+            cpmeth = "HESS";
+            h = Lmaxcpvcp;
+        elseif not scalmiss(Lmaxcpvcp) and scalmiss(Lmaxhsvcp);
+            cpmeth = "XPROD";
+            h = Lmaxhsvcp;
+        elseif scalmiss(Lmaxcpvcp) and scalmiss(Lmaxhsvcp);
+            cpmeth = "NOTPD";
+            h = error(0);
+        else;
+            cpmeth = "QML";
+            h = Lmaxnobs*Lmaxhsvcp*m0*Lmaxhsvcp;
+        endif;
+    else;
+        cpmeth = "NOCOVP";
+    endif;
+
+    if not(LmaxActive == 0);
+        if Lmaxcovp /= 0;
+            if not scalmiss(h);
+                h1 = h;
+                h = miss(zeros(rows(LmaxActive),rows(LmaxActive)),0);
+                h[ib,ib] = h1;
+            endif;
+            if not scalmiss(Lmaxcpvcp);
+                h1 = Lmaxcpvcp;
+                Lmaxcpvcp = miss(zeros(rows(LmaxActive),rows(LmaxActive)),0);
+                Lmaxcpvcp[ib,ib] = h1;
+            endif;
+            if not scalmiss(Lmaxhsvcp);
+                h1 = Lmaxhsvcp;
+                Lmaxhsvcp = miss(zeros(rows(LmaxActive),rows(LmaxActive)),0);
+                Lmaxhsvcp[ib,ib] = h1;
+            endif;
+        endif;
+        g = _max_deriv(x,4,lfct,Lmaxgdmd,Lmaxgdprc,Lmaxhsprc,LLoutput,
+            Lmaxlag, dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,
+            Lmaxusrhs, LmaxActive,ib,dd,wgts);
+        x = dd*x+LmaxActive;
+    endif;
+    Lmaxitdta = iter|tme|cpmeth;
+    goto OUT(x,-vof,g,h,ret);
+
+HSSN:
+
+    pop htype;
+    if LLoutput == 2;
+        locate 2,15;
+        if htype == 2;
+            printdos "Cross-Product";
+        else;
+            printdos "Hessian";
+        endif;
+    endif;
+    if htype == 2 and _max_QmlProc /= 0;
+        h1 = _max_deriv(x0,htype,lfct,Lmaxgdmd,_max_QmlProc,Lmaxhsprc,LLoutput,
+            Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,
+            Lmaxusrhs,LmaxActive,ib,dd,wgts);
+    else;
+        h1 = _max_deriv(x0,htype,lfct,Lmaxgdmd,Lmaxgdprc,Lmaxhsprc,LLoutput,
+            Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,
+            Lmaxusrhs,LmaxActive,ib,dd,wgts);
+    endif;
+    Lmaxfhess = h1;
+    return(h1);
+
+HELP:
+
+    ky = key;
+    do while ky;
+    A5:
+
+        if ky == 1030 or ky == 65 or ky == 97;      /* ALT A,A,a */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Lmaxalgr = ";
+                locate 8,14;
+                printdos ftos(Lmaxalgr,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 1, steepest descent";
+                locate 11,4;
+                printdos " = 2, BFGS";
+                locate 12,4;
+                printdos " = 3, DFP";
+                locate 13,4;
+                printdos " = 4, NEWTON";
+                locate 14,4;
+                printdos " = 5, BHHH";
+                locate 15,4;
+                printdos " = 6, PRCG";
+                locate 16,4;
+                printdos " = 7, scaled BFGS";
+                locate 17,4;
+                printdos " = 8, scaled DFP";
+                locate 19,4;
+                k1 = Lmaxalgr;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Lmaxalgr = " ;;
+                print ftos(Lmaxalgr,"%*.*lf",1,0);
+                print;
+                print "    = 1, steepest descent";
+                print "    = 2, BFGS";
+                print "    = 3, DFP";
+                print "    = 4, Newton-Raphson";
+                print "    = 5, BHHH";
+                print "    = 6, PRCG";
+                print "    = 7, scaled BFGS";
+                print "    = 8, scaled DFP";
+                print;
+                k1 = Lmaxalgr;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxalgr = stof(k0);
+            endif;
+            if (Lmaxalgr == 8);
+                h = 1;
+            else;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            gosub rebox;
+        elseif ky == 1120 or ky == 49;      /* ALT 1 */
+            Lmaxalgr = 1;
+            h = 1;
+        elseif ky == 1121 or ky == 50;      /* ALT 2 */
+            Lmaxalgr = 2;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1122 or ky == 51;      /* ALT 3 */
+            Lmaxalgr = 3;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1123 or ky == 52;      /* ALT 4 */
+            Lmaxalgr = 4;
+            gosub hssn(3);
+            pop h;
+        elseif ky == 1124 or ky == 53;      /* ALT 5 */
+            Lmaxalgr = 5;
+            gosub hssn(2);
+            pop h;
+        elseif ky == 1125 or ky == 54;      /* ALT 6 */
+            Lmaxalgr = 6;
+            h = 1;
+        elseif ky == 1126 or ky == 55;      /* ALT 7 */
+            Lmaxalgr = 7;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1127 or ky == 56;      /* ALT 8 */
+            Lmaxalgr = 8;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1046 or upper(chrs(ky)) $== "C";       /* ALT C  */
+            ret = error(1);
+            goto A98;       /* force convergence */
+        elseif ky == 1018 or upper(chrs(ky)) $== "E";       /* ALT E  */
+            k1 = 1;
+            if LLoutput == 2;
+                scroll w5;
+                locate 5,2;
+                printdos "EDIT PARAMETER VECTOR";
+                locate 5,28;
+                printdos "<> <> to move   <ENTER> to select   <Q> to quit";
+            A3_1:
+
+                locate 6,4;
+                printdos "par. no. ";
+                printdos ftos(k1,"%*.*lf",3,0);
+                printdos "  old value ";
+                printdos ftos(x0[k1],"%*.*lf",10,6);
+                ky = 0;
+                do until ky == 81 or ky == 113;     /* Q or q */
+                    ky = key;
+                    if ky == 1072;
+                        k1 = maxc(1|k1-1);
+                        goto A3_1;
+                    elseif ky == 1080;
+                        k1 = minc(rows(x0)|k1+1);
+                        goto A3_1;
+                    elseif ky == 13;
+                        locate 6,40;
+                        printdos "new value ";
+                        if LLoutput == 2;
+                            call csrtype(1);
+                        endif;
+                        x0[k1] = stof(cons);
+                        print;
+                        if LLoutput == 2;
+                            call csrtype(0);
+                            scroll 6|37|6|80|0|7;
+                        endif;
+                        goto A3_1;
+                    endif;
+                endo;
+            else;
+            A3_2:
+
+                output off;
+                print;
+                print " EDIT PARAMETER VECTOR    ";;
+                print "<Bksp><Sp> to move   <ENTER> to select   <Q> to quit";
+                print;
+            A3_3:
+
+                print "par. no. ";;
+                print ftos(k1,"%*.*lf",3,0);;
+                print "  old value ";;
+                print ftos(x0[k1],"%*.*lf",10,6);;
+                ky = 0;
+                do until ky == 81 or ky == 113;     /* Q or q */
+                    ky = key;
+                    if ky == 8;     /* Bksp */
+                        k1 = maxc(1|k1-1);
+                        print;
+                        goto A3_3;
+                    elseif ky == 32;        /* Space */
+                        k1 = minc(rows(x0)|k1+1);
+                        print;
+                        goto A3_3;
+                    elseif ky == 13;        /* Enter */
+                        print "  new value ";;
+                        if LLoutput == 2;
+                            call csrtype(1);
+                        endif;
+                        x0[k1] = stof(cons);
+                        print;
+                        if LLoutput == 2;
+                            call csrtype(0);
+                        endif;
+                        goto A3_2;
+                    endif;
+                endo;
+                print;
+                print;
+                output on;
+            endif;
+            x = x0;
+            gosub rebox;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+            if LLoutput == 2;
+                locate 2,1;
+                printdos "H set to identity matrix";
+            else;
+                print;
+                print "H set to identity matrix";
+                print;
+            endif;
+            if Lmaxalgr == 4;
+                gosub hssn(3);
+                pop h;
+            elseif Lmaxalgr == 5;
+                gosub hssn(2);
+                pop h;
+            elseif Lmaxalgr == 1 or Lmaxalgr == 8;
+                h = 1;
+            else;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+
+        elseif ky == 1034 or upper(chrs(ky)) $== "G";       /* ALT G  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Lmaxgdmd = ";
+                printdos ftos(Lmaxgdmd,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 0, central difference method";
+                locate 11,4;
+                printdos " = 1, forward difference method";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Lmaxgdmd = ";;
+                print ftos(Lmaxgdmd,"%*.*lf",1,0);
+                print;
+                print "    = 0, central difference method";
+                print "    = 1, forward difference method";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            endif;
+            if LLoutput == 2;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxgdmd = stof(k0);
+            endif;
+            if Lmaxgdmd < 0;
+                Lmaxgdmd = 0;
+            elseif Lmaxgdmd > 1;
+                Lmaxgdmd = 1;
+            endif;
+            gosub rebox;
+        elseif ky == 1023 or upper(chrs(ky)) $== "I";       /* ALT I  */
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+            if Lmaxalgr == 5;
+                gosub hssn(2);
+                pop h;
+            else;
+                gosub hssn(3);
+                pop h;
+            endif;
+        elseif ky == 1050 or upper(chrs(ky)) $== "M";       /* ALT M  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Maximum number of tries = ";
+                printdos ftos(Lmaxmxtry,"%*.*lf",1,0);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Maximum number of tries = ";;
+                print ftos(Lmaxmxtry,"%*.*lf",1,0);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxmxtry = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 1024 or upper(chrs(ky)) $== "O";       /* ALT O  */
+        RETRY:
+
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "current setting, __output = ";
+                printdos ftos(LLoutput,"%*.*lf",3,0);
+                locate 10,4;
+                printdos "__output = 0   no output";
+                locate 11,4;
+                printdos "__output = 1   output suitable for file or printer";
+                locate 12,4;
+                printdos "__output = 2   output suitable for screen only (A"\
+                    "NSI.SYS required)";
+                locate 13,4;
+                printdos "__output >= 5  output printed every __output-th i"\
+                    "teration";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   current setting, __output = ";;
+                if stout >= 5;
+                    print ftos(stout,"%*.*lf",3,0);
+                else;
+                    print ftos(LLoutput,"%*.*lf",3,0);
+                endif;
+                print;
+                print "__output = 0   no output";
+                print "__output = 1   output suitable for file or printer";
+                print "__output = 2   output suitable for screen only (ANSI"\
+                    ".SYS required)";
+                print "__output >= 5  output printed every __output-th iter"\
+                    "ation";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                tmpop = stof(k0);
+                if tmpop < 0 or tmpop == 3 or tmpop == 4 or
+                    rows(tmpop) /= 1 or cols(tmpop) /= 1 or iscplx(tmpop);
+                    if LLoutput == 2;
+                        print "\007";
+                    else;
+                        print "Input error!";
+                    endif;
+                    goto retry;
+                endif;
+#ifUNIX
+                if tmpop == 2;
+                    print "2 not supported on SPARC yet, resetting to 1";
+                    tmpop = 1;
+                endif;
+#endif
+                if tmpop >= 5;
+                    stout = tmpop;
+                    LLoutput = 1;
+                elseif tmpop > 2;
+                    LLoutput = 1;
+                    stout = 1;
+                else;
+                    LLoutput = tmpop;
+                    stout = 1;
+                endif;
+            endif;
+            gosub rebox;
+            if LLoutput == 0;
+                print "Output turned off.  Press Alt-O to reinstate.";
+            endif;
+            goto A9;
+#ifUNIX
+        elseif upper(chrs(ky)) $== "P";   /* P */
+            if LLoutput;
+                 TToutput = LLoutput;
+                 LLoutput = 0;
+            else;
+                 LLoutput = TToutput;
+            endif;
+#endif
+        elseif ky == 1019 or upper(chrs(ky)) $== "R";       /* ALT R  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_max_CovPar = ";
+                printdos ftos(Lmaxcovp,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 0, information matrix from final iteration";
+                locate 11,4;
+                printdos " = 1, inverse of hessian";
+                locate 12,4;
+                printdos " = 2, inverse of cross-product of first derivatives";
+                locate 13,4;
+                printdos " = 3, quasi-maximum likelihood covariance matri"\
+                    "x of parameters";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "  _max_CovPar = ";;
+                print ftos(Lmaxcovp,"%*.*lf",1,0);
+                print;
+                print "    = 0, information matrix from final iteration";
+                print "    = 1, inverse of hessian";
+                print "    = 2, inverse of cross-product of first derivatives";
+                print "    = 3, quasi-maximum likelihood covariance matri"\
+                    "x of parameters";
+                print;
+                print "Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxcovp = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 1031 or upper(chrs(ky)) $== "S";       /* ALT S  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Lmaxlnsch = ";
+                printdos ftos(Lmaxlnsch,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 1, Step Length = 1";
+                locate 11,4;
+                printdos " = 2, STEPBT (Cubic, Quadratic)";
+                locate 12,4;
+                printdos " = 3, HALF    ";
+                locate 13,4;
+                printdos " = 4, BRENT   ";
+                locate 14,4;
+                printdos " = 5, BHHHSTEP";
+                locate 16,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Lmaxlnsch = ";;
+                print ftos(Lmaxlnsch,"%*.*lf",1,0);
+                print;
+                print "    = 1, Step Length = 1";
+                print "    = 2, STEPBT (Cubic, Quadratic)";
+                print "    = 3, HALF    ";
+                print "    = 4, BRENT   ";
+                print "    = 5, BHHHSTEP";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxlnsch = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 33;    /* SHIFT 1 */
+            Lmaxlnsch = 1;
+        elseif ky == 64;    /* SHIFT 2 */
+            Lmaxlnsch = 2;
+        elseif ky == 35;    /* SHIFT 3 */
+            Lmaxlnsch = 3;
+        elseif ky == 36;    /* SHIFT 4 */
+            Lmaxlnsch = 4;
+        elseif ky == 37;    /* SHIFT 5 */
+            Lmaxlnsch = 5;
+        elseif ky == 1020 or upper(chrs(ky)) $== "T";       /* ALT T  */
+            skip = 1;
+        elseif ky == 1047 or upper(chrs(ky)) $== "V";       /* ALT V  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Lmaxgtol gradient convergence criterion = ";
+                printdos ftos(Lmaxgtol,"%*.*lf",10,6);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Lmaxgtol gradient convergence criterion = ";;
+                print ftos(Lmaxgtol,"%*.*lf",10,6);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lmaxgtol = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 1035 or upper(chrs(ky)) $== "H";       /* ALT H  */
+            if LLoutput == 2;
+                call csrtype(0);
+                scroll w5;
+                locate 7,4;
+                printdos "OPTIMIZATION SWITCHES";
+                k0 = 196*ones(1,30);
+                locate 8,4;
+                printdos chrs(218~k0~194~k0~191);
+                k1 = 0;
+                do until k1 == 7;
+                    k1 = k1+1;
+                    locate 8+k1,4;
+                    printdos chrs(179~(32*ones(1,30))~179~(32*ones(1,30))~179);
+                endo;
+                locate 9+k1,4;
+                printdos chrs(192~k0~193~k0~217);
+                locate 9,6;
+                printdos "ALT G  Gradient Method       ";
+                locate 10,6;
+                printdos "ALT V  _max_GradTol          ";
+                locate 11,6;
+                printdos "ALT R  _max_CovPar           ";
+                locate 12,6;
+                printdos "ALT O  __OUTPUT              ";
+                locate 9,37;
+                printdos "ALT M  Maximum Backstep      ";
+                locate 10,37;
+                printdos "ALT I  Compute Hessian       ";
+                locate 11,37;
+                printdos "ALT E  Edit Parameter Vector ";
+                locate 12,37;
+                printdos "ALT C  Force Convergence     ";
+                locate 13,37;
+                printdos "ALT A  Algorithm             ";
+                locate 14,37;
+                printdos "ALT S  Step Length Method    ";
+                locate 15,37;
+                printdos "ALT T  Force Mid-method      ";
+            else;
+                output off;
+                print;
+                print "OPTIMIZATION SWITCHES";
+                print "---------------------";
+                print "     ALT G  Gradient Method        | ";;
+                print "ALT M  Maximum Backstep      ";
+
+                print "     ALT V  _max_GradTol           | ";;
+                print "ALT I  Compute Hessian       ";
+
+                print "     ALT R  _max_CovPar            | ";;
+                print "ALT E  Edit Parameter Vector ";
+
+                print "     ALT S Step Length Method      | ";;
+                print "ALT C  Force Convergence     ";
+
+                print "     ALT O  __OUTPUT               | ";;
+                print "ALT A  Algorithm             ";
+                print;
+                output on;
+            endif;
+            ky = key;
+            do until ky;
+                ky = key;
+            endo;
+            if LLoutput == 2 and ky /= 1019 and (not upper(chrs(ky)) $== "R"\
+                "") and ky /= 1047 and (not upper(chrs(ky)) $== "V") and
+                ky /= 1050 and (not upper(chrs(ky)) $== "M") and ky /=
+                1020 and (not upper(chrs(ky)) $== "T") and ky /= 1034
+                and (not upper(chrs(ky)) $== "G") and ky /= 1025 and
+                (not upper(chrs(ky)) $== "P") and ky /= 1033 and (not
+                upper(chrs(ky)) $== "F");
+                gosub parbox;
+            endif;
+            goto A5;
+        elseif ky == 1073 or ky == 1081;    /* PgUp PgDn */
+            if ky == 1081 and (np-pg*48) gt 0;
+                pg = pg + 1;
+            elseif ky == 1073 and pg gt 1;
+                pg = pg - 1;
+            else;
+                goto A9;
+            endif;
+        endif;
+    A9:
+
+        ky = key;
+
+    endo;
+
+    return;
+
+BAR:
+
+    scroll w3;
+    scroll w4;
+    printdos "\27[7m";
+    locate 1,1;
+    printdos w0;
+    locate 3,2;
+    printdos "ITER      ";
+    locate 3,19;
+    printdos "FUNCTION: ";
+    locate 4,2;
+    printdos "TIME/ITER: ";
+    locate 3,41;
+    printdos "ALGORITHM: ";
+    locate 3,60;
+    printdos "STEP: ";
+    locate 4,60;
+    printdos "STEPSIZE: ";
+    locate 3,52;
+    printdos algrm[Lmaxalgr];
+    locate 3,66;
+    printdos stepm[Lmaxlnsch];
+    locate 4,19;
+    printdos "DF/ITER: ";
+    locate 4,41;
+    printdos "BACKSTEPS: ";
+#ifDOS
+    locate 25,1;
+    printdos "  ALT-H HELP  ";
+#endif
+    printdos "\27[0m";
+    return;
+
+PARBOX:
+
+    scroll w5;
+    locate 6,6;
+    printdos "parameters/relative gradient";
+    lf = (pg-1)*48+1;
+    ll = minc(48|(rows(start)-(pg-1)*48));
+    lr = ceil(ll/3);
+    locate 7,1;
+    printdos w6;
+    k1 = 1;
+    do until k1 gt lr;
+        locate 7+k1,1;
+        printdos w7;
+        k1 = k1+1;
+    endo;
+    locate 7+k1,1;
+    printdos w6;
+    return;
+
+REBOX:
+
+    if LLoutput == 2;
+        scroll w2;
+        gosub parbox;
+        locate 6,6;
+        printdos "parameters/gradient";
+    endif;
+    return;
+
+OUT:
+
+    pop ret;
+    pop h;
+    pop g;
+    pop vof;
+    pop x;
+
+    if scalmiss(ret);
+        ret = scalerr(ret);
+    else;
+        ret = 99;
+    endif;
+
+    if fhandle > 0;
+        fhandle = close(fhandle);
+    endif;
+
+    if LLoutput == 2;
+
+    endif;
+    ndpclex;
+    call ndpcntrl(old,0xffff);
+
+#ifUNIX
+    if LLoutput == 2 and sysstate(26,0) == 2;
+        call winsetactive(oaw);
+    endif;
+#else
+    if LLoutput == 2;
+        scroll w9;
+    endif;
+#endif
+
+    if idat;
+        retp(x,vof,g,h,ret,Lmaxfhess,Lmaxitdta,Lmaxcpvcp,Lmaxhsvcp,
+            dataset,Lmaxnobs,row,Lmax_dsn,Lmaxdiag);
+    else;
+        retp(x,vof,g,h,ret,Lmaxfhess,Lmaxitdta,Lmaxcpvcp,Lmaxhsvcp,
+            Lmax_dat,Lmaxnobs,Lmax_row,Lmax_dsn,Lmaxdiag);
+    endif;
+endp;
+
+@-----------------------------------------------------@
+@   PROC SCTU                                         @
+@ This computes VOF, G & updates to inverse Hessian   @
+
+proc(3) = _max_sctu(x,vof,smallval,g,h,dx,d,s,lfct,gdmd,gdprc,hsprc,
+    LLoutput, Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxalgr,Lmaxgrdh,
+    Lmaxusrgd,Lmaxusrhs,LmaxActive,ib,dd,wgts);
+
+    local v1, g0, h1, w1, beta, oldt;
+    clear beta;
+    h1 = h;
+    /* --- Gradient at x --- */
+    g0 = g;
+    g = _max_deriv(x,1,lfct,gdmd,gdprc,hsprc,LLoutput,Lmaxlag, dataset,
+        vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,LmaxActive,
+        ib,dd,wgts);
+    if scalmiss(g);
+        if LLoutput == 2;
+            locate 2,40;
+        endif;
+        if not trapchk(4);
+            if not trapchk(4);
+                errorlog "gradient calculation failed";
+            endif;
+        endif;
+        retp(g,h,0);
+    endif;
+
+    if abs(g) < smallval;
+        retp(g,h1,0);
+    endif;
+
+    /* -- Secant Update for Inverse Hessian --- */
+
+    if Lmaxalgr == 1;       /* STEEP */
+
+        retp(g,0,0);
+
+    elseif Lmaxalgr == 2;           /* BFGS update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0/sqrt(-g0'd));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+        endif;
+
+    elseif Lmaxalgr == 3;           /* DFP update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+            v1 = dx'*h*dx;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,(dx'h)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+        endif;
+
+    elseif Lmaxalgr == 4;           /* NEWTON-RAPHSON */
+
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "Hessian";
+        endif;
+        h1 = _max_deriv(x,3,lfct,gdmd,gdprc,hsprc,LLoutput,Lmaxlag,
+            dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,
+            LmaxActive,ib,dd,wgts);
+        if scalmiss(h1);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        endif;
+
+    elseif Lmaxalgr == 5;           /* BHHH */
+
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "Cross-Product";
+        endif;
+        h1 = _max_deriv(x,2,lfct,gdmd,gdprc,hsprc,LLoutput,Lmaxlag,dataset,
+            vindx,row,Lmaxnobs,numRows,Lmaxgrdh,Lmaxusrgd,Lmaxusrhs,
+            LmaxActive,ib,dd,wgts);
+
+        if scalmiss(h1);
+            if LLoutput == 2;
+                locate 3,52;
+                printdos ("\27[7m" $+ "BFGS" $+ "\27[0m");
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "Cross-Product matrix failed to invert - set to id"\
+                    "entity";
+            endif;
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        endif;
+    elseif Lmaxalgr == 6;           /* scaled BFGS */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            w1 = sqrt(-v1/(g0'd))/s;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(w1*h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0*w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+            trap oldt,1;
+        endif;
+
+    elseif Lmaxalgr == 7;           /* scaled DFP */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+            v1 = dx'*h*dx;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,(dx'h)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta);
+            endif;
+        endif;
+    else;
+        h1 = 1;
+        v1 = g0'*g0;
+        beta = (g'g/v1)*dx - (g0'g/v1)*d;
+    endif;
+
+    retp(g,h1,beta);
+endp;
+
+proc(2) = _max_stepl(g,vof,x0,d,lfct,step,usrsch,intrp,extrp,LLoutput,
+    Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,mxtry,Lmaxgrdh,LmaxActive,
+    dd,wgts);
+
+    local s, rs, ret, bksteps;
+    clear ret;
+    bksteps = -1;
+    if step == 2;
+        rs = _max_rdd(lfct,0,x0+d,0,0,0,LLoutput,Lmaxlag,dataset,vindx,
+            row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+        { s,ret,bksteps } = _max_stepbt(rs,g,vof,x0,d,mxtry,lfct,LLoutput,
+            Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh, LmaxActive,dd,
+            wgts);
+    elseif step == 3;
+        { s,ret,bksteps } = _max_half(vof,x0,d,mxtry,lfct,LLoutput,Lmaxlag,
+            dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    elseif step == 4;
+        { s,ret,bksteps } = _max_brent(vof,x0,d,1e-5,mxtry,lfct,LLoutput,
+            Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive, dd,
+            wgts);
+    elseif step == 5;
+        { s,ret,bksteps } = _max_bhhhstp(vof,x0,d,g,mxtry,intrp,extrp,lfct,
+            LLoutput,Lmaxlag,dataset,vindx,row, Lmaxnobs,numRows,Lmaxgrdh,
+            LmaxActive,dd,wgts);
+    else;
+        s = 1;
+        rs = _max_rdd(lfct,0,x0+d,0,0,0,LLoutput,Lmaxlag,dataset,vindx,
+            row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+        if rs > vof;
+            ret = 1;
+        endif;
+    endif;
+
+    if ret == 1;    /* not successful */
+        if LLoutput == 2;
+            locate 3,66;
+            printdos ("\27[7m" $+ "BRENT   " $+ "\27[0m");
+        endif;
+        { s,ret,bksteps } = _max_brent(vof,x0,d,1e-5,mxtry,lfct,LLoutput,
+            Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive, dd,
+            wgts);
+    endif;
+
+    if ret == 1;    /* still not successful */
+        if LLoutput == 2;
+            locate 3,66;
+            printdos ("\27[7m" $+ "HALF    " $+ "\27[0m");
+        endif;
+        { s,ret,bksteps } = _max_half(vof,x0,d,mxtry,lfct,LLoutput,Lmaxlag,
+            dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    endif;
+
+    if ret == 1 and usrsch;
+        { s,ret } = _max_usrsch(s,x0,d,vof,lfct,LLoutput,Lmaxlag, dataset,
+            vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    endif;
+
+    if ret == 1;
+        s = error(6);
+    endif;
+    retp(s,bksteps);
+endp;
+
+proc(3) = _max_bhhhstp(vof0,x0,d,g,mxtry,intrp,extrp,lfct,LLoutput,Lmaxlag,
+    dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    local lambda,delta,dg,up,down,upfact,downfact,vof,x,vofmin,lambmin,
+        ll,factor,iter,converge,itermax,w;
+/* ---------- INITIALIZATIONS --------------------------------------------*/
+    let w = 2 1 2 9 0 7;
+
+    itermax = mxtry;
+    delta = intrp;
+    factor = extrp;
+    clear converge,iter,up,down;
+    dg = d'g;
+    downfact = dg*delta;
+    upfact = dg*(1-delta);
+    lambda = 1;
+    vofmin = vof0;
+    lambmin = 0;
+/* ----------------- Iteration Loop ----------------------------------------*/
+    do until converge or iter>itermax;
+        iter = iter+1;
+        x = x0+lambda*d;
+        if LLoutput == 2;
+            locate 2,1;
+            printdos " Function";
+        endif;
+        vof = _max_rdd(lfct,0,x,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+            Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+        if LLoutput == 2;
+            scroll w;
+        endif;
+        if scalmiss(vof);
+            retp(error(3),1,iter);
+        endif;
+        if vof < vofmin;
+            lambmin = lambda;
+            vofmin = vof;
+        endif;
+
+        if (vof-vof0) > downfact*lambda;
+            down = 1;
+            if up;
+                factor = factor^0.618;
+                up = 0;
+            endif;
+            ll = lambda/factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        elseif (vof-vof0) < upfact*lambda;
+            up = 1;
+            if down;
+                factor = factor^0.618;
+                down = 0;
+            endif;
+            ll = lambda*factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        else;
+            converge = 1;
+        endif;
+    endo;
+    retp(lambda,1-converge,iter);
+endp;
+
+proc(3) = _max_stepbt(r1,g,vof,x0,d,mxtry,lfct,LLoutput,Lmaxlag,dataset,
+    vindx, row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+
+    local delta,ub,lb, ret, i, cdelta, dg, s, g1, r2, rs, sprev, s2prev,
+        tt, rprev, r2prev, sprev2, s2prev2, sp2, dsprev, vv, zz, ab, a, b,
+        qv;
+
+    local x,y,w;
+    let w = 2 1 2 9 0 7;
+
+/* --------------------- Initializations -------------------------  */
+    delta = 1e-4;           /* This can be changed, and doing so may help  */
+            /* speed convergence -- it must remain within the interval  */
+            /* (0,1/2) */
+    ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+    lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+
+    ret = 1;        /* If 0, then satisfactory value found; else 1.  */
+    i = 0;          /* This counts # of backsteps taken. */
+
+    cdelta = 1-delta;
+
+    dg = d'*g;
+
+        /* ------------------- Try s=1 -------------------------- */
+    s = 1;
+    tt = s*dg;
+    g1 = r1/tt-vof/tt;
+    if g1>=delta;
+        if r1 > vof;
+            retp(s,1,0);
+        else;
+            retp(s,0,0);
+        endif;
+    endif;
+    i = 1;
+    s = -dg/(2*(r1-vof-dg));
+    s = maxc(s|lb);
+    gosub fct(x0+s'.*d);
+    pop r2;
+    tt = s*dg;
+    g1 = r2/tt-vof/tt;
+
+    if g1>=delta and g1<=cdelta;
+        if r2 > vof;
+            retp(s,1,1);
+        else;
+            retp(s,0,1);
+        endif;
+    endif;
+    sprev = s;
+    s2prev = 1;
+    rprev = r2;
+    r2prev = r1;
+    rs = r2;
+
+    for i(1,mxtry,1);
+        sprev2 = sprev*sprev;
+        s2prev2 = s2prev*s2prev;
+        sp2 = sprev2~s2prev2;
+        dsprev = sprev-s2prev;
+
+        vv = (1~-1|-s2prev~sprev);
+        vv = vv./sp2;
+        zz = (rprev-vof-dg*sprev)|(r2prev-vof-dg*s2prev);
+        ab = (1/dsprev)*vv*zz;
+        a = ab[1,1];
+        b = ab[2,1];
+
+        if a == 0;          /* Cubic is actually a Quadratic in this case. */
+            s = -dg/(2*b);
+        else;
+            qv = b*b - 3*a*dg;
+            if qv < 0;
+                if rs > vof;
+                    retp(s,1,i);
+                else;
+                    retp(s,ret,i);
+                endif;
+            endif;          /* terminate if not real root */
+            tt = 3*a;
+            s = -b/tt + sqrt(qv)/tt;
+        endif;
+
+        if s > ub*sprev;
+            s = ub*sprev;
+        elseif s < lb*sprev;
+            s = lb*sprev;
+        endif;
+
+        gosub fct(x0+s'.*d);
+        pop rs;
+        tt = s*dg;
+        g1 = rs/tt-vof/tt;
+
+        if g1>=delta and g1<=cdelta;
+            if rs > vof;
+                retp(s,1,i);
+            else;
+                retp(s,0,i);
+            endif;
+        endif;
+
+        s2prev = sprev;
+        sprev = s;
+        r2prev = rprev;
+        rprev = rs;
+    endfor;
+    if rs > vof;
+        retp(s,1,i);
+    else;
+        retp(s,ret,i);
+    endif;
+
+FCT:
+
+    pop x;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _max_rdd(lfct,0,x,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,i);
+    endif;
+    return(y);
+
+endp;
+
+proc(2) = _max_usrsch(s,x0,d,vof,lfct,LLoutput,Lmaxlag,dataset,vindx, row,
+    Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    local rs,w,w1,w2,eps,ky;
+    let w = 2 30 2 80 0 7;
+    let w1 = 5 1 24 80 0 7;
+    let w2 = 2 1 2 9 0 7;
+    if LLoutput == 2;
+        scroll w1;
+        locate 2,30;
+        printdos "entering user search";
+        locate 6,4;
+        printdos "initial function value ";
+        printdos ftos(vof,"%*.*lf",16,8);
+    else;
+        print;
+        print "entering user search";
+        print;
+        print "initial function value ";;
+        print ftos(vof,"%*.*lf",16,8);
+        print;
+    endif;
+    eps = .1*s;
+    clear ky;
+A0:
+
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    else;
+        print " Function";
+        print;
+    endif;
+    rs = _max_rdd(lfct,0,x0+s*d,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    if LLoutput == 2;
+        scroll w2;
+    endif;
+    if scalmiss(rs);
+        retp(error(3),1);
+    endif;
+    if LLoutput == 2;
+        locate 8,4;
+        printdos "stepsize ";
+        printdos ftos(s,"%*.*lf",16,8);
+        printdos "    eps = ";
+        printdos ftos(eps,"%*.*lf",16,8);
+        locate 10,4;
+        printdos "function ";
+        printdos ftos(rs,"%*.*lf",16,8);
+    else;
+        print "   stepsize ";;
+        print ftos(s,"%*.*lf",16,8);;
+        print "    eps = ";;
+        print ftos(eps,"%*.*lf",16,8);
+        print;
+        print "   function ";;
+        print ftos(rs,"%*.*lf",16,8);
+        print;
+    endif;
+    ky = key;
+    do until ky;
+        ky = key;
+    endo;
+    if ky == 27;
+        if LLoutput == 2;
+            scroll w;
+            scroll w1;
+        endif;
+        retp(s,0);
+    elseif ky == 1072;
+        s = s+eps;
+    elseif ky == 1080;
+        s = s-eps;
+    elseif ky == 56;
+        eps = eps*10;
+    elseif ky == 50;
+        eps = eps/10;
+    endif;
+    goto A0;
+endp;
+
+proc(2) = _max_bracket(f0,x,d,lfct,LLoutput,Lmaxlag,dataset,vindx, row,
+    Lmaxnobs,numRows,mxtry,Lmaxgrdh,LmaxActive,dd,wgts);
+
+    local g,r,l0,l1,f1,l2,f2,try;
+    local t,y,w,w1;
+    let w = 2 1 2 9 0 7;
+    let w1 = 2 15 2 25 0 7;
+    if LLoutput == 2;
+        locate 2,15;
+        printdos "bracketing";
+    endif;
+    g = 0.5*sqrt(5) - 0.5;
+    r = 1 - g;
+    l0 = 0;
+    l1 = g;
+    gosub fct(x+l1*d);
+    pop f1;
+    try = 0;
+    do until try > mxtry;
+        try = try + 1;
+        if (f1 < f0);
+            l2 = l1 + r*(l1 - l0);
+            gosub fct(x+l2*d);
+            pop f2;
+            if (f2 < f1);
+                l0 = l1;
+                f0 = f1;
+                l1 = l2;
+                f1 = f2;
+            else;
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l2);
+            endif;
+        else;
+            l2 = l0 + g*(l1 - l0);
+            gosub fct(x+l2*d);
+            pop f2;
+            if (f2 > f0);
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l2);
+            else;
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l1);
+            endif;
+        endif;
+    endo;
+    retp(error(0),error(0));
+
+FCT:
+
+    pop t;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _max_rdd(lfct,0,t,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(0),error(0));
+    endif;
+    return(y);
+endp;
+
+proc(3) = _max_brent(vof,x0,d0,tol,mxtry,lfct,LLoutput,Lmaxlag,dataset,
+    vindx, row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+
+    local ax,cx,iter;
+    local a,b,c,d,e,xm,p,q,r,tol1,t2,u,v,w,fu,fv,fw,fx,x,tol3;
+    local f,y,w1;
+    let w1 = 2 1 2 9 0 7;
+    c = 0.5*(3 - sqrt(5));
+
+    { ax,cx } = _max_bracket(vof,x0,d0,lfct,LLoutput,Lmaxlag,dataset,vindx,
+        row,Lmaxnobs,numRows,mxtry,Lmaxgrdh,LmaxActive,dd,wgts);
+    if scalmiss(ax);
+        retp(ax,1,0);
+    endif;
+    a = minc(ax|cx);
+    b = maxc(ax|cx);
+    v = a + c*(b - a);
+    w = v;
+    x = v;
+    e = 0;
+    fx = vof;
+    fv = fx;
+    fw = fx;
+    tol3 = tol/3;
+    iter = 1;
+    for it(1,mxtry,1);
+        xm = 0.5*(a + b);
+        tol1 = _max_eps2*abs(x) + tol3;
+        t2 = 2*tol1;
+        if (abs(x - xm) <= (t2 - .5*(b - a)));
+            retp(x,0,iter);
+        endif;
+        clear p,q,r;
+        if abs(e) <= tol1;
+            goto A40;
+        endif;
+        r = (x-w)*(fx-fv);
+        q = (x-v)*(fx-fw);
+        p = (x-v)*q - (x-w)*r;
+        q = 2*(q-r);
+        if q <= 0;
+            q = -q;
+        else;
+            p = -p;
+        endif;
+        r = e;
+        e = d;
+        if (abs(p) >= abs(.5*q*r));
+            goto A40;
+        endif;
+        if (p <= q*(a-x));
+            goto A40;
+        endif;
+        if (p >= q*(b-x));
+            goto A40;
+        endif;
+        d = p/q;
+        u = x + d;
+        if ((u-a) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        if ((b-u) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        goto A50;
+    A40:
+
+        if x < xm;
+            e = b-x;
+        else;
+            e = a-x;
+        endif;
+        d = c*e;
+    A50:
+
+        if abs(d) >= tol1;
+            u = x + d;
+        elseif d >= 0;
+            u = x + tol1;
+        else;
+            u = x - tol1;
+        endif;
+        gosub fct(x0 + u*d0);
+        pop fu;
+        if fu <= fx;
+            if u >= x;
+                a = x;
+            else;
+                b = x;
+            endif;
+            v = w;
+            fv = fw;
+            w = x;
+            fw = fx;
+            x = u;
+            fx = fu;
+        else;
+            if u >= x;
+                b = u;
+            else;
+                a = u;
+            endif;
+            if (fu <= fw) or (w == x);
+                v = w;
+                fv = fw;
+                w = u;
+                fw = fu;
+            elseif (fu <= fv) or (v == x) or (v == w);
+                v = u;
+                fv = fu;
+            endif;
+        endif;
+        iter = iter + 1;
+    endfor;
+
+    retp(error(6),1,iter);
+
+FCT:
+
+    pop f;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _max_rdd(lfct,0,f,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    if LLoutput == 2;
+        scroll w1;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,iter);
+    endif;
+    return(y);
+
+endp;
+
+proc(3) = _max_half(f,x,d,mxtry,lfct,LLoutput,Lmaxlag, dataset,vindx,row,
+    Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    local ax,cx,bksteps,f1,t,y,w;
+    let w = 2 1 2 8 0 7;
+
+    bksteps = 0;
+    { ax,cx } = _max_bracket(f,x,d,lfct,LLoutput,Lmaxlag,dataset,vindx,
+        row,Lmaxnobs,numRows,mxtry,Lmaxgrdh,LmaxActive,dd,wgts);
+    if scalmiss(cx);
+        retp(error(0),1,bksteps);
+    endif;
+    for bksteps(1,mxtry,1);
+        cx = ax + .5*(cx - ax);
+        gosub fct(x+cx*d);
+        pop f1;
+        if f1 < f;
+            retp(cx,0,bksteps);
+        endif;
+    endfor;
+    retp(miss(0,0),1,bksteps);
+
+FCT:
+
+    pop t;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _max_rdd(lfct,0,t,0,0,0,LLoutput,Lmaxlag,dataset,vindx, row,
+        Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,bksteps);
+    endif;
+    return(y);
+
+endp;
+
+proc _max_rdd(ll,ff,x,ind1,ind2,ind3,LLoutput,Lmaxlag,dataset,vindx, row,
+    Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+    local i,r,s,w0,w1,w2,w3,z,y,a,a0,a1,ws;
+    local ll:proc;
+    let w0 = 2 1 2 80 0 7;
+    let w1 = 2 34 2 80 0 7;
+    let w2 = 2 1 2 9 0 7;
+    let w3 = 2 15 2 28 0 7;
+    if LLoutput == 2;
+        scroll w0;
+        if ind1 == 0;
+            locate 2,1;
+            printdos " Function";
+        elseif ind1 == 1;
+            locate 2,15;
+            printdos " Gradient";
+        elseif ind1 == 2;
+            locate 2,15;
+            printdos " Cross-Product";
+        elseif ind1 == 3;
+            locate 2,15;
+            printdos " Hessian ";
+        endif;
+    endif;
+
+    a = 0;
+    if rows(dataset) == 1;
+        call seekr(dataset,1);
+        if LLoutput == 2;
+            locate 2,34;
+            printdos " reading case           ";
+        endif;
+        i = Lmaxlag;
+        do until eof(dataset);
+            i = i+1;
+            if LLoutput == 2;
+                locate 2,48;
+                printdos ftos(minc(i*row|numRows),"%-*.*lf",1,0);
+            endif;
+            if Lmaxlag > 0;
+                call seekr(dataset,i-Lmaxlag);
+                y = readr(dataset,Lmaxlag+1);
+            else;
+                y = readr(dataset,row);
+            endif;
+            if not(wgts == 0);
+                if rows(wgts) == 1;
+                    gosub comp(y[.,vindx],y[.,wgts]);
+                    pop a1;
+                else;
+                    gosub comp(y[.,vindx],wgts);
+                    pop a1;
+                endif;
+            else;
+                gosub comp(y[.,vindx],0);
+                pop a1;
+            endif;
+            if ind2 == 2;
+                a = a + moment(a1,1);
+            else;
+                a = a + packr(a1);
+            endif;
+        endo;
+        if LLoutput == 2;
+            scroll w1;
+        endif;
+    else;
+        if row > 1;
+            s = floor(numRows/row);
+            r = numRows%row;
+            for i(1,s,1);
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[(i-1)*row+1:i*row,.],
+                            dataset[(i-1)*row+1:i*row,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[(i-1)*row+1:i*row,.],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[(i-1)*row+1:i*row,.],0);
+                    pop a1;
+                endif;
+
+                if ind2 == 2;
+                    a = a + moment(a1,1);
+                else;
+                    a = a + packr(a1);
+                endif;
+            endfor;
+            if r > 0;
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[numRows-r+1:numRows,.],
+                            dataset[numRows-r+1:numRows,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[numRows-r+1:numRows,wgts]);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[numRows-r+1:numRows,.]);
+                    pop a1;
+                endif;
+                if ind2 == 2;
+                    a = a + moment(a1,1);
+                else;
+                    a = a + packr(a1);
+                endif;
+            endif;
+        elseif row == 1;
+            for i(lmaxlag+1,numRows,1);
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[i-Lmaxlag:i,.],
+                            dataset[i-Lmaxlag:i,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[i-Lmaxlag:i,.],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[i-Lmaxlag:i,.],0);
+                    pop a1;
+                endif;
+                if ind2 == 2;
+                    a = a + moment(a1,1);
+                else;
+                    a = a + packr(a1);
+                endif;
+            endfor;
+        else;
+            if not(wgts == 0);
+                if rows(wgts) == 1;
+                    gosub comp(dataset,dataset[.,wgts]);
+                    pop a1;
+                else;
+                    gosub comp(dataset,wgts);
+                    pop a1;
+                endif;
+            else;
+                gosub comp(dataset,0);
+                pop a1;
+            endif;
+            if ind2 == 2;
+                a = moment(a1,1);
+            else;
+                a = packr(a1);
+            endif;
+        endif;
+    endif;
+    if LLoutput == 2;
+        if ind1;
+            scroll w3;
+        else;
+            scroll w2;
+        endif;
+    endif;
+    retp(a/Lmaxnobs);
+
+COMP:
+
+    pop ws;
+    pop z;
+
+    if ind2;
+        if ind3;
+            if ff;
+                a0 = -ll(ff,x,z,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+            else;
+                a0 = -ll(x,z,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+            endif;
+        else;
+            if not(LmaxActive == 0);
+                if ff;
+                    a0 = -ll(ff,dd*x+LmaxActive,z);
+                else;
+                    a0 = -ll(dd*x+LmaxActive,z);
+                endif;
+            else;
+                if ff;
+                    a0 = -ll(ff,x,z);
+                else;
+                    a0 = -ll(x,z);
+                endif;
+            endif;
+        endif;
+    else;
+        if ind3;
+            if ff;
+                a0 = sumc(-packr(ll(ff,x,z,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts)));
+            else;
+                a0 = sumc(-packr(ll(x,z,LLoutput),Lmaxgrdh,LmaxActive,dd,wgts));
+            endif;
+        else;
+            if not(LmaxActive == 0);
+                if ff;
+                    a0 = ll(ff,dd*x+LmaxActive,z);
+                else;
+                    a0 = ll(dd*x+LmaxActive,z);
+                endif;
+            else;
+                if ff;
+                    a0 = ll(ff,x,z);
+                else;
+                    a0 = ll(x,z);
+                endif;
+            endif;
+            if ws $== 0;
+                a0 = sumc(-packr(a0));
+            else;
+                a0 = sumc(-packr(a0.*ws));
+            endif;
+        endif;
+    endif;
+    return(a0);
+endp;
+
+proc _max_deriv(x,ind,lfct,gdmd,gdproc,hsproc,LLoutput,Lmaxlag,dataset,
+    vindx, row,Lmaxnobs,numRows,Lmaxgrdh,usrgd,usrhs,LmaxActive,ib,dd,wgts);
+    local a,active;
+    local usrgd:proc;
+    if ind == 4;
+        x = dd*x+LmaxActive;
+        LmaxActive = 0;
+        dd = 1;
+        ib = 0;
+        ind = 1;
+    endif;
+
+    if ind == 1;
+        if gdproc /= 0;
+            a = _max_rdd(gdproc,0,x,1,0,0,LLoutput,Lmaxlag,dataset,vindx,
+                row, Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+            if not(LmaxActive == 0);
+                a = a[ib,.];
+            endif;
+        else;
+            if gdmd == 0;
+                a = _max_rdd(&_max_grdcd,lfct,x,1,0,1,LLoutput,Lmaxlag,
+                    dataset, vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,
+                    wgts);
+            elseif gdmd == 1;
+                a = _max_rdd(&_max_grdfd,lfct,x,1,0,1,LLoutput,Lmaxlag,
+                    dataset, vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,
+                    wgts);
+            else;
+                a = _max_rdd(&usrgd,lfct,x,1,0,0,LLoutput,Lmaxlag,dataset,
+                    vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+                if not(LmaxActive == 0);
+                    a = a[ib,.];
+                endif;
+            endif;
+        endif;
+    elseif ind == 2;
+        if gdproc /= 0;
+            a = _max_rdd(gdproc,0,x,2,2,0,LLoutput,Lmaxlag,dataset,vindx,
+                row, Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+            if not(LmaxActive == 0);
+                a = a[ib,ib];
+            endif;
+        else;
+            if gdmd == 0;
+                a = _max_rdd(&_max_grdcd,lfct,x,2,2,1,LLoutput,Lmaxlag,
+                    dataset, vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,
+                    wgts);
+            elseif gdmd == 1;
+                a = _max_rdd(&_max_grdfd,lfct,x,2,2,1,LLoutput,Lmaxlag,
+                    dataset, vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,
+                    wgts);
+            else;
+                a = _max_rdd(&usrgd,lfct,x,2,2,0,LLoutput,Lmaxlag,dataset,
+                    vindx,row,Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+                if not(LmaxActive == 0);
+                    a = a[ib,ib];
+                endif;
+            endif;
+        endif;
+    elseif ind == 3;
+        if not (LmaxActive == 0);
+            x = dd*x+LmaxActive;
+            LmaxActive = 0;
+            dd = 1;
+            active = 1;
+        else;
+            active = 0;
+        endif;
+        if hsproc /= 0;
+            a = _max_rdd(hsproc,0,x,3,1,0,LLoutput,Lmaxlag,dataset,vindx,
+                row, Lmaxnobs,numRows,Lmaxgrdh,LmaxActive,dd,wgts);
+        else;
+            if gdproc /= 0;
+                if gdmd == 0;
+                    a = _max_rdd(&_max_grdc1,gdproc,x,3,1,1,LLoutput,
+                        Lmaxlag, dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,
+                        LmaxActive,dd,wgts);
+                elseif gdmd == 1;
+                    a = _max_rdd(&_max_grdf1,gdproc,x,3,1,1,LLoutput,
+                        Lmaxlag, dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,
+                        LmaxActive,dd,wgts);
+                else;
+                    a = _max_rdd(&usrgd,gdproc,x,3,1,0,LLoutput,Lmaxlag,
+                        dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,
+                        LmaxActive,dd,wgts);
+                    if not(LmaxActive == 0);
+                        a = a[ib,ib];
+                    endif;
+                endif;
+            else;
+                if usrhs /= 0;
+                    local usrhs:proc;
+                    a = _max_rdd(&usrhs,lfct,x,3,1,0,LLoutput,Lmaxlag,
+                        dataset, vindx,row,Lmaxnobs,numRows,Lmaxgrdh,
+                        LmaxActive,dd,wgts);
+                else;
+                    a = _max_rdd(&_max_hssp,lfct,x,3,1,1,LLoutput,
+                    Lmaxlag,dataset,vindx,row,Lmaxnobs,numRows,Lmaxgrdh,
+                    LmaxActive,dd,wgts);
+                endif;
+            endif;
+        endif;
+        if active;
+            a = a[ib,ib];
+        endif;
+    endif;
+    if scalmiss(a);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if ind == 1;
+                if not trapchk(4);
+                    errorlog "Calculation of first derivatives failed";
+                endif;
+            elseif ind == 2;
+                if not trapchk(4);
+                    errorlog "Calculation of cross-product derivatives failed";
+                endif;
+            elseif ind == 3;
+                if not trapchk(4);
+                    errorlog "Calculation of second derivatives failed";
+                endif;
+            endif;
+        endif;
+        if ind == 1;
+            retp(error(4));
+        else;
+            retp(error(5));
+        endif;
+    endif;
+    retp(a);
+endp;
+
+proc 1 = _max_grdfd(f,x0,y,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, i, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+    grdd = (grdd-f0)./(dh');
+    retp(grdd);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(LmaxActive == 0);
+        if not(wgts == 0);
+            z = packr(wgts.*f(dd*t1+LmaxActive,t2));
+        else;
+            z = packr(f(dd*t1+LmaxActive,t2));
+        endif;
+    else;
+        if not(wgts == 0);
+            z = packr(wgts.*f(t1,t2));
+        else;
+            z = packr(f(t1,t2));
+        endif;
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+proc _max_grdcd(f,x,y,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+    local k,i;
+    local f:proc;
+    local z,v,v1,v2,w,ax0,dax0,dh,xdh,argplus,argminus,t2,t1,grdd;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x+dh;
+    dh = xdh-x;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x,k,k)',xdh);
+    argminus = diagrv(reshape(x,k,k)',x-dh);
+
+    for i(1,k,1);
+        gosub fct(argplus[.,i],y);
+        pop v1;
+        gosub fct(argminus[.,i],y);
+        pop v2;
+        v = v1 - v2;
+        if i == 1;
+            grdd = v;
+        else;
+            grdd = grdd~v;
+        endif;
+    endfor;
+    retp(grdd./(2*dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(LmaxActive == 0);
+        if not(wgts == 0);
+            z = packr(wgts.*f(dd*t1+LmaxActive,t2));
+        else;
+            z = packr(f(dd*t1+LmaxActive,t2));
+        endif;
+    else;
+        if not(wgts == 0);
+            z = packr(wgts.*f(t1,t2));
+        else;
+            z = packr(f(t1,t2));
+        endif;
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+proc 1 = _max_grdf1(f,x0,y,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    grdd = (grdd-f0)./(dh');
+    retp(grdd);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(LmaxActive == 0);
+        if not(wgts == 0);
+            z = sumc(packr(wgts.*f(dd*t1+LmaxActive,t2)));
+        else;
+            z = sumc(packr(f(dd*t1+LmaxActive,t2)));
+        endif;
+    else;
+        if not(wgts == 0);
+            z = sumc(packr(wgts.*f(t1,t2)));
+        else;
+            z = sumc(packr(f(t1,t2)));
+        endif;
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+proc _max_grdc1(f,x,y,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+    local k,ax0,dax0,dh,xdh,argplus,argminus,i,grdd;
+    local f:proc;
+    local w,t1,t2,z,v,v1,v2;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x+dh;
+    dh = xdh-x;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x,k,k)',xdh);
+    argminus = diagrv(reshape(x,k,k)',x-dh);
+
+    for i(1,k,1);
+        gosub fct(argplus[.,i],y);
+        pop v1;
+        gosub fct(argminus[.,i],y);
+        pop v2;
+        v = v1 - v2;
+        if i == 1;
+            grdd = v;
+        else;
+            grdd = grdd~v;
+        endif;
+    endfor;
+    retp(grdd./(2*dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(LmaxActive == 0);
+        if not(wgts == 0);
+            z = sumc(packr(wgts.*f(dd*t1+LmaxActive,t2)));
+        else;
+            z = sumc(packr(f(dd*t1+LmaxActive,t2)));
+        endif;
+    else;
+        if not(wgts == 0);
+            z = sumc(packr(wgts.*f(t1,t2)));
+        else;
+            z = sumc(packr(f(t1,t2)));
+        endif;
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+proc _max_hssp(f,x0,y,LLoutput,Lmaxgrdh,LmaxActive,dd,wgts);
+    local k, hss, grdd, ax0, dax0, dh, xdh, ee, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+/* initializations */
+    k = rows(x0);
+
+        /* Computation of stepsize (dh) */
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,2] /= 0;
+            dh = Lmaxgrdh[.,2];
+        elseif Lmaxgrdh[.,2] /= 0;
+            dh = Lmaxgrdh[.,2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps3*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps3*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    ee = eye(k).*dh;
+
+    /* Computation of f0=f(x0) */
+    gosub fct(x0,y);
+    pop f0;
+
+    /* Compute forward step */
+    grdd = zeros(rows(f0),k);
+    for i(1,k,1);
+        gosub fct(x0+ee[.,i],y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    /* Compute "double" forward step */
+    hss = zeros(k,k);
+    for i(1,k,1);
+        for j(i,k,1);
+            gosub fct(x0+(ee[.,i]+ee[.,j]),y);
+            pop v;
+            hss[i,j] = sumc((v - grdd[.,i]-grdd[.,j] + f0) ./ (dh[i] * dh[j]));
+            if i /= j;
+                hss[j,i] = hss[i,j];
+            endif;
+        endfor;
+    endfor;
+
+    retp(hss);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(LmaxActive == 0);
+        if not(wgts == 0);
+            z = packr(wgts.*f(dd*t1+LmaxActive,t2));
+        else;
+            z = packr(f(dd*t1+LmaxActive,t2));
+        endif;
+    else;
+        if not(wgts == 0);
+            z = packr(wgts.*f(t1,t2));
+        else;
+            z = packr(f(t1,t2));
+        endif;
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+

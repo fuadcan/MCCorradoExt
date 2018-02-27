@@ -1,0 +1,721 @@
+/*
+** xls.src
+**
+**
+** (C) Copyright 2002, 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                                                Line
+** -----------------------------------------------------------
+** mat = xlsReadM(file, range, sheet, vls);                 46
+** sa  = xlsReadSA(file, range, sheet, vls);               126
+** ret = xlsWrite(data, file, range, sheet, vls);          210
+** ret = xlsWriteM(data, file, range, sheet, vls);         265
+** ret = xlsWriteSA(data, file, range, sheet, vls);        345
+** cnt = xlsGetSheetCount(file);                           428
+** ret = xlsGetSheetSize(file, sheet);                     464
+** mat = xlsGetSheetTypes(file, sheet, row);               503
+** mat = xlsMakeRange(row,col);                            554
+** mat = SpreadsheetReadM(file, range, sheet);             609
+** sa  = SpreadsheetReadSA(file, range, sheet);            646
+** ret = SpreadsheetWrite(data, file, range, sheet);       683
+*/
+
+
+#ifOS2WIN
+
+// if 1, a diagnostic log file ( xls.log ) is created.
+declare matrix _ss_db;
+
+
+/*
+**> xlsReadM
+**
+**  Purpose:     Reads from an Excel spreadsheet, into a GAUSS matrix
+**
+**  Format:      mat = xlsReadM(file, range, sheet, vls);
+**
+**  Input:       file     string, name of .xls file
+**               range    string, range to read, eg. "a2:b20", or the
+**                        starting point of the read, e.g. "a2"
+**               sheet    scalar, sheet number
+**               vls      null string or 9x1 matrix, specifies the conversion of
+**                        Excel empty cells and special types into GAUSS (see
+**                        remarks). A null string results in all empty cells
+**                        and empty types being converted to GAUSS missing values.
+**
+**  Output:      mat      matrix or a Microsoft error code
+**
+**  Remarks:     If range is a null string, then by default the read will
+**               begin at cell "a1".
+**
+**               The vls argument lets users control the import of Excel empty
+**               cells and special types, according to the following table:
+**
+**               Row Number             Excel Cell
+**
+**                   1                  empty cell
+**                   2                  #N/A
+**                   3                  #VALUE!
+**                   4                  #DIV/0!
+**                   5                  #NAME?
+**                   6                  #REF!
+**                   7                  #NUM!
+**                   8                  #NULL!
+**                   9                  #ERR
+**
+**               For example, to convert all occurrences of #DIV/0! to 9999.99,
+**               and all other empty cells and special types to GAUSS missing
+**               values:
+**
+**               vls = reshape(error(0),9,1);
+**               vls[4] = 9999.99;
+**
+**  See Also:
+**
+**  xlsReadSA, xlsWrite, xlsWriteM, xlsWriteSA, xlsGetSheetCount,
+**  xlsGetSheetSize, xlsGetSheetTypes, xlsMakeRange
+*/
+
+proc xlsReadM(file, range, sheet, vls);
+   local a,r,c,err,rowsvals;
+   clear r,c,a,err;
+
+   if (range $== "");
+      range = "a1";
+   endif;
+
+   if (type(vls) == 13);
+      if (strlen(vls) == 0);
+         rowsvals = 0;
+      else;
+         errorlog "ERROR in xlsreadm: vls must be a 9x1 vector or a null string.";
+         end;
+      endif;
+   elseif (type(vls) == 15);
+      errorlog "ERROR in xlsreadm: vls must be a 9x1 vector or a null string.";
+      end;
+   else;
+      rowsvals = rows(vls);
+   endif;
+
+   dllcall ssreadm(_ss_db, file, range, sheet, a, r, c, err, vls, rowsvals);
+   if err;
+      retp(err);
+   endif;
+
+   retp(commandeerm(r, c, a));
+endp;
+
+
+/*
+**> xlsReadSA
+**
+**  Purpose:     Reads from an Excel spreadsheet, into a GAUSS string array
+**               or string
+**
+**  Format:      s = xlsReadSa(file, range, sheet, vls);
+**
+**  Input:       file     string, name of .xls file
+**               range    string, range to read, eg. "a2:b20", or the
+**                        starting point of the read, e.g. "a2"
+**               sheet    scalar, sheet number
+**               vls      null string or 9x1 string array, specifies the conversion
+**                        of Excel empty cells and special types into GAUSS (see
+**                        remarks). A null string results in all empty cells
+**                        and empty types being converted to GAUSS missing values.
+**
+**  Output:      s        string array or string or a Microsoft error code
+**
+**  Remarks:     If range is a null string, then by default the read will
+**               begin at cell "a1".
+**
+**               The vls argument lets users control the import of Excel empty
+**               cells and special types, according to the following table:
+**
+**               Row Number             Excel Cell
+**
+**                   1                  empty cell
+**                   2                  #N/A
+**                   3                  #VALUE!
+**                   4                  #DIV/0!
+**                   5                  #NAME?
+**                   6                  #REF!
+**                   7                  #NUM!
+**                   8                  #NULL!
+**                   9                  #ERR
+**
+**               For example, to convert all occurrences of #DIV/0! to
+**               "Division by Zero", and all other empty cells and special types
+**               to GAUSS missing values:
+**
+**               vls = reshape("",9,1);
+**               vls[4] = "Division by Zero";
+**
+**  See Also:
+**
+**  xlsReadM, xlsWrite, xlsWriteM, xlsWriteSA, xlsGetSheetCount,
+**  xlsGetSheetSize, xlsGetSheetTypes, xlsMakeRange
+*/
+
+proc xlsReadSA(file, range, sheet, vls);
+   local a,r,c,err,rowsvals,s;
+   clear r,c,a,err;
+
+   if (range $== "");
+      range = "a1";
+   endif;
+
+   if (type(vls) == 13);
+      if (strlen(vls) == 0);
+         rowsvals = 0;
+      else;
+         errorlog "ERROR in xlsreadsa: vls must be a 9x1 string array or a null string.";
+         end;
+      endif;
+   elseif (type(vls) == 15);
+        rowsvals = rows(vls);
+   else;
+      errorlog "ERROR in xlsreadsa: vls must be a 9x1 string array or a null string.";
+      end;
+   endif;
+
+   dllcall ssreadsa(_ss_db, file, range, sheet, a, r, c, err, vls, rowsvals);
+   if (err);
+       retp(err);
+   endif;
+   s = commandeersa(r, c, a);
+   if ((rows(s) == 1) and (cols(s) == 1));
+      s = s[1,1];
+   endif;
+   retp(s);
+endp;
+
+
+/*
+**> xlsWrite
+**
+**  Purpose:     Writes a GAUSS matrix, string, or string array to an Excel spreadsheet
+**
+**  Format:      ret = xlsWrite(data, file, range, sheet, vls);
+**
+**  Input:       data     matrix
+**               file     string, name of .xls file
+**               range    string, the starting point of the write, e.g. "a2"
+**               sheet    scalar, sheet number
+**               vls      null string or 9x1 matrix, specifies the conversion
+**                        from GAUSS into Excel empty cells and special types (see
+**                        remarks). A null string results in all GAUSS missing
+**                        values being converted to empty cells in Excel.
+**
+**  Output:      ret      scalar, 0 if success or a Microsoft error code
+**
+**  Remarks:     The vls argument converts values in GAUSS to Excel empty cells
+**               and special types according to the following table:
+**
+**               Row Number             Excel Cell
+**
+**                   1                  empty cell
+**                   2                  #N/A
+**                   3                  #VALUE!
+**                   4                  #DIV/0!
+**                   5                  #NAME?
+**                   6                  #REF!
+**                   7                  #NUM!
+**                   8                  #NULL!
+**                   9                  #ERR
+**
+**               for example, to convert all occurrences of 9999.99 in GAUSS to
+**               #DIV/0! in Excel and convert all GAUSS missing values to empty
+**               cells in Excel,
+**
+**               vls = reshape(error(0), 9,1);
+**               vls[4] = 9999.99;
+**
+**  See Also:
+**
+**  xlsReadM, xlsReadSA, xlsWriteM, xlsWriteSA, xlsGetSheetCount,
+**  xlsGetSheetSize, xlsGetSheetTypes, xlsMakeRange
+*/
+
+proc xlsWrite(data, file, range, sheet, vls);
+    if (type(data) == 6);
+        retp(xlsWriteM(data, file, range, sheet, vls));
+    else;
+        retp(xlswritesa(data, file, range, sheet, vls));
+    endif;
+endp;
+
+
+/*
+**> xlsWriteM
+**
+**  Purpose:     Writes a GAUSS matrix to an Excel spreadsheet
+**
+**  Format:      ret = xlsWriteM(data, file, range, sheet, vls);
+**
+**  Input:       data     matrix
+**               file     string, name of .xls file
+**               range    string, the starting point of the write, e.g. "a2"
+**               sheet    scalar, sheet number
+**               vls      null string or 9x1 matrix, specifies the conversion
+**                        from GAUSS into Excel empty cells and special types (see
+**                        remarks). A null string results in all GAUSS missing
+**                        values being converted to empty cells in Excel.
+**
+**  Output:      ret      scalar, 0 if success or a Microsoft error code
+**
+**  Remarks:     The vls argument converts values in GAUSS to Excel empty cells
+**               and special types according to the following table:
+**
+**               Row Number             Excel Cell
+**
+**                   1                  empty cell
+**                   2                  #N/A
+**                   3                  #VALUE!
+**                   4                  #DIV/0!
+**                   5                  #NAME?
+**                   6                  #REF!
+**                   7                  #NUM!
+**                   8                  #NULL!
+**                   9                  #ERR
+**
+**               For example, to convert all occurrences of 9999.99 in GAUSS to
+**               #DIV/0! in Excel and convert all GAUSS missing values to empty
+**               cells in Excel,
+**
+**               vls = reshape(error(0), 9,1);
+**               vls[4] = 9999.99;
+**
+**  See Also:
+**
+**  xlsReadM, xlsReadSA, xlsWrite, xlsWriteSA, xlsGetSheetCount,
+**  xlsGetSheetSize, xlsGetSheetTypes, xlsMakeRange
+*/
+
+proc xlsWriteM(data, file, range, sheet, vls);
+   local r,c,err,rowsvals;
+   clear err;
+
+   if (range $== "");
+       range = "a1";
+   endif;
+
+   if (type(data) == 6);
+       if (type(vls) == 13);
+         if (strlen(vls) == 0);
+            rowsvals = 0;
+         else;
+            errorlog "ERROR in xlswritem: vls must be a 9x1 vector or a null string.";
+            end;
+         endif;
+       elseif (type(vls) == 15);
+            errorlog "ERROR in xlswritem: vls must be a 9x1 vector or a null string.";
+            end;
+       else;
+            rowsvals = rows(vls);
+       endif;
+   else;
+       errorlog "ERROR in xlswritem: Input data are the wrong type";
+       end;
+   endif;
+
+   r = rows(data);
+   c = cols(data);
+   dllcall sswritem(_ss_db, file, range, sheet, data, r, c, err, vls, rowsvals);
+   retp(err);
+endp;
+
+
+/*
+**> xlsWriteSA
+**
+**  Purpose:     Writes a GAUSS string or string array to an Excel spreadsheet
+**
+**  Format:      ret = xlsWriteSA(data, file, range, sheet, vls);
+**
+**  Input:       data     string or string array
+**               file     string, name of .xls file
+**               range    string, the starting point of the write, e.g. "a2"
+**               sheet    scalar, sheet number
+**               vls      null string or 9x1 string array, specifies the conversion
+**                        from GAUSS into Excel empty cells and special types (see
+**                        remarks). A null string results in all GAUSS missing
+**                        values being converted to empty cells in Excel.
+**
+**  Output:      ret      scalar, 0 if success or a Microsoft error code
+**
+**  Remarks:     The vls argument converts values in GAUSS to Excel empty cells
+**               and special types according to the following table:
+**
+**               Row Number             Excel Cell
+**
+**                   1                  empty cell
+**                   2                  #N/A
+**                   3                  #VALUE!
+**                   4                  #DIV/0!
+**                   5                  #NAME?
+**                   6                  #REF!
+**                   7                  #NUM!
+**                   8                  #NULL!
+**                   9                  #ERR
+**
+**               For example, to convert all occurrences of "Division by Zero" in
+**               GAUSS to #DIV/0! in Excel and convert all GAUSS missing values
+**               to empty cells in Excel,
+**
+**               vls = reshape("", 9,1);
+**               vls[4] = "Division by Zero";
+**
+**  See Also:
+**
+**  xlsReadSA, xlsWrite, xlsWriteM, xlsGetSheetCount, xlsGetSheetSize,
+**  xlsGetSheetTypes, xlsMakeRange
+*/
+
+proc xlsWriteSA(data, file, range, sheet, vls);
+   local r,c,err,rowsvals;
+   clear err;
+
+   if (range $== "");
+       range = "a1";
+   endif;
+
+   if (type(data) == 6);
+       data = ""$+data;
+   endif;
+
+   if (type(vls) == 13);
+       if (strlen(vls) == 0);
+            rowsvals = 0;
+       else;
+            errorlog "ERROR in xlswritesa: vls must be a string array or null string.";
+            end;
+       endif;
+   elseif (type(vls) == 6);
+       errorlog "ERROR in xlswritesa: vls must be a string array or null string.";
+       end;
+   else;
+       rowsvals = rows(vls);
+   endif;
+
+   r = rows(data);
+   c = cols(data);
+   if ((r == 1) and (c == 1));
+        dllcall sswrites(_ss_db, file, range, sheet, data, r, c, err, vls, rowsvals);
+   else;
+        dllcall sswritesa(_ss_db, file, range, sheet, data, r, c, err, vls, rowsvals);
+   endif;
+   retp(err);
+endp;
+
+
+/*
+**> xlsGetSheetCount
+**
+**
+**  Purpose:     Gets the number of sheets in an Excel spreadsheet
+**
+**  Format:      nsheets = xlsGetSheetCount(file);
+**
+**  Input:       file     string, name of .xls file
+**
+**  Output:      nsheets  scalar, sheet count or an error code
+**
+**  Remarks:     If xlsGetSheetCount fails, it will return a scalar
+**               error code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  xlsGetSheetSize, xlsGetSheetTypes, xlsMakeRange
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+*/
+
+proc (1)=xlsGetSheetCount(file);
+   local sheetcnt, err;
+   clear sheetcnt, err;
+   
+   dllcall ssInfoGetSheetCount(_ss_db, file, sheetcnt, err );
+   if err;
+      retp(err);
+   endif;
+   
+   retp (sheetcnt);
+endp;
+
+
+/*
+**> xlsGetSheetSize
+**
+**
+**  Purpose:     Gets the size (rows and columns) of a specified sheet
+**               in an Excel spreadsheet
+**
+**  Format:      nsheets = xlsGetSheetSize(file,sheet);
+**
+**  Input:       file     string, name of .xls file
+**               sheet    scalar, sheet index (1-based)
+**
+**  Output:      row      scalar, number of rows
+**               cols     scalar, number of columns
+**
+**  Remarks:     if xlsGetSheetSize fails, it wil return a scalar
+**               error code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  xlsGetSheetCount, xlsGetSheetTypes, xlsMakeRange
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+*/
+
+proc (2)=xlsGetSheetSize(file,sheet);
+   local r,c,err;
+   clear r,c,err;
+   
+   dllcall ssInfoGetSheetSize(_ss_db, file, sheet, r, c, err );
+   if err;
+      retp(err);
+   endif;
+   
+   retp (r,c);
+endp;
+
+
+/*
+**> xlsGetSheetTypes
+**
+**
+**  Purpose:     Gets the cell format types of a row in an Excel spreadsheet
+**
+**  Format:      nsheets = xlsGetSheetTypes(file,sheet,row);
+**
+**  Input:       file     string, name of .xls file
+**               sheet    scalar, sheet index (1-based)
+**               row      scalar, the row of cells to be scanned
+**
+**  Output:      types    1xK vector of pre-defined data types representing
+**                        the format of each cell in the specified row.
+**                        The possible types are:
+**
+**                           0 - Text
+**                           1 - Numeric
+**                           2 - Date
+**                        
+**  Remarks:     K is the number of columns found in the spreadsheet.
+**
+**               If xlsGetSheetTypes fails, it will return a scalar
+**               error code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  xlsGetSheetCount, xlsGetSheetSize, xlsMakeRange
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+*/
+
+proc (1)=xlsGetSheetTypes(file,sheet,row);
+   local r,c,types,err;
+   clear r,c,types,err;
+   
+   dllcall ssInfoGetSheetSize(_ss_db, file, sheet, r, c, err );
+   if err;
+      retp(err);
+   endif;
+   
+   dllcall ssInfoGetSheetTypes(_ss_db, file, sheet, row, types, err );
+   if err;
+      retp(err);
+   endif;
+
+   retp (commandeerm(1, c, types));
+endp;
+
+
+/*
+**> xlsMakeRange
+**
+**
+**  Purpose:     Builds an Excel range string from a row/column pair
+**
+**  Format:      range = xlsMakeRange(row,col);
+**
+**  Input:       row      scalar or 2x1 vector.
+**               col      scalar or 2x1 vector.
+**
+**  Output:      range    string, an Excel-formatted range specifier.
+**
+**
+**  Remarks:     If row is a 2x1 vector, it is interpreted as follows
+**
+**                        row[1] = starting row
+**                        row[2] = ending row
+**
+**              If col is a 2x1 vector, it is interpreted as follows
+**
+**                        col[1] = starting column
+**                        col[2] = ending column
+**
+**  See Also:
+**
+**  xlsGetSheetCount, xlsGetSheetSize, xlsGetSheetTypes
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+*/
+
+proc (1)=xlsMakeRange(row, col);
+    local range,len,err,nrows;
+    clear len,err;
+    
+    if rows(row) == 1 and rows(col) == 1;
+        nrows = 1;
+    elseif rows(row) == 2 and rows(col) == 2;
+        nrows = 2;
+    else;
+        errorlog "ERROR in XlsMakeRange: row and column parameters must be scalar or 2x1 matrix.";
+        end;
+    endif;
+
+    range = "                    ";
+    dllcall ssMakeRange( row, col, nrows, range, len, err );
+    if err;
+       retp(err);
+    endif;
+
+    retp(strsect(range,1,len));
+endp;
+
+
+/*
+**> SpreadSheetReadM
+**
+**  Purpose:     Reads from an Excel spreadsheet, into a GAUSS matrix
+**
+**  Format:      mat = SpreadSheetReadM(file, range, sheet);
+**
+**  Input:       file     string, name of .xls file
+**               range    string, range to read, eg. "a2:b20", or the 
+**                        starting point of the read, e.g. "a2"
+**               sheet    scalar, sheet number
+**
+**  Output:      mat       matrix or an error code
+**
+**  Remarks:     If range is a null string, then by default the read will
+**               begin at cell "a1".
+**
+**               If SpreadSheetReadM fails, it wil return a scalar error
+**               code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  SpreadSheetReadSA, SpreadSheetWrite
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+**
+**
+*/
+
+proc SpreadSheetReadM(file, range, sheet);
+   local vls,mat;
+   vls = "";
+   mat = xlsreadm(file,range,sheet,vls);
+   retp(mat);
+endp;
+
+/*
+**> SpreadSheetReadSA
+**
+**  Purpose:     Reads from an Excel spreadsheet, into a GAUSS matrix
+**
+**  Format:      sa = spreadsheetreadsa(file, range, sheet);
+**
+**  Input:       file     string, name of .xls file
+**               range    string, range to read, eg. "a2:b20"
+**                        or the starting point of the read, e.g. "a2"
+**               sheet    scalar, sheet number
+**
+**  Output:      sa       string array or an error code
+**
+**  Remarks:     If range is a null string, then by default the read will
+**               begin at cell "a1".
+**
+**               If SpreadSheetReadSA fails, it wil return a scalar error
+**               code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  SpreadsheetReadM, SpreadsheetWrite
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+**
+**
+*/
+
+proc SpreadSheetReadSA(file, range, sheet);
+   local vls,sa;
+   vls = "";
+   sa = xlsreadsa(file,range,sheet,vls);
+   retp(sa);
+endp;
+
+/*
+**> SpreadsheetWrite
+**
+**  Purpose:     Writes a GAUSS matrix or string array to an Excel spreadsheet
+**
+**  Format:      ret = SpreadsheetWrite(data, file, range, sheet);
+**
+**  Input:       data     matrix
+**               file     string, name of .xls file
+**               range    string, the starting point of the write, e.g. "a2"
+**               sheet    scalar, sheet number
+**
+**  Output:      ret      scalar, 0 if success or an error code
+**
+**  Remarks:     If range is a null string, then by default the read will
+**               begin at cell "a1".
+**
+**               If SpreadSheetWrite fails, it wil return a scalar error
+**               code which can be decoded with scalerr().
+**
+**  See Also:
+**
+**  SpreadsheetReadM, SpreadsheetReadSA
+**
+**
+**  Excel is a registered trademark of Microsoft Corporation.
+*/
+
+proc SpreadSheetWrite(data, file, range, sheet);
+   local vls, ret;
+   vls = "";
+   if (type(data) == 6);
+      ret = xlsWriteM(data,file,range,sheet,vls);
+   else;
+      ret = xlsWriteSA(data,file,range,sheet,vls);
+   endif;
+   retp(ret);
+endp;
+
+#endif

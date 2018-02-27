@@ -1,0 +1,141 @@
+/*
+** eigrg.src - Real general eigenvalues/eigenvectors.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS-386.
+**
+**      Format                                              Line
+** ==============================================================
+**     { var,vai } = EIGRG(x);                               28
+**     { var,vai,ver,vei } = EIGRG2(x);                      82
+*/
+
+#include eig.ext
+
+/*
+**> eigrg
+**
+**  Purpose:    To compute the eigenvalues of a real, general matrix.
+**
+**  Format:     { var,vai } = eigrg(x);
+**
+**  Input:      x    NxN matrix.
+**
+**  Output:     var   Nx1 vector, real part of eigenvalues.
+**
+**              vai   Nx1 vector, imaginary part of eigenvalues.
+**
+**              _eigerr   global scalar, if all the eigenvalues can
+**                        be determined _eigerr = 0,  otherwise _eigerr is set
+**                        to the index of the eigenvalue that failed.  The
+**                        eigenvalues for indices _eigerr+1 to N should be
+**                        correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     set _eigerr and terminate with message.
+**
+**                    TRAP 1     set _eigerr and continue execution.
+**
+**              The eigenvalues are unordered except that complex conjugate
+**              pairs of eigenvalues will appear consecutively with the
+**              eigenvalue having the positive imaginary part first.
+**
+**              This function is provided for backward compatibility
+**              with previous versions of GAUSS.  It uses an
+**              intrinsic function eig. If portability to the 16-bit
+**              environment is not an issue and you have the complex
+**              version of GAUSS, use the intrinsic function directly.
+**              It is faster and more memory efficient.
+**
+**  Globals:    _eigerr
+**
+**  See Also:   eigrg2, eigcg, eigch, eigrs
+*/
+
+proc (2) = eigrg(xr);
+    local xi;
+    { xr,xi } = cmsplit(eig(xr));
+    if scalerr(xr[1]);
+        _eigerr = scalerr(xr[1]);
+        xr[1] = 0;
+    else;
+        _eigerr = 0;
+    endif;
+    retp(xr,xi);
+endp;
+
+/*
+**> eigrg2
+**
+**  Purpose:    To compute eigenvalues and eigenvectors of a real,
+**              general matrix.
+**
+**  Format:     { var,vai,ver,vei } = eigrg2(x);
+**
+**  Input:      x     NxN matrix.
+**
+**  Output:     var   Nx1 vector, real part of eigenvalues.
+**
+**              vai   Nx1 vector, imaginary part of eigenvalues.
+**
+**              ver   NxN matrix, real part of eigenvectors.
+**
+**              vei   NxN matrix, imaginary part of eigenvectors.
+**
+**              _eigerr - global scalar, if all the eigenvalues can
+**                        be determined _eigerr = 0,  otherwise _eigerr is set
+**                        to the index of the eigenvalue that failed.  The
+**                        eigenvalues for indices _eigerr+1 to N should be
+**                        correct.  The eigenvectors are not computed.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     set _eigerr and terminate with message.
+**
+**                    TRAP 1     set _eigerr and continue execution.
+**
+**              The eigenvalues are unordered except that complex conjugate
+**              pairs of eigenvalues will appear consecutively with the
+**              eigenvalue having the positive imaginary part first.  The
+**              columns of ver and vei contain the real and imaginary
+**              eigenvectors of x in the same order as the eigenvalues.
+**              The eigenvectors are not normalized.
+**
+**              This function is provided for backward compatibility
+**              with previous versions of GAUSS.  It uses an
+**              intrinsic function eig. If portability to the 16-bit
+**              environment is not an issue and you have the complex
+**              version of GAUSS, use the intrinsic function directly.
+**              It is faster and more memory efficient.
+**
+**  Globals:    _eigerr
+**
+**  See Also:   eigrg, eigcg, eigch, eigrs
+*/
+
+proc (4) = eigrg2(xr);
+    local xi,er,ei;
+    { xr,xi,er,ei } = cmsplit2(eigv(xr));
+    if scalerr(xr[1]);
+        _eigerr = scalerr(xr[1]);
+        xr[1] = 0;
+    else;
+        _eigerr = 0;
+    endif;
+    retp(xr,xi,er,ei);
+endp;

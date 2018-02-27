@@ -1,0 +1,360 @@
+/*
+** gdt_model_garch.src
+**
+**
+** (C) Copyright 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> _gdt_model_garch
+**
+**  Purpose:    generates simulated data based on a garch model
+**
+**  Format:     { r,s } = _gdt_model_garch(args);
+**
+**  Input:      args    string array, keywords for simulation options
+**
+**                         file   output file name, default = "logit"
+**                      depname   name of dependent variable, default = "Y"
+**                       indvar   list of names of independent variables,
+**                                   default is no independent variables
+**                     constant   value of constant in mean equation, default = 0.
+**                         beta   list of values of coefficients in mean equation,
+**                                default is no coefficients
+**                          vcx   covariance matrix of exogenous variables, default = identity.
+**                        omega   value of constant in variance equation, default = 1.
+**                        garch   list of values of garch coefficients, default
+**                                     is no coefficients
+**                         arch   list of values of arch coefficients, default
+**                                     is no coefficients
+**                    asymmetry   list of values of asymmetry coefficients.  Must
+**                                     be same length as arch.  Default is no
+**                                     coefficients
+**                       inmean   conditional variance is added to mean equation
+**                                     with this coefficient. Default = 0.
+**                     sqinmean   square root of conditional variance is added to
+**                                     mean equation with this coefficient. Default = 0;
+**                       normal    Normally distributed error term.
+**                            t   df.  Student's t distributed error term with
+**                                     specified df parameter.  Default is 5.
+**                         seed   random number generator seed. Default = 345678
+**                         open   resulting dataset opened in Data Tool. Default
+**                                  is closed
+**
+**
+**  Output:     r           scalar, return code.  Normal return = 0.
+**
+**              s           string, return message.  Normal return = "".
+**
+**  Remarks:  For null input argument, args = "", serially uncorrelated
+**            standard Normal observations are generated.
+**
+**  Example:
+**
+**         sa1 = "file test"      $|
+**               "depvar YY"      $|
+**               "constant .5"    $|
+**               "omega 1.5"      $|
+**               "garch .5,.5"    $|
+**               "arch .5,.5"     $|
+**               "numobs 10000"   $|
+**
+**               call _gdt_model_garch(sa1);
+**
+*/
+
+
+#include gdttools.ext
+
+
+proc(2) = _gdt_model_garch(args);
+
+    local fp,fname,depname,indnames,b0,beta,s1,s2,s3,
+           omega,garch,arch,h,r,_p,_q,oldt,
+           lbl,y,x,u,distType,distPars,eps,sd,pr,z,nobs,
+           openf,tau,delta,delta_s,w,vcx,df,numx;
+
+    fname = "garch";
+    depname = "Y";
+    indnames = "";
+    b0 = 1;
+    beta = error(0);
+    omega = .1;
+    garch = error(0);
+    arch = error(0);
+    tau = error(0);
+    delta = error(0);
+    delta_s = error(0);
+    _p = error(0);
+    _q = error(0);
+    distType = 1;
+    distPars = 5;
+    nobs = 100;
+    sd = 345678;
+    openf = 0;
+    numx = 0;
+    vcx = 1;
+    df = 5;
+
+    for i(1,rows(args),1);
+
+        if args[1] $/= "";
+
+            { s1,s2 } = token(args[i]);
+            if lower(s1) $== "file";
+                 fname = s2;
+            elseif lower(s1) $== "depvar";
+                 depname = s2;
+            elseif lower(s1) $== "indvar";
+                 indnames = strsplit(s2)';
+            elseif lower(strsect(s1,1,5)) $== "const";
+                 b0 = stof(s2);
+            elseif lower(s1) $== "beta";
+                 beta = strtof(strsplit(s2))';
+            elseif lower(s1) $== "vcx";
+                 vcx = strtof(strsplit(s2))';
+            elseif lower(s1) $== "omega";
+                 omega = stof(s2);
+            elseif lower(s1) $== "garch";
+                 garch = strtof(strsplit(s2))';
+                 _p = rows(garch);
+            elseif lower(s1) $== "arch";
+                 arch = strtof(strsplit(s2))';
+                 _q = rows(arch);
+            elseif lower(s1) $== "asymmetry";
+                 tau = strtof(strsplit(s2))';
+            elseif lower(s1) $== "inmean";
+                 delta = stof(s2);
+            elseif lower(s1) $== "numobs";
+                 nobs = stof(s2);
+            elseif lower(s1) $== "normal";
+                 distType = 1;
+            elseif lower(s1) $== "t";
+                 distType = 2;
+                 distPars = stof(s2);
+                 if distPars[1] == 0;
+                     df = 5;
+                 else;
+                     df = distPars[1];
+                 endif;
+            elseif lower(s1) $== "seed";
+                 sd = stof(s2);
+            elseif lower(s1) $== "open";
+                openf = 1;
+            endif;
+
+        endif;
+
+    endfor;
+
+    open fp = ^fname;
+    if fp /= -1;
+        errorlog "dataset already exists, choose a different name";
+        fp = close(fp);
+        retp(-1,"",);
+    endif;
+    fp = close(fp);
+
+     if scalmiss(beta) and indnames[1] $/= "";
+         beta = .2 * ones(rows(indnames),1);
+         numx = rows(indnames);
+     elseif not scalmiss(beta) and indnames[1] $== "";
+         numx = rows(beta);
+         indnames = ftostrC(seqa(1,1,numx),"X%1.0lf");
+     elseif not scalmiss(beta) and indnames[1] $/= "";
+         if rows(beta) /= rows(indnames);
+             errorlog "number of coefficients inconsistent with\n"\
+                      "list of names of independent variables";
+             retp(-1,"");
+         else;
+             numx = rows(indnames);
+         endif;
+     else;
+         numx = 0;
+     endif;
+
+     if numx > 0;
+        if rows(vcx) > 1 and not (vcx == 1);
+            if rows(vcx) /= 0.5*numx*(numx+1);
+                errorlog "size of variance-covariance matrix inconsistent\n"\
+                         "with number of independent variables";
+                retp(-1,"");
+            endif;
+            vcx = xpnd(vcx);
+            oldt = trapchk(1);
+            trap 1,1;
+            vcx = chol(vcx);
+            trap oldt,1;
+            if scalmiss(vcx);
+                errorlog "covariance matrix of independent variables is\n"\
+                         " singular, identity matrix will be used";
+                vcx = 1;
+            endif;
+        endif;
+     endif;
+
+    if numx > 0;
+        { x,sd } = rndKMn(nobs,rows(beta),sd);
+        x = x * vcx;
+    endif;
+
+    if scalmiss(_p) and scalmiss(_q);
+
+        { u,sd } = rndKMn(nobs,1,sd);
+        y = b0[1] + u;
+        if not scalmiss(beta);
+            y = y + x * beta;
+        endif;
+
+    else;
+
+        r = maxc(_p|_q);
+        h = zeros(nobs,1);
+        u = zeros(nobs,1);
+        y = zeros(nobs,1);
+        if not scalmiss(garch) and not scalmiss(arch);
+            h[1:r] = ones(r,1)*(omega/(1-sumc(garch)-sumc(arch)));
+        elseif not scalmiss(garch) and scalmiss(arch);
+            h[1:r] = ones(r,1)*(omega/(1-sumc(garch)));
+        elseif scalmiss(garch) and not scalmiss(arch);
+            h[1:r] = ones(r,1)*(omega/(1-sumc(arch)));
+        else;
+            h[1] = 1;
+        endif;
+
+        if not (h[1:r] > 0);
+            errorlog "_gdt_model_garch:  infeasible arch/garch coefficients";
+            retp(-1,"");
+        endif;
+
+        { w,sd } = rndKMn(r,1,sd);
+
+        u[1:r] = w;
+        y[1:r] = b0 + u[1:r];
+        if not scalmiss(beta);
+            y[1:r] = x[1:r,.] * beta;
+        endif;
+        if distType == 1;
+            { w,sd } = rndKMn(nobs,1,sd);
+        elseif distType == 2;
+            { w,sd } = rndKMu(nobs,1,sd);
+            w = cdftci(1-w,df);
+        endif;
+
+        for j(r+1,nobs,1);
+
+            if not scalmiss(garch) and not scalmiss(arch);
+                if not scalmiss(tau);
+                    h[j] = omega + h[j-1:j-_p]'garch  + (u[j-1:j-_q]^2)'(arch + tau*(u[j-1:j-_q].<0));
+                else;
+                    h[j] = omega + h[j-1:j-_p]'garch  + (u[j-1:j-_q]^2)'arch;
+                endif;
+            elseif not scalmiss(garch) and scalmiss(arch);
+                h[j] = omega + h[j-1:j-_p]'garch;
+            elseif scalmiss(garch) and not scalmiss(arch);
+                if scalerr(tau) /= 99;
+                    h[j] = omega + (u[j-1:j-_q]^2)'(arch + tau*(u[j-1:j-_q].<0));
+                else;
+                    h[j] = omega + (u[j-1:j-_q]^2)'arch;
+                endif;
+            else;
+                h[j] = 1;
+            endif;
+            u[j] = sqrt(h[j]) * w[j];
+            y[j] = b0 + u[j];
+            if not scalmiss(beta);
+                y[j] = y[j] + x[j,.] * beta;
+            endif;
+
+            if not scalmiss(delta) /= 99;
+                y[j] = y[j] + sqrt(h[j]) * delta;
+            endif;
+
+        endfor;
+    endif;
+
+    if scalmiss(beta);
+        lbl = depname;
+    else;
+        lbl = depname $| indnames;
+    endif;
+
+    create fp = ^fname with ^lbl,0,8;
+    if scalmiss(beta);
+        call writer(fp,y);
+    else;
+        call writer(fp,y~x);
+    endif;
+    fp = close(fp);
+
+    if openf;
+        retp(1,fname);
+    else;
+        retp(0,"");
+    endif;
+
+endp;
+
+
+
+
+    proc(0) = _gdt_model_garch_help;
+
+       local s1;
+
+       s1 = "
+Purpose: generates garch simulation
+
+Format:  model garch
+         [options]
+         
+Example: model garch
+         file gchsim
+         depvar y
+         indvar x1,x2
+         beta .3, .4
+         omega 1.2
+         garch .1, .2
+         arch .2
+         inmean .3
+         open
+
+Options: file      output file name, default = garch
+         depname   name of dependent variable, default = Y
+         indvar    list of names of independent variables, default is 
+                        no independent variables
+         constant  value of constant, default = 1
+         beta      list of values of coefficients, default is no coefficients
+         omega     value of constant in variance equation, default = 1
+         garch     list of values of garch coefficients, default
+                        is no coefficients
+         arch      list of values of arch coefficients, default
+                        is no coefficients
+         numobs    number of observations, default = 100
+         normal    Normally distributed error term
+         t         df.  Student's t distributed error term with
+                   specified df parameter.  Default is 5 
+         asymmetry list of values of asymmetry coefficients.  Must
+                        be same length as arch.  Default is none.
+         inmean    square root of conditional variance is added to
+                        mean equation with this coefficient. Default = 0
+         seed      random number generator seed. Default = 345678
+         open      resulting dataset opened in Data Tool. Default is closed";
+
+       print s1;
+
+    endp;

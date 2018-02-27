@@ -1,0 +1,26 @@
+Non-cointegrated model.
+Stock-Watson statistics
+
+     -0.18776202 
+      -2.6086168 
+Critical values = 
+      -24.169400 
+      -17.404100 
+      -14.001100 
+      -1.3412100 
+     -0.67504300 
+      0.21618300 
+ 
+Cointegrated model
+Stock-Watson statistics
+
+     -0.72812435 
+      -106.88831 
+Critical values = 
+      -24.169400 
+      -17.404100 
+      -14.001100 
+      -1.3412100 
+     -0.67504300 
+      0.21618300 
+run za.ex;

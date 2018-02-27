@@ -1,0 +1,13 @@
+system of two equations, two explanatory variables
+True coefficients =       0.20000000       0.50000000 
+                          0.50000000       0.10000000 
+Ahat, FM-GMM = 
+      0.24037361       0.50611336 
+      0.49382720      0.094912155 
+Long-Run Variance of the residuals 
+      0.69849951       0.13726581 
+      0.13726581       0.42815228 
+s1 =        10.502647 
+s2 =        3.1047071 
+st (= s1 + s2)        13.607354 
+run fm-ols.ex;

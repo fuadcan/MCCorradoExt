@@ -1,0 +1,1593 @@
+#ifDLLCALL
+/*
+**> _varma
+**
+**  Purpose:  computes estimates and covariance matrix of estimates
+**            of Vector ARMA model
+**
+**  Format:   { C, vc, H, res, f, retcode }
+**                            = _varma(w,ar,ma,x,vcType);
+**
+**  Input:    w         NxL matrix, time series
+**
+**            ar        scalar, order of AR parameter matrices
+**
+**            ma        scalar, order of MA parameter matrices
+**
+**            x         NxK matrix, independent variables, if any.
+**                      If none, set to scalar 0.
+**
+**            vcType    scalar, set to 1 for ML covariance matrix of
+**                      parameters, or 2 for QML covariance matrix.
+**
+**
+**  Output:   C         Rx1 vector, coefficient estimates
+**
+**            vc        LxL matrix, covariance matrix of residuals
+**
+**            H         RxR matrix, covariance matrix of parameters
+**
+**            Res       NxK matrix, residuals
+**
+**            f         scalar, function at maximum
+**
+**            retcode   2x1 vector, return code
+**
+**                       first element of retcode
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**
+**                       second element of retcode
+**
+**                         0   covariance matrix of parameters fails
+**                         1   ML covariance matrix computed
+**                         2   QML covariance matrix
+**                         3   Cross-Product covariance matrix
+**
+**
+**  Input Globals:
+**
+**   _vm_IndEquations  KxL matrix of zeros and ones.  Only used if L
+**                     greater than one.  Elements set to one indicate
+**                     coefficients to be estimated.  If L = 1, all
+**                     coefficients will be estimated.  If L > 1 and
+**                     _vm_IndEquations set to missing value, all
+**                     coefficients will be estimated.
+**
+**   _vm_SetConstraints scalar, set to nonzero value to impose
+**                      constraints enforcing stationarity and
+**                      inversion by constraining roots to be
+**                      outside unit circle.
+**
+**   _vm_Lagrange      Lagrangeans for constraints
+**
+**   _vm_PrintIters    scalar, nonzero if iteration data wanted.
+**
+**
+**   _vm_A             MxK matrix, linear equality constraint coefficients
+**   _vm_B             Mx1 vector, linear equality constraint constants
+**
+**                     These globals are used to specify linear equality
+**                     constraints of the following type:
+**
+**                        _sqp_A * X = _sqp_B
+**
+**                     where X is the Kx1 unknown parameter vector.
+**
+**   _vm_C             MxK matrix, linear inequality constraint coefficients
+**   _vm_D             Mx1 vector, linear inequality constraint constants
+**
+**                     These globals are used to specify linear inequality
+**                     constraints of the following type:
+**
+**                        _sqp_C * X >= _sqp_D
+**
+**                     where X is the Kx1 unknown parameter vector.
+**
+**   _vm_Bounds        Kx2 matrix, bounds on parameters.  The first column
+**                     contains the lower bounds, and the second column the
+**                     upper bounds.  If the bounds for all the coefficients
+**                     are the same, a 1x2 matrix may be used.
+**                     Default = { -1e256 1e256 }
+**
+**   _vm_MaxIters      scalar, maximum number of iterations. Default = 1e+5.
+**                     Termination can be forced by pressing C on the keyboard
+**
+**   _vm_DirTol        scalar, convergence tolerance for gradient of estimated
+**                     coefficients.  Default = 1e-5.  When this criterion has
+**                     been satisifed SQPSolve will exit the iterations.
+**
+**   _vm_FeasibleTest  scalar, if nonzero, parameters are tested for feasibility
+**                     before computing function in line search.  If function
+**                     is defined outside inequality boundaries, then this test
+**                     can be turned off.
+**
+**  Remarks:  Errors are assumed to be distributed N(0,Q).
+**
+**  The function varmadll is adapted from code developed by Jose Alberto
+**  Mauricio of the Universidad Complutense de Madrid.  It was published
+**  as Algorithm AS311 in Applied Statistics.  Also described in "Exact
+**  maximum likelihood estimation of stationary vector ARMA models, JASA,
+**  90:282-291.
+**
+**  Coefficients are stored in C in the following order:
+**
+**            phi       P*LxL AR coefficients stored row-wise
+**
+**            theta     Q*LxL MA coefficients stored row-wise
+**
+**            B         LxK regression coefficients, if x > 0.
+**
+**            B0        Lx1 constants
+**
+**
+**  When placing constraints on parameters, it may be necessary to supply
+**  start values because the ones calculated by _varma may not be
+**  feasible.
+*/
+
+#include varma.ext
+#include sqpsolve.ext
+#include gauss.ext
+
+proc (6) = _varma(w0,ar,ma,x,vcType);
+
+    local start0,start,_b,_f,_lagr,_retc,vc,_phi,_theta,_vc,_beta0,_beta,h,
+    my,mx,res,sy,i1,i2,i3,i4,i5,ih,_a1,_a2,nobs,_m,ret0,numPars,userStart,
+    oldt,w;
+
+    _vmset;
+    _vm_ma = ma;
+    _vm_ar = ar;
+    nobs = rows(w0);
+    _m = cols(w0);
+    my = meanc(w0);
+
+    w = w0 - my';
+    if _vm_scale == 0;
+        sy = 0.25*sqrt(diag(w'w)/nobs);
+    else;
+        if rows(_vm_scale) == 1;
+            sy = ones(_m,1) / _vm_scale;
+        elseif rows(_vm_scale) == _m;
+            sy = 1 ./ _vm_scale;
+        endif;
+    endif;
+    w = w ./ sy';
+
+    if not scalmiss(_vm_IndEquations);
+       if x == 0;
+           _vm_IndEquations = {.};
+       endif;
+       if cols(_vm_IndEquations) /= cols(x) or
+              rows(_vm_IndEquations) /= _m;
+            errorlog "ERROR: _vm_IndEquations not correctly specified";
+            end;
+       endif;
+    endif;
+
+/*
+**  if multivariate get starting values using univariate results
+*/
+    numPars = _m*_m*(_vm_ar + _vm_ma);
+    if _m > 1;
+        numPars = numPars + 0.5* _m * (_m + 1);
+    endif;
+    if not(x == 0);
+        if not scalmiss(_vm_IndEquations);
+            numPars = sumc(sumc(_vm_IndEquations .== 1));
+        else;
+            numPars = _m * cols(x);
+        endif;
+    endif;
+     userStart = not scalmiss(_vm_start) and rows(_vm_start) == numPars;
+
+    if _m > 1 and not userStart;
+
+       start0 = {};
+       for i(1,_m,1);
+
+           _vm_ts = w[.,i];
+
+           sqpsolveset;
+
+          _sqp_PrintIters = _vm_PrintIters;
+          _sqp_DirTol = 1e-3;
+          _sqp_RandRadius = _vm_RandRadius;
+          _sqp_TrustRadius = _vm_TrustRadius;
+
+           if _vm_setConstraints;
+               _sqp_IneqProc = &ineqstart;
+           endif;
+
+           _sqp_ParNames = getNames(1,ar,ma);
+           __output = -1;
+
+           start = getStart(_vm_ts,ar,ma);
+           oldt = trapchk(4);
+           trap 4;
+           { _b,_f,_lagr,_retc } = sqpSolve(&NLL,start);
+           trap oldt;
+           if _retc > 2;
+               _b = start;
+           endif;
+           if _vm_ar > 0 and _vm_ma > 0;
+               vc = moment(varmares(_vm_ts,_b[1:ar],_b[ar+1:ar+ma]),0)/nobs;
+           elseif _vm_ar > 0;
+               vc = moment(varmares(_vm_ts,_b[1:ar],error(0)),0)/nobs;
+           elseif _vm_ma > 0;
+               vc = moment(varmares(_vm_ts,error(0),_b[1:ma]),0)/nobs;
+           endif;
+           start0 = start0 | (_b | vc);
+
+       endfor;
+
+       start = {};
+       for i(1,ar+ma,1);
+           start = start | vecr( diagrv(eye(_m),start0[i,.]) );
+       endfor;
+       start = start |  vech(diagrv(eye(_m),start0[ar+ma+1,.]));
+
+    elseif userStart;
+
+       start = _vm_start;
+
+    else;
+
+       start = getStart(w,ar,ma);
+
+    endif;
+
+    sqpsolveset;
+
+    _sqp_PrintIters = _vm_PrintIters;
+    __title = "Vector ARMA";
+    __output = -1;
+     _sqp_RandRadius = _vm_RandRadius;
+     _sqp_TrustRadius = _vm_TrustRadius;
+
+    if _vm_setConstraints;
+        _sqp_ineqProc = &ineq;
+    endif;
+
+    if not scalmiss(_vm_a) and not scalmiss(_vm_b);
+        _sqp_a = _vm_a;
+        _sqp_b = _vm_b;
+    endif;
+
+    if not scalmiss(_vm_c) and not scalmiss(_vm_d);
+        _sqp_c = _vm_c;
+        _sqp_d = _vm_d;
+    endif;
+
+    if not scalmiss(_vm_eqProc);
+        _sqp_eqProc = _vm_eqProc;
+    endif;
+
+    if not scalmiss(_vm_ineqProc) and scalmiss(_sqp_ineqProc);
+        _sqp_ineqProc = _vm_ineqProc;
+    endif;
+
+    if not scalmiss(_vm_MaxIters);
+        _sqp_MaxIters = _vm_MaxIters;
+    endif;
+
+    if not scalmiss(_vm_DirTol);
+        _sqp_DirTol = _vm_DirTol;
+    endif;
+
+    if not scalmiss(_vm_Bounds);
+        _sqp_Bounds = _vm_Bounds;
+    endif;
+
+    if not scalmiss(_vm_FeasibleTest);
+        _sqp_FeasibleTest = _vm_FeasibleTest;
+    endif;
+
+    _sqp_ParNames = getNames(_m,ar,ma);
+
+    if not(x == 0);
+        if not userStart;
+            if scalmiss(_vm_IndEquations);
+                start = start | zeros(_m*cols(x),1);
+            else;
+                start = start | zeros(sumc(sumc(_vm_IndEquations)),1);
+            endif;
+        endif;
+
+        for i(1,_m,1);
+            for j(1,cols(x),1);
+                if scalmiss(_vm_IndEquations);
+                    _sqp_ParNames = _sqp_ParNames |
+                         0$+"B"$+ftocv(i+0,1,0)$+ftocv(j+0,1,0);
+                else;
+                    if _vm_IndEquations[i,j] == 1;
+                        _sqp_ParNames = _sqp_ParNames |
+                           0$+"B"$+ftocv(i+0,1,0)$+ftocv(j+0,1,0);
+                    endif;
+                endif;
+            endfor;
+        endfor;
+        mx = meanc(x);
+        _vm_x = x - mx';
+    endif;
+
+    _vm_ts = w;
+
+    oldt = trapchk(4);
+    trap 4;
+    { _b,_f,_lagr,_retc } = sqpSolve(&NLL,start);
+    trap oldt;
+
+    _vm_Lagrange = _lagr;
+
+    { _phi, _theta, _vc, _beta } = getPars(_b);
+
+    res = w;
+    if not scalmiss(_vm_x);
+        res = res - _vm_x * _beta';
+    endif;
+    res = varmares(res,_phi,_theta) .* sy';
+
+    if _m == 1;
+        _vc = moment(res,0)/rows(res);
+    else;
+        _vc = _vc .* sy .* sy';
+    endif;
+
+    i1 = (_vm_ar+_vm_ma)*_m^2;  /* ar and ma coefs */
+    if _m > 1;
+        i2 = 0.5*_m*(_m + 1);  /* vc matrix */
+        ih = seqa(1,1,i1);
+    else;
+        i2 = 0;
+        ih = 0;
+    endif;
+    i3 = i1 + i2 + 1;
+    i4 = rows(_b);
+    if _m > 1 and not(x == 0);
+        ih = ih | seqa(i3,1,i4-i3+1);
+    endif;
+
+    { h,ret0 } = tsCovPar(_b,_lagr,&NLL,&NLL1,nobs,vcType,ih);
+
+    _a1 = ones(rows(_b),1);
+    _a1[1:i1] = ones(_vm_ar+_vm_ma,1).*.vecr(sy./sy');
+    _b = _b .* _a1;
+
+    { _phi, _theta, _vc, _beta } = getPars(_b);
+
+    if not ismiss(res);
+        _beta0 = w0[nobs,.] - res[nobs,.];
+        if not scalmiss(_beta);
+            _beta = _beta .* sy;
+            _beta0 = _beta0 - (_vm_x[nobs,.] + mx') * _beta';
+        endif;
+        if not scalmiss(_phi);
+            for i(1,_vm_ar,1);
+               _beta0 = _beta0 - w0[nobs-i,.] * _phi[(i-1)*_m+1:i*_m,.]';
+            endfor;
+        endif;
+
+        if not scalmiss(_theta);
+            for i(1,_vm_ma,1);
+               _beta0 = _beta0 - res[nobs-i,.] * _theta[(i-1)*_m+1:i*_m,.]';
+            endfor;
+        endif;
+        _beta0 = _beta0';
+    else;
+        _beta0 = error(0)*zeros(_m,1);
+    endif;
+
+    if not scalmiss(_beta);
+
+        if not scalmiss(_vm_IndEquations);
+            _a1[i3:i4] = packr(miss(vecr(_vm_IndEquations.*sy),0));
+        else;
+            _a1[i3:i4] = sy.*.ones(cols(_vm_x),1);
+        endif;
+
+        _b[i3:i4] = vecr(_beta);
+
+    endif;
+
+    if not scalmiss(h);
+        _a1 = _a1[ih];
+        h = h.*_a1.*_a1';
+    endif;
+    _b = _b[ih] | _beta0;
+    _f = -(_f+nobs*sumc(ln(sy)));
+
+    retp(_b,_vc,h,res,_f,_retc|ret0);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> _ecm
+**
+**  Purpose:  computes estimates and covariance matrix of estimates
+**            of the Error Correction model
+**
+**  Format:   {  a, B, va, C, vc, h, res, f, retcode }
+**                               = _ecm(w,p,x,r,vcType);
+**
+**  Input:    w         NxK matrix, time series
+**
+**            p         scalar, order of AR process, if zero, there
+**                      will be no zeta matrix.
+**
+**            x         NxL matrix, independent variables, if any.
+**                      If none, set to scalar 0.
+**
+**            r         scalar, number of cointegrating relations, if
+**                      set to -1 or a missing value, this quantity
+**                      will instead be estimated.
+**
+**            vcType    scalar, set to 1 for ML covariance matrix of
+**                      parameters, or 2 for QML covariance matrix.
+**
+**  Output:   A         KxR matrix of coefficients, such that AB = Pi (see
+**                      remarks below)
+**
+**            B         RxK matrix, eigenvectors spanning the cointegrating
+**                      space of dimension R
+**
+**            eigvals   Rx1 vector, eigenvalues
+**
+**            C         Qx1 vector, estimated coefficients, see Remarks
+**
+**            VC        KxK matrix, covariance matrix of residuals
+**
+**            H         QxQ residual covariance matrix of parameters in C
+**
+**            Res       NxK matrix, residuals
+**
+**            ll        value of the maximized likelihood function.
+**
+**            retcode   2x1 vector, return code
+**
+**                       first element of retcode
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**
+**                       second element of retcode
+**
+**                         0   covariance matrix of parameters fails
+**                         1   ML covariance matrix computed
+**                         2   QML covariance matrix
+**                         3   Cross-Product covariance matrix
+**
+**
+**
+**  Input Globals:
+**
+**   _vm_IndEquations  KxL matrix of zeros and ones.  Only used if L
+**                     greater than one.  Elements set to one indicate
+**                     coefficients to be estimated.  If L = 1, all
+**                     coefficients will be estimated.  If L > 1 and
+**                     _vm_IndEquations set to missing value, all
+**                     coefficients will be estimated.
+**
+**   _vm_SetConstraintsscalar, set to nonzero value to impose
+**                     constraints enforcing stationarity and
+**                     inversion by constraining roots to be
+**                     outside unit circle.
+**
+**   _vm_Lagrange      Lagrangeans for constraints
+**
+**   _vm_PrintIters    scalar, nonzero if iteration data wanted.
+**
+**   _vm_MaxIters      scalar, maximum number of iterations. Default = 1e+5.
+**                     Termination can be forced by pressing C on the keyboard
+**
+**   _vm_DirTol        scalar, convergence tolerance for gradient of estimated
+**                     coefficients.  Default = 1e-5.  When this criterion has
+**                     been satisifed SQPSolve will exit the iterations.
+**
+**   _vm_FeasibleTest  scalar, if nonzero, parameters are tested for feasibility
+**                     before computing function in line search.  If function
+**                     is defined outside inequality boundaries, then this test
+**                     can be turned off.
+**
+**
+**  Remarks:  Errors are assumed to be distributed N(0,Q).
+**
+**  The function varmadll is adapted from code developed by Jose Alberto
+**  Mauricio of the Universidad Complutense de Madrid.  It was published
+**  as Algorithm AS311 in Applied Statistics.  Also described in "Exact
+**  maximum likelihood estimation of stationary vector ARMA models, JASA,
+**  90:282-291.
+**
+**  The coefficient vector stores estimates in the following order:
+**
+**            Pi        KxK cointegration coefficients
+**
+**          Zeta        P*KxK  AR coefficients
+**
+**            C         KxL regression coefficients, if x > 0.
+**
+**            C0        Kx1 constants
+*/
+
+
+proc (9) = _ecm(w0,ar,x,r,vcType);
+
+    local start0,start,_b,_f,_lagr,_retc,vc,_phi,_theta,_vc,_beta0,_beta,h,
+    mx,my,res,_zeta,_pi,_a,bb,i0,_va,_ev,_va0,_ev0,_ecmb,sy,i1,i2,i3,
+    i4,ih,nobs,_m,userstart,numpars,ret0,_a1,oldt,w;
+
+    _vmset;
+    ar = ar + 1;
+    _vm_ma = 0;
+    _vm_ar = ar;
+    nobs = rows(w0);
+    _m = cols(w0);
+    _vm_my = meanc(w0);
+    w = w0 - _vm_my';
+    if _vm_scale == 0;
+        sy = 0.25*sqrt(diag(w'w)/nobs);
+    else;
+        if rows(_vm_scale) == 1;
+            sy = ones(_m,1) / _vm_scale;
+        elseif rows(_vm_scale) == _m;
+            sy = 1 ./ _vm_scale;
+        endif;
+    endif;
+    w = w ./ sy';
+
+
+/*
+**  if multivariate get starting values using univariate results
+*/
+
+
+    numPars = _m*_m*_vm_ar;
+    if _m > 1;
+        numPars = numPars + 0.5* _m * (_m + 1);
+    endif;
+    if not(x == 0);
+        if not scalmiss(_vm_IndEquations);
+            numPars = sumc(sumc(_vm_IndEquations .== 1));
+        else;
+            numPars = _m * cols(x);
+        endif;
+    endif;
+    userStart = not scalmiss(_vm_start) and rows(_vm_start) == numPars;
+
+
+    if not userStart;
+
+        start0 = {};
+        for i(1,_m,1);
+
+            _vm_ts = w[.,i];
+
+            sqpsolveset;
+            _sqp_RandRadius = _vm_RandRadius;
+            _sqp_TrustRadius = _vm_TrustRadius;
+            _sqp_DirTol = 1e-3;
+            _sqp_MaxIters = 100;
+            _sqp_PrintIters = _vm_PrintIters;
+            if _vm_setConstraints;
+                _sqp_IneqProc = &ineq;
+            endif;
+            _sqp_ParNames = getNames(1,ar,0);
+            __output = -1;
+
+            start = getStart(_vm_ts,ar,0);
+            oldt = trapchk(4);
+            trap 4;
+            { _b,_f,_lagr,_retc } = sqpSolve(&NLL,start);
+            trap oldt;
+            if _retc > 2;
+                _b = start;
+            endif;
+
+            vc = moment(varmares(_vm_ts,_b,error(0)),0)/nobs;
+            start0 = start0 ~ (_b | vc);
+
+        endfor;
+
+        start = {};
+        for i(1,ar,1);
+            start = start | vecr( diagrv(eye(_m),start0[i,.]) );
+        endfor;
+        start = start |  vech(diagrv(eye(_m),start0[ar+1,.]));
+
+    else;
+        start = _vm_start;
+    endif;
+
+
+    sqpsolveset;
+
+    __title = "Vector ECM";
+
+    _sqp_eqProc = &eq_ecm;
+    _sqp_ParNames = getNames(_m,ar,0);
+    _sqp_RandRadius = _vm_RandRadius;
+    _sqp_TrustRadius = _vm_TrustRadius;
+
+    if _vm_setConstraints;
+        _sqp_ineqProc = &ineq_ecm;
+    endif;
+
+    if not scalmiss(_vm_a) and not scalmiss(_vm_b);
+        _sqp_a = _vm_a;
+        _sqp_b = _vm_b;
+    endif;
+
+    if not scalmiss(_vm_c) and not scalmiss(_vm_d);
+        _sqp_c = _vm_c;
+        _sqp_d = _vm_d;
+    endif;
+
+    if not scalmiss(_vm_eqProc) and scalmiss(_sqp_eqProc);
+        _sqp_eqProc = _vm_eqProc;
+    endif;
+
+    if not scalmiss(_vm_ineqProc) and scalmiss(_sqp_ineqProc);
+        _sqp_ineqProc = _vm_ineqProc;
+    endif;
+
+    _sqp_PrintIters = _vm_PrintIters;
+    __output = -1;
+
+    if not scalmiss(_vm_MaxIters);
+        _sqp_MaxIters = _vm_MaxIters;
+    endif;
+
+    if not scalmiss(_vm_DirTol);
+        _sqp_DirTol = _vm_DirTol;
+    endif;
+
+    if not scalmiss(_vm_Bounds);
+        _sqp_Bounds = _vm_Bounds;
+    endif;
+
+    if not scalmiss(_vm_FeasibleTest);
+        _sqp_FeasibleTest = _vm_FeasibleTest;
+    endif;
+
+    if not(x == 0);
+        if scalmiss(_vm_IndEquations);
+            start = start | zeros(_m*cols(x),1);
+        else;
+            start = start | zeros(sumc(sumc(_vm_IndEquations)),1);
+        endif;
+
+        for i(1,_m,1);
+            for j(1,cols(x),1);
+                if scalmiss(_vm_IndEquations);
+                    _sqp_ParNames = _sqp_ParNames |
+                         0$+"B"$+ftocv(i+0,1,0)$+ftocv(j+0,1,0);
+                else;
+                    if _vm_IndEquations[i,j] == 1;
+                        _sqp_ParNames = _sqp_ParNames |
+                           0$+"B"$+ftocv(i+0,1,0)$+ftocv(j+0,1,0);
+                    endif;
+                endif;
+            endfor;
+        endfor;
+        _vm_mx = meanc(x);
+        _vm_x = x - _vm_mx';
+    endif;
+
+    _vm_ts = w;
+
+    oldt = trapchk(4);
+    trap 4;
+    { _b,_f,_lagr,_retc } = sqpSolve(&NLL,start);
+    trap oldt;
+    _vm_Lagrange = _lagr;
+
+    if __output /= 0 or _vm_PrintIters /= 0;
+        if _retc == 1;
+            errorlog "Warning:  forced exit";
+        elseif _retc == 2;
+            errorlog "Warning:  maximum iterations exceeded";
+        elseif _retc == 3;
+            errorlog "Warning:  function calculation failed";
+        elseif _retc == 4;
+            errorlog "Warning:  gradient calculation failed";
+        elseif _retc == 5;
+            errorlog "Warning:  Hessian calculation failed";
+        elseif _retc == 6;
+            errorlog "Warning:  line search failed";
+        elseif _retc == 7;
+            errorlog "Warning:  error with constraints";
+        endif;
+    endif;
+
+
+    { _phi, _theta, _vc, _beta } = getPars(_b);
+    res = w0;
+    if not scalmiss(_beta);
+        res = res - _vm_x * _beta';
+    endif;
+    res = varmares(res,_phi,_theta);
+    if scalmiss(res) and (__output or _vm_PrintIters);
+        if scalerr(res) == 9;
+            errorlog "ERROR:  covariance matrix not positive definite";
+        elseif scalerr(res) == 10 or scalerr(res) == 11;
+            errorlog "ERROR:  model not stationary";
+        elseif scalerr(res) == 12;
+            errorlog "ERROR:  model not invertible";
+        else;
+            errorlog "ERROR:  function calculation failed";
+        endif;
+    endif;
+    _ecmb = putECMPars(_b);
+    i1 = _m^2;
+    if _vm_ar > 1;
+        i2 = _vm_ar * i1;
+    else;
+        i2 = i1;
+    endif;
+    i3 = i2 + 0.5 * _m * (_m + 1);
+
+    ih = seqa(1,1,i2);
+    if not(x == 0);
+        ih = ih | seqa(i3+1,1,rows(_ecmb)-i3);
+    endif;
+
+    { h, ret0 } = tsCovPar(_ecmb,_lagr,&ECMLL,&ECMLL1,nobs,vcType,ih);
+
+    _a1 = ones(rows(_ecmb),1);
+    _a1[1:i2] = ones(_vm_ar,1).*.vecr(sy./sy');
+    _a1[i2+1:i3] = vech(sy.*sy');
+
+    if not(x == 0);
+        if not scalmiss(_vm_IndEquations);
+            _a1[i3+1:rows(_ecmb)] = packr(miss(vecr(_vm_IndEquations.*sy),0));
+        else;
+            _a1[i3+1:rows(_ecmb)] = sy.*.ones(cols(_vm_x),1);
+        endif;
+    endif;
+
+    _ecmb = _ecmb .* _a1;
+
+    { _zeta, _pi, _vc, _beta } = getECMPars(_ecmb);
+
+    { _va0, _ev0 } = eigv(_pi);
+    i0 = rev(sortind(real(_va0)));
+    _va = real(_va0[i0]);
+    _ev = real(_ev0[.,i0]);
+
+    if r == 0;
+        r = cols(_vm_ts);
+        bb = _ev;
+    elseif r > 0;
+        bb = _ev[.,1:r];
+    else;
+        r =  sumc( _va .> 1e-13 );
+        bb = _ev[.,1:r];
+    endif;
+    _a = reshape(olsqr(vecr(_pi),bb.*.eye(cols(_vm_ts))),r,cols(_vm_ts));
+
+
+    if not scalmiss(res);
+        res = res.*sy';
+        _beta0 = w0[nobs,.] - res[nobs,.] - w0[nobs-1,.] * (eye(_m) + _pi)';
+        if not scalmiss(_beta);
+            _beta0 = _beta0 - (_vm_x[nobs,.] + _vm_mx') * _beta';
+        endif;
+        if not scalmiss(_zeta);
+            for i(1,_vm_ar-1,1);
+               _beta0 = _beta0 - (w0[nobs-i,.] - w0[nobs-i-1,.]) *
+                                          _zeta[(i-1)*_m+1:i*_m,.]';
+            endfor;
+        endif;
+        _beta0 = _beta0';
+    else;
+        _beta0 = error(0)*zeros(_m,1);
+    endif;
+
+    if not scalmiss(h);
+        _a1 = _a1[ih];
+        h = h.*_a1.*_a1';
+    endif;
+    _ecmb = _ecmb[ih] | _beta0;
+
+    _f = -(_f+nobs*sumc(ln(sy)));
+
+    retp(_a,bb,_va0,_ecmb,_vc,h,res,_f,_retc|ret0);
+
+
+endp;
+
+
+
+proc putECMPars(b);
+
+    local bb, _vc, _beta, _theta, _phi, _pi, _zeta, ny;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    ny = cols(_vm_ts);
+
+    if _vm_ar > 1;
+        _zeta = zeros(ny*_vm_ar,ny);
+
+
+/*
+**   _zeta =  _pi | _zeta_1 | _zeta_2 ....
+**
+**   _zeta_p = -_phi_p+1
+**   _zeta_p-1 = _zeta_p - _phi_p
+**              .
+**              .
+**              .
+**   _zeta_1 = _zeta_2 - _phi_2
+**   _pi = I - _zeta_1 - _phi_1
+**
+**   _phi_1 = I + _zeta_1 - _pi
+**   _phi_2 = _zeta_2 - _zeta_1
+**              .
+**              .
+**              .
+**   _phi_p+1 = -_zeta_p
+*/
+
+        _zeta[(_vm_ar-1)*ny+1:_vm_ar*ny,.] = -_phi[(_vm_ar-1)*ny+1:_vm_ar*ny,.];
+
+        for i(2,_vm_ar-1,1);
+            _zeta[(_vm_ar-i)*ny+1:(_vm_ar-i+1)*ny,.] =
+                    _zeta[(_vm_ar-i+1)*ny+1:(_vm_ar-i+2)*ny,.]
+                       -_phi[(_vm_ar-i)*ny+1:(_vm_ar-i+1)*ny,.];
+        endfor;
+        _zeta[1:ny,.] = eye(ny) + _zeta[ny+1:2*ny,.] - _phi[1:ny,.];
+
+        bb = vecr(_zeta) | vech(_vc);
+    else;
+        bb = vecr(_phi - eye(ny)) | vech(_vc);
+    endif;
+    if not scalmiss(_beta);
+        if not scalmiss(_vm_IndEquations);
+            bb = bb | packr(vecr(miss(_beta.*_vm_IndEquations,0)));
+        else;
+            bb = bb | vecr(_beta);
+        endif;
+    endif;
+
+    retp(bb);
+endp;
+
+
+proc(3) = getVARPars(b);
+
+    local _phi, _vc, _beta, _zeta, _pi;
+    local m1,m2,m3,m4,ny,y;
+
+    ny = cols(_vm_ts);
+    m1 = ny^2;
+    if _vm_ar > 1;
+        m2 = _vm_ar * m1;
+    else;
+        m2 = m1;
+    endif;
+    m3 = m2 + 0.5 * ny * (ny + 1);
+
+    _phi = zeros(ny*_vm_ar,ny);
+    _pi = reshape(b[1:m1],ny,ny);
+    if _vm_ar > 1;
+        _zeta = reshape(b[m1+1:m2],ny*(_vm_ar-1),ny);
+        _phi[1:ny,.] = eye(ny) + _zeta[1:ny,.] - _pi;
+        for i(2,_vm_ar-1,1);
+            _phi[(i-1)*ny+1:i*ny,.] = _zeta[(i-1)*ny+1:i*ny,.] - _zeta[(i-2)*ny+1:(i-1)*ny,.];
+        endfor;
+        _phi[(_vm_ar-1)*ny+1:_vm_ar*ny,.] = -_zeta[(_vm_ar-2)*ny+1:(_vm_ar-1)*ny,.];
+    else;
+        _phi = eye(ny) + _pi;
+    endif;
+
+    _vc = xpnd(b[m2+1:m3]);
+
+    if not scalmiss(_vm_x);
+        if not scalmiss(_vm_IndEquations);
+            m4 = m3 + sumc(sumc(_vm_IndEquations .== 1));
+            _beta = vecr(_vm_IndEquations);
+            _beta[indexcat(_beta,1)] = b[m3+1:m4];
+            _beta = reshape(_beta,ny,cols(_vm_IndEquations));
+        else;
+            m4 = m3 + cols(_vm_x)*ny;
+            _beta = reshape(b[m3+1:m4],ny,cols(_vm_x));
+        endif;
+    else;
+       m4 = m3;
+       _beta = error(0);
+    endif;
+
+    retp(_phi,_vc,_beta);
+endp;
+
+
+
+proc(4) = getECMPars(b);
+
+    local _zeta, _pi, _vc, _beta;
+    local m1,m2,m3,m4,ny,y;
+
+    ny = cols(_vm_ts);
+    m1 = ny^2;
+    if _vm_ar > 1;
+        m2 = _vm_ar * m1;
+    else;
+        m2 = m1;
+    endif;
+    m3 = m2 + 0.5 * ny * (ny + 1);
+
+
+    _pi = reshape(b[1:m1],ny,ny);
+    if _vm_ar > 1;
+        _zeta = reshape(b[m1+1:m2],ny*(_vm_ar-1),ny);
+    else;
+        _zeta = error(0);
+    endif;
+    _vc = xpnd(b[m2+1:m3]);
+
+    if not scalmiss(_vm_x);
+        if not scalmiss(_vm_IndEquations);
+            m4 = m3 + sumc(sumc(_vm_IndEquations .== 1));
+            _beta = vecr(_vm_IndEquations);
+            _beta[indexcat(_beta,1)] = b[m3+1:m4];
+            _beta = reshape(_beta,ny,cols(_vm_IndEquations));
+        else;
+            m4 = m3 + cols(_vm_x)*ny;
+            _beta = reshape(b[m3+1:m4],ny,cols(_vm_x));
+        endif;
+    else;
+       m4 = m3;
+       _beta = error(0);
+    endif;
+
+    retp(_zeta,_pi,_vc,_beta);
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+proc(2) = tsCovpar(x,lagr,fct,gct,nobs,ind,ih);
+
+   local aind,h,h0,h1,_c,_lg,qp_e,ia,z,oldt,fct:proc,gct:proc;
+
+/*
+**   x - vector of coefficient estimates
+**
+**  ind = 1, ML covariance matrix of parameters
+**  ind = 2, QML covariance matrix of parameters
+**  ind = 3, Cross-product covariance matrix of parameters
+**
+**   This procedure assumes that the time series is stored in the
+**  global _vm_ts, and that any linear constraints are declared in the
+**  SQPSolve globals, _sqp_A, _sqp_B, _sqp_C, _sqp_D, _sqp_Bounds, and
+**  pointers to nonlinear constraint procs are stored in _sqp_EqProc or
+**  _sqp_IneqProc.
+*/
+
+
+
+   h = hessp(&fct,x);
+
+   if ismiss(h);
+       h = moment(gradp(&gct,x),0);
+       ind = 3;
+   elseif not (eigh(h) > 1e-12);
+       h = moment(gradp(&gct,x),0);
+       ind = 3;
+   endif;
+   if ind == 2;  /* QML */
+       h0 = moment(gradp(&gct,x),0);
+       if not scalmiss(h0);
+           h0 = h0[ih,ih] / nobs;
+       endif;
+   else;
+       h0 = error(0);
+       ind = 1;
+   endif;
+
+   if not scalmiss(h);
+        h = h[ih,ih] / nobs;
+   else;
+       retp(error(0),0);
+   endif;
+
+   _vm_Hessian = h;
+
+   if not(lagr == 0);
+       _c = { };
+       _lg = { };
+        qp_e = eye(rows(x))|-eye(rows(x));
+       if  cols(_sqp_Bounds) == 2;
+           _c = qp_e | _c;
+           if not scalmiss(vread(lagr,"bounds"));
+               _lg = vec(vread(lagr,"bounds"));
+           endif;
+       endif;
+       if not scalmiss(_sqp_IneqProc);
+           _c = gradp(_sqp_IneqProc,x) | _c;
+           if not scalmiss(vread(lagr,"nlinineq"));
+               _lg = vread(lagr,"nlinineq") | _lg;
+           endif;
+       endif;
+       if not scalmiss(_sqp_C);
+           _c = _sqp_C | _c;
+           if not scalmiss(vread(lagr,"linineq"));
+               _lg = vread(lagr,"linineq") | _lg;
+           endif;
+       endif;
+       if not scalmiss(_lg);
+           ia = packr(miss(seqa(1,1,rows(_lg)).*(_lg ./= 0),0));
+           if not scalmiss(ia);
+               _c = _c[ia,.];
+           else;
+               _c = {};
+           endif;
+       endif;
+
+       if not scalmiss(_sqp_A);
+           _c = _sqp_A | _c;
+       endif;
+
+       if not scalmiss(_sqp_EqProc);
+           _c = gradp(_sqp_EqProc,x) | _c;
+       endif;
+
+       if not scalmiss(_c);
+           oldt = trapchk(1);
+           trap 1,1;
+           z = null(_c);
+           trap oldt,1;
+           if not scalmiss(z);
+               z = z[ih,.];
+               oldt = trapchk(1);
+               trap 1,1;
+               h1 = solpd(eye(cols(z)),rows(_vm_ts)*z'*h*z);
+               trap oldt,1;
+           else;
+               h1 = error(0);
+           endif;
+
+           if scalmiss(h1);
+               _c = _c[.,ih];
+               oldt = trapchk(1);
+               trap 1,1;
+               h1 = pinv( (h~_c') | (_c~zeros(rows(_c),rows(_c))) );
+               trap oldt,1;
+               h1 = h1[1:rows(h),1:rows(h)]/rows(_vm_ts);
+           else;
+               h1 = z*h1*z';
+           endif;
+           h = h1;
+       else;
+           oldt = trapchk(1);
+           trap 1,1;
+           h1 = solpd(eye(rows(h)),h)/rows(_vm_ts);
+           trap oldt,1;
+           h = h1;
+       endif;
+   else;
+       oldt = trapchk(1);
+       trap 1,1;
+       h = solpd(eye(rows(h)),h)/rows(_vm_ts);
+       trap oldt,1;
+   endif;
+
+   if ind == 2 and not scalmiss(h0);  /* QML */
+       h = nobs * h * h0 * h;
+   endif;
+
+
+   local k1;
+   if not scalmiss(h);
+
+       if not(diag(h) > -1e-16);
+          h = error(0);
+       else;
+           h1 = abs(diag(h)) .< 1e-16;
+           if sumc(h1);
+               h1 = packr(miss(h1.*seqa(1,1,rows(h1)),0));
+               k1 = 1;
+               do until k1 > rows(h1);
+                   h[h1[k1],.] = miss(zeros(1,rows(h)),0);
+                   h[.,h1[k1]] = miss(zeros(rows(h),1),0);
+                   k1 = k1 + 1;
+               endo;
+           endif;
+       endif;
+
+   endif;
+
+retp(h,ind);
+endp;
+
+
+
+
+
+
+/*
+**  Normal distribution log-likelihood
+*/
+
+
+proc NLL(b);
+
+    local y,_phi,_theta,_vc,_beta,llf;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    y = _vm_ts;
+    if not scalmiss(_beta);
+        y = y - _vm_x * _beta';
+    endif;
+
+    if cols(y) == 1;
+        y = varmares(y,_phi,_theta);
+        if scalmiss(_vc);
+            _vc = moment(y,0)/rows(y);
+        endif;
+
+        if not scalmiss(y);
+           retp(-lnpdfmvn(y,_vc));
+        else;
+           retp(error(0));
+        endif;
+    else;
+        retp(-varmall(y,_phi,_theta,_vc));
+    endif;
+endp;
+
+
+
+
+
+
+
+
+/*
+**  Normal distribution log-likelihood by observation
+*/
+
+
+proc NLL1(b);
+
+    local y,_phi,_theta,_vc,_beta,llf;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    y = _vm_ts;
+    if not scalmiss(_vm_x);
+        y = y - _vm_x * _beta';
+    endif;
+
+    y = varmares(y,_phi,_theta);
+    if scalmiss(_vc);
+        _vc = moment(y,0)/rows(y);
+    endif;
+
+    if not scalmiss(y);
+       retp(-lnpdfmvn(y,_vc));
+    else;
+       retp(error(0));
+    endif;
+
+endp;
+
+
+
+
+
+
+
+
+/*
+**  Normal distribution ECM log-likelihood
+*/
+
+
+proc ECMLL(b);
+
+    local y,_phi,_theta,_vc,_beta,ny;
+
+    { _phi, _vc, _beta } = getVARPars(b);
+
+    _theta = error(0);
+
+    y = _vm_ts;
+    if not scalmiss(_beta);
+        y = y - _vm_x * _beta';
+    endif;
+
+    retp(-varmall(y,_phi,_theta,_vc));
+
+endp;
+
+
+
+
+
+
+
+/*
+**  Normal distribution ECM log-likelihood by observation
+*/
+
+
+proc ECMLL1(b);
+
+    local y,_phi,_theta,_vc,_beta,ny;
+
+    { _phi, _vc, _beta } = getVARPars(b);
+
+    _theta = error(0);
+
+    y = _vm_ts;
+    if not scalmiss(_beta);
+        y = y - _vm_x * _beta';
+    endif;
+    y = varmares(y,_phi,_theta);
+
+    if not scalmiss(y);
+       retp(-lnpdfmvn(y,_vc));
+    else;
+       retp(error(0));
+    endif;
+
+endp;
+
+
+
+
+
+
+
+proc eq_ecm(b);
+
+    local ny,_zeta,_pi,_vc,_beta,s0,ss,sz,e;
+    { _zeta, _pi, _vc, _beta } = getECMPars(b);
+    e = _pi * _vm_my;
+    if not scalmiss(_beta);
+        e = e + _beta * _vm_mx;
+    endif;
+
+
+    if not scalmiss(_vm_eqProc);
+        local eq1:proc;
+        eq1 = _vm_eqProc;
+        e = e | eq1(b);
+    endif;
+
+
+    retp(e);
+
+endp;
+
+
+
+
+
+proc ineq_ecm(b);
+
+
+    local ineq1,ny,_phi,_theta,_vc,_beta, e, ss, sz, s0, s1, s2, _pi;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    ny = cols(_vm_ts);
+
+
+/*
+**  roots of covariance matrix if multivariate
+*/
+    e = eigh(_vc) - .001;
+
+
+/*
+**  roots of determinantal equations
+*/
+
+    if _vm_ar > 0;
+        e = e | abs(polymroot(rev(eye(ny)|-_phi))) - 1.001;
+    endif;
+    if _vm_ma > 0;
+        e = e | abs(polymroot(rev(eye(ny)|-_theta))) - 1.001;
+    endif;
+
+    _pi = eye(ny);
+    for i(1,_vm_ar,1);
+        _pi = _pi - _phi[(i-1)*ny+1:i*ny,.];
+    endfor;
+    { ss,sz } = schur(_pi);
+    s0 = band(ss,1);
+    s1 = s0[.,2];
+    s2 = s0[2:rows(s0),1];
+
+    e = e | s1 | (1 - s1) | (s2 + 1e-12) | (1e-12 - s2);
+
+    if not scalmiss(_vm_ineqProc);
+        local ineq1:proc;
+        ineq1 = _vm_ineqProc;
+        e = e | ineq1(b);
+    endif;
+
+    retp(e);
+
+endp;
+
+
+
+
+
+
+
+proc ineq(b);
+
+    local ineq1,ny,_phi,_theta,_vc,_beta,e;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    ny = cols(_vm_ts);
+    e = {};
+
+/*
+**  roots of covariance matrix if multivariate
+*/
+
+    if ny > 1;
+        e = e | eigh(_vc) - .001;
+    endif;
+
+
+/*
+**  roots of determinantal equations
+*/
+
+    if _vm_ar > 0;
+        e = e | abs(polymroot(rev(eye(ny)|-_phi))) - 1.01;
+    endif;
+    if _vm_ma > 0;
+        e = e | abs(polymroot(rev(eye(ny)|-_theta))) - 1.01;
+    endif;
+
+    if not scalmiss(_vm_ineqProc);
+        ineq1 = _vm_ineqProc;
+        local ineq1:proc;
+        e = e | ineq1(b);
+    endif;
+
+
+    retp(e);
+
+endp;
+
+
+/*
+**  inequality procedure for univariate model only
+*/
+
+
+proc ineqstart(b);
+
+    local ineq1,ny,_phi,_theta,_vc,_beta,e;
+
+    { _phi, _theta, _vc, _beta } = getPars(b);
+
+    e = {};
+
+/*
+**  roots of determinantal equations
+*/
+
+    if _vm_ar > 0;
+        e = e | abs(polymroot(rev(1|-_phi))) - 1.01;
+    endif;
+    if _vm_ma > 0;
+        e = e | abs(polymroot(rev(1|-_theta))) - 1.01;
+    endif;
+
+    retp(e);
+
+endp;
+
+
+
+
+
+
+proc(4) = getPars(b);
+
+    local m1,m2,m3,m4,ny,y,_phi,_theta,_vc,_beta;
+
+    ny = cols(_vm_ts);
+    m1 = ny^2 * _vm_ar;
+    m2 = m1 + ny^2 * _vm_ma;
+    if _vm_ar > 0;
+       _phi = reshape(b[1:m1],ny*_vm_ar,ny);
+    else;
+       _phi = error(0);
+    endif;
+    if _vm_ma > 0;
+       _theta = reshape(b[m1+1:m2],ny*_vm_ma,ny);
+    else;
+       _theta = error(0);
+    endif;
+    if ny == 1;
+        _vc = error(0);
+        m3 = m2;
+    else;
+        m3 = m2 + 0.5 * ny * (ny + 1);
+        _vc = xpnd(b[m2+1:m3]);
+    endif;
+
+    if not scalmiss(_vm_x);
+        if not scalmiss(_vm_IndEquations);
+            m4 = m3 + sumc(sumc(_vm_IndEquations .== 1));
+            _beta = vecr(_vm_IndEquations);
+            _beta[indexcat(_beta,1)] = b[m3+1:m4];
+            _beta = reshape(_beta,ny,cols(_vm_IndEquations));
+        else;
+            m4 = m3 + cols(_vm_x)*ny;
+            _beta = reshape(b[m3+1:m4],ny,cols(_vm_x));
+        endif;
+    else;
+       m4 = m3;
+       _beta = error(0);
+    endif;
+
+    retp(_phi,_theta,_vc,_beta);
+endp;
+
+
+
+proc getNames(n,ar,ma);
+
+    local tmp0,tmp,names;
+
+    if n == 1;
+
+        names = {};
+        if ar > 0;
+            names = names | 0$+"AR"$+ftocv(seqa(1,1,ar),1,0);
+        endif;
+        if ma > 0;
+            names = names | 0$+"MA"$+ftocv(seqa(1,1,ma),1,0);
+        endif;
+
+    else;
+
+        tmp0 = ones(n,n).*seqa(1,1,n);
+        tmp = 10*vecr(tmp0)+vec(tmp0);
+
+        names = {};
+        for i(1,ar,1);
+        names = names | 0$+"AR"$+ftocv(i+0,1,0)$+ftocv(tmp,1,0);
+        endfor;
+
+        for i(1,ma,1);
+        names = names | 0$+"MA"$+ftocv(i+0,1,0)$+ftocv(tmp,1,0);
+        endfor;
+
+        names = names | (0$+"VC"$+ftocv(10*(vech(tmp0))+vech(tmp0'),1,0));
+
+    endif;
+
+    retp(names);
+
+endp;
+
+
+
+
+
+
+proc getStart(y,ar,ma);
+
+    local arp,x,ab,x2,w,ybar,w1,bb,sv;
+
+    if ma == 0;
+        arp = ar;
+    else;
+        arp = maxc(minc(round(sqrt(rows(y)))|25)|ar);
+    endif;
+
+    w = y - meanc(y);
+    x = trimr(shiftr(w',seqa(1,1,arp),0)',arp,0);
+    x = x - meanc(x)';
+
+    ab = w[arp+1:rows(y)]/x;
+    if ma == 0;
+
+       ab = ab[1:ar];
+       if sumc(ab) > .99;
+           ab = ab / (sumc(ab) +.01);
+       endif;
+       retp(ab);
+
+    else;
+
+        w1 = x*ab;
+        x2 = -trimr(shiftr((w[arp+1:rows(y)] - w1)',seqa(1,1,ma),0)',ma,0);
+
+        if ar > 0;
+            bb = trimr(w1,ma,0)/(trimr(x[.,1:ar],ma,0)~x2);
+        else;
+            bb = trimr(w1,ma,0)/x2;
+        endif;
+        if sumc(bb) > .99;
+            bb = bb / (sumc(bb) +.01);
+        endif;
+
+        retp(bb);
+
+    endif;
+
+endp;
+
+
+
+
+
+
+
+
+
+
+proc(0)=_vmset;
+
+ _vm_ts = {.};
+ _vm_x = {.};
+ _vm_ar = 0;
+ _vm_ma = 0;
+
+endp;
+
+
+
+
+#endif

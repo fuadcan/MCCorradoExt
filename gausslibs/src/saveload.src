@@ -1,0 +1,124 @@
+/*
+** saveload.src - Quick procedures for saving and loading small .dat files.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                               Line
+** =============================================================
+** y = LOADD(dataset);                                    24
+** y = SAVED(x,dataset,vnames);                           60
+*/
+
+/*
+**> loadd
+**
+**  Purpose:    To load a small data set.
+**
+**  Format:     y = loadd(dataset);
+**
+**  Input:      dataset    string, name of dataset.
+**
+**  Output:     y          NxK matrix of data.
+**
+**  Remarks:    The data set must not be larger than a single GAUSS matrix.
+**              When using GAUSS 2.0, the maximum size is 8190 elements.
+**
+**              If dataset is a null string or 0, the data set temp.dat will
+**              be loaded. To load a matrix file, use an .fmt extension on
+**              dataset.
+*/
+
+proc loadd(dataset);
+    local x,r,fp;
+    dataset = "" $+ dataset;
+    if dataset $== "";
+        dataset = "TEMP";
+    endif;
+    open fp = ^dataset;
+    if fp == -1;
+        errorlog "Can't open " $+ dataset;
+        end;
+    endif;
+    r = rowsf(fp);
+    x = readr(fp,r);
+    fp = close(fp);
+    retp(x);
+endp;
+
+/*
+**> saved
+**
+**  Purpose:    To save a matrix in memory in a "GAUSS" data set on disk.
+**
+**  Format:     y = saved(x,dataset,vnames);
+**
+**  Input:      x         NxK matrix to save in .dat file.
+**
+**              dataset   string, name of dataset.
+**
+**              vnames    string or Kx1 character vector, names for columns
+**                        of data set.
+**
+**  Output:     y         scalar, 1 if successful, 0 if fail.
+**
+**  Remarks:    If dataset is a null string, the data set will be
+**              temp.dat.
+**
+**              If vnames is null the variable names will start with "X"
+**              and be numbered from 1 to K.
+**
+**              If vnames has less names than x has columns it will
+**              be expanded in the logical way.  See create.
+**
+**              The output data type is double precision.
+**
+**  Example:    x = rndn(100,3);
+**              dataset = "MYDATA";
+**              let vnames = height weight age;
+**              if not saved(x,dataset,vnames);
+**                  errorlog "Disk full";
+**                  end;
+**              endif;
+**
+**  Globals:  None
+**
+**  See Also:  writer, create
+*/
+
+proc saved(x,dataset,vnames);
+    local d,fp,names;
+    if type(vnames) == 13;
+        names = stof(vnames);
+    else;
+        names = vnames;
+    endif;
+    dataset = "" $+ dataset;
+    if dataset $== "";
+        dataset = "TEMP";
+    endif;
+    if vnames $== 0;
+        vnames = { X };
+    endif;
+    if iscplx(x);
+        create complex fp = ^dataset with ^vnames,cols(x),8;
+    else;
+        create fp = ^dataset with ^vnames,cols(x),8;
+    endif;
+    if fp == -1;
+        retp(0);
+    endif;
+    d = writer(fp,x);
+    fp = close(fp);
+    retp(fp == 0 and d == rows(x));
+endp;

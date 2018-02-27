@@ -1,0 +1,50 @@
+/*
+** peps.dec - Publication Quality Graphics PostScript Support.
+** (C) Copyright 2000 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/* Encapsulated PostScript only */
+declare matrix _pqg_eps_BoundingBox = { 0, 0, 3119, 4095 };
+declare matrix _pqg_eps_Scale = { 1.0, 1.0 };
+declare matrix _pqg_eps_Translate = { 0.0, 0.0 };
+declare matrix _pqg_eps_Rotate = 0;
+
+/* PostScript only */
+declare matrix _pqg_ps_Scale = { 0.158203125, 0.158203125 };
+declare matrix _pqg_ps_Translate = { 374.2222222222222, 4551.111111111111 };
+declare matrix _pqg_ps_Rotate = -90;
+
+/* Both PostScript and Encapsulated PostScript */
+declare matrix _pqg_ps_Monochrome = 0;
+declare matrix _pqg_ps_MinLineWidth = 2.0;
+declare matrix _pqg_ps_WhiteBecomes = 0;
+declare string _pqg_ps_Orientation = "landscape";
+declare matrix _pqg_ps_RGBColors = { 0    0    0,        /*  0 */
+                                     0    0   .5,        /*  1 */
+                                     0   .5    0,        /*  2 */
+                                     0   .5   .5,        /*  3 */
+                                    .5    0    0,        /*  4 */
+                                    .5    0   .5,        /*  5 */
+                                    .5   .5    0,        /*  6 */
+                                    .5   .5   .5,        /*  7 */
+                                   .25  .25  .25,        /*  8 */
+                                     0    0    1,        /*  9 */
+                                     0    1    0,        /* 10 */
+                                     0    1    1,        /* 11 */
+                                     1    0    0,        /* 12 */
+                                     1    0    1,        /* 13 */
+                                     1    1    0,        /* 14 */
+                                     1    1    1  };     /* 15 */
+

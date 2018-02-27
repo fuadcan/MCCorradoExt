@@ -1,0 +1,46 @@
+/*
+** gauss.ext - External variable declarations for common globals.
+**
+**
+** (C) Copyright 1988-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+external matrix __altnam;       /* alternate variable names */
+external matrix __con;          /* constant term */
+external matrix __ff;           /* 1 for a form feed */
+external matrix __fmtcv;        /* character format for PRINTFMT */
+external matrix __fmtnv;        /* numeric format for PRINTFMT */
+external string __header;       /* header global */
+external matrix __miss;         /* deletion of missing values */
+external matrix __output;       /* print statistical output */
+external matrix __prec;         /* precision for some routines */
+external matrix __range;        /* range of data input  */
+external matrix __row;          /* rows to read automatically */
+external matrix __rowfac;       /* proportion of rows to read */
+external matrix __sort;         /* 1 to sort input vars by name */
+external string __title;        /* title */
+external matrix __tol;          /* tolerance for convergence */
+external matrix __vpad;         /* pad flag for default variable names */
+external matrix __vtype;        /* variable type */
+external matrix __weight;       /* weighting variable */
+external matrix __INFp;         /* positive infinity */
+external matrix __INFn;         /* negative infinity */
+external matrix __INDEFp;       /* indefinite, positive */
+external matrix __INDEFn;       /* indefinite, negative */
+external matrix __macheps;      /* machine epsilon */
+

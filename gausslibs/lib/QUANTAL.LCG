@@ -1,0 +1,59 @@
+/*
+** quantal.lcg - Quantal Response Models Library
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+quantal.dec
+    _qr_ver  : matrix
+    _qriter  : matrix
+    _qrstat  : matrix
+    _qrev    : matrix
+    _qrfit   : matrix
+    _qrpred  : matrix
+    _qrpredn : string
+    _qrcatnm : matrix
+    _qrnsqz0 : matrix
+    _qrnsqz1 : matrix
+    _qrsqz   : matrix
+    _qrsqtol : matrix
+    _qrstart : matrix
+    _qrlogit : matrix
+    _qrnewt  : matrix
+    _qrcon   : matrix
+    _qrplot  : matrix
+    _qrtmp   : matrix
+    _qrycat  : matrix
+    _qrmiter : matrix
+
+logit.src
+    logit    : proc
+    logitprt : proc
+    logiter  : proc
+
+ordered.src
+    ordered  : proc
+    orditer  : proc
+
+probit.src
+    probit   : proc
+    probiter : proc
+
+psnreg.src
+    psnreg   : proc
+    probiter : proc
+
+qtest.src
+    qtest    : proc
+
+quantset.src
+    quantset : proc
+
+rmatrix.src
+    rmatrix  : proc
+    rmrestc  : proc
+    rmisnum  : proc
+    srmatrix : proc
+    srmseek  : proc
+    srmcolj  : proc
+

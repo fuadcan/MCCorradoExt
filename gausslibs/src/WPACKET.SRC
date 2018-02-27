@@ -1,0 +1,841 @@
+/*
+** wpacket.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  wpk = Basis(pkt,B);           Compute the wavelet packet coefficients
+**                                given a basis B                          38
+**
+**  {wpk,B} = BestBasis(x,H,G,&Cost);
+**                                Compute the Coifman-Wickerhauser best
+**                                basis search algorithm                   56
+**
+**  {wpk,B} = BestLevel(x,H,G,&Cost);
+**                                Compute the best level search algorithm  79
+**
+**  c = Entropy(u);               Compute the Shannon entropy cost
+**                                function                                 102
+**
+**  e = isBasis(N,B);             Check whether B is a wavelet
+**                                packet basis                             116
+**
+**  y = iwkpt(wpk,Htilde,Gtilde,B);
+**                                Compute the inverse wavelet packet
+**                                transform                                131
+**
+**  c = LogEnergy(u);             Compute the log energy cost function     151
+**
+**  c = LpNorm(u);                Compute the l^p norm cost function       165
+**
+**  pkt = wpkt(x,H,G,L);          Compute the wavelet packet transform     182
+**
+*/
+
+
+/*
+** Basis
+**
+** Purpose: Compute the wavelet packet coefficients given a basis B
+**
+** Format:  wpk = Basis(pkt,B);
+**
+** Input:  pkt - N*1 vector, the wavelet packet table
+**           B - Nb*1 vector, the basis B of the wavelet packet
+**
+** Output: wpk - N*1 vector, the wavelet packet coefficients
+**
+** Globals:
+**    _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+/*
+** BestBasis
+**
+** Purpose: Compute the Coifman-Wickerhauser best basis search algorithm
+**
+** Format:  {wpk,B} = BestBasis(x,H,G,&cost);
+**
+** Input:    x - N*1 vector, data
+**           H - p*1 vector, the low-pass filter
+**           G - p*1 vector, the high-pass filter
+**        Cost - pointer to a procedure which computes the additive
+**               information cost function
+**
+** Output: wpk - N*1 vector, the wavelet packet coefficients
+**           B - Nb*1 vector, the corresponding basis B
+**
+** Globals:
+**    _wcenter - scalar (default = 0), the delay of the filters
+**       _cost - scalar, the cost C(u) value
+**
+*/
+
+
+/*
+** BestLevel
+**
+** Purpose: Compute the best level search algorithm
+**
+** Format:  {wpk,B} = BestLevel(x,H,G,&cost);
+**
+** Input:    x - N*1 vector, data
+**           H - p*1 vector, the low-pass filter
+**           G - p*1 vector, the high-pass filter
+**        Cost - pointer to a procedure which computes the additive
+**               information cost function
+**
+** Output: wpk - N*1 vector, the wavelet packet coefficients
+**           B - Nb*1 vector, the corresponding basis B
+**
+** Globals:
+**    _wcenter - scalar (default = 0), the delay of the filters
+**       _cost - scalar, the cost C(u) value
+**
+*/
+
+
+/*
+** Entropy
+**
+** Purpose: Compute the Shannon entropy cost function
+**
+** Format:  c = Entropy(u);
+**
+** Input:    u - T*1 vector, data
+**
+** Output:   c - scalar, the cost C(u)
+**
+*/
+
+
+/*
+** isBasis
+**
+** Purpose: Check whether B is a wavelet packet basis
+**
+** Format:  e = isBasis(N,B);
+**
+** Input:    N - scalar, the number of observations
+**           B - Nb*1 vector, the basis B of the wavelet packet
+**
+** Output:   e - scalar, 1 if B is a wavelet packet basis, 0 otherwise
+**
+*/
+
+
+/*
+** iwpkt
+**
+** Purpose: Compute the inverse wavelet packet transform
+**
+** Format:  y = iwkpt(wpk,Htilde,Gtilde,B);
+**
+** Input:  wpk - N*1 vector, the wavelet packet coefficients
+**      Htidle - p*1 vector, the low-pass filter conjugate
+**      Gtilde - p*1 vector, the high-pass filter conjugate
+**           B - Nb*1 vector, the basis B of the wavelet packet
+**
+** Output:   y - N*1 vector, the reconstructed series
+**
+** Globals:
+**    _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+/*
+** LogEnergy
+**
+** Purpose: Compute the log energy cost function
+**
+** Format:  c = LogEnergy(u);
+**
+** Input:    u - T*1 vector, data
+**
+** Output:   c - scalar, the cost C(u)
+**
+*/
+
+
+/*
+** LpNorm
+**
+** Purpose: Compute the l^p norm cost function
+**
+** Format:  c = LpNorm(u);
+**
+** Input:    u - T*1 vector, data
+**
+** Output:   c - scalar, the cost C(u)
+**
+** Globals:
+**     _LpNorm - scalar (default = 1), p parameter
+**
+*/
+
+
+/*
+** wpkt
+**
+** Purpose: Compute the wavelet packet transform
+**
+** Format:  pkt = wpkt(x,H,G,L);
+**
+** Input:    x - N*1 vector, data
+**           H - p*1 vector, the low-pass filter
+**           G - p*1 vector, the high-pass filter
+**           L - scalar, the level of the wavelet packet table
+**
+** Output: pkt - N*L vector, the wavelet packet table
+**
+** Globals:
+**    _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+
+/* ----------------------------------------------------------------------
+                         WAVELET PACKET TRANSFORM
+   ---------------------------------------------------------------------- */
+
+
+/*
+** wpkt
+*/
+
+proc wpkt(x,H,G,L);
+  local N,err,M,str;
+  local i,length_,i1,i2,pkt,wpk_,x_,K,j;
+
+  N = rows(x);
+
+  if ismiss(x);
+    ERRORLOG "error: x contains missing values.";
+    retp(error(0));
+  endif;
+
+  if ismiss(H) or ismiss(G);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(miss(0,0));
+  endif;
+
+  err = _int_power2(x);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  if (trunc(L) /= L) or (L < 0);
+    ERRORLOG "error: L must be a positive integer.";
+    retp(error(0));
+  endif;
+
+  if N < 2;
+    str = "error: Not enough data.";
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M;
+    str = "error: L must be less or equal than " $+ ftos(M,"%lf.",1,0);
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  if L == 0;
+    L = M;
+  endif;
+
+  pkt = zeros(N,L);
+  wpk_ = x;
+
+  i = 1;
+  do until i > L;
+
+    K = 2^(i-1);
+    length_ = N/K;
+    i1 = seqa(1,length_,K);
+    i2 = seqa(length_,length_,K);
+
+    j = 1;
+    do until j > K;
+      x_ = wpk_[i1[j]:i2[j]];
+
+      pkt[i1[j]:i2[j],i] = _wt(x_,H,G);
+      j = j + 1;
+    endo;
+
+    wpk_ = pkt[.,i];
+
+    i = i + 1;
+  endo;
+
+  retp(pkt);
+endp;
+
+
+/*
+** _wt
+*/
+
+proc (1) = _wt(x,H,G);
+  local n,nH,nG,y,Nw,indx,w_,w,s,d;
+  local Nstar,c;
+
+  c = _wcenter;
+
+  N = rows(x);
+  nH = rows(H);
+  nG = rows(G);
+
+  w = x;
+  H = rev(H);
+  G = rev(G);
+  Nw = rows(w);
+
+  if (Nw >= nH) and (Nw >= nG);
+
+    if c /= 0;
+      w = rotater(w',c)';
+    endif;
+
+    indx = seqa(1,2,Nw/2);
+
+    if nH == 2;
+      w_ = w;
+    else;
+      w_ = w|w[1:nH-2];
+    endif;
+
+    s = conv(w_,H,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w_,G,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    y = s|d;
+
+  else;
+
+    Nstar = 2^ceil(ln(nH)/ln(2));
+
+    indx = seqa(1,2,Nw/2);
+
+    w_ = w;
+
+    do until rows(w_) >= Nstar;
+      w_ = w_|w;
+    endo;
+
+    if c /= 0;
+      w_ = rotater(w_',c)';
+    endif;
+
+    if nH == 2;
+      w_ = w_;
+    else;
+      w_ = w_|w_[1:nH-2];
+    endif;
+
+    s = conv(w_,H,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w_,G,0,0);
+    d = trimr(d,nG-1,0);
+
+    s = s[indx];
+    d = d[indx];
+    y = s|d;
+
+  endif;
+
+  retp(y);
+endp;
+
+
+/*
+** iwpkt
+*/
+
+proc (1) = iwpkt(wpk,Htilde,Gtilde,B);
+  local N,w,i,Nw,length_,indx,Bi,j,i1,i2,y,Ni,e;
+
+  N = rows(wpk);
+
+  if isBasis(N,B) == 0;
+    retp(error(0));
+  endif;
+
+  w = wpk;
+
+  i = maxc(B);
+  do while i > 0;
+
+    Nw = N*(2^(1-i));
+    length_ = N*(2^(-B));
+    length_ = cumsumc(0|length_);
+
+    Bi = indexcat(B,i);
+    Ni = rows(Bi)/2;
+    indx = Bi[seqa(1,2,Ni)];
+
+    i1 = 1 + length_[indx];
+    i2 = i1 + Nw - 1;
+
+    j = 1;
+    do until j > Ni;
+
+      w[i1[j]:i2[j]] = _iwt(w[i1[j]:i2[j]],Htilde,Gtilde);
+
+      j = j + 1;
+    endo;
+
+    B[indx] = (i-1)*ones(Ni,1);
+    e = zeros(rows(B),1);
+    e[indx+1] = ones(Ni,1);
+    B = delif(B,e);
+
+    i = i - 1;
+  endo;
+
+  y = w;
+
+  retp(y);
+endp;
+
+
+/*
+** _iwt
+*/
+
+proc (1) = _iwt(w,Htilde,Gtilde);
+  local y,n,nH,nG,i,Nw,indx,w_,s,d;
+  local Nstar,c;
+
+  y = w;
+
+  c = _wcenter;
+
+  n = rows(y);
+  nH = rows(Htilde);
+  nG = rows(Gtilde);
+
+  Nw = N;
+  w = y[1:Nw];
+
+  Htilde = rev(Htilde);
+  Gtilde = rev(Gtilde);
+  Nstar = 2^ceil(ln(nH)/ln(2));
+
+  if (Nw >= nH) and (Nw >= nG);
+
+    indx = seqa(1,2,Nw/2);
+    w_ = zeros(Nw,1);
+    w_[indx] = w[1:Nw/2];
+    w_[indx+1] = w[Nw/2+1:Nw];
+    if nH == 2;
+      w = w_;
+    else;
+      w = w_[Nw-nH+3:Nw]|w_;
+    endif;
+
+    s = conv(w,Htilde,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w,Gtilde,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    w = zeros(Nw,1);
+    w[indx] = s;
+    w[indx+1] = d;
+
+    if c /= 0;
+      w = rotater(w',-c)';
+    endif;
+
+    y = w;
+
+  else;
+
+    indx = seqa(1,2,Nw/2);
+    w_ = zeros(Nw,1);
+    w_[indx] = w[1:Nw/2];
+    w_[indx+1] = w[Nw/2+1:Nw];
+
+    w = w_;
+    w_ = {};
+    do until rows(w_) >= Nstar;
+      w_ = w_|w;
+    endo;
+
+    if nH == 2;
+      w = w_;
+    else;
+      w = w_[Nstar-nH+3:Nstar]|w_;
+    endif;
+
+    s = conv(w,Htilde,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w,Gtilde,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    w = zeros(Nw,1);
+    w[indx] = s;
+    w[indx+1] = d;
+
+    if c /= 0;
+      w = rotater(w',-c)';
+    endif;
+
+    y = w;
+
+   endif;
+
+  retp(y);
+endp;
+
+
+
+/* ----------------------------------------------------------------------
+                               TOOLS
+   ---------------------------------------------------------------------- */
+
+
+/*
+** Basis
+*/
+
+proc (1) = Basis(pkt,B);
+  local N,L,nB,cnt,i,wpk,wpk_,np;
+
+  N = rows(pkt); L = cols(pkt);
+
+  if (ln(N)/ln(2)) /= floor(ln(N)/ln(2));
+    ERRORLOG "error: the number of rows of w must be an integer power of 2.";
+    retp(error(0));
+  endif;
+
+  if IsBasis(N,B) == 0;
+    ERRORLOG "error: wrong basis specification.";
+    retp(error(0));
+  endif;
+
+  if maxc(B) > L;
+    retp(error(0));
+  endif;
+
+  nB = rows(B);
+  cnt = 0;
+  wpk = {};
+
+  i = 1;
+  do until i > nB;
+    np = N/2^B[i];
+    wpk_ = pkt[1+cnt:cnt+np,B[i]];
+    wpk = wpk|wpk_;
+    cnt = cnt + np;
+
+    i = i + 1;
+  endo;
+
+  retp(wpk);
+endp;
+
+
+/*
+** isBasis
+*/
+
+proc (1) = isBasis(N,B);
+  local M,i,Bi,Bi_,Ni,indx,e;
+
+  if (ln(N)/ln(2)) /= floor(ln(N)/ln(2));
+    ERRORLOG "error: N must be an integer power of 2.";
+    retp(error(0));
+  endif;
+
+  if (trunc(B) /= B) or (minc(B) <= 0);
+    e = 0;
+    retp(e);
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if maxc(B) > M;
+    e = 0;
+    retp(e);
+  endif;
+
+  if sumc(N*2^(-B)) /= N;
+    e = 0;
+    retp(e);
+  endif;
+
+  i = maxc(B);
+  do while i > 0;
+    Bi = indexcat(B,i);
+    Ni = rows(Bi);
+    if Ni%2 /= 0;
+      retp(0);
+    endif;
+    indx = Bi[seqa(1,2,Ni/2)];
+    Bi_ = sortc(indx|(indx+1),1);
+    if Bi_ /= Bi;
+      retp(0);
+    endif;
+
+    B[indx] = (i-1)*ones(Ni/2,1);
+    e = zeros(rows(B),1);
+    e[indx+1] = ones(Ni/2,1);
+    B = delif(B,e);
+
+    i = i - 1;
+  endo;
+
+  e = 1;
+  retp(1);
+endp;
+
+
+/*
+** LogEnergy
+*/
+
+proc (1) = LogEnergy(u);
+  local u2,c;
+
+  u = miss(u,0);
+  u = packr(u);
+
+  if ismiss(u);
+    c = 0;
+  else;
+    u2 = u^2;
+    c = sumc(log(u2));
+  endif;
+
+  retp(c);
+endp;
+
+
+/*
+** Entropy
+*/
+
+proc (1) = Entropy(u);
+  local u2,c;
+
+  u = miss(u,0);
+  u = packr(u);
+
+  if ismiss(u);
+    c = 0;
+  else;
+    u2 = u^2;
+    c = -sumc(u2.*log(u2));
+  endif;
+
+  retp(c);
+endp;
+
+
+/*
+** LpNorm
+*/
+
+proc (1) = LpNorm(u);
+  local p,c;
+
+  p = _LpNorm;
+
+  if (p <= 0) or (p >= 2);
+    ERRORLOG "error: The Lp-norm is defined for 0 < p < 2.";
+    retp(error(0));
+  endif;
+
+  c = sumc(abs(u)^p);
+
+  retp(c);
+endp;
+
+
+/*
+** BestLevel
+*/
+
+proc (2) = BestLevel(x,H,G,Cost);
+  local Cost:proc;
+  local N,err,M,str,pkt,c,i,B,wpk;
+
+  N = rows(x);
+
+  if ismiss(x);
+    ERRORLOG "error: x contains missing values.";
+    retp(error(0),error(0));
+  endif;
+
+  if ismiss(H) or ismiss(G);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(error(0),error(0));
+  endif;
+
+  err = _int_power2(x);
+
+  if err == 1;
+    retp(error(0),error(0));
+  endif;
+
+  if N < 2;
+    str = "error: Not enough data.";
+    ERRORLOG str;
+    retp(error(0),error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+  c = zeros(M,1);
+
+  pkt = wpkt(x,H,G,0);
+
+  i = 1;
+  do until i > M;
+    c[i] = cost(pkt[.,i]);
+    i = i + 1;
+  endo;
+
+  B = minindc(c);
+  _cost = c[B];
+  B = B*ones(2^B,1);
+  wpk = Basis(pkt,B);
+
+
+  retp(wpk,B);
+endp;
+
+
+/*
+** BestBasis
+*/
+
+proc (2) = BestBasis(x,H,G,Cost);
+  local Cost:proc;
+  local N,err,M,str,pkt,cost1,cost2,i,j,y,wpk_,K,N_,B,wpk;
+  local indx,v,Nv,indx_;
+
+  N = rows(x);
+
+  if ismiss(x);
+    ERRORLOG "error: x contains missing values.";
+    retp(error(0),error(0));
+  endif;
+
+  if ismiss(H) or ismiss(G);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(error(0),error(0));
+  endif;
+
+  err = _int_power2(x);
+
+  if err == 1;
+    retp(error(0),error(0));
+  endif;
+
+  if N < 2;
+    str = "error: Not enough data.";
+    ERRORLOG str;
+    retp(error(0),error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  pkt = wpkt(x,H,G,0);
+
+  wpk_ = pkt[.,M];
+  wpk = wpk_;
+  B = M*ones(N,1);
+
+  N_ = N;
+  K = 1;
+
+  cost1 = zeros(N_,1);
+
+  j = 1;
+  do until j > N_;
+    y = wpk_[1+K*(j-1):K*j];
+    cost1[j] = cost(y);
+    j = j + 1;
+  endo;
+
+  N_ = N_/2;
+  K = 2*K;
+  cost1 = reshape(cost1,N_,2);
+  cost1 = sumc(cost1');
+
+  i = M-1;
+  do while i > 0;
+
+    wpk_ = pkt[.,i];
+
+    cost2 = zeros(N_,1);
+
+    j = 1;
+    do until j > N_;
+      y = wpk_[1+K*(j-1):K*j];
+      cost2[j] = cost(y);
+      j = j + 1;
+    endo;
+
+    indx = (cost2 .< cost1);
+    cost1 = indx.*cost2 + (1-indx).*cost1;
+
+    N_ = N_/2;
+
+    cost1 = reshape(cost1,N_,2);
+    cost1 = sumc(cost1');
+
+    indx = indx.*.ones(K,1);
+    wpk = indx.*wpk_ + (1-indx).*wpk;
+    B = i*indx + (1-indx).*B;
+
+    K = 2*K;
+
+    i = i - 1;
+  endo;
+
+  N_ = 2;
+  i = M-1;
+  do while i > 0;
+
+    v = indexcat(B,i);
+    if ismiss(v);
+      N_ = N_*2;
+      i = i - 1;
+      continue;
+    endif;
+
+    Nv = rows(v)/N_;
+    indx = v[seqa(1,N_,Nv)];
+    j = 1;
+    do until j > Nv;
+      indx_ = indx[j] + seqa(1,1,N_-1);
+      B[indx_] = miss(zeros(N_-1,1),0);
+      j = j + 1;
+    endo;
+
+    B = packr(B);
+    N_ = N_*2;
+
+    i = i - 1;
+  endo;
+
+  _cost = cost1;
+
+  retp(wpk,B);
+endp;
+

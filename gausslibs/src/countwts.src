@@ -1,0 +1,121 @@
+#ifDLLCALL
+#else
+
+/*
+** countwts.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** This function requires GAUSS-386.
+**
+**> countwts
+**
+**  Purpose:    To do a weighted count of the numbers of elements of a vector
+**              that fall into specified ranges.
+**
+**  Format:     c = countwts(x,v,w);
+**
+**  Inputs:     x    Nx1 vector, containing numbers to be counted.
+**
+**              v    Px1 vector, containing break-points specifying the ranges
+**                   within which counts are to be made. This MUST be sorted
+**                   in ascending order (lowest to highest).
+**
+**              w    Nx1 vector, containing weights.
+**
+**  Output:     c    Px1 vector containing the weighted counts of the
+**                   elements of x that fall into the regions:
+**
+**                                x <= v[1]
+**                       v[1] <   x <= v[2]
+**                             . . .
+**                       v[p-1] < x <= v[p]
+**
+**                   That is, when x[i] falls into region j, the weight
+**                   w[i] is added to the jth counter.
+**
+**  Remarks:    If any elements of x are greater than the last
+**              element of v, they will not be counted.
+**
+**              To use countwts to compute weighted frequencies,
+**              divide the result by the sum of the weights.
+**
+**              Missing values are not counted unless there is a
+**              missing in v.  A missing value in v MUST be the
+**              first element in v.
+**
+**  Example:    let x =   1   3    2    4    1   3;
+**              let w = .25   1 .333   .1  .25   1;
+**              let v = 0 1 2 3 4;
+**              c = countwts(x,v,w);
+**
+**              c =   0.000000
+**                    0.500000
+**                    0.333000
+**                    2.00000
+**                    0.100000
+**
+**  Globals:    _countwt
+*/
+
+#include flibuff.ext
+
+proc countwts(x,v,w);
+    local xrow,vrow,c;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+    if iscplx(w);
+        if hasimag(w);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            w = real(w);
+        endif;
+    endif;
+
+    xrow = rows(x);
+    vrow = rows(v);
+    if rows(w) == 1;
+        w = ones(xrow,1) .* w;
+    endif;
+    if xrow /= rows(w) or cols(x) /= 1 or cols(w) /= 1 or cols(v) /= 1;
+        errorlog "Matrices not conformable";
+        end;
+    endif;
+    c = zeros(vrow,1);
+    if rows(_countwt) /= 49 or _countwt[1] $== 0;
+        _countwt = zeros(49,1);
+        loadexe _countwt = countwts.rex;
+    endif;
+    callexe _countwt(x,xrow,w,v,vrow,c);
+    retp(c);
+endp;
+
+#endif

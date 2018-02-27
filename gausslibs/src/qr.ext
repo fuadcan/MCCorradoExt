@@ -1,0 +1,11 @@
+/*
+** qr.ext - QR decomposition.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declarations for procedures QRx, ORTH, NULLx and OLSQRx.
+*/
+
+external matrix _orthtol;
+external matrix _qrdc;
+external matrix _qrsl;

@@ -1,0 +1,1388 @@
+/*
+** pv.src - packed matrix/array functions
+**
+** (C) Copyright 2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**--------------------**-------------------**------------**
+**-------------------**--------------------**-------------------**------------**
+**
+**  Format                       Purpose                                   Line
+**  ----------------------------------------------------------------------------
+**  p1 = pvPack(p1,x,nm)           packs matrix/array                        ..
+**  p1 = pvPackm(p1,x,nm,mask)     packs matrix/array with mask             ...
+**  p1 = pvPacks(p1,x,nm)          packs symmetric matrix                   ...
+**  p1 = pvPacksm(p1,x,nm,mask)    packs symmetric matrix with mask         ...
+**
+**  p1 = pvPacki(p1,x,nm,i)        packs matrix/array with index            ...
+**  p1 = pvPackmi(p1,x,nm,mask,i)  packs matrix/array with mask and index   ...
+**  p1 = pvPacksi(p1,x,nm,i)       packs symmetric matrix with index        ...
+**  p1 = pvPacksmi(p1,x,nm,mask,i) packs symmetric matrix with mask         ...
+**                                        and index
+**
+**  n  = pvList(p1)                returns string array of packed matrix/  ....
+**                                   array names
+**  n  = pvLength(p1)              returns length of parameter vector      ....
+**  p1 = pvCreate;                 initializes a PV instance               ....
+*/
+
+
+#include pv.sdf
+
+
+/*
+**> pvPack
+**
+**  Purpose:    Packs general matrix or array into a PV instance with name
+**
+**  Format:     p1 = pvPack(p1,x,nm);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxN matrix or N-dimensional array
+**
+**              nm       string, name of matrix/array
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks:   The following is an example of packing two matrices
+**
+**                 #include pv.sdf
+**
+**                 y = rndn(100,1);
+**                 x = rndn(100,5);
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 p1 = pvPack(p1,y,"Y");
+**                 p1 = pvPack(p1,x,"X");
+**
+**             These matrices can be extracted using the pvUnpack command
+**
+**                 y = pvUnpack(p1,"Y");
+**                 x = pvUnpack(p1,"X");
+**
+**
+**  See Also:  pvPacki, pvPackm, pvUnpack
+*/
+
+
+proc pvPack(struct PV p1, x, nm1);
+
+     struct PVobj newobj;
+
+     if type(nm1) /= 13;
+         errorlog "pvPack:  3rd argument wrong type";
+         end;
+     elseif nm1 $== "";
+         errorlog "pvPack:  3rd argument is null string";
+         end;
+     elseif not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPack:  variable already packed";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPack:  Not implemented for complex";
+         end;
+     endif;
+
+     if type(x) == 6;
+
+         if not rows(p1.type);
+
+             p1.np = rows(x)*cols(x);
+             p1.type = 1;
+             p1.obj.m = x;
+             p1.names[1] = nm1;
+
+         else;
+
+             newobj.m = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.np = p1.np+rows(x)*cols(x);
+             p1.type = p1.type || 1;
+             p1.obj[rows(p1.obj)].m = x;
+             p1.names = p1.names $| nm1;
+
+         endif;
+
+     elseif type(x) == 21;
+
+         if not rows(p1.type);
+
+             p1.np = prodc(getorders(x));
+             p1.type = 5;
+             p1.obj.a = x;
+             p1.names[1] = nm1;
+
+         else;
+
+             newobj.a = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.np = p1.np+prodc(getorders(x));
+             p1.type = p1.type || 5;
+             p1.obj[rows(p1.obj)].a = x;
+             p1.names = p1.names $| nm1;
+
+         endif;
+
+     else;
+         errorlog "pvPack:  2nd argument wrong type";
+         end;
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPackm
+**
+**  Purpose:    Packs general matrix or array into a PV instance with a mask
+**                   and matrix name
+**
+**  Format:     p1 = pvPackm(p1,x,nm,mask);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxN matrix or N-dimensional array
+**
+**              nm       string, matrix or array name
+**
+**              mask     MxN matrix or N-dimensional array, mask of
+**                         zeros and ones
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks:   The mask allows storing a selected portion of a matrix into
+**             the parameter vector.  The 1's in the mask matrix indicate an
+**             element to be stored in the parameter vector.  When the matrix
+**             is unpacked (using pvUnpack) the elements corresponding to the
+**             zeros are restored.  Elements corresponding to the ones come
+**             from the parameter vector.
+**
+**             The following is an example of packing a matrix with a
+**             mask
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2,
+**                       3 4 };
+**
+**                 mask = { 1 0,
+**                          0 1 };
+**
+**                 p1 = pvPackm(p1,x,"X",mask);
+**
+**                 print pvUnpack(p1,1);
+**
+**                    1.000  2.000
+**                    3.000  4.000
+**
+**                 p1 = pvPutParVector(p1,5|6);
+**
+**                 print pvUnpack(p1,"X");
+**
+**                    5.000  2.000
+**                    3.000  6.000
+**
+**
+**             The following is an array example
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 a = areshape(rndn(3,3),2|3|3);
+**                 m = areshape(eye(3),2|3|3);
+**
+**                 p1 = pvPackm(p1,a,"A",m);
+**
+**                 print pvUnpack(p1,"A");
+**
+**
+**                     Plane [1,.,.]
+**
+**                      1.5018   2.1511  -0.5284
+**                     -0.2507  -0.5512   0.3522
+**                      0.3088   0.5935   0.2938
+**
+**                     Plane [2,.,.]
+**
+**                      1.5018   2.1511  -0.5284
+**                     -0.2507  -0.5512   0.3522
+**                      0.3088   0.5935   0.2938
+**
+**
+**                 print pvGetParVector(p1);
+**
+**
+**                      1.5018
+**                     -0.5512
+**                      0.2938
+**                      1.5018
+**                     -0.5512
+**                      0.2938
+**
+**
+**  See Also:  pvPack, pvUnpack.
+*/
+
+
+proc pvPackm(struct PV p1, x, nm1, mask);
+
+     struct PVobj newobj;
+     local r, c, o;
+
+     if type(nm1) /= 13;
+         errorlog "pvPackm:  3rd argument wrong type";
+         end;
+     elseif nm1 $== "";
+         errorlog "pvPackm:  3rd argument is null string";
+         end;
+     elseif not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPackm:  variable already packed";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPackm:  Not implemented for complex";
+         end;
+     endif;
+
+     if type(x) == 6;
+
+         r = rows(x);
+         c = cols(x);
+
+         if r /= rows(mask) or c /= cols(mask);
+             errorlog "pvPackm:  matrix not conformable to mask";
+             end;
+         endif;
+
+         // trap for mask with no 1's
+         if mask == 0;
+             if trapchk(8);
+                 errorlog "pvPackm:  mask == 0";
+                 end;
+             elseif trapchk(4);
+                 errorlog "pvPackm:  WARNING -- mask == 0";
+             endif;
+             retp(p1);
+         endif;
+
+         if not rows(p1.type);
+
+             p1.obj.fpoff = pvoffsets(packr(miss(seqa(1,1,r*c).*
+                              vecr(mask./=0),0))-1);
+             p1.np = pvnumoffsets(p1.obj.fpoff);
+             p1.type = 2;
+             p1.obj.m = x;
+             p1.names[1] = nm1;
+
+         else;
+
+             newobj.m = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.obj[rows(p1.obj)].fpoff = pvoffsets(packr(miss(seqa(1,1,r*c).*
+                                            vecr(mask./=0),0))-1);
+             p1.np = p1.np+pvnumoffsets(p1.obj[rows(p1.obj)].fpoff);
+             p1.type = p1.type || 2;
+             p1.obj[rows(p1.obj)].m = x;
+             p1.names = p1.names $| nm1;
+
+         endif;
+
+     elseif type(x) == 21;
+
+         o = getorders(mask);
+
+         if not (getorders(x) == o);
+             errorlog "pvPackm:  array not conformable to mask";
+             end;
+         endif;
+
+         // trap for mask with no 1's
+         if mask == 0;
+             if trapchk(8);
+                 errorlog "pvPackm:  mask == 0";
+                 end;
+             elseif trapchk(4);
+                 errorlog "pvPackm:  WARNING -- mask == 0";
+             endif;
+             retp(p1);
+         endif;
+
+         o = prodc(o);
+
+         if not rows(p1.type);
+
+             p1.obj.fpoff = pvoffsets(packr(miss(seqa(1,1,o).*
+                              arraytomat(areshape(mask,o|1)./=0),0))-1);
+             p1.np = pvnumoffsets(p1.obj.fpoff);
+             p1.type = 6;
+             p1.obj.a = x;
+             p1.names[1] = nm1;
+
+         else;
+
+             newobj.a = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.obj[rows(p1.obj)].fpoff = pvoffsets(packr(miss(seqa(1,1,o).*
+                                      arraytomat(areshape(mask,o|1)./=0),0))-1);
+             p1.np = p1.np+pvnumoffsets(p1.obj[rows(p1.obj)].fpoff);
+             p1.type = p1.type || 6;
+             p1.obj[rows(p1.obj)].a = x;
+             p1.names = p1.names $| nm1;
+
+         endif;
+
+     else;
+         errorlog "pvPackm:  2nd argument wrong type";
+         end;
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPacks
+**
+**  Purpose:    Packs symmetric matrix into a PV instance with name
+**
+**  Format:     p1 = pvPacks(p1,x,nm);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxM symmetric matrix
+**
+**              nm       string, matrix name
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks: pvPacks does not support the packing of arrays
+**
+**           The following is an example of packing two matrices
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2, 2 1 };
+**
+**                 p1 = pvPacks(p1,x,"A");
+**                 p1 = pvPacks(p1,eye(2),"I");
+**
+**             These matrices can be extracted using the pvUnpack command
+**
+**                 print pvUnpack(p1,"A");
+**
+**                    1.000  2.000
+**                    2.000  1.000
+**
+**                 print pvUnpack(p1,"I");
+**
+**                    1.000  0.000
+**                    0.000  1.000
+**
+**
+**  See Also:  pvPacksi, pvUnpack.
+*/
+
+
+proc pvPacks(struct PV p1, x, nm1);
+
+     struct PVobj newobj;
+     local r, c;
+
+     if type(nm1) /= 13;
+         errorlog "pvPacks:  3rd argument wrong type";
+         end;
+     elseif nm1 $== "";
+         errorlog "pvPacks:  3rd argument is null string";
+         end;
+     elseif not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPacks:  variable already packed";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPacks:  Not implemented for complex";
+         end;
+     endif;
+
+     r = rows(x);
+     c = cols(x);
+
+     if not rows(p1.type);
+
+         p1.np = r*(c+1)/2;
+         p1.type = 3;
+         p1.obj.m = x;
+         p1.names[1] = nm1;
+
+     else;
+
+         newobj.m = 0;
+         p1.obj = p1.obj | newobj;
+
+         p1.np = p1.np+r*(c+1)/2;
+         p1.type = p1.type || 3;
+         p1.obj[rows(p1.obj)].m = x;
+         p1.names = p1.names $| nm1;
+
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPacksm
+**
+**  Purpose:    Packs symmetric matrix into a PV instance with a mask and
+**              name
+**
+**  Format:     p1 = pvPacksm(p1,x,nm,mask);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxM symmetric matrix
+**
+**              nm       string, matrix name
+**
+**              mask     MxM matrix, symmetric mask matrix of zeros and ones
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks:   pvPacksm does not support the packing of arrays
+**
+**             The mask allows storing a selected portion of a matrix into
+**             the packed vector.  The 1's in the mask matrix indicate an
+**             element to be stored in the packed matrix.  When the matrix
+**             is unpacked (using pvUnpack) the elements corresponding to the
+**             zeros are restored.  Elements corresponding to the ones come
+**             from the packed vector which may have been changed.
+**
+**             Only the lower left portion of the mask matrix is used,
+**             and only the lower left portion of the x matrix is stored
+**             in the packed vector.
+**
+**             The following is an example of packing a matrix with a
+**             mask
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2 4,
+**                       2 3 5,
+**                       4 5 6};
+**
+**                 mask = { 1 0 1,
+**                          0 1 0,
+**                          1 0 1 };
+**
+**                 p1 = pvPacksm(p1,x,"A",mask);
+**
+**                 print pvUnpack(p1,"A");
+**
+**                    1.000  2.000  4.000
+**                    2.000  3.000  5.000
+**                    4.000  5.000  6.000
+**
+**                 p2 = pvGetParVector(p1);
+**
+**                 print p2;
+**
+**                    1.000
+**                    3.000
+**                    4.000
+**                    6.000
+**
+**                 p3 = { 10, 11, 12, 13 };
+**
+**                 p1 = pvPutParVector(p1,p3);
+**
+**                print pvUnpack(p1,"A");
+**
+**                    10.000  2.000  12.000
+**                    2.000   11.000 5.000
+**                    12.000  5.000  13.000
+**
+**
+**  See Also:  pvPacks, pvUnpack.
+*/
+
+
+proc pvPacksm(struct PV p1, x, nm1, mask);
+
+     struct PVobj newobj;
+     local r, c, fpoff;
+
+     if type(nm1) /= 13;
+         errorlog "pvPacksm:  3rd argument wrong type";
+         end;
+     elseif nm1 $== "";
+         errorlog "pvPacksm:  3rd argument is null string";
+         end;
+     elseif not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPacksm:  variable already packed";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPacksm:  Not implemented for complex";
+         end;
+     endif;
+
+     r = rows(x);
+     c = cols(x);
+
+     if r /= rows(mask) or c /= cols(mask);
+         errorlog "pvPacksm:  matrix not conformable to mask";
+         end;
+     endif;
+
+     // trap for mask with no 1's
+     if vech(mask) == 0;
+         if trapchk(8);
+             errorlog "pvPacksm:  vech(mask) == 0";
+             end;
+         elseif trapchk(4);
+             errorlog "pvPacksm:  WARNING -- vech(mask) == 0";
+         endif;
+         retp(p1);
+     endif;
+
+     if not rows(p1.type);
+
+         fpoff = {};
+         for i(1,r,1);
+             for j(1,i,1);
+                if mask[i,j];
+                   fpoff = fpoff | i-1 ~ j-1;
+                endif;
+             endfor;
+         endfor;
+         p1.np = rows(fpoff);
+         p1.type = 4;
+         p1.obj.fpoff = pvoffsets(fpoff);
+         p1.obj.m = x;
+         p1.names[1] = nm1;
+
+     else;
+
+         newobj.m = 0;
+         p1.obj = p1.obj | newobj;
+
+         fpoff = {};
+         for i(1,r,1);
+             for j(1,i,1);
+                if mask[i,j];
+                   fpoff = fpoff | i-1 ~ j-1;
+                endif;
+             endfor;
+         endfor;
+         p1.np = p1.np+rows(fpoff);
+         p1.type = p1.type || 4;
+         p1.obj[rows(p1.obj)].fpoff = pvoffsets(fpoff);
+         p1.obj[rows(p1.obj)].m = x;
+         p1.names = p1.names $| nm1;
+
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPacki
+**
+**  Purpose:    Packs general matrix or array into a PV instance with name
+**                      with index
+**
+**  Format:     p1 = pvPacki(p1,x,nm,i);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxN matrix or N-dimensional array
+**
+**              nm       string, name of matrix or array, or null string
+**
+**              i        scalar, index of matrix or array in lookup table
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks:   The following is an example of packing two matrices
+**
+**                 #include pv.sdf
+**
+**                 y = rndn(100,1);
+**                 x = rndn(100,5);
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 p1 = pvPacki(p1,y,"Y",1);
+**                 p1 = pvPacki(p1,x,"X",2);
+**
+**             These matrices can be extracted using the pvUnpack command
+**
+**                 y = pvUnpack(p1,1);
+**                 x = pvUnpack(p1,2);
+**
+**
+**  See Also:  pvPack, pvUnpack
+*/
+
+
+proc pvPacki(struct PV p1, x, nm1, ind);
+
+     struct PVobj newobj;
+
+     if not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPacki:  variable already packed";
+         end;
+     elseif ind < 1;
+         errorlog "pvPacki:  4th argument out of range";
+         end;
+     elseif ind /= round(ind);
+         errorlog "pvPacki:  4th argument must be integer";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPacki:  Not implemented for complex";
+         end;
+     endif;
+
+     if type(x) == 6;
+
+         if not rows(p1.type);
+
+             p1.np = rows(x)*cols(x);
+             p1.type = 1;
+             p1.obj.m = x;
+             p1.table = error(99).*zeros(ind,1);
+             p1.table[ind] = 1;
+             if nm1 $/= "";
+                 p1.names[1] = nm1;
+             else;
+                 p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+             endif;
+
+         else;
+
+             if ind > rows(p1.table);
+                 p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+             elseif scalerr(p1.table[ind]) /= 99;
+                 errorlog "pvPacki:  ind already being used as index";
+                 end;
+             endif;
+
+             newobj.m = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.np = p1.np+rows(x)*cols(x);
+             p1.type = p1.type || 1;
+             p1.obj[rows(p1.obj)].m = x;
+             p1.table[ind] = rows(p1.type);
+             if nm1 $/= "";
+                 p1.names = p1.names $| nm1;
+             else;
+                 p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+             endif;
+
+         endif;
+
+     elseif type(x) == 21;
+
+         if not rows(p1.type);
+
+             p1.np = prodc(getorders(x));
+             p1.type = 5;
+             p1.obj.a = x;
+             p1.table = error(99).*zeros(ind,1);
+             p1.table[ind] = 1;
+             if nm1 $/= "";
+                 p1.names[1] = nm1;
+             else;
+                 p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+             endif;
+
+         else;
+
+             if ind > rows(p1.table);
+                 p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+             elseif scalerr(p1.table[ind]) /= 99;
+                 errorlog "pvPacki:  ind already being used as index";
+                 end;
+             endif;
+
+             newobj.a = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.np = p1.np+prodc(getorders(x));
+             p1.type = p1.type || 5;
+             p1.obj[rows(p1.obj)].a = x;
+             p1.table[ind] = rows(p1.type);
+             if nm1 $/= "";
+                 p1.names = p1.names $| nm1;
+             else;
+                 p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+             endif;
+
+         endif;
+
+     else;
+         errorlog "pvPacki:  2nd argument wrong type";
+         end;
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPackmi
+**
+**  Purpose:    Packs general matrix or array into a PV instance with a mask,
+**                   name, and index
+**
+**  Format:     p1 = pvPackmi(p1,x,nm,mask,i);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxN matrix or N-dimensional array
+**
+**              nm       string, matrix or array name
+**
+**              mask     MxN matrix or N-dimensional array, mask of
+**                         zeros and ones
+**
+**              i        scalar, index of matrix or array in lookup table
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks:   The mask allows storing a selected portion of a matrix into
+**             the parameter vector.  The 1's in the mask matrix indicate an
+**             element to be stored in the parameter matrix.  When the matrix
+**             is unpacked (using pvUnpackm) the elements corresponding to the
+**             zeros is restored.  Elements corresponding to the ones come
+**             from the parameter vector.
+**
+**             The following is an example of packing a matrix with a
+**             mask
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2,
+**                       3 4 };
+**
+**                 mask = { 1 0,
+**                          0 1 };
+**
+**                 p1 = pvPackmi(p1,x,"X",mask,1);
+**
+**                 print pvUnpack(p1,1);
+**
+**                    1.000  2.000
+**                    3.000  4.000
+**
+**                 p1 = pvPutParVector(p1,5|6);
+**
+**                 print pvUnpack(p1,1);
+**
+**                    5.000  2.000
+**                    3.000  6.000
+**
+**
+**  See Also:  pvPackm, pvUnpack.
+*/
+
+
+proc pvPackmi(struct PV p1, x, nm1, mask, ind);
+
+     local r, c, o;
+     struct PVobj newobj;
+
+     if not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPackmi:  variable already packed";
+         end;
+     elseif ind < 1;
+         errorlog "pvPackmi:  5th argument out of range";
+         end;
+     elseif ind /= round(ind);
+         errorlog "pvPackmi:  5th argument must be integer";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPackmi:  Not implemented for complex";
+         end;
+     endif;
+
+     if type(x) == 6;
+
+         r = rows(x);
+         c = cols(x);
+
+         if r /= rows(mask) or c /= cols(mask);
+             errorlog "pvPackmi:  matrix not conformable to mask";
+             end;
+         endif;
+
+         // trap for mask with no 1's
+         if mask == 0;
+             if trapchk(8);
+                 errorlog "pvPackmi:  mask == 0";
+                 end;
+             elseif trapchk(4);
+                 errorlog "pvPackmi:  WARNING -- mask == 0";
+             endif;
+             retp(p1);
+         endif;
+
+         if not rows(p1.type);
+
+             p1.obj.fpoff = pvoffsets(packr(miss(seqa(1,1,r*c).*
+                              vecr(mask./=0),0))-1);
+             p1.np = pvnumoffsets(p1.obj.fpoff);
+             p1.type = 2;
+             p1.obj.m = x;
+             p1.table = error(99).*zeros(ind,1);
+             p1.table[ind] = 1;
+             if nm1 $/= "";
+                 p1.names[1] = nm1;
+             else;
+                 p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+             endif;
+
+         else;
+
+             if ind > rows(p1.table);
+                 p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+             elseif scalerr(p1.table[ind]) /= 99;
+                 errorlog "pvPackmi:  ind already being used as index";
+                 end;
+             endif;
+
+             newobj.m = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.obj[rows(p1.obj)].fpoff = pvoffsets(packr(miss(seqa(1,1,r*c).*
+                                            vecr(mask./=0),0))-1);
+             p1.np = p1.np+pvnumoffsets(p1.obj[rows(p1.obj)].fpoff);
+             p1.type = p1.type || 2;
+             p1.obj[rows(p1.obj)].m = x;
+             p1.table[ind] = rows(p1.type);
+             if nm1 $/= "";
+                 p1.names = p1.names $| nm1;
+             else;
+                 p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+             endif;
+
+         endif;
+
+     elseif type(x) == 21;
+
+         o = getorders(mask);
+
+         if not (getorders(x) == o);
+             errorlog "pvPackmi:  array not conformable to mask";
+             end;
+         endif;
+
+         // trap for mask with no 1's
+         if mask == 0;
+             if trapchk(8);
+                 errorlog "pvPackmi:  mask == 0";
+                 end;
+             elseif trapchk(4);
+                 errorlog "pvPackmi:  WARNING -- mask == 0";
+             endif;
+             retp(p1);
+         endif;
+
+         o = prodc(o);
+
+         if not rows(p1.type);
+
+             p1.obj.fpoff = pvoffsets(packr(miss(seqa(1,1,o).*
+                              arraytomat(areshape(mask,o|1)./=0),0))-1);
+             p1.np = pvnumoffsets(p1.obj.fpoff);
+             p1.type = 6;
+             p1.obj.a = x;
+             p1.table = error(99).*zeros(ind,1);
+             p1.table[ind] = 1;
+             if nm1 $/= "";
+                 p1.names[1] = nm1;
+             else;
+                 p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+             endif;
+
+         else;
+
+             if ind > rows(p1.table);
+                 p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+             elseif scalerr(p1.table[ind]) /= 99;
+                 errorlog "pvPackmi:  ind already being used as index";
+                 end;
+             endif;
+
+             newobj.a = 0;
+             p1.obj = p1.obj | newobj;
+
+             p1.obj[rows(p1.obj)].fpoff = pvoffsets(packr(miss(seqa(1,1,o).*
+                                      arraytomat(areshape(mask,o|1)./=0),0))-1);
+             p1.np = p1.np+pvnumoffsets(p1.obj[rows(p1.obj)].fpoff);
+             p1.type = p1.type || 6;
+             p1.obj[rows(p1.obj)].a = x;
+             p1.table[ind] = rows(p1.type);
+             if nm1 $/= "";
+                 p1.names = p1.names $| nm1;
+             else;
+                 p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+             endif;
+
+         endif;
+
+     else;
+         errorlog "pvPackmi:  2nd argument wrong type";
+         end;
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPacksi
+**
+**  Purpose:    Packs symmetric matrix into a PV instance with matrix name
+**                          with index
+**
+**  Format:     p1 = pvPacksi(p1,x,nm,i);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxM symmetric matrix
+**
+**              nm       string, matrix name
+**
+**              i        scalar, index of matrix in lookup table
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**  Remarks: pvPacksi does not support the packing of arrays.
+**
+**           The following is an example of packing two matrices
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2, 2 1 };
+**
+**                 p1 = pvPacksi(p1,x,"A",1);
+**                 p1 = pvPacksi(p1,eye(2),"I",2);
+**
+**             These matrices can be extracted using the pvUnpack command
+**
+**                 print pvUnpack(p1,1);
+**
+**                    1.000  2.000
+**                    2.000  1.000
+**
+**                 print pvUnpack(p1,2);
+**
+**                    1.000  0.000
+**                    0.000  1.000
+**
+**
+**  See Also:  pvPacks, pvUnpack.
+*/
+
+
+proc pvPacksi(struct PV p1, x, nm1, ind);
+
+     struct PVobj newobj;
+     local r, c;
+
+     if not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPacksi:  variable already packed";
+         end;
+     elseif ind < 1;
+         errorlog "pvPacksi:  4th argument out of range";
+         end;
+     elseif ind /= round(ind);
+         errorlog "pvPacksi:  4th argument must be integer";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPacksi:  Not implemented for complex";
+         end;
+     endif;
+
+     r = rows(x);
+     c = cols(x);
+
+     if not rows(p1.type);
+
+         p1.np = r*(c+1)/2;
+         p1.type = 3;
+         p1.obj.m = x;
+         p1.table = error(99).*zeros(ind,1);
+         p1.table[ind] = 1;
+         if nm1 $/= "";
+             p1.names[1] = nm1;
+         else;
+             p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+         endif;
+
+     else;
+
+         if ind > rows(p1.table);
+             p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+         elseif scalerr(p1.table[ind]) /= 99;
+             errorlog "pvPacksi:  ind already being used as index";
+             end;
+         endif;
+
+         newobj.m = 0;
+         p1.obj = p1.obj | newobj;
+
+         p1.np = p1.np+r*(c+1)/2;
+         p1.type = p1.type || 3;
+         p1.obj[rows(p1.obj)].m = x;
+         p1.table[ind] = rows(p1.type);
+         if nm1 $/= "";
+             p1.names = p1.names $| nm1;
+         else;
+             p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+         endif;
+
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvPacksmi
+**
+**  Purpose:    Packs symmetric matrix into a PV instance with a mask, matrix
+**              name, and index
+**
+**  Format:     p1 = pvPacksmi(p1,x,nm,mask,i);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**              x        MxM symmetric matrix
+**
+**              nm       string, matrix name
+**
+**              mask     MxM matrix, symmetric mask matrix of zeros and ones
+**
+**              i        scalar, index of matrix in lookup table
+**
+**  Output:     p1       instance of structure of type PV
+**
+**
+**
+**  Remarks:   pvPacksmi does not support the packing of arrays
+**
+**             The mask allows storing a selected portion of a matrix into
+**             the parameter vector.  The 1's in the mask matrix indicate an
+**             element to be stored in the parameter vector.  When the matrix
+**             is unpacked (using pvUnpackm) the elements corresponding to the
+**             zeros is restored.  Elements corresponding to the ones come
+**             from the parameter vector.
+**
+**             Only the lower left portion of the mask matrix is used,
+**             and only the lower left portion of the x matrix is stored
+**             in the packed vector.
+**
+**             The following is an example of packing a matrix with a
+**             mask
+**
+**                 #include pv.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**
+**                 x = { 1 2 4,
+**                       2 3 5,
+**                       4 5 6};
+**
+**                 mask = { 1 0 1,
+**                          0 1 0,
+**                          1 0 1 };
+**
+**                 p1 = pvPacksmi(p1,x,"A",mask,1);
+**
+**                 print pvUnpack(p1,1);
+**
+**                    1.000  2.000  4.000
+**                    2.000  3.000  5.000
+**                    4.000  5.000  6.000
+**
+**                 p2 = pvGetParVector(p1);
+**
+**                 print p2;
+**
+**                    1.000
+**                    3.000
+**                    4.000
+**                    6.000
+**
+**                 p3 = { 10, 11, 12, 13 };
+**
+**                 p1 = pvPutParVector(p1,p3);
+**
+**                print pvUnpack(p1,1);
+**
+**                    10.000  2.000  12.000
+**                    2.000   11.000 5.000
+**                    12.000  5.000  13.000
+**
+**
+**  See Also:  pvPacksm, pvUnpack.
+*/
+
+
+proc pvPacksmi(struct PV p1, x, nm1, mask, ind);
+
+     struct PVobj newobj;
+     local r, c, fpoff;
+
+     if not scalmiss( indsav( nm1, p1.names ) );
+         errorlog "pvPacksmi:  variable already packed";
+         end;
+     elseif ind < 1;
+         errorlog "pvPacksmi:  5th argument out of range";
+         end;
+     elseif ind /= round(ind);
+         errorlog "pvPacksmi:  5th argument must be integer";
+         end;
+     elseif iscplx(x);
+         errorlog "pvPacksmi:  Not implemented for complex";
+         end;
+     endif;
+
+     r = rows(x);
+     c = cols(x);
+
+     if r /= rows(mask) or c /= cols(mask);
+         errorlog "pvPacksmi:  matrix not conformable to mask";
+         end;
+     endif;
+
+     // trap for mask with no 1's
+     if vech(mask) == 0;
+         if trapchk(8);
+             errorlog "pvPacksmi:  vech(mask) == 0";
+             end;
+         elseif trapchk(4);
+             errorlog "pvPacksmi:  WARNING -- vech(mask) == 0";
+         endif;
+         retp(p1);
+     endif;
+
+     if not rows(p1.type);
+
+         fpoff = {};
+         for i(1,r,1);
+             for j(1,i,1);
+                if mask[i,j];
+                   fpoff = fpoff | i-1 ~ j-1;
+                endif;
+             endfor;
+         endfor;
+         p1.np = rows(fpoff);
+         p1.type = 4;
+         p1.obj.fpoff = pvoffsets(fpoff);
+         p1.obj.m = x;
+         p1.table = error(99).*zeros(ind,1);
+         p1.table[ind] = 1;
+         if nm1 $/= "";
+             p1.names[1] = nm1;
+         else;
+             p1.names[1] = "M"$+ftos(ind,"%*.*lf",1,0);
+         endif;
+
+     else;
+
+        if ind > rows(p1.table);
+            p1.table = p1.table | error(99).*zeros(ind-rows(p1.table),1);
+        elseif scalerr(p1.table[ind]) /= 99;
+            errorlog "pvPacksmi:  ind already being used as index";
+            end;
+        endif;
+
+         newobj.m = 0;
+         p1.obj = p1.obj | newobj;
+
+         fpoff = {};
+         for i(1,r,1);
+             for j(1,i,1);
+                if mask[i,j];
+                   fpoff = fpoff | i-1 ~ j-1;
+                endif;
+             endfor;
+         endfor;
+         p1.np = p1.np+rows(fpoff);
+         p1.type = p1.type || 4;
+         p1.obj[rows(p1.obj)].fpoff = pvoffsets(fpoff);
+         p1.obj[rows(p1.obj)].m = x;
+         p1.table[ind] = rows(p1.type);
+         if nm1 $/= "";
+             p1.names = p1.names $| nm1;
+         else;
+             p1.names = p1.names $| ("M"$+ftos(ind,"%*.*lf",1,0));
+         endif;
+
+     endif;
+
+     retp(p1);
+
+endp;
+
+
+
+/*
+**> pvList
+**
+**  Purpose:    Retrieves names of packed matrices in PV instance
+**
+**  Format:     n = pvList(p1);
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**  Output:     n        Kx1 string vector, names of packed matrices
+**
+*/
+
+
+proc pvList(struct PV p1);
+
+    if not rows(p1.type);
+        errorlog "pvList:  instance not initialized";
+        end;
+    endif;
+
+    retp(p1.names);
+
+endp;
+
+
+
+/*
+**> pvLength
+**
+**  Purpose:    Returns length of parameter vector
+**
+**  Format:     n = pvLength(p1)
+**
+**  Include:    pv.sdf
+**
+**  Input:      p1       instance of structure of type PV
+**
+**  Output:     n        scalar, length of the parameter vector in p1.
+**
+*/
+
+
+proc pvLength(struct PV p1);
+
+    if not rows(p1.type);
+        errorlog "pvLength:  instance not initialized";
+        end;
+    endif;
+
+    retp(p1.np);
+
+endp;
+
+
+
+/*
+**> pvCreate
+**
+**  Purpose:    Returns an initialized instance of a structure of type PV
+**
+**  Format:     p1 = pvCreate;
+**
+**  Output:     p1        initialized PV structure
+**
+**  Remarks:    For example,
+**
+**                   struct PV p1;
+**                   p1 = pvCreate;
+*/
+
+
+proc pvCreate;
+
+    struct PV p1;
+
+    p1.type = {};
+
+    retp(p1);
+
+endp;

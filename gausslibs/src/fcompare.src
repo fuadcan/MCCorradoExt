@@ -1,0 +1,104 @@
+/*
+** fcompare.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> feq, fne, flt, fgt, fle, fge
+**
+**  Fuzzy comparison functions.  These functions use
+**  _fcmptol to fuzz the comparison operations to allow for
+**  round off error.
+**
+**  The statement:      y = feq(a,b);
+**
+**  is equivalent to:   y = a eq b;
+**
+**  Return scalar result, 1 or 0
+**
+**      y = feq(a,b);
+**      y = fne(a,b);
+**      y = flt(a,b);
+**      y = fgt(a,b);
+**      y = fle(a,b);
+**      y = fge(a,b);
+**
+**  Return matrix result, 1's and 0's
+**
+**      y = dotfeq(a,b);
+**      y = dotfne(a,b);
+**      y = dotflt(a,b);
+**      y = dotfgt(a,b);
+**      y = dotfle(a,b);
+**      y = dotfge(a,b);
+**
+**
+**  The calling program is free to reset _fcmptol before
+**  calling these procedures.  Any statement of the form:
+**
+**      _fcmptol = 1e-12;
+**
+**  occurring in the calling program will be executed after the
+**  initialization done by the DECLARE in the file FCOMPARE.DEC.
+**
+*/
+
+#include fcompare.ext
+
+proc feq(a,b);
+    retp(abs(a-b) <= _fcmptol);
+endp;
+
+proc dotfeq(a,b);
+    retp(abs(a-b) .<= _fcmptol);
+endp;
+
+proc fne(a,b);
+    retp(abs(a-b) > _fcmptol);
+endp;
+
+proc dotfne(a,b);
+    retp(abs(a-b) .> _fcmptol);
+endp;
+
+proc flt(a,b);
+    retp((a < (b - _fcmptol)));
+endp;
+
+proc dotflt(a,b);
+    retp((a .< (b - _fcmptol)));
+endp;
+
+proc fgt(a,b);
+    retp((a > (b + _fcmptol)));
+endp;
+
+proc dotfgt(a,b);
+    retp((a .> (b + _fcmptol)));
+endp;
+
+proc fle(a,b);
+    retp((a <= (b + _fcmptol)));
+endp;
+
+proc dotfle(a,b);
+    retp((a .<= (b + _fcmptol)));
+endp;
+
+proc fge(a,b);
+    retp((a >= (b - _fcmptol)));
+endp;
+
+proc dotfge(a,b);
+    retp((a .>= (b - _fcmptol)));
+endp;

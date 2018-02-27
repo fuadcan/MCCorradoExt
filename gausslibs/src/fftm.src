@@ -1,0 +1,175 @@
+#ifDLLCALL
+
+/*
+**  fftm.src - multi-dimensional fft
+**
+** (C) Copyright 1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**  Format                   Purpose                                      Line
+** ----------------------------------------------------------------------------
+**    y = fftm(x,dim);      multi-dimensional fft                          28
+**    y = fftmi(x,dim);     multi-dimensional inverse fft                 103
+*/
+
+/*
+**> fftm
+**
+**  Purpose:  multi-dimensional fft.
+**
+**  Format:  y = fftm(x,dim);
+**
+**  Input:   x   Mx1 vector, data.
+**
+**           c   Kx1 vector, number of "rows" for each dimension.
+**
+**  Output:  y   Lx1 vector, fft of x.
+**
+**
+**  Remarks:
+**
+**  The multi-dimensional data are stored row-wise in the vector x.
+**  For two dimensions, this is equivalent to vecr(x).
+**
+**  dim has length equal to the number of dimensions.  The last
+**  element of dim is the number of columns, the next to the
+**  last element of dim is the number of rows, and so on.  Thus
+**
+**      dim = { 2, 3, 3 };
+**
+**  indicates that the data in dim is a 2x3x3 three-dimensional
+**  array, i.e., 2 3x3 matrices of data.  Suppose that x1 is the
+**  first 3x3 matrix and x2 the second 3x3 matrix, then
+**  x = vecr(x1) | vecr(x2).
+**
+**  Padding:  The arrays have to be padded to the nearest power of
+**  two.  Thus the output array can be larger than the input array.
+**  In the above example, the 2 3x3 matrices would be padded out
+**  to 2 4x4 arrays.  The input vector would contain 18 elements,
+**  while the output vector would contain 32 elements.
+*/
+
+
+
+proc fftm(x,dim);
+   local m,i,j,dm0,dim0,dim1,dim2,d0,d1,d2,d3,l0,j0,j1,k0,k1,
+     dm,ind,ndim,x1,xx;
+
+   dim = vecr(dim);
+   dm = rows(dim);
+   x = vecr(x);
+   m = sumc(2^seqa(1,1,25) .<= dim');
+   d0 = 2^m ./= dim;
+   ind = 1;
+
+   if not (d0 == 0);
+       dim0 = d0.*2^(m+1) + (1-d0).*dim;
+       dim1 = dim0;
+       dim = rev(dim);
+       dm0 = prodc(dim0);
+       xx = zeros(dm0,1);
+       x1 = zeros(dm,1);
+       dllcall fftpaddll(xx,dim1,x,dim,x1,dm);
+       if not iscplx(xx);
+           xx = complex(xx,zeros(rows(xx),1));
+       endif;
+       dllcall fftmdll(xx,dim0,dm,ind);
+       retp(xx/dm0);
+   else;
+       dm0 = prodc(dim);
+       if not iscplx(x);
+           x = complex(x,zeros(rows(x),1));
+       endif;
+       dllcall fftmdll(x,dim,dm,ind);
+       retp(x/dm0);
+   endif;
+
+endp;
+
+
+/*
+**> fftmi
+**
+**  Purpose:  multi-dimensional inverse fft.
+**
+**  Format:  y = fftmi(x,dim)
+**
+**  Input:   x   Mx1 vector, data.
+**
+**           c   Kx1 vector, number of "rows" for each dimension.
+**
+**  Output:  y   Lx1 vector, inverse fft of x.
+**
+**
+**  Remarks:
+**
+**   The multi-dimensional data are stored row-wise in the vector x.
+**   For two dimensions, this is equivalent to vecr(x).
+**
+**   dim has length equal to the number of dimensions.  The last
+**   element of dim is the number of columns, the next to the
+**   last element of dim is the number of rows, and so on.  Thus
+**
+**       dim = { 2, 3, 3 };
+**
+**   indicates that the data in dim is a 2x3x3 three-dimensional
+**   array, i.e., 2 3x3 matrices of data.  Suppose that x1 is the
+**   first 3x3 matrix and x2 the second 3x3 matrix, then
+**   x = vecr(x1) | vecr(x2).
+**
+**   Padding:  The arrays have to be padded to the nearest power of
+**   two.  Thus the output array can be larger than the input array.
+**   In the above example, the 2 3x3 matrices would be padded out
+**   to 2 4x4 arrays.  The input vector would contain 18 elements,
+**   while the output vector would contain 32 elements.
+*/
+
+
+proc fftmi(x,dim);
+   local m,i,j,dm0,dim0,dim1,d0,d1,d2,d3,l0,j0,j1,k0,k1,
+     dm,ind,ndim,x1,xx;
+
+   dim = vecr(dim);
+   dm = rows(dim);
+   x = vecr(x);
+   m = sumc(2^seqa(1,1,25) .<= dim');
+   d0 = 2^m ./= dim;
+   ind = -1;
+
+   if not (d0 == 0);
+       dim0 = d0.*2^(m+1) + (1-d0).*dim;
+       dim1 = dim0;
+       dm0 = prodc(dim0);
+       xx = zeros(dm0,1);
+       x1 = zeros(dm,1);
+       dllcall fftpaddll(xx,dim1,x,dim,x1,dm);
+       if not iscplx(xx);
+           xx = complex(xx,zeros(rows(xx),1));
+       endif;
+       dllcall fftmdll(xx,dim0,dm,ind);
+       retp(xx);
+   else;
+       dm0 = prodc(dim);
+       if not iscplx(x);
+           x = complex(x,zeros(rows(x),1));
+       endif;
+       dllcall fftmdll(x,dim,dm,ind);
+       retp(x);
+   endif;
+
+endp;
+
+
+#endif

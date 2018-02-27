@@ -1,0 +1,291 @@
+/*
+** gradient.src
+**
+**
+** (C) Copyright 1989-1995  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   GRADRE,  Forward difference numerical gradients, Richardson Extrapolation
+**   GRADCD,  Central difference numerical gradients
+**   GRADFD,  Forward difference numerical gradients
+**
+*/
+
+#include gradient.ext
+
+/*
+** GRADRE
+**
+** Written by Donna Calhoun.
+**
+** Purpose:    Computes the gradient vector or matrix (Jacobian) of a
+**             vector-valued function that has been defined in a procedure.
+**             Single-sided (forward difference) gradients are computed,
+**             using Richardson Extrapolation.
+**
+** Format:     g = GRADRE(&f,x0);
+**
+** Input:      f -- scalar, procedure pointer to a vector-valued function:
+**
+**                                         f:Kx1 -> Nx1
+**
+**                  It is acceptable for f(x) to have been defined in terms of
+**                  global arguments in addition to x, and thus f can return
+**                  an Nx1 vector:
+**
+**                       proc f(x);
+**                          retp( exp(x*b) );
+**                       endp;
+**
+**             x0 -- Kx1 vector of points at which to compute gradient.
+**
+** Output:     g -- NxK matrix containing the gradients of f with respect
+**                  to the variable x at x0.
+**
+** Remarks:    GRADRE will return a ROW for every row that is returned by f.
+**             For instance, if f returns a 1x1 result, then GRADRE will
+**             return a 1xK row vector. This allows the same function to be used
+**             where N is the number of rows in the result returned by f.
+**             Thus, for instance, GRADRE can be used to compute the
+**             Jacobian matrix of a set of equations.
+**
+**             The algorithm, Richardson Extrapolation (see "Numerical
+**             Analysis", by Lee W. Johnson and R. Dean Riess) is an iterative
+**             process which updates a derivative based on values calculated
+**             in a previous iteration. This is slower than GRADP, but can
+**             in general, return values that are accurate to about 8 digits
+**             of precision. The algorithm runs through n iterations.  _n is
+**             a global whose default is 25.
+**
+**              proc myfunc(x);
+**                  retp( x.*2 .* exp( x.*x./3));
+**              endp;
+**              let x0 = 2.5 3.0 3.5;
+**              y = gradre(&myfunc,x0,25);
+**
+**
+**                 82.98901642      0.00000000       0.00000000
+**    y =           0.00000000    281.19752454       0.00000000
+**                  0.00000000      0.00000000    1087.95412226
+**
+**
+** Globals: _grnum    integer, determines the number of iterations algorithm
+**                      produces.  Beyond a certain point, increasing _grnum
+**                      does not improve accuracy of result; on the contrary,
+**                      round error swamps accuracy and results become
+**                      significantly worse.
+**
+**
+**          _grsca    scalar, between 0 and 1.
+**                      By reducing _grsca, algorithm may arrive at
+**                      an acceptable result sooner, but this may not be
+**                      as accurate as a result achieved with larger _grsca
+**                      and which might take longer to compute. Generally, an
+**                      _grsca much smaller than 0.05 will not improve
+**                      results significantly.
+**
+**           _grstp   scalar, should be less than 1.  The best results
+**                      seemed to be obtained most efficiently when _grstp
+**                      is between 0.4 and 0.8.  Changing _grstp and _grsca
+**                      may have positive effects on results of algorithm.
+**
+**
+**    Remarks:   The settings below for the global variables will, for a
+**               reasonably well-defined problem, produce convergence with
+**               moderate speed.  If the problem is difficult and
+**               doesn't converge then try setting _grnum to 20,
+**               _grsca to .4, and _grstp to .5.  This will slow down
+**               the computation of the derivatives by a factor of 3
+**               but will increase the accuracy to near that of analytical
+**               derivatives.
+**
+*/
+
+proc gradre(&f,x0);
+    local i,m,n,r,h,newaim,f0,j,k,grdd,arg,xstep,amlist,
+        nmlist,Aim,Aimp1;
+    local f: proc;
+    n = _grnum;
+    r = _grsca;
+    h = _grstp;
+    m = 0;
+    f0 = f(x0);
+    j = rows(f0);
+    k = rows(x0);
+    grdd = zeros(j,k);
+    amlist = zeros(j*k,n+1);
+    do until m > n;
+        xstep = x0+(r^m)*h;
+        arg = diagrv(reshape(x0,k,k)',xstep);
+        i = 1;
+        do until i > k;
+            grdd[.,i] = f(arg[.,i]);
+            i = i + 1;
+        endo;
+        grdd = (grdd - f0)./((r^m)*h);
+        amlist[.,m+1] = reshape(grdd,j*k,1);
+        m = m + 1;
+    endo;
+    i = 2;
+    do until i > n;
+        nmlist = zeros(j*k,n+1);
+        m = 1;
+        do until m > (n-i+1);
+            Aim = reshape(amlist[.,m],j,k);
+            Aimp1 = reshape(amlist[.,m+1],j,k);
+            newAim = (Aimp1 - r^(i)*Aim)/(1-r^(i));
+            nmlist[.,m] = reshape(newaim,j*k,1);
+            m = m + 1;
+        endo;
+        amlist = nmlist;
+
+        i = i + 1;
+    endo;
+    retp(reshape(nmlist[.,1],j,k));
+endp;
+
+/*
+** GRADFD
+**
+** Purpose:    Computes the gradient vector or matrix (Jacobian) of a
+**             vector-valued function that has been defined in a procedure.
+**             Single-sided (forward difference) gradients are computed.
+**
+** Format:     g = gradfd(&f,x0);
+**
+** Inputs:     f -- a vector valued function (f:Kx1 -> Nx1) defined in a proc.
+**                  It is acceptable for f(x) to have been defined in terms of
+**                  global arguments in addition to x, and thus f can return
+**                  an Nx1 vector:
+**
+**                       proc f(x);
+**                          retp( exp(x*b) );
+**                       endp;.
+**
+**             x0 -- Kx1 vector of points at which to compute gradient.
+**
+** Output:     g -- NxK matrix containing the gradients of f with respect
+**                  to the variable x at x0.
+**
+** Globals:    _grdh -- size of increment.  If set to zero GRADFD will
+**                         compute the increment.  Default = 0.
+*/
+
+proc 1 = gradfd(f,x0);
+    local f:proc;
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, i, f0, eps;
+
+    f0 = f(x0);
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+    eps = 1.4901161193847665e-008;
+
+/* Computation of stepsize (dh) for gradient */
+
+    if _grdh /= 0;
+        dh = _grdh;
+    else;
+        ax0 = abs(x0);
+        if x0 /= 0;
+            dax0 = x0 ./ ax0;
+        else;
+            dax0 = 1;
+        endif;
+        dh = eps*maxc((ax0~ones(k,1))').*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    i = 1;
+    do until i > k;
+
+        grdd[.,i] = f(submat(arg,0,i));
+
+        i = i+1;
+    endo;
+
+    grdd = (grdd-f0)./(dh');
+
+    retp(grdd);
+endp;
+
+/*
+** GRADCD
+**
+** Purpose:    Computes the gradient vector or matrix (Jacobian) of a
+**             vector-valued function that has been defined in a procedure.
+**             Central difference gradients are computed.
+**
+** Format:     g = gradcd(&f,x0);
+**
+** Inputs:     f -- a vector valued function (f:Kx1 -> Nx1) defined in a proc.
+**                  It is acceptable for f(x) to have been defined in terms of
+**                  global arguments in addition to x, and thus f can return
+**                  an Nx1 vector:
+**
+**                       proc f(x);
+**                          retp( exp(x*b) );
+**                       endp;.
+**
+**             x0 -- Kx1 vector of points at which to compute gradient.
+**
+** Output:     g -- NxK matrix containing the gradients of f with respect
+**                  to the variable x at x0.
+**
+** Globals:    _grdh -- size of increment.  If set to zero GRADFD will
+**                         compute the increment.  Default = 0.
+*/
+
+proc gradcd(f,x);
+    local f:proc,k,ax0,dax0,dh,xdh,argplus,argminus,i,grdd,eps;
+
+    k = rows(x);
+    eps = 6.0554544523933429e-6;
+
+    if _grdh /= 0;
+        dh = _grdh;
+    else;
+        ax0 = abs(x);
+        if x /= 0;
+            dax0 = x./ax0;
+        else;
+            dax0 = 1;
+        endif;
+        dh = eps*maxc((ax0~ones(k,1))').*dax0;
+    endif;
+
+    xdh = x+dh;
+    dh = xdh-x;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x,k,k)',xdh);
+    argminus = diagrv(reshape(x,k,k)',x-dh);
+
+    i = 0;
+    do until i == k;
+        i = i+1;
+        if i == 1;
+            grdd = f(argplus[.,1])-f(argminus[.,1]);
+        else;
+            grdd = grdd~(f(argplus[.,i])-f(argminus[.,i]));
+        endif;
+    endo;
+
+    retp(grdd./(2*dh'));
+endp;
+

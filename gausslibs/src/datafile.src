@@ -1,0 +1,469 @@
+/*
+** datafile.src
+**
+**
+** (C) Copyright 2005-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                                              Purpose                       Line
+**  --------------------------------------------------------------------------------------
+**  fh = datacreate(fname,vnames,col,dtyp,vtyp);        Creates a v96 data set          77 
+**  fh = datacreatecomplex(fname,vnames,col,dtyp,vtyp); Creates a complex v96 data set 152 
+**  fh = dataopen(fname,mode);                          Opens a data set               224 
+**
+*/
+
+/*
+**> datacreate
+**
+**  Purpose:    Creates a V96 real data set. 
+**
+**  Format:     fh = datacreate(filename,vnames,col,dtyp,vtyp);
+**
+**  Input:      filename    string, name of data file.
+**              vnames      string or Nx1 string array, names of variables. 
+**              col         scalar, number of variables. 
+**              dtyp        scalar, data precision, one of the following: 
+**						        2   2-byte, signed integer. 
+**                              4   4-byte, single precision. 
+**                              8   8-byte, double precision. 
+**              vtyp        scalar or Nx1 vector, types of variables, may 
+**                          contain one or both of the following:
+**                              0   character variable. 
+**                              1   numeric variable. 
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If  filename does not include a path, then the file is 
+**              placed on the current directory. The file is given a .dat 
+**              extension if no extension is specified.
+**
+**              If col is set to 0, then the number of columns in the  
+**              data set is controlled by the contents of vnames. If col 
+**              is positive, then the file will contain col columns. 
+**
+**              The dtyp argument allows you to specify the precision to 
+**              use when storing your data. Keep in mind the following 
+**              range restrictions when selecting a value for dtyp:
+**            
+**                Data Type    Digits    Range
+**                integer      4         -32768 <= x <= 32767
+**                single       6-7       8.43x10^-37 <= |x| <= 3.37x10^38
+**                double       15-16     4.19x10^-307 <= |x| <= 1.67x10^308
+**
+**              If the integer type is specified, numbers are rounded to 
+**              the nearest integer as they are written to the data set. 
+**              If the data to be written to the file contains character 
+**              data, the precision must be 8 or the character information 
+**              will be lost.
+** 
+**  See Also:   datacreatecomplex, dataopen
+*/
+
+proc datacreate(filename,vnames,col,dtyp,vtyp);
+    local fh,lsind;
+
+#ifOS2WIN
+    lsind = strrindx(filename,"\\",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#else
+    lsind = strrindx(filename,"/",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#endif
+
+    create -v96 fh = ^filename with ^vnames,col,dtyp,vtyp;
+
+    retp(fh);
+endp;
+
+/*
+**> datacreatecomplex
+**
+**  Purpose:    Creates a V96 complex data set. 
+**
+**  Format:     fh = datacreatecomplex(filename,vnames,col,dtyp,vtyp);
+**
+**  Input:      filename    string, name of data file.
+**              vnames      string or Nx1 string array, names of variables. 
+**              col         scalar, number of variables. 
+**              dtyp        scalar, data precision, one of the following: 
+**						        2   2-byte, signed integer. 
+**                              4   4-byte, single precision. 
+**                              8   8-byte, double precision. 
+**              vtyp        scalar or Nx1 vector, types of variables, may 
+**                          contain one or both of the following:
+**                              0   character variable. 
+**                              1   numeric variable. 
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If  filename does not include a path, then the file is 
+**              placed on the current directory. The file is given a .dat 
+**              extension if no extension is specified.
+**
+**              If col is set to 0, then the number of columns in the  
+**              data set is controlled by the contents of vnames. If col 
+**              is positive, then the file will contain col columns. 
+**
+**              The dtyp argument allows you to specify the precision to 
+**              use when storing your data. Keep in mind the following 
+**              range restrictions when selecting a value for dtyp:
+**            
+**                Data Type    Digits    Range
+**                integer      4         -32768 <= x <= 32767
+**                single       6-7       8.43x10^-37 <= |x| <= 3.37x10^38
+**                double       15-16     4.19x10^-307 <= |x| <= 1.67x10^308
+**
+**              If the integer type is specified, numbers are rounded to 
+**              the nearest integer as they are written to the data set. 
+**              If the data to be written to the file contains character 
+**              data, the precision must be 8 or the character information 
+**              will be lost.
+** 
+**  See Also:   datacreate, dataopen
+*/
+
+proc datacreatecomplex(filename,vnames,col,dtyp,vtyp);
+    local fh,lsind;
+
+#ifOS2WIN
+    lsind = strrindx(filename,"\\",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#else
+    lsind = strrindx(filename,"/",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#endif
+
+    create -v96 complex fh = ^filename with ^vnames,col,dtyp,vtyp;
+
+    retp(fh);
+endp;
+
+/*
+**> dataopen
+**
+**  Purpose:    Opens a data set. 
+**
+**  Format:     fh = dataopen(filename,mode);
+**
+**  Input:      filename    string, name of data file.
+**              mode        string, one of the following:
+**						        read     open file for read 
+**                              append   open file for append 
+**                              update   open file for update
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If filename does not have an extension, dataopen 
+**              appends a .dat extension before searching for the file. 
+**              If the file is an fmt matrix file, the extension must 
+**              be explicitly given. If no path information is included,
+**              then dataopen searches for the file in the current 
+**              directory.
+**
+**              Files opened in read mode cannot be written to. The 
+**              pointer is set to the beginning of the file and the 
+**              writer function is disabled for files opened in this way. 
+**              This is the only mode available for matrix files (.fmt),
+**              which are always written in one piece with the save 
+**              command.
+**
+**              Files opened in append mode cannot be read. The pointer 
+**              is set to the end of the file so that a subsequent write 
+**              to the file with the writer function will add data to the 
+**              end of the file without overwriting any of the existing 
+**              data in the file. The readr function is disabled for 
+**              files opened in this way. This mode is used to add 
+**              additional rows to the end of a file.
+**
+**              Files opened in update mode can be read from and written 
+**              to. The pointer is set to the beginning of the file. This 
+**              mode is used to make changes in a file.
+** 
+**  See Also:   datacreate
+*/
+
+proc dataopen(filename,mode);
+    local fh;
+
+    if (mode $== "");
+        open fh = ^filename;
+    elseif ((mode $== "read") or (mode $== "r"));
+        open fh = ^filename for read;
+    elseif ((mode $== "append") or (mode $== "a"));
+        open fh = ^filename for append;
+    elseif ((mode $== "update") or (mode $== "u"));
+        open fh = ^filename for update;
+    else;
+        fh = -1;
+    endif;
+
+    retp(fh);
+endp;
+
+
+/*
+**> datacreate32
+**
+**  Purpose:    Creates a V96 real data set. 
+**
+**  Format:     fh = datacreate32(filename,vnames,col,dtyp,vtyp);
+**
+**  Input:      filename    string, name of data file.
+**              vnames      string or Nx1 string array, names of variables. 
+**              col         scalar, number of variables. 
+**              dtyp        scalar, data precision, one of the following: 
+**						        2   2-byte, signed integer. 
+**                              4   4-byte, single precision. 
+**                              8   8-byte, double precision. 
+**              vtyp        scalar or Nx1 vector, types of variables, may 
+**                          contain one or both of the following:
+**                              0   character variable. 
+**                              1   numeric variable. 
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If  filename does not include a path, then the file is 
+**              placed on the current directory. The file is given a .dat 
+**              extension if no extension is specified.
+**
+**              Using datacreate32 instead of datacreate to create a small 
+**              data set and open it for writing may increase writing speeds 
+**              on Windows. datacreate32 does not support creation of files 
+**              larger than 2G on Windows.
+**
+**              If col is set to 0, then the number of columns in the  
+**              data set is controlled by the contents of vnames. If col 
+**              is positive, then the file will contain col columns. 
+**
+**              The dtyp argument allows you to specify the precision to 
+**              use when storing your data. Keep in mind the following 
+**              range restrictions when selecting a value for dtyp:
+**            
+**                Data Type    Digits    Range
+**                integer      4         -32768 <= x <= 32767
+**                single       6-7       8.43x10^-37 <= |x| <= 3.37x10^38
+**                double       15-16     4.19x10^-307 <= |x| <= 1.67x10^308
+**
+**              If the integer type is specified, numbers are rounded to 
+**              the nearest integer as they are written to the data set. 
+**              If the data to be written to the file contains character 
+**              data, the precision must be 8 or the character information 
+**              will be lost.
+** 
+**  See Also:   datacreate, datacreatecomplex32, dataopen32
+*/
+
+proc datacreate32(filename,vnames,col,dtyp,vtyp);
+    local fh,lsind;
+
+#ifOS2WIN
+    lsind = strrindx(filename,"\\",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#else
+    lsind = strrindx(filename,"/",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#endif
+
+    create -v96 -w32 fh = ^filename with ^vnames,col,dtyp,vtyp;
+
+    retp(fh);
+endp;
+
+/*
+**> datacreatecomplex32
+**
+**  Purpose:    Creates a V96 complex data set. 
+**
+**  Format:     fh = datacreatecomplex32(filename,vnames,col,dtyp,vtyp);
+**
+**  Input:      filename    string, name of data file.
+**              vnames      string or Nx1 string array, names of variables. 
+**              col         scalar, number of variables. 
+**              dtyp        scalar, data precision, one of the following: 
+**						        2   2-byte, signed integer. 
+**                              4   4-byte, single precision. 
+**                              8   8-byte, double precision. 
+**              vtyp        scalar or Nx1 vector, types of variables, may 
+**                          contain one or both of the following:
+**                              0   character variable. 
+**                              1   numeric variable. 
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If  filename does not include a path, then the file is 
+**              placed on the current directory. The file is given a .dat 
+**              extension if no extension is specified.
+**
+**              Using datacreatecomplex32 instead of datacreatecomplex to 
+**              create a small data set open it for writing may increase 
+**              writing speeds on Windows. datacreatecomplex32 does not 
+**              support creation of files larger than 2G on Windows.
+**
+**              If col is set to 0, then the number of columns in the  
+**              data set is controlled by the contents of vnames. If col 
+**              is positive, then the file will contain col columns. 
+**
+**              The dtyp argument allows you to specify the precision to 
+**              use when storing your data. Keep in mind the following 
+**              range restrictions when selecting a value for dtyp:
+**            
+**                Data Type    Digits    Range
+**                integer      4         -32768 <= x <= 32767
+**                single       6-7       8.43x10^-37 <= |x| <= 3.37x10^38
+**                double       15-16     4.19x10^-307 <= |x| <= 1.67x10^308
+**
+**              If the integer type is specified, numbers are rounded to 
+**              the nearest integer as they are written to the data set. 
+**              If the data to be written to the file contains character 
+**              data, the precision must be 8 or the character information 
+**              will be lost.
+** 
+**  See Also:   datacreatecomplex, datacreate32, dataopen32
+*/
+
+proc datacreatecomplex32(filename,vnames,col,dtyp,vtyp);
+    local fh,lsind;
+
+#ifOS2WIN
+    lsind = strrindx(filename,"\\",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#else
+    lsind = strrindx(filename,"/",strlen(filename));
+    if (lsind == 0);
+		if (strindx(filename,".",1) == 0);
+			filename = filename$+".dat";
+		endif;
+	elseif (strindx(filename,".",lsind) == 0);
+		filename = filename$+".dat";
+	endif;
+#endif
+
+    create -v96 -w32 complex fh = ^filename with ^vnames,col,dtyp,vtyp;
+
+    retp(fh);
+endp;
+
+
+/*
+**> dataopen32
+**
+**  Purpose:    Opens a small data set for reading or writing. 
+**
+**  Format:     fh = dataopen32(filename,mode);
+**
+**  Input:      filename    string, name of data file.
+**              mode        string, one of the following:
+**                              read     open file for read 
+**                              append   open file for append 
+**                              update   open file for update
+**
+**  Output:     fh          scalar, file handle. 
+**
+**  Remarks:    If filename does not have an extension, dataopen 
+**              appends a .dat extension before searching for the file. 
+**              If the file is an fmt matrix file, the extension must 
+**              be explicitly given. If no path information is included,
+**              then dataopen searches for the file in the current 
+**              directory.
+**
+**              Using dataopen32 instead of dataopen to open a small data 
+**              set for writing may increase writing speeds on Windows. 
+**              dataopen32 does not support files larger than 2G on Windows.
+**
+**              Files opened in read mode cannot be written to. The 
+**              pointer is set to the beginning of the file and the 
+**              writer function is disabled for files opened in this way. 
+**              This is the only mode available for matrix files (.fmt),
+**              which are always written in one piece with the save 
+**              command.
+**
+**              Files opened in append mode cannot be read. The pointer 
+**              is set to the end of the file so that a subsequent write 
+**              to the file with the writer function will add data to the 
+**              end of the file without overwriting any of the existing 
+**              data in the file. The readr function is disabled for 
+**              files opened in this way. This mode is used to add 
+**              additional rows to the end of a file.
+**
+**              Files opened in update mode can be read from and written 
+**              to. The pointer is set to the beginning of the file. This 
+**              mode is used to make changes in a file.
+** 
+**  See Also:   dataopen, datacreate32
+*/
+
+proc dataopen32(filename,mode);
+    local fh;
+
+    if (mode $== "");
+        open fh = ^filename -w32;
+    elseif ((mode $== "read") or (mode $== "r"));
+        open fh = ^filename for read -w32;
+    elseif ((mode $== "append") or (mode $== "a"));
+        open fh = ^filename for append -w32;
+    elseif ((mode $== "update") or (mode $== "u"));
+        open fh = ^filename for update -w32;
+    else;
+        fh = -1;
+    endif;
+
+    retp(fh);
+endp;
+

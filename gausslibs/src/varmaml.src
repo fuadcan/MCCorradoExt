@@ -1,0 +1,266 @@
+/*
+**  varmaml.src - maximum likelihood procedures for varma models
+**
+** (C) Copyright 2001-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC. This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/*
+**> varmares
+**
+**  Purpose:  computes residuals of a Vector ARMA model
+**
+**  Format:   res = varmares(w, phi, theta);
+**
+**  Input:    w         NxK matrix, time series
+**
+**            phi       K*PxK matrix, AR coefficient matrices,
+**                        or scalar missing for moving average only model
+**
+**            theta     K*QxK matrix, MA coefficient matrices
+**                        or scalar missing for autoregression only model
+**
+**
+**  Output:   res       NxK matrix, residuals.  If the calculation fails
+**                      res is set to missing value with error code:
+**
+**                       error code   reason for failure
+**
+**                            1       M < 1
+**                            2       N < 1
+**                            3       P < 0
+**                            4       Q < 0
+**                            5       P = 0 and Q = 0
+**                            7       floating point work space too small
+**                            8       integer work space too small
+**                            9       qq is not positive definite
+**                           10       AR parameters too close to stationarity
+**                                    boundary
+**                           11       model not stationary
+**                           12       model not invertible
+**                           13       I+M'H'HM not positive definite
+**
+**
+**  Remarks:  varmadll is adapted from code developed by Jose Alberto
+**  Mauricio of the Universidad Complutense de Madrid.  It was published
+**  as Algorithm AS311 in Applied Statistics.  Also described in "Exact
+**  maximum likelihood estimation of stationary vector ARMA models, JASA,
+**  90:282-291.
+*/
+
+proc varmares(w, _ar, _ma);
+    local _m,_p,_q,_n,ar0,ma0,qq,atf,a,tol,llf,f1,f2,rc,s2,q,offset,orda,ordm;
+
+    _m = cols(w);
+    _n = rows(w);
+
+    if type(_ar) == 21 or type(_ma) == 21;
+        if type(_ar) /= 21 or type(_ma) /= 21;
+             errorlog "varmares:  coefficient matrices must be"\
+                      " both arrays or both matrices";
+             end;
+        endif;
+        offset = 3;
+
+        if not scalmiss(_ar);
+            orda = getOrders(_ar);
+            _p = orda[1];
+            _ar = aconcat(atranspose(_ar,1|3|2),zeros(_m,_m),3);
+        else;
+            _p = 0;
+            _ar = arrayinit(1|_m|_m,0);
+        endif;
+        if not scalmiss(_ma);
+            ordm = getOrders(_ma);
+            _q = ordm[1];
+            _ma = aconcat(atranspose(_ma,1|3|2),zeros(_m,_m),3);
+        else;
+            _q = 0;
+            _ma = arrayinit(1|_m|_m,0);
+        endif;
+
+    else;
+
+        offset = 0;
+        if not scalmiss(_ar);
+            ar0 =_ar;
+            _ar = {};
+            _p = rows(ar0)/_m;
+            for i(1,_p,1);
+                _ar = _ar | ar0[(i-1)*_m+1:i*_m,.]';
+            endfor;
+            _ar = _ar | zeros(_m,_m);
+        else;
+            _p = 0;
+            _ar = zeros(_m,_m);
+        endif;
+
+        if not scalmiss(_ma);
+            ma0 = _ma;
+            _ma = {};
+            _q = rows(ma0)/_m;
+            for i(1,_q,1);
+                _ma = _ma | ma0[(i-1)*_m+1:i*_m,.]';
+            endfor;
+            _ma = _ma | zeros(_m,_m);
+        else;
+            _q = 0;
+            _ma = zeros(_m,_m);
+        endif;
+    endif;
+
+    s2 = 1;
+    q = eye(_m);
+    atf = 1;
+    a = zeros(_n,_m);
+    tol = -1;
+    clear llf,f1,f2,rc;
+
+    dllcall varmadll(_m,_p,_q,_n,w,_ar,_ma,q,atf,a,s2,tol,llf,f1,f2,rc,offset);
+
+    if rc > 0;
+        a = error(rc);
+    endif;
+
+    retp(a-meanc(a)');
+
+endp;
+
+/*
+**> varmall
+**
+**  Purpose:  computes log-likelihood of a Vector ARMA model
+**
+**  Format:   res = varmall(w, phi, theta, vc);
+**
+**  Input:    w         NxK matrix, time series
+**
+**            phi       K*PxK matrix, AR coefficient matrices
+**
+**            theta     K*QxK matrix, MA coefficient matrices
+**
+**            vc        KxK matrix, covariance matrix
+**
+**  Output:   ll        scalar, log-likelihood.  If the calculation fails
+**                      res is set to missing value with error code:
+**
+**                       error code   reason for failure
+**
+**                            1       M < 1
+**                            2       N < 1
+**                            3       P < 0
+**                            4       Q < 0
+**                            5       P = 0 and Q = 0
+**                            7       floating point work space too small
+**                            8       integer work space too small
+**                            9       qq is not positive definite
+**                           10       AR parameters too close to stationarity
+**                                    boundary
+**                           11       model not stationary
+**                           12       model not invertible
+**                           13       I+M'H'HM not positive definite
+**
+**
+**  Remarks:  varmadll is adapted from code developed by Jose Alberto
+**  Mauricio of the Universidad Complutense de Madrid.  It was published
+**  as Algorithm AS311 in Applied Statistics.  Also described in "Exact
+**  maximum likelihood estimation of stationary vector ARMA models, JASA,
+**  90:282-291.
+*/
+
+proc varmall(w, _ar, _ma, vc);
+    local _m,_p,_q,_n,ar0,ma0,qq,im,atf,a,tol,llf,f1,f2,rc,s2,q,orda,ordm,offset;
+
+    _m = cols(w);
+    _n = rows(w);
+
+    if type(_ar) == 21 or type(_ma) == 21;
+        if type(_ar) /= 21 or type(_ma) /= 21;
+             errorlog "varmares:  coefficient matrices must be"\
+                      " both arrays or both matrices";
+             end;
+        endif;
+        offset = 3;
+
+        if not scalmiss(_ar);
+            orda = getOrders(_ar);
+            _p = orda[1];
+            _ar = aconcat(atranspose(_ar,1|3|2),zeros(_m,_m),3);
+        else;
+            _p = 0;
+            _ar = arrayinit(1|_m|_m,0);
+        endif;
+        if not scalmiss(_ma);
+            ordm = getOrders(_ma);
+            _q = ordm[1];
+            _ma = aconcat(atranspose(_ma,1|3|2),zeros(_m,_m),3);
+        else;
+            _q = 0;
+            _ma = arrayinit(1|_m|_m,0);
+        endif;
+
+    else;
+
+        offset = 0;
+        if not scalmiss(_ar);
+            ar0 =_ar;
+            _ar = {};
+            _p = rows(ar0)/_m;
+            for i(1,_p,1);
+                _ar = _ar | ar0[(i-1)*_m+1:i*_m,.]';
+            endfor;
+            _ar = _ar | zeros(_m,_m);
+        else;
+            _p = 0;
+            _ar = zeros(_m,_m);
+        endif;
+
+        if not scalmiss(_ma);
+            ma0 = _ma;
+            _ma = {};
+            _q = rows(ma0)/_m;
+            for i(1,_q,1);
+                _ma = _ma | ma0[(i-1)*_m+1:i*_m,.]';
+            endfor;
+            _ma = _ma | zeros(_m,_m);
+        else;
+            _q = 0;
+            _ma = zeros(_m,_m);
+        endif;
+    endif;
+
+    if _m == 1;
+        s2 = 1;
+        q = 1;
+    else;
+        s2 = 1;
+        q = vc;
+    endif;
+
+    atf = 0;
+    a = zeros(_n,_m);
+    tol = -1;
+    clear llf,f1,f2,rc;
+
+    dllcall varmadll(_m,_p,_q,_n,w,_ar,_ma,q,atf,a,s2,tol,llf,f1,f2,rc,offset);
+
+    if rc > 0;
+        llf = error(rc);
+    endif;
+
+    retp(llf);
+
+endp;
+
+

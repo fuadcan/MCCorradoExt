@@ -1,0 +1,617 @@
+/*
+** pgraph.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**     Format              Purpose                                Line
+** ========================================================================
+**     asclabel(xl,yl);    ASCII labels for major ticks            40
+**     fonts(str);         Set fonts used in plot                  72
+**     graphset;           Reset graphics                         109
+**     title(str);         Set title for graph                    209
+**     view(x,y,z);        Set observer position                  234
+**     viewxyz(x,y,z);     Set observer position                  268
+**     volume(x,y,z);      Set size of 3D workbox                 299
+**     xlabel(str);        Set X axis label                       326
+**     ylabel(str);        Set Y axis label                       346
+**     zlabel(str);        Set Z axis label                       366
+**     margin(l,r,t,b)     Set Graph Window Margin                386
+**     axmargin(l,r,t,b)   Set Axes Margin                        403
+**     graphprt(str);      Select print and file conversion opts  426
+**     rerun;              Execute graphics display/print utility 470
+**     oldmode = setvwrmode(mode);   Set or get viewer mode       526
+**     pqgwin;                       Set or display viewer mode   592
+*/
+
+#include pgraph.ext
+
+/*
+**> asclabel
+**
+**  Purpose:    To set up character labels for the X and Y axes.
+**
+**  Format:     asclabel(xl,yl);
+**
+**  Input:      xl    character vector, labels for the tic marks on the X
+**                    axis.
+**
+**              yl    character vector, labels for the tic marks on the Y
+**                    axis.
+**
+**  Remarks:    If xl or yl = 0 character labels will not be used for
+**              that axis.
+**
+**  Globals:    _pascx, _pascy
+*/
+
+proc 0 = asclabel(xl,yl);
+    if type(xl) == 13;
+        _pascx = stof(xl);
+    else;
+        _pascx = xl;
+    endif;
+    if type(yl) == 13;
+        _pascy = stof(yl);
+    else;
+        _pascy = yl;
+    endif;
+endp;
+
+/*
+**> fonts
+**
+**  Purpose:    To select fonts to be used in the plot.
+**
+**  Format:     fonts(str);
+**
+**  Input:      str    string or character vector containing the names
+**                     of up to 4 fonts to be used in the plot.
+**
+**                          simplex     standard sans serif font
+**                          simgrma     simplex greek, math
+**                          microb      bold and boxy
+**                          complex     standard font with serif
+**
+**                     The first font specified will be used for the
+**                     axes numbers.
+**
+**                     If str is null or fonts is not called,
+**                     simplex will be used by default.
+*/
+
+proc 0 = fonts(str);
+    if type(str) == 13;
+        str = stof(str);
+    endif;
+    if str $== 0;
+        str[1] = "simplex";
+    endif;
+    str = str[0];
+    if rows(str) > 4;
+        errorlog "Too many fonts";
+        end;
+    endif;
+    _pfonts = str;
+endp;
+
+/*
+**> graphset
+**
+**  Purpose:    Reset graphics globals to default values.
+**
+**  Format:     graphset;
+**
+**  Remarks:    This procedure is used to reset the defaults between graphs.
+**              It can be modified if you want different default values.
+**
+**              The globals are declared in pgraph.dec.
+*/
+
+proc 0 = graphset;
+    _parrow = 0;
+    _parrow3 = 0;
+    _pascx = 0;
+    _pascy = 0;
+    _paxes = 1;
+    _paxht = 0;
+    _pbarwid = .5;
+    _pbartyp = { 6 7 };
+    _pbox = 0;
+    _pbox3d = 0;
+    _pboxctl = { .25, 10, 1 };
+    _pboxlim = 0;
+    _pcrop = { 1 1 1 1 1 };
+    _pcolor = 0;
+    _pmcolor = 15;
+    _pcross = 0;
+    _pcwin = 0;
+    _pncwin = 0;
+    _pcsel = { 10 11 12 13 14 9 15 };
+    _perrbar = 0;
+    _pfonts = { "simplex" };
+    _pframe = 1 | 1;
+    _pgrid = 0;
+    _plctrl = 0;
+    _plegctl = 0;
+    _plegstr = "";
+    _plev = 0;
+    _pline = 0;
+    _pline3d = 0;
+    _pmargin = { 0,0,0,0 };
+    _paxmarx = 0;
+    _pagesiz = 0;
+    _pageshf = 0;
+    _pcvfile = "";
+    _plotsiz = 0;
+    _plotshf = 0;
+    _plsel = { 6 1 2 3 4 5 };
+    _pltype = 0;
+    _plwidth = 0;
+    _pmsgctl = 0;
+    _pmsgstr = "";
+    _pnotify = 1;
+    _pnum = 1;
+    _pnumht = 0;
+    _protate = 0;
+    _prtfile = "";
+    _pssel = { 1 2 3 4 5 6 7 8 9 10 11 12 13 14 };
+    _pstype = 0;
+    _psym = 0;
+    _psym3d = 0;
+    _psymsiz = 3.5;
+    _psurf = { 0, 7 };
+    _pzpmax = 3;
+    _pticout = 0;
+    _ptitlht = 0;
+    _pworld = 0;
+    _pxpmax = 12;
+    _pxscale = 0;
+    _pypmax = 12;
+    _pyscale = 0;
+    _pzscale = 0;
+    _pzoom = { 0 5 5 };
+    _pcmdlin = "";
+    _ptek = "graphic.tkf";
+    _ptitle = "";
+    _pvolume = 0;
+    _pview = { 1, -4, -3, 3 };
+    _pxfmt = "";
+    _pxlabel = "";
+    _pyfmt = "";
+    _pylabel = "";
+    _pzfmt = "";
+    _pzlabel = "";
+    _pxsci = 4;
+    _pysci = 4;
+    _pzsci = 4;
+    _pzclr = 13;
+endp;
+
+proc 0 = graphinit;
+    graphset;
+    _pinbegwind = 0;
+endp;
+
+
+/*
+**> title
+**
+**  Purpose:    To set a title for the graph.
+**
+**  Format:     title(str);
+**
+**  Input:      str    string, the title to display above the graph.
+**
+**  Remarks:    This may contain up to 3 lines of title separated by line
+**              feed characters.  On multiple line titles, the character
+**              size will be reduced automatically.  This string may contain
+**              up to 180 characters total.
+**
+**  See Also:   xlabel, ylabel
+*/
+
+proc 0 = title(str);
+    if strlen(str) >= 180;
+        errorlog "Title string too long. 180 characters allowed.";
+        end;
+    endif;
+    _ptitle = str;
+endp;
+
+/*
+**> view
+**
+**  Purpose:    To set the position of the observer for 3D plots.
+**
+**  Format:     view(x,y,z);
+**
+**  Input:      x    scalar, the X position in workbox units.
+**
+**              y    scalar, the Y position in workbox units.
+**
+**              z    scalar, the Z position in workbox units.
+**
+**  Remarks:    The size of the workbox is set with "volume". The
+**              viewer MUST be outside of the workbox.  The
+**              closer the position of the observer, the more
+**              perspective distortion there will be. If x = y
+**              = z, the projection will be isometric.
+**
+**              If "view" is not called, a default position will
+**              be calculated.
+**
+**              Use "viewxyz" to locate the observer in plot
+**              coordinates.
+**
+**  Globals     _pview
+**
+**  See Also    volume, viewxyz
+*/
+
+proc (0) = view(x,y,z);
+    _pview = 1|x|y|z;
+endp;
+
+/*
+**> viewxyz
+**
+**  Purpose:    To set the position of the observer in plot coordinates
+**              for 3D plots.
+**
+**  Format:     viewxyz(x,y,z);
+**
+**  Input:      x    scalar, the X position in plot coordinates.
+**
+**              y    scalar, the Y position in plot coordinates.
+**
+**              z    scalar, the Z position in plot coordinates.
+**
+**  Remarks:    The viewer MUST be outside of the workbox.  The closer the
+**              observer, the more perspective distortion there will be.
+**
+**              If "viewxyz" is not called, a default position will
+**              be calculated.
+**
+**              Use "view" to locate the observer in workbox units.
+**
+**  Globals:    _pview
+**
+**  See Also:   volume, view
+*/
+
+proc (0) = viewxyz(x,y,z);
+    _pview = 2|x|y|z;
+endp;
+
+/*
+**> volume
+**
+**  Purpose:    To set the length, width, and height ratios of
+**              the 3D workbox.
+**
+**  Format:     volume(x,y,z);
+**
+**  Input:      x    scalar, the X length of the 3D workbox.
+**
+**              y    scalar, the Y length of the 3D workbox.
+**
+**              z    scalar, the Z length of the 3D workbox.
+**
+**  Remarks:    The ratio between these values is what is important.
+**              If "volume" is not called, a default workbox will
+**              be calculated.
+**
+**  Globals:    _pvolume
+**
+**  See Also:   view
+*/
+
+proc (0) = volume(x,y,z);
+    _pvolume = x|y|z;
+endp;
+
+/*
+**> xlabel
+**
+**  Purpose:    To set a label for the X axis.
+**
+**  Format:     xlabel(str);
+**
+**  Input:      str    string, the label for the X axis.
+**
+**  See Also:   title, ylabel
+*/
+
+proc 0 = xlabel(str);
+    if strlen(str) >= 80;
+        errorlog "String too long";
+        end;
+    endif;
+    _pxlabel = str;
+endp;
+
+/*
+**> ylabel
+**
+**  Purpose:    To set a label for the Y axis.
+**
+**  Format:     ylabel(str);
+**
+**  Input:      str    string, the label for the Y axis.
+**
+**  See Also:   title, xlabel
+*/
+
+proc 0 = ylabel(str);
+    if strlen(str) >= 80;
+        errorlog "String too long";
+        end;
+    endif;
+    _pylabel = str;
+endp;
+
+/*
+**> zlabel
+**
+**  Purpose:    To set a label for the Z axis.
+**
+**  Format:     zlabel(str);
+**
+**  Input:      str    string, the label for the Z axis.
+**
+**  See Also:   title, xlabel
+*/
+
+proc 0 = zlabel(str);
+    if strlen(str) >= 80;
+        errorlog "String too long";
+        end;
+    endif;
+    _pzlabel = str;
+endp;
+
+/*
+**> margin
+**
+**  Purpose:    To set the margins for the graph window.
+**
+**  Format:     margin(l,r,t,b);
+**
+**  Input:      l    scalar, the left margin in inches.
+**              r    scalar, the right margin in inches.
+**              t    scalar, the top margin in inches.
+**              b    scalar, the bottom margin in inches.
+*/
+
+proc 0 = margin(l,r,t,b);
+    _pmargin = l | r | t | b;
+endp;
+
+/*
+**> axmargin
+**
+**  Purpose:    To set the absolute position of the axes.
+**
+**  Format:     axmargin(l,r,t,b);
+**
+**  Input:      l    scalar, the left margin in inches.
+**              r    scalar, the right margin in inches.
+**              t    scalar, the top margin in inches.
+**              b    scalar, the bottom margin in inches.
+**
+**              The user is responsible for allowing enough space in margin
+**              for text.
+**
+*/
+
+proc 0 = axmargin(l,r,t,b);
+    _plotsiz = (9-l-r) ~ (6.855-t-b);
+    _plotshf = l ~ b;
+    _paxmarx = 1;
+endp;
+
+/*
+**> graphprt
+**
+**  Purpose:    To select hardcopy or pause options.
+**
+**  Format:     graphprt(str);
+**
+**  Input:      str    string, hardcopy or pause option control string.
+**
+**     ""            (null) Wait for interactive input (default)
+**     -P            send graph to printer when graphics funtion is called
+**     -PO=c         set print orientation:
+**                      L    landscape.
+**                      P    portrait.
+**     -PS=c         set print page size:
+**                      Q    quarter page
+**                      H    half page
+**                      F    full page
+**     -PM=<l,r,t,b> set conversion file margins in inches.
+**     -PR=n         set print resolution:
+**                      1    low
+**                      2    medium
+**                      3    high
+**     -C=n          convert to another file format:
+**                      1    Encapsulated PostScript file
+**                      2    Lotus .PIC file
+**                      3    HP-GL Plotter file
+**                      4    PCX bitmap format
+**     -CO=<n>       set conversion file orientation:
+**                      L    landscape
+**                      P    portrait
+**     -CS=c         set conversion file page size:
+**                      Q    quarter page
+**                      H    half page
+**                      F    full page
+**     -CM=<l,r,t,b> set conversion file margins in inches.
+**     -W=n          display graph, wait "n" seconds, then continue.
+**
+*/
+
+proc 0 = graphprt(str);
+    _pcmdlin = " " $+ str;
+endp;
+
+/*
+**> rerun
+**
+**  Purpose:    Executes the graphics viewer.
+**
+**  Format:     rerun;
+**
+**  Input:      Uses the following PQG globals for control options:
+**
+**              _ptek, _pvwr, _pcmdlin, _pvwrmode
+**
+*/
+
+
+#ifUNIX
+
+proc 0 = rerun();
+    local tmpfn;
+
+    tmpfn = tempname("/tmp", "", ".ps");
+
+    if tkf2ps(_ptek, tmpfn);
+        errorlog "Error in PostScript conversion";
+        end;
+    endif;
+
+    if _pvwrmode $== "s";
+        call exec(_pvwr, _pvwrflags $+ " " $+ tmpfn);
+        call exec("/bin/rm", tmpfn);
+    else;
+        call execbg(_pvwr, _pvwrflags $+ " " $+ tmpfn);
+    endif;
+endp;
+
+#else
+
+proc 0 = rerun();
+    if strlen(_pvwr) == 0 or _pvwrmode $== "s";
+        showpqg(_ptek, "vwr.exe" $+ _pcmdlin $+ " " $+ _pvwrmode);
+    else;
+        showpqg(_ptek, _pvwr $+ _pcmdlin $+ " " $+ _pvwrmode);
+    endif;
+endp;
+
+#endif
+
+
+/*
+**> setvwrmode
+**
+**  Purpose:    Sets the graphics viewer mode.
+**
+**  Format:     oldmode = setvwrmode(mode);
+**
+**  Input:      mode    string, new mode or null string
+**
+**                      "one"     Use only one viewer
+**
+**                      "many"    Use a new viewer for each graph
+**
+**  Output:     oldmode    string, previous mode
+**
+**  Remarks:    If mode is a null string, the current mode will be
+**              returned with no changes made.
+**
+**              If "one" is set, the viewer executable will be vwr.exe.
+**
+**  Source:     pgraph.src
+**
+**  Example:    oldmode = setvwrmode("one");
+**               .
+**               .
+**               .
+**
+**              call setvwrmode(oldmode);
+**
+**  See also:   pqgwin
+*/
+
+proc setvwrmode(arg);
+    local s, msg, oldmode;
+
+    if strlen(arg) == 0;
+        if _pvwrmode $== "s";
+            retp("one");
+        elseif _pvwrmode $== "m";
+            retp("many");
+        else;
+            retp("Invalid mode set");
+        endif;
+    endif;
+
+    s = lower(arg);
+    oldmode = setvwrmode("");
+
+    if s $== "one";
+        _pvwrmode = "s";
+    elseif s $== "many";
+        _pvwrmode = "m";
+    elseif s $== "manual";
+        _pvwrmode = "s";
+    elseif s $== "auto";
+        _pvwrmode = "m";
+    else;
+        msg = "Unrecognized mode " $+ arg;
+        errorlog msg;
+        end;
+    endif;
+
+    retp(oldmode);
+endp;
+
+
+/*
+**> pqgwin
+**
+**  Purpose:    Sets the graphics viewer mode.
+**
+**  Format:     pqgwin arg;
+**
+**  Input:      arg     string literal
+**
+**                      "one"     Use only one viewer
+**
+**                      "many"    Use a new viewer for each graph
+**
+**  Remarks:    If "one" is set, the viewer executable will be vwr.exe.
+**
+**              "auto" and "manual" are supported for backwards
+**              compatibility, manual=one, auto=many.
+**
+**  Source:     pgraph.src
+**
+**  Example:    pqgwin one;
+**
+**              pqgwin many;
+**
+**  See also:   setvwrmode
+*/
+
+keyword pqgwin(arg);
+
+    if strlen(arg) == 0;
+        print "Viewer mode = " setvwrmode("");
+        retp;
+    endif;
+
+    call setvwrmode(arg);
+endp;
+

@@ -1,0 +1,3713 @@
+/*
+** varma.src - Time Series Procedures calling VARMA (Varmax, Arimax, ECM).
+**
+**
+** (C) Copyright 1994-2002  Aptech Systems,Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  armanames     Generates AR and MA names
+**  corm          Print the correlation matrix of parameters univariate model
+**  covm          Print the covariance matrix of parameters, univariate model
+**  ecm           Estimate an error correction model
+**  identify      Returns autocorrelation functions and portmanteau test
+**                statistics. Also returns partial autocorrelation functions
+**                for univariate models.
+**  macf          Returns an autocorrelation function matrix for multiple
+**                dependent variables
+**  nw            Returns the Newey-West Covariance matrix
+**  paramconfig   Returns a compact matrix created using "vput", containing
+**                the coefficients and their standard errors.
+**  revmatrix     Reverses rows of a matrix, in block order
+**  readdata      Reads GAUSS data sets and matrices
+**  sumstat       Returns summary statistics from "ecm" and "varmax" estimation
+**                Returns sums of squares and information criteria
+**  unitroots     Prints unit root and cointegration test results
+**  varmaset      Resets the varma global variables
+**  varmax        Estimate a varma/varmax/arima/arimax model
+**  vmadf         Computes the Augmented Dickey Fuller statistic, allowing
+**                for deterministic polynomial time trends of an arbitrary
+**                order.
+**  vmcadf        Compute the Augmented Dickey Fuller statistic applied to
+**                the residuals of a cointegrating regression, allowing for
+**                deterministic polynomial time trends of an arbitrary order.
+**  vmc_sja       Returns critical values for Johansen's max eigenvalue
+**                statistic
+**  vmc_sjt       Returns critical values for Johansen's trace statistic
+**  vmdetrend     Returns residuals from regressing on a time trend polynomial
+**  vmforecast    Forecast VARMAX models
+**  vmptrend      Creates a polynomial matrix of time trends of order p.
+**  vmroots       Returns the characteristic roots of AR and MA matrix
+**                polynomials.
+**  vmrztcrit:    Returns tau critical values for the Augmented Dickey-
+**                Fuller statistic, derived from the residuals of a
+**                a cointegrating regression. Depends on p, the AR order
+**                in the fitted regression, the number of observations,
+**                and the number of explanatory variables.
+**  vmsj:         Calculates Johansen's trace and maximum eigenvalue test
+**                statistics.
+**  vmztcrit:     Returns tau critical values for the Augmented Dickey-Fuller
+**                test statistic, depending on the number of observations
+**                and p, the AR order in the fitted regression.
+**
+*/
+
+#include varma.ext
+
+@-------------------------THE ECM PROCEDURE-----------------------@
+/*
+**> ecm
+**
+**  Purpose:  computes estimates and covariance matrix of estimates
+**            of the Error Correction model
+**
+**            delta(Y(t))=Pi*Y(t-1) + phi(p,B)delta(Y(t))
+**                       + e(t)   t = 1,...,T
+**
+**            where Y(t)    is an L*1 vector of dependent variables,
+**                          assumed already covariance stationary
+**                  phi     is an LxL matrix polynomial of order p
+**                  e(t)    is an L*1 Gaussian white noise vector
+**                  B       is the backshift operator
+**                  delta   is the first difference operator
+**
+**  Format:   {  A, B, va, coeffs, vc, covb, res, statret, retc }
+**              = ecm(dataset, depvars, indvars, ynames, xnames, p, r, vctype);
+**
+**  Input:  dataset     string, name of dataset.
+**
+**                 If this is a null string, "", the procedure assumes
+**                 that the actual data has been passed in the depvar
+**                 and indvars arguments.
+**
+**          depvars      dependent variables.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                      T x L matrix, the dependent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                      Lx1 character vector, names of dependent
+**                      variables in the dataset
+**                           or
+**                      Lx1 numeric vector, indices of dependent
+**                      variables in the dataset
+**
+**                      These can be any subset of the variables in
+**                      the dataset and can be in any order.
+**
+**                 NOTE: Each column must be ordered as  y(1), y(2),...,y(T).
+**                       The top row is the first observation and the last
+**                       row is the most current observation.
+**
+**
+**          indvars      independent variables.
+**
+**                       Enter a 0 if there are no independent variables.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                       TxK matrix, the independent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                       Kx1 character vector, names of independent
+**                       variables in the dataset
+**                            or
+**                       Kx1 numeric vector, indices of independent
+**                       variables in the dataset
+**
+**                       These can be any subset of the variables in
+**                       the dataset and can be in any order.
+**
+**                  NOTE: Each column must be ordered as  x(1), x(2),...,x(T).
+**                        The top row is the first observation and the last
+**                        row is the most current observation.
+**
+**
+**          ynames   Lx1 character matrix of names for the variables in
+**                   depvars, or scalar 0.
+**
+**                   GAUSS will supply variable names Y1,...,YL if 0
+**                   is entered.
+**
+**          p             scalar, order of the AR process.
+**
+**          r             scalar, number of cointegrating relations.
+**                        Set to -1 to have GAUSS estimate this value.
+**
+**
+**          vcType       scalar, set to 1 for ML covariance matrix of
+**                                   parameters
+**                               set to 2 for QML covariance matrix of
+**                                   parameters
+**
+**
+**  Output:   A         LxR matrix of coefficients, such that AB = Pi (see
+**                      remarks below)
+**
+**            B         RxL matrix, eigenvectors spanning the cointegrating
+**                      space of dimension R,
+**
+**            va        Rx1 vector, eigenvalues of the Pi matrix, sorted from
+**                      largest to smallest. The sequencing of the eigenvalues
+**                      corresponds with the sequencing of the eigenvectors
+**                      in the B matrix.
+**
+**            coeffs    compact matrix created using "vput". Read it using
+**                      "vread". It contains:
+**
+**                Pi        LxL matrix of cointegration coefficients
+**
+**                Pi_se     LxL matrix of corresponding standard errors
+**
+**                phi       p*(LxL) matrix of AR coefficient estimates
+**                          stacked in the order AR(1),...,AR(p)
+**
+**                phi_se    p*(LxL) matrix of AR standard errors
+**                          stacked in the order AR(1),...,AR(p)
+**
+**            vc        LxL matrix, covariance matrix of residuals
+**
+**            covb      QxQ residual covariance matrix of parameters in row
+**                      major order, Pi, Phi-1,...,Phi-p.
+**
+**            res       TxL matrix, residuals
+**
+**            statret   compact matrix created using "vput". Read it using
+**                      "vread". It contains:
+**
+**                ss       Lx2 matrix, the sum of squares for Y in column
+**                         one and the sum of squared error in column two
+**
+**                info     Lx4 matrix
+**                         row one - the likelihood value
+**                         row two - the Akaike Information Criterion
+**                         row three - the Schwarz Bayesian Information Criterion
+**                         row four - the Likelihood Ratio Statistic
+**
+**                arroots      px1 vector of AR roots, possibly complex
+**                maroots      qx1 vector of MA roots, possibly complex
+**
+**                acfm     Lx(p*L) matrix, the autocorrelation function
+**                         The first L columns are the lag 1 ACF,
+**                         The last L columns are the lag p ACF.
+**
+**                pacfm   Lx(p*L) matrix, the partial autocorrelation function
+**                         The first L columns are the lag 1 ACF,
+**                         The last L columns are the lag p ACF.
+**
+**                portman  (_vm_lags-(p+q))x3 matrix of portmanteau statistics
+**                         for the multivariate model and Ljung-Box statistics
+**                         for the univariate model. The time period is in
+**                         column one, the Qs (portmanteau) statistic in
+**                         column two and the p-value in column three
+**
+**            retc   2x1 vector, return code
+**
+**                       first element of retc
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**
+**                       second element of retc
+**
+**                         0   covariance matrix of parameters fails
+**                         1   ML covariance matrix computed
+**                         2   QML covariance matrix
+**                         3   Cross-Product covariance matrix
+**
+**
+**  Globals:
+**
+**  _vm_adforder        scalar, number of AR terms to include in
+**                        Augmented Dickey-Fuller test statistic
+**                        calculations. The default is _vm_adforder = 2.
+**
+**  _vm_Bounds       Kx2 matrix, bounds on parameters.  The first column
+**                    contains the lower bounds, and the second column the
+**                    upper bounds.  If the bounds for all the coefficients
+**                    are the same, a 1x2 matrix may be used.
+**                    Default = { -1e256 1e256 }
+**
+**  _vmcritl           scalar, the significance levels defining p-values
+**
+**  _vm_DirTol         scalar, convergence tolerance for gradient of
+**                       estimated coefficients.  Default = 1e-5.  When this
+**                       criterion has been satisifed SQPSolve (the iteration
+**                       procedure beneath "varma" and "ecm")
+**                       will exit the iterations.
+**
+**  _vm_FeasibleTest   scalar, if nonzero, parameters are tested for
+**                       feasibility before computing function in line
+**                       search.  If the function is defined outside inequality
+**                       boundaries, then this test can be turned off.
+**
+**  _vm_IndEquations   K x L matrix of zeros and ones. Used to set zero
+**                       restrictions on the x variables to be
+**                       estimated. Only used if the number of
+**                       equations, "_vm_L" is greater than one.
+**                       Elements set to one indicate the
+**                       coefficients to be estimated.  If "_vm_L" = 1, all
+**                       coefficients will be estimated.  If "_vm_L" > 1 and
+**                       "_vm_IndEquations" is set to a missing value
+**                       (the default), all coefficients will be
+**                       estimated.
+**
+**  _vm_Lagrange       compact matrix created using "vput".  Contains the
+**                       Lagrangean coefficients for the constraints.  They
+**                       may be extracted with the "VREAD" procedure using
+**                       the strings, ``lineq'', ``nlineq'', ``linineq''
+**                       ``nlinineq'', ``bounds''. When an inequality or bounds
+**                       constraint is active, its associated Lagrangean is
+**                       nonzero.  The linear Lagrangeans preceed the nonlinear
+**                       Lagrangeans in the covariance matrices.
+**
+**  _vm_lags           scalar, No. of lags over which ACF and Diagnostics are
+**                       calculated.
+**
+**
+**  _vm_MaxIters        scalar, maximum number of iterations. Default = 1e+5.
+**                       Termination can be forced by pressing C on the
+**                       keyboard
+**
+**  _vm_NoDet           scalar, Set _vm_NoDet = 1 to suppress the constant
+**                       term from the fitted regression and include it in
+**                       the co-integrating regression. Remember to set
+**                       _vm_NoDet = 0 after the procedure call to ensure
+**                       that subsequent procedures are not affected.
+**
+**    _vm_nwiters        scalar, the Newey-West iteration constant.
+**                       set to 0 to have GAUSS use Newey and West's
+**                       the suggested number of iterations,
+**                       4(T/100)^2/9 where T is the number of observations.
+**
+**  _vm_output         scalar or 6x1 vector of zeros and ones, controls printing
+**                     The default is to print everything, _vm_output > 0
+**
+**                       Set _vm_output = 0 to suppress all printing from the
+**                       ecm and varmax estimations.
+**
+**                       Set _vm_output > 0 to print all ecm and varmax output.
+**
+**                       Define _vm_output as a 6 x 1 vector to control the
+**                       printing of various parts of ecm and  varmax output.
+**
+**                          [1]=1 to print the model's header
+**                          [2]=1 to print a variety of unitroot tests,
+**                                from the unitroots procedure
+**                          [3]=1 to print summary statistics for
+**                                each estimated equation
+**                          [4]=1 to print the estimated coefficients and
+**                                their standard errors
+**                          [5]=1 to print the roots of the AR and MA
+**                                characteristic equations
+**                          [6]=1 to print the autocorrelation function and
+**                                for multivariate models, indicator matrices,
+**                                the univariate Ljung-Box statistic or
+**                                a multivariate portmanteau statistic, and
+**                                for univariate models, the partial
+**                                autocorrelation function.
+**
+**  _vm_PrintIters     scalar, Set to zero to suppress
+**                       printing iteration information.
+**
+**  _vm_RandRadius     scalar, if nonzero gives the radius of random search
+**                       taken when the STEPBT line search fails.  If zero,
+**                       no random search occurs and SQPSolve returns with an
+**                       error code. Default = .01.
+**
+**  _vm_scale          scalar, scalar or an Lx1 vector, scales the time
+**                       series.  If scalar, all series are multiplied by the
+**                       value. If an Lx1 vector, each series is multiplied by
+**                       the corresponding element of _vm_scale.  Default =
+**                       4 / standard deviation (found to be best by
+**                       experimentation).
+**
+**
+**  _vm_SetConstraints scalar, set to a nonzero value to impose stationarity
+**                       and invertibility by constraining roots of the AR and
+**                       MA characteristic equations to be outside the unit
+**                       circle. Set to zero (the default) to estimate an
+**                       unconstrained model.
+**
+**  _vm_Start          (Q-L)x1 vector of starting values, in the row major
+**                       order, AR(1) to AR(p), MA(1) to MA(q), beta, and the
+**                       covariance matrix of these parameters.
+**
+**  _vm_TrustRadius    scalar, gives the radius of the trust region if
+**                       nonzero, i.e., the maximum amount in absolute value
+**                       for the direction vector at each iteration. If zero,
+**                       the trust region method inactivated.
+**
+**
+**  Remarks:  Errors are assumed to be distributed N(0,Q).
+**
+**    The varma and ecm full information maximum likelihood estimation
+**    procedures are adapted from code developed by Jose Alberto
+**    Mauricio of the Universidad Complutense de Madrid. The code was published
+**    as Algorithm AS311 in Applied Statistics.  It is also described in "Exact
+**    maximum likelihood estimation of stationary vector ARMA models, JASA,
+**    90:282-264.
+**
+*/
+
+proc (9) = ecm(dataset, depvars, indvars, ynames, xnames, p, r, vctype);
+    local ecmflag,y,x,a,b,va,c,vc,h,res,f,retc,se, info,
+    str, coeffs, ss,cz,arroots,maroots,acfm,pacfm,qs,statret;
+
+
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+    if _vm_output == 0;
+      _vm_output = zeros(6,1);
+    elseif _vm_output > 0;
+      _vm_output = ones(6,1);
+    endif;
+    endif;
+
+        /* Define Locals */
+    ecmflag = 1;
+
+/* READ THE DATA and Define Variable Names */
+    { ynames, xnames, y,x } =
+             readdata(dataset, depvars, indvars, ynames, xnames);
+
+    { xnames } = armanames(p,0,y,x,xnames,ecmflag);
+
+
+/* ESTIMATE THE ECM MODEL */
+    { a, B, va, C, vc, h, res, f, retc } = _ecm(y,p,0,r,1);
+
+    /* Define Global Values */
+    if ismiss(res);
+        errorlog "Missing values in the residuals. Processing will continue";
+    endif;
+
+    _vm_n = rows(y);
+    _vm_L = cols(y);
+    _vm_k = (rows(c)/_vm_L);        /* Number of Estimated Parameters for
+                                    :: each equation
+                                    */
+
+/* CHECK WHETHER THE HESSIAN INVERTED */
+    if scalmiss(h);
+        PRINT "THE HESSIAN DIDN'T INVERT. Standard Errors won't be computed";
+        PRINT;
+        se = miss(ones(rows(C),1),1);
+    else;
+        se = SQRT(DIAG(h));
+    endif;
+    /* Add the Constant Term's Standard Error - A missing value  */
+    se = se|(error(0).*ones(_vm_L,1));
+
+    coeffs = paramconfig(p,0,c,se,x,1);
+
+    if _vm_output[1];   /* Print the Output's Header */
+        print;
+        print;
+        str = ftos(p,"Model:     ECM(%*.*lf,",1,0)$+ftos(0,"%*.*lf,",1, 0)
+            $+ftos(0,"%*.*lf)",1,0)$+ "    Estimated On: " $+ datestr(date)
+            $+ " at "$+ timestr(time);
+        print str;
+        print;
+    endif;
+
+    if _vm_output[2] /= 0;   /* Print the Unit Root and Cointegration Tests */
+        call unitroots(y,ynames);
+    endif;
+
+    { ss,info } = sumstat(res,y,f,ynames,1);
+
+    if _vm_output[4];
+       call coeffprt(coeffs,x,xnames,ynames,p,0,1);
+    endif;
+
+/*    { arroots, maroots } = vmroots(p,0,coeffs); */
+
+
+    { acfm, pacfm, qs } = identify(p,0,res);
+
+    statret = vput(0,ss,"ss");
+    statret = vput(statret,info,"info");
+/*    statret = vput(statret,arroots,"arroots"); */
+/*    statret = vput(statret,maroots,"maroots"); */
+    statret = vput(statret,acfm,"acfm");
+    statret = vput(statret,pacfm,"pacfm");
+    statret = vput(statret,qs,"portman");
+
+
+
+retp(a, B, va, coeffs, vc, h, res, statret, retc);
+endp;
+
+
+/*
+**> varmax
+**
+**  Purpose:  computes exact maximum likelihood coefficient estimates,
+**            residuals, and covariance matrix of estimates of a Vector
+**            ARMAX model:
+**
+**            phi(p,B)*Y(t) = X(t)*beta + theta(q,B)*e(t)   t = 1,...,T
+**
+**            where Y(t)    is an L*1 vector of dependent variables,
+**                          assumed already covariance stationary
+**                  phi     is an LxL matrix polynomial of order p
+**                  beta    is a K*1 vector of coefficient estimates
+**                  X(t)    is an L*K matrix of fixed regressors
+**                  theta   is an L*L matrix polynomial of order q
+**                  e(t)    is an L*1 Gaussian white noise vector
+**                  B       is the backshift operator
+**
+**
+** Format: { coeffs, res, vc, ynames, xnames, covb, statret, retc }
+**      = varmax(dataset, depvars, indvars, ynames, xnames, p, d, q, vctype);
+**
+**
+**  Input:  dataset     string, name of dataset.
+**
+**                 If this is a null string, "", the procedure assumes
+**                 that the actual data has been passed in the depvar
+**                 and indvars arguments.
+**
+**          depvars      dependent variables.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                      T x L matrix, the dependent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                      Lx1 character vector, names of dependent
+**                      variables in the dataset
+**                           or
+**                      Lx1 numeric vector, indices of dependent
+**                      variables in the dataset
+**
+**                      These can be any subset of the variables in
+**                      the dataset and can be in any order.
+**
+**                 NOTE: Each column must be ordered as  y(1), y(2),...,y(T).
+**                       The top row is the first observation and the last
+**                       row is the most current observation.
+**
+**
+**          indvars      independent variables.
+**
+**                       Enter a 0 if there are no independent variables. This
+**                       will result in a vector ARMA model being estimated.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                       TxK matrix, the independent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                       Kx1 character vector, names of independent
+**                       variables in the dataset
+**                            or
+**                       Kx1 numeric vector, indices of independent
+**                       variables in the dataset
+**
+**                       These can be any subset of the variables in
+**                       the dataset and can be in any order.
+**
+**                  NOTE: Each column must be ordered as  x(1), x(2),...,x(T).
+**                        The top row is the first observation and the last
+**                        row is the most current observation.
+**
+**
+**          ynames  L x 1 character matrix of names for the variables in
+**                  depvars, or scalar 0.
+**
+**                  GAUSS will supply variable names { Y1,...,YL } if 0
+**                  is entered.
+**
+**
+**          xnames  K x 1 character matrix of names for the variables in
+**                  indvars, or scalar 0.
+**
+**                  GAUSS will supply variable names { X1,...,Xk } if 0
+**                  is entered.
+**
+**
+**          p             scalar, number of AR matrices to be estimated.
+**          d             scalar, order of differencing to achieve stationarity
+**          q             scalar, number of MA matrices to be estimated.
+**
+**
+**          vcType       scalar, set to 1 for ML covariance matrix of
+**                                   parameters
+**                               set to 2 for QML covariance matrix of
+**                                   parameters
+**
+**
+** Output:    coeffs    compact matrix created using "vput". Read it using
+**                      "vread". It contains:
+**
+**                phi       p*(LxL) matrix of AR coefficient estimates
+**                          stacked in the order AR(1),...,AR(p)
+**
+**                phi_se    p*(LxL) matrix of AR standard errors
+**                          stacked in the order AR(1),...,AR(p)
+**
+**                theta     q*(LxL) matrix of MA coefficient estimates
+**                          stacked in the order MA(1),...,MA(q)
+**
+**                theta_se  q*(LxL) matrix of MA standard errors
+**                          stacked in the order MA(1),...,MA(q)
+**
+**                beta      LxK matrix of x coefficient estimates
+**
+**                beta_se   LxK matrix of x coefficient standard errors
+**                          stacked in the order MA(1),...,MA(q)
+**
+**            res        T x L matrix, residuals
+**
+**            vc         L x L matrix, residual covariance matrix
+**
+**            ynames     L x 1 character matrix of names for the variables in
+**                       depvars, or scalar 0.
+**
+**                       GAUSS will supply variable names { Y1,...,YL } if 0
+**                       is entered.
+**
+**            xnames     (P+Q+K) x 1 character matrix of corresponding
+**                       variable names, in the order AR(p), MA(q), indvars.
+**
+**            covb       (P+Q+K)*(L*L) x (P+Q+K)*(L*L) matrix,
+**                       covariance matrix for the ARMA parameters and
+**                       the fixed regressor terms in the order AR(p),
+**                       MA(q), indvars.
+**
+**            statret   compact matrix created using "vput". Read it using
+**                      "vread". It contains:
+**
+**                ss       Lx2 matrix, the sum of squares for Y in column
+**                         one and the sum of squared error in column two
+**
+**                info     Lx4 matrix
+**                         row one - the likelihood value
+**                         row two - the Akaike Information Criterion
+**                         row three - the Schwarz Bayesian Information Criterion
+**                         row four - the Likelihood Ratio Statistic
+**
+**                arroots      px1 vector of AR roots, possibly complex
+**                maroots      qx1 vector of MA roots, possibly complex
+**
+**                acfm     Lx(p*L) matrix, the autocorrelation function
+**                        The first L columns are the lag 1 ACF,
+**                        The last L columns are the lag p ACF.
+**
+**           pacfm                Lx(p*L) matrix, the partial autocorrelation function
+**                                                                The first L columns are the lag 1 ACF,
+**                                                                The last L columns are the lag p ACF.
+**
+**                portman  (_vm_lags-(p+q))x3 matrix of portmanteau statistics
+**                        for the multivariate model and Ljung-Box statistics
+**                        for the univariate model. The time period is in
+**                        column one, the Qs (portmanteau) statistic in
+**                        column two and the p-value in column three
+**
+**            retc      2x1 vector, return code
+**
+**                       first element of retc
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**
+**                       second element of retc
+**
+**                         0   covariance matrix of parameters fails
+**                         1   ML covariance matrix computed
+**                         2   QML covariance matrix
+**                         3   Cross-Product covariance matrix
+**
+**
+**  Globals:
+**
+**
+**   _vm_A            MxK matrix, linear equality constraint coefficients
+**
+**   _vm_adforder     scalar, number of AR terms to include in
+**                    Augmented Dickey-Fuller test statistic
+**                    calculations. The default is _vm_adforder = 2.
+**
+**
+**   _vm_B            Mx1 vector, linear equality constraint constants
+**
+**                      These globals are used to specify linear equality
+**                      constraints of the following type:
+**
+**                         _vm_A * X = _vm_B
+**
+**                      where X is the Kx1 unknown parameter vector.
+**
+**  _vm_Bounds       Kx2 matrix, bounds on parameters.  The first column
+**                    contains the lower bounds, and the second column the
+**                    upper bounds.  If the bounds for all the coefficients
+**                    are the same, a 1x2 matrix may be used.
+**                    Default = { -1e256 1e256 }
+**
+**
+**   _vm_C             MxK matrix, linear inequality constraint coefficients
+**
+**   _vmcritl          scalar, the significance levels defining p-values
+**
+**   _vm_D             Mx1 vector, linear inequality constraint constants
+**
+**                       These globals are used to specify linear inequality
+**                       constraints of the following type:
+**
+**                         _vm_C * X >= _vm_D
+**
+**                       where X is the Kx1 unknown parameter vector.
+**
+**    _vm_DirTol         scalar, convergence tolerance for gradient of
+**                       estimated coefficients.  Default = 1e-5.  When this
+**                       criterion has been satisifed SQPSolve (the iteration
+**                       procedure beneath varma and ecm)
+**                       will exit the iterations.
+**
+**    _vm_FeasibleTest   scalar, if nonzero, parameters are tested for
+**                       feasibility before computing function in line
+**                       search.  If the function is defined outside inequality
+**                       boundaries, then this test can be turned off.
+**
+**    _vm_IndEquations   K x L matrix of zeros and ones. Used to set zero
+**                       restrictions on the x variables to be
+**                       estimated. Only used if the number of
+**                       equations, _vm_L is greater than one.
+**                       Elements set to one indicate the
+**                       coefficients to be estimated.  If _vm_L = 1, all
+**                       coefficients will be estimated.  If _vm_L > 1 and
+**                       _vm_IndEquations is set to a missing value
+**                       (the default), all coefficients will be
+**                       estimated.
+**
+**    _vm_Lagrange       compact matrix created using vput.  Contains the
+**                       Lagrangean coefficients for the constraints.  They
+**                       may be extracted with the VREAD procedure using
+**                       the strings, ``lineq'', ``nlineq'', ``linineq''
+**                       ``nlinineq'', ``bounds''. When an inequality or bounds
+**                       constraint is active, its associated Lagrangean is
+**                       nonzero.  The linear Lagrangeans preceed the nonlinear
+**                       Lagrangeans in the covariance matrices.
+**
+**    _vm_lags           scalar, No. of lags over which ACF and Diagnostics are
+**                       calculated.
+**
+**    _vm_MaxIters       scalar, maximum number of iterations. Default = 1e+5.
+**                       Termination can be forced by pressing C on the
+**                       keyboard
+**
+**   _vm_NoDet           scalar, Set _vm_NoDet = 1 to suppress the constant
+**                       term from the fitted regression and include it in
+**                       the co-integrating regression. Remember to set
+**                       _vm_NoDet = 0 after the procedure call to ensure
+**                       that subsequent procedures are not affected.
+**
+**    _vm_nwiters        scalar, the Newey-West iteration constant.
+**                       set to 0 to have GAUSS use Newey and West's
+**                       the suggested number of iterations,
+**                       4(T/100)^2/9 where T is the number of observations.
+**
+**  _vm_output         scalar or 6x1 vector of zeros and ones, controls
+**                     printing. The default is to print everything,
+**                     _vm_output > 0.
+**
+**                       Set _vm_output = 0 to suppress all printing from the
+**                       ecm and varmax estimations.
+**
+**                       Set _vm_output > 0 to print all ecm and varmax output.
+**
+**                       Define _vm_output as a 6 x 1 vector to control the
+**                       printing of various parts of ecm and  varmax output.
+**
+**                          [1]=1 to print the model's header
+**                          [2]=1 to print a variety of unitroot tests,
+**                                from the unitroots procedure
+**                          [3]=1 to print summary statistics for
+**                                each estimated equation
+**                          [4]=1 to print the estimated coefficients and
+**                                their standard errors
+**                          [5]=1 to print the roots of the AR and MA
+**                                characteristic equations
+**                          [6]=1 to print the autocorrelation function and
+**                                for multivariate models, indicator matrices,
+**                                the univariate Ljung-Box statistic or
+**                                a multivariate portmanteau statistic, and
+**                                for univariate models, the partial
+**                                autocorrelation function.
+**
+**    _vm_PrintIters     scalar, Set to zero to suppress
+**                       printing iteration information.
+**
+**    _vm_RandRadius     scalar, if nonzero gives the radius of random search
+**                       taken when the STEPBT line search fails.  If zero,
+**                       no random search occurs and SQPSolve returns with an
+**                       error code. Default = .01.
+**
+**    _vm_scale          scalar, scalar or an Lx1 vector, scales the time
+**                       series.  If scalar, all series are multiplied by the
+**                       value. If an Lx1 vector, each series is multiplied by
+**                       the corresponding element of _vm_scale.  Default =
+**                       4 / standard deviation (found to be best by
+**                       experimentation).
+**
+**
+**  _vm_SetConstraints  scalar, set to a nonzero value to impose
+**                      stationarity and invertibility by
+**                      constraining roots of the AR and MA
+**                      characteristic equations to be outside
+**                      the unit circle. Set to zero (the default)
+**                      to estimate an unconstrained model.
+**
+**    _vm_Start          (Q-L)x1 vector of starting values, in the row major
+**                       order, AR(1) to AR(p), MA(1) to MA(q), beta, and the
+**                       covariance matrix of these parameters.
+**
+**    _vm_TrustRadius    scalar, gives the radius of the trust region if
+**                       nonzero, i.e., the maximum amount in absolute value
+**                       for the direction vector at each iteration. If zero,
+**                       the trust region method inactivated.
+**
+**
+**  Remarks:  Errors are assumed to be distributed N(0,Q). The function
+**  varmadll is adapted from code developed by Jose Alberto
+**  Mauricio of the Universidad Complutense de Madrid.  It was published
+**  as Algorithm AS311 in Applied Statistics.  Also described in "Exact
+**  maximum likelihood estimation of stationary vector ARMA models, JASA,
+**  90:282-264.
+**
+*/
+
+@--------------------------------------------------------@
+proc (8) = varmax(dataset, depvars, indvars, ynames, xnames, p, d, q, vctype);
+    local  ecmflag,  y,x,  c,  vc,res,f,retc,se,str,  coeffs,covb,ss,info,
+    arroots,maroots,acfm,pacfm,qs,statret;
+
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+    if _vm_output == 0;
+      _vm_output = zeros(6,1);
+    elseif _vm_output > 0;
+      _vm_output = ones(6,1);
+    endif;
+    endif;
+
+
+    /* Define Locals */
+    ecmflag = 0;
+
+/* READ THE DATA and Define Variable Names */
+    { ynames, xnames, y,x } = readdata(dataset, depvars, indvars, ynames,
+        xnames);
+    { xnames } = armanames(p,q,y,x,xnames,ecmflag);
+
+/* DIFFERENCE THE DATA */
+    if d /= 0;
+        y = packr(vmdiff(y,d));
+        if x /=0;
+            x = packr(vmdiff(x,d));
+            if rows(y) /= rows(x);
+                errorlog "The x and y matrices have different numbers of ob"\
+                    "servations";
+        end;
+    endif;
+        endif;
+    endif;
+
+/* CONFORMABILITY CHECKS */
+    if rows(x) == 1 and cols(x) == 1;
+        if x == 0 and p+q == 0;
+            errorlog "ERROR: there is nothing to estimate.";
+            end;
+        endif;
+    endif;
+
+
+/* CALL VARMA HERE */
+    { c,vc,covb,res,f,retc } = _varma(y, p, q, x, vctype);
+
+    _vm_n = rows(y);
+    _vm_L = cols(y);
+    _vm_k = (rows(c))/_vm_L;
+
+/* Define Globals */
+    if ismiss(res);
+        errorlog "Missing values in the residuals. Processing will continue";
+        res = res[1,_vm_L];
+    endif;
+
+/* CHECK WHETHER THE HESSIAN INVERTED */
+    if scalmiss(covb);
+        errorlog "The Hessian didn't invert. Standard errors will not be co"\
+            "mputed";
+        print;
+        se = miss(ones(rows(c),1),1);
+    else;
+        se = sqrt(diag(covb));
+            /* Add the Constant Term's Standard Error - A missing value  */
+        se = se|(error(0).*ones(_vm_L,1));
+    endif;
+
+    coeffs = paramconfig(p,q,c,se,x,0);
+
+
+
+    if _vm_output[1];
+       /* Print the Output's Header */
+        print;
+        print;
+        str = ftos(p,"Model:     VARMAX(%*.*lf,",1,0)$+ftos(d,"%*.*lf,",1,
+            0)$+ftos(q,"%*.*lf)",1,0)$+ "    Estimated On: " $+
+            datestr(date)$+ " at "$+ timestr(time);
+        print str;
+        print;
+    endif;
+
+    if _vm_output[2] /= 0;   /* Print the Unit Root and Cointegration Tests */
+        call unitroots(y,ynames);
+    endif;
+
+    { ss,info } = sumstat(res,y,f,ynames,ecmflag);
+
+    if _vm_output[4];
+     call coeffprt(coeffs,x,xnames,ynames,p,q,0);
+    endif;
+
+    { arroots, maroots } = vmroots(p,q,coeffs);
+
+
+    { acfm, pacfm, qs } = identify(p,q,res);
+
+    statret = vput(0,ss,"ss");
+    statret = vput(statret,info,"info");
+    statret = vput(statret,arroots,"arroots");
+    statret = vput(statret,maroots,"maroots");
+    statret = vput(statret,acfm,"acfm");
+    statret = vput(statret,pacfm,"pacfm");
+    statret = vput(statret,qs,"portman");
+
+
+
+retp(coeffs, res, vc, ynames, xnames, covb, statret, retc);
+endp;
+@----------------------------------------------------------@
+
+/*
+**> covm
+**
+** Purpose:      Prints covariance matrix of parameters, with labels
+**
+** Format
+**           covm(covb,names);
+**
+** Input
+**           covb, KxK matrix, covariances of estimated parameters
+**           names, Kx1 character vector, names of the parameters
+**
+**
+** Output
+**         none
+**
+**
+** GLOBALS
+**
+**               none
+*/
+
+proc (0) = covm(covb,names);
+    if ismiss(covb);
+        errorlog "The correlation matrix cannot be computed. There are miss"\
+            "ing values in the covariance matrix.";
+    else;
+        local i,m,c,nvars;
+        nvars = rows(covb);
+        names = names[1:rows(covb)];
+        print "Covariance Matrix: ";
+        print;
+        if nvars <= 7;
+            let i[1,3] = "*.*lf" 12 5;
+            m = ones(nvars+1,nvars+1);
+            m[.,1] = zeros(nvars+1,1);
+            m[1,.] = zeros(1,nvars+1);
+            c = names~covb;
+            c = (0~names')|c;
+            call printfm(c,m,i);
+        print;
+        else;
+            format /rd 8,4;
+            print covb;
+            print;
+        endif;
+    endif;
+endp;
+
+@-------------------------------------------------@
+/*
+**> corm
+**
+** Purpose:      Prints correlation matrix of parameters, with labels
+**
+** Format
+**           corm(covb,names);
+**
+** Input
+**           covb, KxK matrix, covariances of estimated parameters
+**           names, Kx1 character vector, names of the parameters
+**
+**
+** Output
+**         none
+**
+**
+** GLOBALS
+**
+**               none
+*/
+
+proc (0) = corm(covb,names);
+    if ismiss(covb);
+        errorlog "The correlation matrix cannot be computed. There are miss"\
+            "ing values in the covariance matrix.";
+    else;
+        local i,m,c,nvars;
+        nvars = rows(covb);
+        names = names[1:rows(covb)];
+        print "Correlation Matrix: ";
+        print;
+        if nvars <= 7;
+            let i[1,3] = "*.*lf" 12 5;
+            m = ones(nvars+1,nvars+1);
+            m[.,1] = zeros(nvars+1,1);
+            m[1,.] = zeros(1,nvars+1);
+            c = names~covb./moment(sqrt(diag(covb))',0);
+            c = (0~names')|c;
+            call printfm(c,m,i);
+        print;
+        else;
+            format /rd 8,4;
+            print covb./moment(sqrt(diag(covb))',0);
+        print;
+    endif;
+    endif;
+endp;
+
+@ ------------------------------------------------------- @
+/*
+**> sumstat
+**
+** Purpose:  Calculate and print summary statistics
+**
+** Format:   { ss, info } = sumstat(res,y,f,ynames,ecmflag);
+**
+**
+** Input
+**           res      TxL matrix, residuals from the ecm or varmax estimation
+**           y        TxL matrix of dependent variables
+**           f        scalar, likelihood function value
+**           ynames   Lx1 vector of names for the dependent variables in y
+**           ecmflag  scalar, 1 if an ecm model was estimated, 0 otherwise
+**
+**
+** Output    ss       Lx2 matrix, the sum of squares for Y in column
+**                    one and the sum of squared error in column two
+**
+**           info     Lx4 matrix
+**                      row one - the likelihood value
+**                      row two - the Akaike Information Criterion
+**                      row three - the Schwarz Bayesian Information Criterion
+**                      row four - the Likelihood Ratio Statistic
+**
+**
+** GLOBALS:  _vm_output
+**
+** Remarks:  Set element [3] of "_vm_output" to a non-zero value to print
+**           summary statistics for each estimated equation
+**
+**
+*/
+
+proc (2) = sumstat(res,y,f,ynames,ecmflag);
+    local aic,bic,mse, sse, lrs, ssyy, s1, s2, rsquared, info,rbarsq;
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+    if _vm_output == 0;
+      _vm_output = zeros(6,1);
+    elseif _vm_output > 0;
+      _vm_output = ones(6,1);
+    endif;
+    endif;
+
+
+/* Get summary statistics */
+    /* Sum of Squares for the y data */
+    ssyy = diag((y-meanc(y)')'y);
+    if not scalmiss(res);
+        sse = sumc(res^2);
+        mse = sse/(_vm_n-_vm_k);
+        rsquared = (ssyy-sse)./ssyy;
+    else;
+        errorlog "There are missing values in the residuals.";
+        sse = error(0)*ones(_vm_L,1);
+        mse = error(0)*ones(_vm_L,1);
+        rsquared = sse;
+    endif;
+    aic = -2*(f+(_vm_k*_vm_L));
+    bic = -2*f+((_vm_k*_vm_L)*ln(_vm_n));
+    lrs = -2*f;
+    info = f|aic|bic|lrs;
+
+    if _vm_output[3];
+
+        /* Print the Summary Statistics */
+        print;
+        print "Dep. Variable(s)    :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            if ecmflag;
+                print "       "$+"D("$+ftos(ynames[j],"%-*.*s",8,0)$+")";;
+            else;
+                print ftos(ynames[j],"%*.*s",15,0);;
+     endif;
+            endfor;
+        endif;
+
+        if ecmflag;
+            print "       "$+"D("$+ftos(ynames[rows(ynames)],"%-*.*s",8,0)$+")";
+        else;
+            print ftos(ynames[rows(ynames)],"%*.*s",15,0);
+        endif;
+
+        Print "No. of Observations :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(_vm_n,"%*.*lf",15,0);;
+            endfor;
+        endif;
+        print ftos(_vm_n,"%*.*lf",15,0);
+
+        Print "Degrees of Freedom  :";;
+
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(_vm_n-_vm_k,"%*.*lf",15,0);;
+            endfor;
+        endif;
+        print ftos(_vm_n-_vm_k,"%*.*lf",15,0);
+
+        Print "Mean of Y           :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(meanc(y[.,j]),"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(meanc(y[.,cols(y)]),"%*.*lf",15,4);
+
+        Print "Std. Dev. of Y      :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(stdc(y[.,j]),"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(stdc(y[.,cols(y)]),"%*.*lf",15,4);
+
+        Print "Y Sum of Squares    :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(ssyy[j],"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(ssyy[rows(ssyy)],"%*.*lf",15,4);
+
+        Print "SSE                 :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(sse[j],"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(sse[rows(ynames)],"%*.*lf",15,4);
+
+        Print "MSE                 :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(mse[j],"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(mse[rows(ynames)],"%*.*lf",15,4);
+
+        Print "sqrt(MSE)           :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(sqrt(mse[j]),"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(sqrt(mse[rows(ynames)]),"%*.*lf",15,4);
+
+        Print "R-Squared           :";;
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(rsquared[j],"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(rsquared[rows(rsquared)],"%*.*lf",15,4);
+
+        Print "Adjusted R-Squared  :";;
+        rbarsq = 1-(((_vm_n-1)/(_vm_n-_vm_k))*(1-rsquared));
+        if rows(ynames) > 1;
+            for j (1,rows(ynames)-1,1);
+            print ftos(rbarsq[j],"%*.*lf",15,4);;
+            endfor;
+        endif;
+        print ftos(rbarsq[rows(ynames)],"%*.*lf",15,4);
+
+            PRINT;
+        print;
+
+        print "Model Selection (Information) Criteria";
+        print "......................................";
+        Print "Likelihood Function :";;
+        print ftos(f,"%*.*lf",15,4);
+
+        Print "Akaike AIC          :";;
+        print ftos(aic,"%*.*lf",15,4);
+
+        Print "Schwarz BIC         :";;
+        print ftos(bic,"%*.*lf",15,4);
+
+        Print "Likelihood Ratio    :";;
+        print ftos(lrs,"%*.*lf",15,4);
+                print;
+                print;
+endif;
+    retp(ssyy|sse,info);
+endp;
+
+@ ------------------------------------------------------- @
+
+/*
+**> coeffprt
+**
+**  Purpose    Print the coefficient estimates and standard errors from an
+**             ecm or varmax call.
+**
+**  Format:    coeffprt(coeffs,x,xnames,ynames,p,q,ecmflag);
+**
+**  Input:     coeffs     compact matrix created using vput. Read it using
+**                        vread. It contains:
+**
+**                phi      p*(LxL) matrix of AR coefficient estimates
+**                         stacked in the order AR(1),...,AR(p)
+**
+**                phi_se   p*(LxL) matrix of AR standard errors
+**                         stacked in the order AR(1),...,AR(p)
+**
+**                theta    q*(LxL) matrix of MA coefficient estimates
+**                         stacked in the order MA(1),...,MA(q)
+**
+**                theta_se q*(LxL) matrix of MA standard errors
+**                         stacked in the order MA(1),...,MA(q)
+**
+**                beta     LxK matrix of x coefficient estimates
+**
+**                beta_se  LxK matrix of {\it x} coefficient standard errors
+**                         stacked in the order MA(1),...,MA(q)
+**
+**             x           TxK matrix of independent variables or
+**                         scalar, equals zero if there are no
+**                         independent variables
+**             xnames      Kx1 vector of names for the {\it x} matrix variables
+**             ynames      Lx1 vector of names for the dependent variables in y
+**
+**             p           scalar, order of the AR process
+**             q           scalar, order of the MA process
+**             ecmflag     scalar, 1 if an ecm model was estimated, 0 otherwise
+**
+**  Output:   None
+**
+**  Globals   __output, _vm_output
+**
+**  _vm_output is either a scalar or a 6x1 vector. Set _vm_output = 0 to
+**  suppress all printing from the ecm and varmax estimations. Set
+**  _vm_output > 0 to print all ecm and varmax output.
+**
+**  Define _vm_output as a 6x1 vector to control the printing of various
+**  parts of ecm and  varmax output.
+**
+**  Set element [1] of _vm_output to a non-zero value to print
+**  the model's header
+**
+**  Set element [4] of _vm_output to a non-zero value to print
+**  the estimated coefficients and their standard errors
+**
+**
+*/
+proc (0) = coeffprt(coeffs,x,xnames,ynames,p,q,ecmflag);
+    local tratio, pval, phi,phi_se,theta,theta_se,beta,beta_se,b0,b0_se,
+        _pi, _pi_se, results, s1, s2,i,fmt0,arnames,manames,fmt,fmta, nll,
+        s,betall, b0all,fmt1, fmta1,fmta2,fmt2,cz,se,tratios;
+
+    phi=vread(coeffs,"phi");
+    phi_se = vread(coeffs,"phi_se");
+
+    if ecmflag == 0;
+        theta = vread(coeffs,"theta");
+        theta_se = vread(coeffs,"theta_se");
+    else;
+        _pi=vread(coeffs,"pi");
+        _pi_se = vread(coeffs,"pi_se");
+    endif;
+    beta = vread(coeffs,"beta");
+    beta_se = vread(coeffs,"beta_se");
+
+    string s1 = "          COEFFs";
+    string s2 = "            S.E.";
+    if _vm_L > 1;
+        nll = reshape(0$+" ", _vm_L-1, 1);
+    endif;
+
+
+                print;
+    if ecmflag == 0;
+        print "VARMA COEFFICIENTS AND STANDARD ERRORS";
+    else;
+        print "ECM COEFFICIENTS AND STANDARD ERRORS";
+            endif;
+
+    /* Print Headers for Estimated Equation(s) */
+    if _vm_L == 1;
+      if ecmflag == 0;
+         tratio = (phi|theta|beta)~(phi_se|theta_se|beta_se);
+         tratios = seqa(1,1,rows(tratio))~tratio[.,1];
+         tratios = packr(tratios);
+         tratio = tratio[tratios[.,1],.];
+      else;
+         tratio = (phi|beta)~(phi_se|beta_se);
+         tratios = seqa(1,1,rows(tratio))~tratio[.,1];
+         tratios = packr(tratios);
+         tratio = tratio[tratios[.,1],.];
+      endif;
+         cz = tratio[.,1];
+         se = tratio[.,2];
+         tratio = tratio[.,1]./tratio[.,2];
+         pval = 2*cdftc(abs(tratio),_vm_n-_vm_k);
+         print "Variable    Coefficients     Std. Errors      T-Ratio   "\
+            " Approx. Prob.";
+        results = xnames~cz~se~tratio~pval;
+        let i[5,3] = "-*.*s" 10 8, "*.*lf" 14 8, "*.*lf" 16 8, "*.*lf"
+            13 5, "*.*lf" 17 5;
+        call printfm(results,0~1~1~1~1,i);
+                    print;
+                    print;
+
+
+    elseif _vm_L == 2;
+        print "VARIABLE        ";;
+        for i (1,_vm_L,1);
+            print s1;;
+        endfor;
+        for i (1,_vm_L,1);
+        if i == _vm_L;
+            print s2;
+                else;
+            print s2;;
+        endif;
+        endfor;
+    endif;
+                /* The _vm_L > 2 case is dealt with in the coefficient and se
+                :: printing. Define print formats here
+                */
+    let fmt = { "*.*lE" 16 4 };
+    let fmta = { "-*.*s" 16 16 };
+    if _vm_L > 1;
+        nll = reshape(0$+" ", _vm_L-1, 1);
+    endif;
+
+    if _vm_L == 2;
+        fmt0 = fmta|(fmt.*ones(cols(phi)+cols(phi_se),3));
+    elseif _vm_L > 2;
+        fmt0 = fmta|(fmt.*ones(cols(phi),3));
+    endif;
+
+    /* INITIALIZE NAMES AND VALUE AND SE MATRICES */
+    if p > 0;
+        arnames = xnames[1:p];
+    endif;
+    if q > 0;
+        manames = xnames[p+1:p+q];
+    endif;
+
+    if ecmflag;         /* Print the Pi Matrix and standard Errors  */
+        if _vm_L == 2;
+            nll = " " ;
+            call printfm(("Y(-1)"|nll)~_pi~_pi_se,0~ones(1,cols(_pi)+
+                cols(_pi_se)),fmt0);
+                    print;
+        endif;
+
+        if _vm_L > 2;
+            nll = reshape(0$+" ", _vm_L-1, 1);
+            call printfm(("Y(-1)"|nll)~_pi,0~ones(1,cols(_pi)),fmt0);
+                    print;
+            print s2;
+            call printfm(("Y(-1)-se"|nll)~_pi_SE,0~ones(1,cols(_pi_SE))
+                ,fmt0);
+                    print;
+                endif;
+            endif;
+
+        /* For Both cases - ecm and varmax */
+    /* PRINT THE AR COEFFICIENT AND SE MATRICES */
+    if p > 0;
+    /* LOOP THROUGH phi AND phi_se - P TIMES */
+        s = seqa(1,1,_vm_L);    /* INDICES TO PULL FROM PHI AND PHI_
+                                :: SE
+                                */
+        for i (1,p,1);
+        if _vm_L == 2;
+            call printfm((arnames[i]|nll)~phi[s,.]~phi_se[s,.], 0~
+                ones(1,cols(phi)+cols(phi_se)),fmt0);
+            print;
+        endif;
+        if _vm_L > 2;
+            call printfm((arnames[i]|nll)~phi[s,.], 0~ ones(1,cols(phi)
+                ),fmt0);
+                print;
+            print s2;
+            call printfm((0$+arnames[i]$+"-se"|nll)~phi_se[s,.], 0~
+                ones(1,cols(phi_se)),fmt0);
+                print;
+        endif;
+        s = s + _vm_L;
+                endfor;
+
+            endif;
+
+    /* DEFINE THE MA AND theta_se MATRICES - FROM COEFFS */
+    if ecmflag == 0;
+        if q > 0;
+        /* PRINT THE MA COEFFICIENT AND SE MATRICES */
+        /* LOOP THROUGH theta AND theta_se - P TIMES */
+            s = seqa(1,1,_vm_L);    /* INDICES TO PULL FROM PHI AND PHI_
+                                    :: SE
+                                    */
+            for i (1,q,1);
+            if _vm_L == 2;
+                call printfm((manames[i]|nll)~theta[s,.]~theta_se[s,.], 0~
+                    ones(1,cols(theta)+cols(theta_se)),fmt0);
+                print;
+            endif;
+            if _vm_L > 2;
+                call printfm((manames[i]|nll)~theta[s,.], 0~ ones(1,
+                    cols(theta)),fmt0);
+                print;
+                print s2;
+                call printfm((0$+manames[i]$+"-se"|nll)~theta_se[s,.], 0~
+                    ones(1,cols(theta_se)),fmt0);
+                print;
+            endif;
+            s = s + _vm_L;
+            endfor;
+        endif;
+endif;
+
+    PRINT;
+/*
+    PRINT;
+    Print "THE ESTIMATED INTERCEPT(S) AND, IF ESTIMATED, X COEFFICIENTS";
+@  FIRST PRINT THE Y VARIABLES IN COLUMNS @
+    for i (1,rows(ynames),1);
+        if i == 1;
+            let fmt = { "%*.*s" 22 22 };
+            call printfm(ynames[i],0,fmt);
+        else;
+            let fmt = { "%*.*s" 20 20 };
+            call printfm(ynames[i],0,fmt);
+        endif;
+            endfor;
+    print;
+
+    let s1 = "COEFFs";
+    let s2 = "S.E.";
+    s1 = s1|s2;
+    s1 = reshape(s1,1,2*rows(ynames));
+
+    let fmta1 = { "*.*s" 16 16 };
+    let fmta2 = { "*.*s" 10 10 };
+    fmt = fmta1|fmta2.*ones((2*_vm_L)-1,3);
+
+    call printfm(s1,zeros(1,2*_vm_L),fmt);
+    print;
+*/
+
+/* Print the beta and beta_se matrices, _vm_L >= 2 */
+    betall = { };
+    if not scalmiss(beta);
+        for i (1,rows(beta),1);
+            betall = betall~(beta[i,.]'~beta_se[i,.]');
+        endfor;
+endif;
+
+    let fmt1 = { "*.*lf" 8 4 };
+    let fmt2 = { "*.*lf" 10 4 };
+    fmt = reshape(fmt2,2*_vm_L,3);
+
+    if not scalmiss(beta);  /* Print the Beta information */
+
+        let fmta1 = { "-*.*s" 8 8 };
+        let fmt1 = { "*.*lf" 8 4 };
+        let fmta2 = { "*.*s" 8 8 };
+        fmt = fmta1|fmt1|fmt2.*ones(cols(betall)-1,3);
+        for i (1,rows(betall),1);
+        Call printfm(xnames[p+q+i]~betall[i,.],0~ones(1,cols(betall)),fmt);
+        print;
+        endfor;
+        print;
+
+    endif;
+
+    fmt0 = fmt;         /* RESET THE FMT MATRIX */
+endp;
+
+@-------------------------------------------------------@
+/*
+**> paramconfig
+**
+** Purpose:  Returns AR, MA, and x parameter estimate and
+**           standard error matrices from passed in column vectors
+**
+** Format
+**
+**           coeffs = paramconfig(p,q,c,se,x,ecmflag);
+**
+**
+** Input
+**           p        scalar, order of the AR process
+**           q        scalar, order of the MA process
+**           c        ((p+q+K+1)*L)x1 vector of coefficient
+**                    estimates in the order AR, MA, x, Constant
+**           se       ((p+q+K+1)*L)x1 vector of standard error
+**                    estimates in the order AR, MA, x, Constant
+**           x        TxK matrix of explanatory variables
+**           ecmflag  scalar, equals 1 if an ecm model is estimated
+**
+**
+** Output
+**
+**           coeffs   compact matrix containing:
+**
+**           phi      (p*(LxL))x2 matrix of AR coefficient estimates (in column
+**                    one and corresponding standard errors (in column two),
+**                    stacked in the order AR(1),...,AR(p)
+**
+**           theta    (q*(LxL))x2 matrix of MA coefficient estimates (in column
+**                    one and corresponding standard errors (in column two),
+**                    stacked in the order MA(1),...,MA(q)
+**           beta     Lx2K matrix of x coefficient estimates (in column
+**                    one and corresponding standard errors (in column two),
+**
+** Globals: None
+**
+*/
+proc (1) = paramconfig(p,q,c,se,x,ecmflag);
+    local phi,theta,phi_se,theta_se,beta,beta_se,b0,b0_se, _pi,_pi_se,
+    coeffs;
+
+/* INITIALIZE coefficient and se MATRICES */
+    phi = {. };
+    phi_se = {. };
+    theta = {. };
+    theta_se = {. };
+    beta = {. };
+    beta_se = {. };
+    _pi = {.};
+    _pi_se = {.};
+
+
+    if ecmflag;
+        _pi = c[1:_vm_L^2];
+        _pi_se = se[1:_vm_L^2];
+        _pi = reshape(_pi,_vm_L,_vm_L);
+        _pi_se = reshape(_pi_se,_vm_L,_vm_L);
+        se = se[(_vm_L^2)+1:rows(se)];
+        c = c[(_vm_L^2)+1:rows(c)];
+    endif;
+
+
+
+/* DEFINE THE phi AND phi_se MATRICES - FROM COEFFS */
+    if p > 0;
+        phi = c[1:p*(_vm_L^2)];
+        phi = reshape(phi,rows(phi)/_vm_L,_vm_L);
+        phi_se = se[1:p*(_vm_L^2)];
+        phi_se = reshape(phi_se,rows(phi_se)/_vm_L,_vm_L);
+    endif;
+/* DEFINE THE theta AND theta_se MATRICES - FROM COEFFS */
+    if q > 0;
+        theta = c[(p*(_vm_L^2))+1:(p*(_vm_L^2))+(q*(_vm_L^2))];
+        theta = reshape(theta,rows(theta)/_vm_L,_vm_L);
+        theta_se = se[(p*(_vm_L^2))+1:(p*(_vm_L^2))+(q*(_vm_L^2))];
+        theta_se = reshape(theta_se,rows(theta_se)/_vm_L,_vm_L);
+    endif;
+    /* DEFINE THE beta AND beta_se MATRICES - FROM COEFFS */
+    if rows(x) > 1;
+        beta = c[rows(c)-_vm_L-(_vm_L*cols(x))+1:rows(c)-_vm_L];
+        beta = reshape(beta,_vm_L,cols(x));
+        beta_se = se[rows(c)-_vm_L-(_vm_L*cols(x))+1:rows(c)-_vm_L];
+        beta_se = reshape(beta_se,_vm_L,cols(x));
+    else;
+        beta = error(0);
+        beta_se = error(0);
+    endif;
+/* CONSTANT TERMS AND CONSTANT STANDARD ERRORS */
+
+    coeffs = vput(0,phi,"phi");
+    coeffs = vput(coeffs,phi_se,"phi_se");
+
+    if ecmflag == 1;
+        coeffs =  vput(coeffs,_pi,"pi");
+        coeffs =  vput(coeffs,_pi_se,"pi_se");
+    else;
+        coeffs = vput(coeffs,theta,"theta");
+        coeffs = vput(coeffs,theta_se,"theta_se");
+    endif;
+    coeffs = vput(coeffs,beta,"beta");
+    coeffs = vput(coeffs,beta_se,"beta_se");
+
+    retp(coeffs);
+endp;
+
+@-----------------------------------------------------------@
+/*
+**> revmatrix
+**
+** Purpose:  Reverses the rows in stacked matrices, in blocks.
+**
+** Format:   y = revmatrix(x,order);
+**
+**
+** Input:    x            matrix
+**           order        scalar, the number of rows in each block
+**
+** Output:   y            matrix
+**
+**
+** Globals: none
+**
+** REMARKS: The polyroot and polymroot procedures use reversed matrices.
+**
+**
+*/
+
+proc (1) = revmatrix(x,order);
+
+    local s,t;
+
+@ CHECK CONFORMABILITY @
+    if ((rows(x)/order) - trunc(rows(x)/order)) /= 0;
+        errorlog "The rows of x are not evenly divisible by order*k";
+        end;
+    endif;
+
+@ DEFINE THE INDICES TO PULL FROM THE PASSED IN COLUMN VECTOR @
+@ DEFINE ALSO THE MATRIX TO WHICH THE RESULTS ARE APPENDED @
+    s = seqa(1,1,order);
+    t = { };
+
+@ LOOP THROUGH THE stacked matrix, PULLING rows EACH TIME @
+    for(1,rows(x)/order,1);
+    t = x[s,.]|t;
+    s = s + order;
+    endfor;
+    retp(t);
+endp;
+
+@----------------------------------------------------------@
+/*
+**> readdata
+**
+**  Purpose: Reads GAUSS data sets or matrices and
+**           returns dependent and independent variable matrices and
+**           vectors of variable names
+**
+**  Format:  { ynames, xnames, y, x } =
+**             readdata(dataset, depvars, indvars, ynames, xnames);
+**
+**
+**  Input:  dataset     string, name of dataset.
+**
+**                 If this is a null string, "", the procedure assumes
+**                 that the actual data has been passed in the depvar
+**                 and indvars arguments.
+**
+**          depvars      dependent variables.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                      T x L matrix, the dependent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                      Lx1 character vector, names of dependent
+**                      variables in the dataset
+**                           or
+**                      Lx1 numeric vector, indices of dependent
+**                      variables in the dataset
+**
+**                      These can be any subset of the variables in
+**                      the dataset and can be in any order.
+**
+**                 NOTE: Each column must be ordered as  y(1), y(2),...,y(T).
+**                       The top row is the first observation and the last
+**                       row is the most current observation.
+**
+**
+**          indvars      independent variables.
+**
+**                       Enter a 0 if there are no independent variables.
+**
+**                 If dataset is a null string, "", this is
+**                 interpreted as:
+**
+**                       TxK matrix, the independent variables
+**
+**                 If dataset contains the name of a dataset, this is
+**                 interpreted as:
+**
+**                       Kx1 character vector, names of independent
+**                       variables in the dataset
+**                            or
+**                       Kx1 numeric vector, indices of independent
+**                       variables in the dataset
+**
+**                       These can be any subset of the variables in
+**                       the dataset and can be in any order.
+**
+**                  NOTE: Each column must be ordered as  x(1), x(2),...,x(T).
+**                        The top row is the first observation and the last
+**                        row is the most current observation.
+**
+**
+**          ynames   Lx1 character matrix of names for the variables in
+**                   depvars, or scalar 0.
+**
+**                   GAUSS will supply variable names { Y1,...,YL } if 0
+**                   is entered.
+**
+**          xnames   Kx1 character matrix of names for the variables in
+**                   indvars, or scalar 0.
+**
+**                   GAUSS will supply variable names { X1,...,XK } if 0
+**                   is entered.
+**
+** Output:   ynames      Lx1 character vector, names of dependent variables
+**           xnames      Kx1 character vector, names of independent variables
+**           y           TxL matrix of dependent variables
+**           x           TxK matrix of independent variables
+**
+** Globals: none
+**
+*/
+
+proc (4) = readdata(dataset, depvars, indvars, ynames, xnames);
+
+    local y,x,fin,depindx,nr,k,indindx,data, ds1;
+
+        /* Check if the dataset exists in the current directory */
+    if dataset $/= "";
+        dataset = "" $+ dataset;
+        ds1 = strsect(dataset,strlen(dataset)-3,4);
+        if lower(ds1) $/= ".dat";
+            dataset = dataset$+".dat";
+        endif;
+        if filesa(dataset) $== "";
+            errorlog "ERROR: data file not found";
+            end;
+        endif;
+    endif;
+        /* Strip off the .dat extension */
+    dataset = strsect(dataset,1,strlen(dataset)-4);
+
+    /* DEFINE THE VARIABLE NAMES */
+    if ynames $== 0;
+        ynames = 0$+"Y"$+ftocv(seqa(1,1,cols(depvars)),1,0);
+    endif;
+    if xnames $== 0;
+        xnames = 0$+"X"$+ftocv(seqa(1,1,cols(indvars)),1,0);
+    endif;
+
+@ THIS SECTION - NO DATASET SUPPLIED @
+    if (dataset $== "");
+        if indvars /= 0;    /* SOME INDEPENDENT VARIABLES SUPPLIED  */
+            if (rows(indvars) /= rows(depvars));
+                errorlog "ERROR: Matrices X and Y have different numbers of"\
+                    " rows";
+                end;
+            endif;
+            if ismiss(depvars~indvars);
+                ERRORLOG "ERROR: There are missing values in the Y and/or X"\
+                    "\r\l                     matrices.  Observations with "\
+                    "missing values (either Y or X)\r\l                    "\
+                    " will be deleted.";
+                y = packr(depvars~indvars);
+                depvars = y[.,1:cols(depvars)];
+                indvars = y[.,cols(depvars)+1:cols(y)];
+            endif;
+        endif;
+
+@ PROCEDURE RETURN - DATA PASSED IN VIA MATRICES @
+        retp(ynames, xnames, depvars,indvars);      /* indvars = 0 if there
+                                                    :: are no independent
+                                                    :: variables
+                                                    */
+
+    else;
+/* DATA PASSED IN VIA A DATASET */
+    /* open file using name in variable DATASET */
+        open fin = ^dataset;
+        if fin == -1;
+            errorlog "ERROR: File not found: " $+ dataset;
+            end;
+        endif;
+
+        if indvars $== 0;
+            { ynames,depindx } = indices(dataset,depvars);
+
+            /* Computation of max number of rows to read at one time  */
+            if __row;       /* USE __ROW GLOBAL */
+                nr = __row;
+            else;
+                k = colsf(fin);
+                nr = floor(minc(coreleft/(k*8*3.5)|maxvec/(k+1)));
+            endif;
+
+            data = { };
+            y = { };
+            do until eof(fin);
+                data = readr(fin,nr);
+                y = y|data[.,depindx];
+            endo;
+            fin = CLOSE(FIN);
+            retp(ynames,xnames,y,indvars);
+
+        elseif indvars /= 0;
+            { ynames,depindx,xnames,indindx } = indices2(dataset, depvars,
+                indvars);
+
+        /* Computation of max number of rows to read at one time */
+            if __row;       /* USE __ROW GLOBAL */
+                nr = __row;
+            else;
+                k = colsf(fin);
+                nr = floor(minc(coreleft/(k*8*3.5)|maxvec/(k+1)));
+            endif;
+
+            data = { };
+            do until eof(fin);
+                data = readr(fin,nr);
+            endo;
+
+            y = data[.,depindx];    /* DEFINES THE Y VARIABLES */
+            x = data[., indindx];           /* DEFINES THE INDEPENDENT
+                                            :: VARIABLES
+                                            */
+
+        /* CLEAN UP OPERATIONS */
+            fin = close(fin);
+
+            if rows(x) /= rows(y);
+                errorlog "ERROR: Matrices X and Y have different numbers of"\
+                    " rows";
+                end;
+            endif;
+            if ismiss(y~x);
+                ERRORLOG "ERROR: There are missing values in the Y and/or X"\
+                    "\r\l                     matrices.  Observations with "\
+                    "missing values (either Y or X)\r\l                    "\
+                    " will be deleted.";
+                depvars = packr(y~x);
+                y = depvars[.,1:cols(y)];
+                x = depvars[.,cols(y)+1:cols(depvars)];
+            endif;
+            retp(ynames,xnames,y,x);
+        endif;
+    endif;
+endp;
+
+@----------------------------------------------------------------@
+/*
+**> armanames
+**
+**
+**  Purpose: Returns the names of the ARIMA terms (e.g. Phi-1, Phi-2,...,
+**           Phi-p, Theta-1,...,Theta-q) concatenated onto the  x variable
+**           names (either as given by the user or X1,...XK). Only the
+**           ARIMA terms are returned if there are no x variables.
+**
+**  Input:   p        scalar, AR order
+**           q        scalar, MA order
+**           y        TxL matrix, dependent variables
+**           x        TxK matrix, independent variables
+**                    Enter 0 if there is no x matrix.
+**           xnames   Kx1 character vector, names of variables in x or 0
+**                    Enter 0 if there are no xnames given
+**           ecmflag  scalar, Enter 1 if an ecm model is estimated
+**                            Enter 0 otherwise.
+**
+**  Output:  names    (p+q+K) character vector, names of AR,MA, and x
+**                    variables
+**
+*/
+
+proc (1) = armanames(p,q,y,x,xnames, ecmflag);
+    local xxnames;
+    xxnames = { };
+    /* Conformability Check */
+    if rows(y) == 1;
+        errorlog "There is only one observation for the Y data";
+        end;
+    endif;
+
+    if p > 0;
+        if ecmflag;
+            xxnames = xxnames|(0$+"DY(-"$+ftocv(seqa(1,1,p),1,0)$+")");
+        else;
+            xxnames = xxnames|(0$+"PHI "$+ftocv(seqa(1,1,p),1,0));
+        endif;
+    endif;
+    if q > 0;
+        xxnames = xxnames|(0$+"THETA "$+ftocv(seqa(1,1,q),1,0));
+    endif;
+
+    if not (x == 0);
+        if xnames $== 0;
+            xxnames = xxnames|0$+"X "$+ftocv(seqa(1,1,cols(x)),1,0);
+        else;
+            xxnames = xxnames|xnames;
+        endif;
+    endif;
+
+ retp(xxnames);
+endp;
+
+/* -------------------------------------------------------------- */
+/*
+**> vmroots
+**
+** Purpose:  Computes and prints the roots of the AR and MA
+**           characteristic equations.
+**
+** Format:   { arroots, maroots } = vmroots(p,q,coeffs);
+**
+** Input:    p            scalar, AR order
+**           q            scalar, MA order
+**           coeffs       compact matrix
+**
+** Output    arroots      px1 vector of AR roots, possibly complex
+**           maroots      qx1 vector of MA roots, possibly complex
+**
+** Globals: _vm_output
+**
+**          _vm_output is either a scalar or a 6x1 vector. Set _vm_output = 0
+**          to suppress all printing from the ecm and "varmax estimations.
+**          Set _vm_output > 0 to print all ecm and varmax output.
+**          Define _vm_output as a 6x1 vector to control the printing of
+**          various parts of ecm and  varmax output.
+**
+**          Set element [1] of _vm_output to a non-zero value to print
+**          the model's header
+**
+**          Set element [5] of _vm_output to a non-zero value to print
+**          the roots of the AR and MA characteristic equations
+**
+** Remarks: Calls the polymroot procedure.
+**
+**
+*/
+
+proc (2) = vmroots(p,q,coeffs);
+    local arroots, maroots, fr,fim,c,roots, phi, theta;
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+    if _vm_output == 0;
+      _vm_output = zeros(6,1);
+    elseif _vm_output > 0;
+      _vm_output = ones(6,1);
+    endif;
+    endif;
+
+    /* FIND THE AR AND MA ROOTS AND MODULI */
+    ARroots = {.};
+    MAroots = {.};
+
+    phi = vread(coeffs,"phi");
+    theta = vread(coeffs,"theta");
+    if p > 0;
+        if _vm_L == 1;
+            arroots = polymroot((-revmatrix(phi, _vm_L))|1);
+        else;
+            arroots = polymroot(-revmatrix(phi, _vm_L)|eye(_vm_L));
+    endif;
+
+  if _vm_output[5];
+        print;
+        print;
+        Print "Characteristic Equation(s) for Stationarity and Invertibility";
+        fr = real(arroots);
+        fim = imag(arroots);
+        print "   AR Roots and Moduli:";
+        for i (1,p,6);
+        c = minc((i+5)|p);
+        print "   Real :  " fr[i:c]';
+        print "   Imag.:  " fim[i:c]';
+        print "   Mod. :  " sqrt(fr[i:c]^2+fim[i:c]^2)';
+        print;
+        endfor;
+  endif;
+
+    endif;
+    if q > 0;
+        if _vm_L == 1;
+            maroots = polymroot((-revmatrix(theta, _vm_L))|1);
+        else;
+            maroots = polymroot(-revmatrix(theta, _vm_L)|eye(_vm_L));
+        endif;
+ if _vm_output[5];
+        fr = real(maroots);
+        fim = imag(maroots);
+        print "   MA Roots and Moduli:";
+        for i (1,q,6);
+        c = minc((i+5)|q);
+        print "   Real :  " fr[i:c]';
+        print "   Imag.:  " fim[i:c]';
+        print "   Mod. :  " sqrt(fr[i:c]^2+fim[i:c]^2)';
+        print;
+    endfor;
+        print;
+    endif;
+ endif;
+retp(arroots,maroots);
+endp;
+
+
+
+@--------------------------------------------------------------@
+/*
+**> identify
+**
+** Purpose:  Computes and prints multivariate autocorrelation functions
+**           and portmanteau test statistics.
+**
+** Format:   { acfm, pacfm, qs } = identify(p,q,res);
+**
+** Input:    p            AR order
+**           q            MA order
+**           res          TxL matrix of residuals
+**
+** Output:   acfm         Lx(p*L) matrix, the autocorrelation function
+**                        The first L columns are the lag 1 ACF,
+**                        The last L columns are the lag p ACF.
+**
+**           pacfm                Lx(p*L) matrix, the partial autocorrelation function
+**                                                                The first L columns are the lag 1 ACF,
+**                                                                The last L columns are the lag p ACF.
+**
+**           qs                   (_vm_lags-(p+q))x3 matrix of portmanteau statistics
+**                        for the multivariate model and Ljung-Box statistics
+**                        for the univariate model. The time period is in
+**                        column one, the Qs (portmanteau) statistic in
+**                        column two and the p-value in column three
+**
+** GLOBALS:  _vm_output
+**
+** Remarks:  Set element [6] of "_vm_output" to a non-zero value to print
+**           the autocorrelation function and portmanteau statistics
+**
+**
+*/
+
+proc (3) = identify(p,q,res);
+    local j,m,rk,rkk,rk1, rkk1,c,i,n, qq, v0, ACFM,s1, s2,s, fmt, fmt1,
+        fmt2, fmta,fmta1,fmta2, q1, var_n, Qs, crit, pacfm;
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+    if _vm_output == 0;
+      _vm_output = zeros(6,1);
+    elseif _vm_output > 0;
+      _vm_output = ones(6,1);
+    endif;
+    endif;
+
+
+    /* Check that a valid value for _vm_lags was entered */
+    if round(_vm_lags) /= _vm_lags;
+        errorlog "A non-integer _vm_lags was entered. The program will stop";
+        end;
+    endif;
+
+    n = rows(res);
+    acfm = {.};
+    pacfm = {.};
+    qs = {.};
+
+    If _vm_L == 1;
+    if (p+q) < 10 and n >= 30;
+        j = 10;
+        m = 20;
+            else;
+        j = _vm_k;
+        m = j+10;
+            endif;
+
+    /* COMPUTE ACF */
+        acfm = acf(res,m+1,0);
+
+    /* COMPUTE PACF - RECURSIVELY */
+        pacfm = pacf(res,m+1,0);
+
+    if _vm_output[6];
+
+
+    /* CHECK IF AUTOCORRELATIONS ARE SIGNIFICANT */
+        Q = (ABS(acfm) .>= 1.96*(SQRT(1/n))).*"*";
+        q = q+(ABS(acfm) .>= 2.5758*(SQRT(1/n))).*"*";
+        rk1 = ftocv(acfm,1,4);
+        print;
+        print "Residual ACF and PACF: * denotes significance at the .05 level";
+        Print "                      ** denotes significance at the .01 level";
+        print;
+        print "     ACF and PACF Standard  Errors:";
+        print "         Bartlett's  Approximation  (large  sample)  under  "\
+            "Ho: white noise ";
+        print "         sigma = sqrt(1/number of observations)  =" sqrt(1/n);
+
+    /* CHECK IF PARTIAL AUTOCORRELATIONS ARE SIGNIFICANT */
+        Qq = (ABS(pacfm) .>= 2*(SQRT(1/n))).*"*";
+        qq = qq+(ABS(acfm) .>= 2.575*(SQRT(1/n))).*"*";
+        rkk1 = ftocv(pacfm,1,4);
+        print;
+        let i[7,3] = "*.*lf" 8 0, "*.*s" 14 14,"-*.*s" 4 4,"*.*lf" 10 6,"*."\
+            "*s" 14 14,"-*.*s" 4 4,"*.*lf" 10 6;
+        print "      lag        ACF         P-Value         PACF        P-V"\
+            "alue";
+        call printfm(seqa(1,1,rows(rk1))~rk1~q~ 2*cdfnc(abs(((acfm./sqrt(1/n)
+            ) )))~ rkk1~qq~ 2*cdfnc(abs(((pacfm./sqrt(1/n))))),1~0~0~1~0~0~1,
+            i) ;
+        print;
+        print;
+        endif;
+
+    /* Define the Box-Ljung Statistic */
+        qs = ((n*(n+2)).*(acfm^2)./(n - seqa(1,1,rows(acfm))));
+        qs = cumsumc(qs);
+
+        let i[3,3] = "*.*lf" 24 0, "*.*lf" 14 6, "*.*lf" 14 6;
+        qs = seqa(_vm_k+1,1,rows(qs)-_vm_k)~qs[_vm_k+1:rows(qs)]~
+            cdfchic(qs[_vm_k+1:rows(qs)], seqa(1,1,rows(qs)-_vm_k));
+
+     if _vm_output[6];
+        print "Ljung - Box Statistic: m          Q          P-Value";
+        print;
+        call printfm(qs,ones(1,3),i);
+        print;
+        endif;
+
+
+        /* THIS WAS FROM PREVIOUS CODE.. INSERT IT?
+    /* Q (Box-Pierce) Test */
+            rjsq = 0;
+            for i (1,order,1);
+                x = packr(r0~lagn(r0,i));
+                rjsq = rjsq + sumc(x[.,1].*x[.,2]);
+            endfor;
+            Q = rows(r0)*rjsq;
+            qpval = cdfchic(q,order);
+
+            print "q " q;
+            print "qpval " qpval;
+
+    /* Ljung-Box Test */
+            rjsq = 0;
+            for i (1,order,1);
+                x = packr(r0~lagn(r0,i));
+                rjsq = rjsq + (sumc(x[.,1].*x[.,2]))/(rows(r0)-i);
+            endfor;
+            LB = rows(r0)*(rows(r0)+2)*rjsq;
+            LBpval = cdfchic(LB,order);
+
+            print "lb " lb;
+            print "lbpval " lbpval;
+*/
+
+else;
+    /* COMPUTE ACF - UNIVARIATE AND MULTIVARIATE CASES */
+    /* MULTIVARIATE CASE */
+        i = 1;
+
+        v0 = macf(res,0);
+        if ismiss(v0);
+            print;
+            print;
+            errorlog "The ACF cannot be computed. There are missing values "\
+                "in the covariance matrices.";
+        else;
+
+            acfm = {};
+            for i (1,_vm_lags,1);
+               acfm = acfm~macf(res,i);
+            endfor;
+
+
+     if _vm_output[6];
+            /* Define ACF and PACF indicator Symbols */
+            q1 = (acfm .<= -cdfni(1-((1-_vmcritl)/2))*(SQRT(1/n))).*0$+"-";
+            Q1 = q1+(acfm .>= cdfni(1-((1-_vmcritl)/2))*(SQRT(1/n))).*0$+"+";
+            q1 = miss(q1,0);
+
+            PRINT;
+            print;
+            PRINT "                                 MULTIVARIATE ACF";
+            PRINT;
+            fmt = { };
+            let fmt1 = { " *.*lG" 14 4 };
+            let fmt2 = { " *.*lG" 11 4 };
+            fmt = reshape(fmt1|fmt2,cols(acfm),3);
+
+            var_n = 0$+"LAG"$+ftocv(seqa(1,1,_vm_lags),2,0);
+            let fmta1 = { "*.*s" 20 20 };
+            let fmta2 = { "*.*s" 25 25 };
+
+            /* Determine the size of the fmt matrix */
+            /* Full size - print three matrices */
+            if trunc(_vm_lags/3) > 0;
+                fmta = fmta1|fmta2|fmta2;
+                s1 = seqa(1,1,6);
+                s2 = seqa(1,1,3);
+                for i (1,trunc(_vm_lags/3),1);
+                call printfm(var_n[s2]',zeros(1,rows(s2)),fmta);
+                print;
+                call printfm(acfm[.,s1],ones(1,rows(s1)),fmt[s1,.]);
+                print;
+                print;
+                s1 = s1+6;
+                s2 = s2+3;
+            endfor;
+        endif;
+            if _vm_lags%3 > 0;
+                if _vm_lags%3 == 2;
+                    fmta = fmta1|fmta2;
+                    s2 = seqa(rows(var_n)-1,1,2);
+                    s1 = seqa(cols(acfm)-3,1,4);
+                    call printfm(var_n[s2]',zeros(1,rows(s2)),fmta);
+                    print;
+                    call printfm(acfm[.,s1],ones(1,rows(s1)),fmt[s1,.]);
+                    print;
+                    print;
+                else;
+                    fmta = fmta1;
+                    s2 = rows(var_n);
+                    s1 = seqa(cols(acfm)-_vm_L+1,1,_vm_L);
+                    call printfm(var_n[s2]',zeros(1,rows(s2)),fmta);
+                    print;
+                    call printfm(acfm[.,s1],ones(1,rows(s1)),fmt[s1,.]);
+                    print;
+                    print;
+                endif;
+            endif;
+
+            FORMAT 4,2;
+            PRINT "    ACF INDICATORS: SIGNIFICANCE = " $FTOCV(_VMCRITL,3,2);
+            Print "  (using Bartlett's large sample standard errors)";
+            print;
+
+            fmt = { };
+            let fmt1 = { "-*.*s" 2 2 };
+            let fmt2 = { "-*.*s" 8 8 };
+            fmt = reshape(fmt1|fmt2,cols(q1),3);
+            let fmta1 = { "-*.*s" 10 10 };
+            let fmta2 = { "*.*s" 24 24 };
+
+            /* Determine the size of the fmt matrix */
+            /* Full size - print six matrices */
+            if trunc(_vm_lags/6) > 0;
+                fmta = fmta1|fmta2.*ones(5,3);
+                s1 = seqa(1,1,12);
+                s2 = seqa(1,1,6);
+                for i (1,trunc(_vm_lags/6),1);
+                call printfm(var_n[s2]',zeros(1,6),fmta1);
+                print;
+                call printfm(q1[.,s1],zeros(1,12),fmt[s1,.]);
+                print;
+                print;
+                s1 = s1+12;
+                s2 = s2+6;
+            endfor;
+        endif;
+            if _vm_lags%6 > 0;
+                s2 = seqa(rows(var_n)-(_vm_lags%6)+1,1,_vm_lags%6);
+                s1 = seqa(cols(q1)-(2*(_vm_lags%6))+1,1,2*(_vm_lags%6));
+                call printfm(var_n[s2]',zeros(1,rows(s2)),fmta1);
+                print;
+                call printfm(q1[.,s1],zeros(1,rows(s1)),fmt[s1,.]);
+                print;
+                print;
+            endif;
+        endif;
+endif;
+endif;
+if _vm_L > 1;
+            /* Multivariate Portmanteau Statistic */
+            /* Compute for _vm_lags - lose 2*_vm_lags observations  */
+        Qs = zeros(_vm_lags,1);
+
+@ The Portmanteau Loop @
+        if ismiss(v0);
+            errorlog "Portmanteau statistics cannot be computed. There are "\
+                "missing values in the covariance matrices.";
+        else;
+            for i (1,_vm_lags,1);
+            Qs[i] = (1/(rows(res)-i))*sumc(diag(macf(res,i)*invpd(v0)
+                *macf(res,-i)*invpd(v0)));
+            endfor;
+            Qs = cumsumc(Qs);
+            Qs = (_vm_n^2)*Qs;
+
+            /* Find the critical values, Chi-Square */
+            crit = zeros(_vm_lags,1);
+            s = seqa(1,1,_vm_lags);
+            crit = ((rows(v0))^2)*(s-p-q);
+            crit = cdfchic(Qs,crit);
+
+if _vm_output[6];
+            /* Print the Results */
+            Print "Multivariate Goodness of Fit Test";
+            Print "Lag       Qs     P-Value";
+            i = p+q+1;
+            for i (p+q+1,_vm_lags,1);
+            print ftos(i,"%-*.*lf",3,0);;
+            print ftos(Qs[i],"%*.*lf",10,4);;
+            print ftos(crit[i],"%*.*lf",10,4);
+            endfor;
+        endif;
+Qs = Qs[p+q+1:rows(Qs),.];
+endif;
+endif;
+
+retp(acfm,pacfm,qs);
+endp;
+
+
+@ ------------------------------------------------------------------------- @
+/*
+**> macf
+**
+**  Purpose: Finds an autocorrelation function matrix for multiple dependent
+**           variables
+**
+**  Format:  x  = macf(res,lag);
+**
+**  Input:   res     TxL matrix of residuals (dependent variables)
+**           lag     scalar, the lag for which an autocorrelation matrix
+**                   is desired. Specify 0 to obtain the initial correlation
+**                   matrix.
+**
+**  Output:    x     LxL matrix of autocorrelations, res and res(-lag)
+*/
+
+proc (1) = macf(res,lag);
+local glag, v1;
+
+res = res - meanc(res)';
+glag = (trimr(res,0,abs(lag))'trimr(res,abs(lag),0))/rows(res);
+if (lag < 0);
+   glag = glag';
+endif;
+
+
+v1 = diag(res'res)/rows(res);
+v1 = sqrt(v1*v1');
+
+retp(glag./v1);
+endp;
+
+@ ----------------------------------------------------------------- @
+/*
+**> unitroots
+**
+**  Purpose: Calls and prints unit root and cointegration tests
+**
+**  Format:  unitroots(y,ynames);
+**
+**  Input:   y       TxL matrix of dependent variables
+**           ynames  Lx1 character vector of dependent variable names
+**
+**  Globals:   _vm_adforder, _vm_output
+**
+**  Remarks: Set element [2] of "_vm_output" to a non-zero value to print a
+**           variety of unitroot tests, and, if a multivariate model,
+**           cointegration tests from the unitroots procedure.
+**
+**          unitroots calls the unit root and cointegration procedures, vmadf,
+**          vmcadf, vmpp, and vmsj. These use the global variable
+**          _vm_adforder to define the number of AR lags to include in the
+**          unit root and ECM cointegration specifications.
+**
+**
+*/
+
+proc (0) = unitroots(y,ynames);
+    local c_t, alpha, tstat,str,ev,evec,lr1,lr2, critl,nll,PPB,PPT,PVAL,pptcrit;
+
+    if (rows(_vm_output) == 1)*(cols(_vm_output) == 1);
+        if _vm_output == 0;
+          _vm_output = zeros(6,1);
+        elseif _vm_output > 0;
+          _vm_output = ones(6,1);
+        endif;
+    endif;
+
+
+    /* Define Locals */
+    alpha = zeros(3,1);
+    c_t = zeros(6,3);
+    tstat = zeros(3,1);
+    ppb = zeros(3,1);
+    ppt = zeros(3,1);
+    pval = zeros(3,1);
+
+    for k (1,rows(ynames),1);
+        print;
+        str = "Augmented Dickey-Fuller UNIT ROOT Test for "$+ftos(ynames[k],"%*"\
+            ".*s",12,12);
+        print str;
+        print "                                                          Critic"\
+            "al Values";
+        print "                               ADF Stat        1%       5%      "\
+            " 10%      90%      95%     99%";
+        for i (-1,1,1);
+            { alpha[1],tstat[1],c_t[.,1] } = vmadf(y[.,k],i,_vm_adforder);
+
+            if i == -1;
+                print "   No Intercept             ";;
+            elseif i == 0;
+                print "   Intercept                ";;
+            else;
+                print "   Intercept and Time Trend ";;
+            endif;
+
+            print ftos(tstat[1],"%*.*lf",10,4);;
+            for j (1,6,1);
+                if (j == 6);
+                    print ftos(c_t[j,1],"%*.*lf",9,4);
+                elseif j == 1;
+                    print ftos(c_t[j,1],"%*.*lf",12,4);;
+                else;
+                    print ftos(c_t[j,1],"%*.*lf",9,4);;
+                endif;
+            endfor;
+        endfor;
+    endfor;
+
+    print;
+
+   @ Phillips - Perron Tests @
+   for k (1,rows(ynames),1);
+       print;
+       str = "Phillips-Perron UNIT ROOT Test for"$+ftos(ynames[k],"%*"\
+           ".*s",8,8);
+        print str;
+       print "                                  PPt      1%      5%";
+       for i (-1,1,1);
+           { ppb, ppt, pptcrit } = vmpp(y[.,k],i);
+           if i == -1;
+               print "   No Intercept             ";;
+           elseif i == 0;
+               print "   Intercept                ";;
+           else;
+               print "   Intercept and Time Trend ";;
+           endif;
+
+           print ftos(ppt,"%*.*lf",10,4);;
+           print ftos(pptcrit[1],"%*.*lf",9,4);;
+           print ftos(pptcrit[2],"%*.*lf",9,4);
+        endfor;
+       endfor;
+
+
+
+
+    if _vm_L == 2;
+        print;
+        print;
+        str = "Augmented Dickey-Fuller COINTEGRATION Test for" $+
+            ftos(ynames[1],"%*.*s", 9,9)$+ftos(ynames[2],"%*.*s",9,9);
+        print str;
+        print;
+        print "                                                          Cr"\
+            "itical Values";
+        print "                               ADF Stat        1%       5%  "\
+            "     10%      90%      95%     99%";
+
+        for i (-1,1,1);
+        { alpha[1],tstat[1],c_t[.,1] } = vmcadf(y[.,1],y[.,2],i,_vm_adforder);
+
+        if i == -1;
+            print "   No Intercept             ";;
+        elseif i == 0;
+            print "   Intercept                ";;
+        else;
+            print "   Intercept and Time Trend ";;
+        endif;
+
+        print ftos(tstat[1],"%*.*lf",10,4);;
+        for j (1,6,1);
+        if (j == 6);
+            print ftos(c_t[j,1],"%*.*lf",9,4);
+        elseif j == 1;
+            print ftos(c_t[j,1],"%*.*lf",12,4);;
+        else;
+            print ftos(c_t[j,1],"%*.*lf",9,4);;
+        endif;
+        endfor;
+        endfor;
+        print;
+    endif;
+
+    print;
+    print;
+if _vm_L > 1;
+    print "Johansen's  Trace  and  Maximum  Eigenvalue  Statistics. r = # o"\
+        "f CI Equations";
+
+    /* Calculate Johansen's Cointegration Test Statistics */
+    print "                                                                "\
+        "      Critical Values";
+    print "                               r    Trace    Max. Eig          1"\
+        "%       5%       10%      90%";
+
+    for i (-1,1,1);
+        { ev,evec,lr1,lr2 } = vmsj(y,i,_vm_adforder);
+        critl = vmc_sja(_vm_L,i);
+        critl = critl[1:4];
+        nll = reshape(0$+" ", rows(lr1)-1, 1);
+
+        if i == -1;
+            print "   No Intercept             ";;
+        elseif i == 0;
+            print;
+            print "   Intercept                ";;
+        else;
+            print;
+            print "   Intercept and Time Trend ";;
+        endif;
+
+        for r (0,rows(lr1)-1,1);
+            if r == 0;
+                str = ftos(r,"%*.*lf",4,0)$+ftos(lr1[r+1],"%*.*lf",10,4)$+
+                ftos(lr2[r+1],"%*.*lf",10,4);
+                print str;;
+                print ftos(critl[1],"%*.*lf",15,4);;
+                str = ftos(critl[2],"%*.*lf",9,4)$+ftos(critl[3],"%*.*lf",9,4)
+                      $+ftos(critl[4],"%*.*lf",9,4);
+                print str;
+
+            else;
+                str = ftos(0,"%*.*s",30,0)$+ftos(r,"%*.*lf",2,0)
+                 $+ftos(lr1[r+1],"%*.*lf",10,4)$+ftos(lr2[r+1],"%*.*lf",10,4);
+                print str;;
+                print ftos(critl[1],"%*.*lf",15,4);;
+                str = ftos(critl[2],"%*.*lf",9,4)$+ftos(critl[3],"%*.*lf",9,4)
+                       $+ftos(critl[4],"%*.*lf",9,4);
+                print str;
+            endif;
+        endfor;
+    endfor;
+endif;
+endp;
+
+@-------------------------------------------------------------------@
+/*
+**> nw
+**
+**  Purpose: Finds the Newey-West Covariance matrix
+**
+**  Format:  x  = nw(covb,resid);
+**
+**  Input:   x       QxQ matrix of explanatory variables
+**           res     TxL matrix of residuals
+**
+**  Output:  x       QxQ matrix, Newey-West adjust covariances of parameters
+**                   associated with the variables in x.
+**
+**  Globals: _vm_nwtrunc
+**
+**  Remarks: If _vm_nwtrunc = 0, uses the Newey-West iteration constant,
+**           4(T/100)^2/9 where T is the number of observations.
+*/
+
+proc (1) = nw(x,resid);     /* Return Newey-West Omega matrix */
+    local nw_l,nw,s1nw,nwt,nw1;
+
+    if scalmiss(x);
+        errorlog "ERROR: There were missing values in the x. Processing wil"\
+            "l stop.";
+        end;
+    endif;
+
+    if (resid == 0);
+        errorlog "ERROR: A scalar residual was passed to the Newey-West pro"\
+            "cedure. Processing will stop.";
+        end;
+    endif;
+
+    if _vm_nwtrunc == 0;
+/* Newey - West Correction */
+        nw_l = trunc(4*(((rows(resid)/100))^(2/9)));
+    else;
+        nw_l = _vm_nwtrunc;
+    endif;
+
+/* Newey - West Correction Algorithm */
+    nw1 = zeros(cols(x),cols(x));
+    nw = x'((resid^2).*x);
+    s1nw = 1-(seqa(1,1,nw_l)/(nw_l+1));     /* has nw_l elements */
+    nwt = resid.*x;
+    for i (1,nw_l,1);       /* loop to the newey-west truncation lag */
+    nw1 = nw1+(trimr(nwt,i,0))'(trimr(nwt,0,i))+(trimr(nwt,0,i))'
+        (trimr(nwt,i,0));
+    nw1 = s1nw[i]*nw1;
+    endfor;
+    nw = nw+nw1;    /* The Newey-West Covariance Matrix */
+@ endif; @
+    retp(nw);
+endp;
+@-------------------------------------------------------------------@
+proc (0) = varmaset;
+_vm_L = 1;
+_vm_a = {.};
+_vm_ar = 0;
+_vm_bounds = {.};
+_vm_c = {.};
+_vm_b = 0;
+_vm_d = 0;
+_vm_dirtol = {.};
+_vm_feasibletest = {.};
+_vm_hessian = { . };
+_vm_indequations = { . };
+_vm_lagrange = 0;
+_vm_ma = 0;
+_vm_maxiters = {.};
+_vm_nwtrunc = 0;
+_vm_output = { 1,1,1,1,1,1 };
+_vm_printiters = 0;
+_vm_scale = 0;
+_vm_setconstraints = 0;
+_vm_start = { . };
+_vm_ts = 0;
+_vm_mx = 0;
+_vm_my = 0;
+_vmcritl = .95;
+_vm_adforder = 2;
+_vm_nodet = 0;
+_vm_lags = 12;
+_vm_randradius = 1e-3;
+_vm_trustradius = .1;
+endp;
+
+@-------------------------------------------------------------------@
+DECLARE _eigerr != 0 ;
+/*
+**> vmztcrit
+**
+** Purpose:    Returns tau critical values for the Augmented Dickey
+**             Fuller statistic, depending on the AR order in the
+**             regression (p) and the number of observations.
+**             Computed using 10000 iterations.
+**
+** Format:     c-values = vmztcrit(nobs,p);
+**
+** Input:      nobs  -- number of observations in the series.
+**
+**             p     -- order of the time-polynomial in the null hypothesis
+**
+*/
+proc vmztcrit(nobs,p) ;
+    local zt, i ;
+    let zt[70,6] = -2.63467 -1.95254 -1.62044 0.910216 1.30508 2.08088
+        -3.63993 -2.94935 -2.61560 -0.369306 -0.0116304 0.666745 -4.20045
+        -3.54490 -3.21450 -1.20773 -0.896215 -0.237604 -4.65813 -3.99463
+        -3.66223 -1.69214 -1.39031 -0.819931 -5.07175 -4.39197 -4.03090
+        -2.06503 -1.78329 -1.21830 -5.45384 -4.73277 -4.39304 -2.40333
+        -2.15433 -1.62357 -5.82090 -5.13053 -4.73415 -2.66466 -2.39868
+        -1.88193 -2.53279 -1.94976 -1.62656 0.915249 1.31679 2.11787
+        -3.56634 -2.93701 -2.61518 -0.439283 -0.0498821 0.694244 -4.08920
+        -3.46145 -3.17093 -1.25839 -0.919533 -0.298641 -4.56873 -3.89966
+        -3.59161 -1.72543 -1.44513 -0.894085 -4.97062 -4.33552 -4.00795
+        -2.12519 -1.85785 -1.30566 -5.26901 -4.62509 -4.29928 -2.42113
+        -2.15002 -1.65832 -5.54856 -4.95553 -4.63476 -2.71763 -2.46508
+        -1.99450 -2.60249 -1.94232 -1.59497 0.912961 1.30709 2.02375
+        -3.43911 -2.91515 -2.58414 -0.404598 -0.0481033 0.538450 -4.00519
+        -3.46110 -3.15517 -1.25332 -0.958071 -0.320677 -4.46919 -3.87624
+        -3.58887 -1.70354 -1.44034 -0.920625 -4.84725 -4.25239 -3.95439
+        -2.11382 -1.85495 -1.26406 -5.15555 -4.59557 -4.30149 -2.41271
+        -2.19370 -1.70447 -5.46544 -4.89343 -4.58188 -2.74151 -2.49723
+        -2.02390 -2.58559 -1.94477 -1.62458 0.905676 1.30371 2.01881
+        -3.46419 -2.91242 -2.58837 -0.410558 -0.0141618 0.665034 -4.00090
+        -3.45423 -3.16252 -1.24040 -0.937658 -0.304433 -4.45303 -3.89216
+        -3.61209 -1.74246 -1.48280 -0.906047 -4.79484 -4.22115 -3.92941
+        -2.11434 -1.83632 -1.30274 -5.15005 -4.58359 -4.30336 -2.44972
+        -2.21312 -1.68330 -5.42757 -4.88604 -4.60358 -2.74044 -2.50205
+        -2.04008 -2.65229 -1.99090 -1.66577 0.875165 1.27068 2.04414
+        -3.49260 -2.87595 -2.56885 -0.416310 -0.0488941 0.611200 -3.99417
+        -3.42290 -3.13981 -1.25096 -0.950916 -0.310521 -4.42462 -3.85645
+        -3.56568 -1.73108 -1.45873 -0.934604 -4.72243 -4.22262 -3.94435
+        -2.10660 -1.84233 -1.26702 -5.12654 -4.55072 -4.24765 -2.43456
+        -2.18887 -1.73081 -5.46995 -4.87930 -4.57608 -2.71226 -2.48367
+        -2.00597 -2.63492 -1.96775 -1.62969 0.904516 1.31371 2.03286
+        -3.44558 -2.84182 -2.57313 -0.469204 -0.128358 0.553411 -3.99140
+        -3.41543 -3.13588 -1.23585 -0.944500 -0.311271 -4.43404 -3.84922
+        -3.56413 -1.73854 -1.48585 -0.896978 -4.75946 -4.19562 -3.91052
+        -2.09997 -1.86034 -1.32987 -5.14042 -4.56772 -4.25699 -2.43882
+        -2.18922 -1.67371 -5.39389 -4.85343 -4.57927 -2.73497 -2.49921
+        -2.00247 -2.58970 -1.95674 -1.61786 0.902516 1.32215 2.05383
+        -3.44036 -2.86974 -2.58294 -0.451590 -0.0789340 0.631864 -3.95420
+        -3.43052 -3.13924 -1.23328 -0.938986 -0.375491 -4.40180 -3.79982
+        -3.52726 -1.71598 -1.44584 -0.885303 -4.77897 -4.21672 -3.93324
+        -2.12309 -1.88431 -1.33916 -5.13508 -4.56464 -4.27617 -2.44358
+        -2.18826 -1.72784 -5.35071 -4.82097 -4.54914 -2.73377 -2.48874
+        -2.01437 -2.60653 -1.96391 -1.63477 0.890881 1.29296 1.97163
+        -3.42692 -2.86280 -2.57220 -0.463397 -0.0922419 0.613101 -3.99299
+        -3.41999 -3.13524 -1.23857 -0.929915 -0.337193 -4.41297 -3.83582
+        -3.55450 -1.72408 -1.44915 -0.872755 -4.75811 -4.18759 -3.92599
+        -2.12799 -1.88463 -1.37118 -5.08726 -4.53617 -4.26643 -2.44694
+        -2.19109 -1.72329 -5.33780 -4.82542 -4.54802 -2.73460 -2.50726
+        -2.02927 -2.58687 -1.93939 -1.63192 0.871242 1.26611 1.96641
+        -3.38577 -2.86443 -2.57318 -0.391939 -0.0498984 0.659539 -3.93785
+        -3.39130 -3.10317 -1.24836 -0.956349 -0.334478 -4.39967 -3.85724
+        -3.55951 -1.74578 -1.46374 -0.870275 -4.74764 -4.20488 -3.91350
+        -2.12384 -1.88202 -1.36853 -5.07739 -4.52487 -4.25185 -2.43674
+        -2.22289 -1.72955 -5.36172 -4.81947 -4.53837 -2.74448 -2.51367
+        -2.03065 -2.58364 -1.95730 -1.63110 0.903082 1.28613 2.00605
+        -3.45830 -2.87104 -2.59369 -0.451613 -0.106025 0.536687 -3.99783
+        -3.43182 -3.16171 -1.26032 -0.956327 -0.305719 -4.40298 -3.86066
+        -3.56940 -1.74588 -1.48429 -0.914111 -4.84459 -4.23012 -3.93845
+        -2.15135 -1.89876 -1.39654 -5.10571 -4.56846 -4.28913 -2.47637
+        -2.22517 -1.79586 -5.39872 -4.86396 -4.58525 -2.78971 -2.56181
+        -2.14042 ;
+    i = round(nobs/50) + 1 ;
+    if ((nobs % 50) == 0) ;
+        i = i - 1 ;
+    endif ;
+    if (i > 10) ;
+        i = 10 ;
+    endif ;
+    if (p > 5) ;
+        retp((0~0~0~0~0~0)');
+    endif ;
+    i = (i-1)*7 + p + 2 ;
+    retp(zt[i,.]');
+endp ;
+/*
+**> vmrztcrit
+**
+** Purpose:    Returns tau critical values for the Augmented Dickey-Fuller
+**             statistic when applied to the residuals of a cointegrating
+**             regression.
+**
+** Format:     c-values = vmrztcrit(nobs,n,p);
+**
+** Input:      nobs  -- number of observations in the series.
+**
+**             n     -- column dimension of x;
+**
+**             p     -- order of the time-polynomial in the null hypothesis
+**
+*/
+proc vmrztcrit(nobs,n,p) ;
+    local zt, i ;
+    if ( nobs >= 500) ;
+        let zt[35,6] = -3.28608 -2.71123 -2.44427 -0.228267 0.196845
+            1.07845 -3.88031 -3.35851 -3.03798 -1.01144 -0.653342 0.153117
+            -4.36339 -3.84931 -3.52926 -1.59069 -1.27691 -0.688550
+            -4.69226 -4.16473 -3.91069 -2.03499 -1.75167 -1.16909 -5.12583
+            -4.55603 -4.24350 -2.43062 -2.15918 -1.63241 -5.45902 -4.85433
+            -4.54552 -2.68999 -2.45059 -1.96213 -5.68874 -5.13084 -4.85451
+            -3.01287 -2.77470 -2.34774 -3.95399 -3.33181 -3.01057
+            -0.964258 -0.632140 0.148153 -4.29147 -3.77581 -3.47606
+            -1.47435 -1.15649 -0.382089 -4.80216 -4.16163 -3.87422
+            -1.95661 -1.68975 -1.17624 -5.08973 -4.49148 -4.22534 -2.34763
+            -2.09506 -1.52368 -5.28946 -4.77944 -4.49057 -2.63483 -2.39227
+            -1.88262 -5.64107 -5.10086 -4.81771 -2.95313 -2.74233 -2.30293
+            -5.84555 -5.26853 -5.01340 -3.21419 -2.95790 -2.50159 -4.25439
+            -3.69759 -3.42840 -1.49852 -1.22694 -0.593763 -4.62332
+            -4.12603 -3.83833 -1.91632 -1.65271 -0.937750 -5.09990
+            -4.50073 -4.18896 -2.26553 -1.97459 -1.41616 -5.23982 -4.74879
+            -4.50065 -2.59004 -2.30601 -1.76624 -5.63745 -5.07700 -4.77794
+            -2.88029 -2.66305 -2.25529 -5.87733 -5.31763 -5.03729 -3.17526
+            -2.94043 -2.54329 -6.08463 -5.57014 -5.29279 -3.45890 -3.21035
+            -2.68331 -4.68825 -4.14264 -3.83668 -1.89022 -1.62543 -1.02171
+            -5.00664 -4.43544 -4.14709 -2.24334 -1.94304 -1.29258 -5.42102
+            -4.77343 -4.48998 -2.57209 -2.30366 -1.79885 -5.60249 -5.02686
+            -4.77574 -2.89195 -2.61726 -2.09253 -5.90744 -5.31272 -5.04121
+            -3.16076 -2.89667 -2.44274 -6.16639 -5.58218 -5.28049 -3.40263
+            -3.15765 -2.70251 -6.29638 -5.79252 -5.52324 -3.65372 -3.40115
+            -2.94514 -4.99327 -4.43088 -4.13314 -2.19577 -1.94806 -1.33955
+            -5.28724 -4.72773 -4.46224 -2.52556 -2.25121 -1.75592 -5.53603
+            -5.03231 -4.74442 -2.81101 -2.53978 -2.01464 -5.85790 -5.28516
+            -4.99765 -3.11650 -2.85684 -2.38643 -6.03218 -5.50167 -5.24244
+            -3.37898 -3.13182 -2.57977 -6.38137 -5.80056 -5.52693 -3.62856
+            -3.37482 -2.85511 -6.60394 -6.03056 -5.73651 -3.83174 -3.56048
+            -3.09560 ;
+    endif;
+    if (400 <= nobs AND nobs <= 499) ;
+        let zt[35,6] = -3.39320 -2.78062 -2.47410 -0.279165 0.172570
+            1.01757 -3.81898 -3.34274 -3.04197 -0.984635 -0.632195
+            0.0786160 -4.43824 -3.83476 -3.53856 -1.59769 -1.32538
+            -0.682733 -4.78731 -4.19879 -3.90468 -2.03620 -1.78519
+            -1.25540 -5.15859 -4.55815 -4.27559 -2.40402 -2.15148 -1.64991
+            -5.36666 -4.82211 -4.55480 -2.73039 -2.47586 -1.96342 -5.70533
+            -5.14149 -4.83768 -2.98968 -2.75467 -2.33244 -3.88099 -3.31554
+            -3.00918 -1.01400 -0.666507 0.112207 -4.35920 -3.76677
+            -3.47891 -1.47887 -1.17461 -0.457611 -4.73655 -4.17175
+            -3.87843 -1.95622 -1.67273 -1.05752 -5.03407 -4.48465 -4.18736
+            -2.32047 -2.06844 -1.54620 -5.37301 -4.80609 -4.50790 -2.65816
+            -2.39100 -1.90516 -5.63842 -5.08273 -4.79419 -2.95211 -2.72047
+            -2.26114 -5.95823 -5.38482 -5.08735 -3.23862 -2.98661 -2.58060
+            -4.29209 -3.74752 -3.44785 -1.49664 -1.19363 -0.540536
+            -4.73620 -4.16373 -3.83159 -1.87826 -1.56786 -0.906299
+            -4.98331 -4.47817 -4.18238 -2.27544 -1.99733 -1.45956 -5.34322
+            -4.77455 -4.47877 -2.60581 -2.34669 -1.82075 -5.61331 -5.05800
+            -4.77543 -2.91228 -2.64829 -2.13015 -5.94606 -5.34094 -5.05669
+            -3.17314 -2.92833 -2.50131 -6.17994 -5.62560 -5.32022 -3.45919
+            -3.21928 -2.73838 -4.68326 -4.13893 -3.83504 -1.88594 -1.59783
+            -1.02900 -5.01959 -4.44111 -4.16075 -2.24225 -1.96550 -1.36753
+            -5.35312 -4.76318 -4.48253 -2.53350 -2.26862 -1.74966 -5.65846
+            -5.05443 -4.74318 -2.86021 -2.61633 -2.15096 -5.89297 -5.33097
+            -5.03686 -3.13780 -2.88399 -2.36895 -6.11791 -5.59035 -5.29834
+            -3.39283 -3.13194 -2.64558 -6.43463 -5.83831 -5.54375 -3.63526
+            -3.40822 -2.97731 -4.99049 -4.45174 -4.15603 -2.22388 -1.94107
+            -1.40933 -5.37057 -4.77929 -4.48921 -2.54431 -2.27297 -1.72675
+            -5.61805 -5.06136 -4.76461 -2.81651 -2.54785 -2.04956 -5.88425
+            -5.29788 -5.01558 -3.10698 -2.83781 -2.33035 -6.15156 -5.57259
+            -5.28198 -3.36062 -3.10140 -2.61065 -6.37314 -5.80031 -5.51577
+            -3.63686 -3.38505 -2.87176 -6.58251 -6.03057 -5.74573 -3.85037
+            -3.60485 -3.11932 ;
+    endif;
+    if (300 <= nobs AND nobs <= 399) ;
+        let zt[35,6] = -3.36203 -2.77548 -2.46139 -0.286807 0.132866
+            1.03471 -3.90239 -3.32711 -3.03723 -0.996528 -0.605509
+            0.118508 -4.32982 -3.81156 -3.51879 -1.59453 -1.29025
+            -0.576746 -4.81264 -4.24058 -3.93314 -2.05226 -1.79734
+            -1.23867 -5.09929 -4.53317 -4.26022 -2.39047 -2.15062 -1.66121
+            -5.40020 -4.84728 -4.56541 -2.72073 -2.48276 -2.01238 -5.72554
+            -5.14543 -4.85290 -3.03642 -2.79747 -2.38877 -3.93064 -3.31039
+            -3.00695 -1.02551 -0.692057 0.104883 -4.30844 -3.76971
+            -3.48291 -1.49867 -1.18293 -0.449296 -4.69802 -4.16002
+            -3.85937 -1.95172 -1.66941 -1.07873 -5.09621 -4.51913 -4.22178
+            -2.32005 -2.06940 -1.52440 -5.39988 -4.84499 -4.54918 -2.66241
+            -2.40886 -1.94518 -5.67194 -5.12143 -4.83266 -2.95787 -2.71575
+            -2.26783 -5.90971 -5.38093 -5.10006 -3.24590 -3.00999 -2.55590
+            -4.32518 -3.77645 -3.46220 -1.48724 -1.19931 -0.531819
+            -4.66166 -4.12423 -3.82665 -1.85992 -1.56770 -0.952556
+            -5.06263 -4.47715 -4.19478 -2.27228 -1.98935 -1.40857 -5.39577
+            -4.79037 -4.51644 -2.60186 -2.32067 -1.82448 -5.62591 -5.09997
+            -4.78451 -2.89543 -2.66108 -2.16281 -5.96117 -5.38487 -5.08529
+            -3.19176 -2.95677 -2.45750 -6.18044 -5.61962 -5.32402 -3.44453
+            -3.18600 -2.75024 -4.69949 -4.11581 -3.84809 -1.91652 -1.63097
+            -1.06354 -5.02878 -4.48050 -4.18169 -2.20023 -1.92196 -1.37122
+            -5.37891 -4.82102 -4.49501 -2.55100 -2.29407 -1.76313 -5.59926
+            -5.07560 -4.78056 -2.89047 -2.61834 -2.11372 -5.97404 -5.35040
+            -5.03148 -3.15838 -2.91666 -2.44570 -6.20250 -5.64756 -5.33112
+            -3.40255 -3.16800 -2.73795 -6.40258 -5.84695 -5.58164 -3.67811
+            -3.42766 -2.97315 -5.02873 -4.44103 -4.15164 -2.19792 -1.94100
+            -1.39467 -5.36834 -4.76996 -4.46992 -2.53666 -2.27257 -1.73355
+            -5.59537 -5.05016 -4.78520 -2.83093 -2.57279 -2.07503 -5.85590
+            -5.33224 -5.03207 -3.11489 -2.86007 -2.36551 -6.20771 -5.62475
+            -5.32273 -3.36439 -3.10806 -2.63899 -6.38397 -5.87287 -5.56819
+            -3.63376 -3.37917 -2.87215 -6.69353 -6.08474 -5.78590 -3.87231
+            -3.61022 -3.14908 ;
+            endif;
+    if (200 <= nobs AND nobs <= 299) ;
+        let zt[35,6] = -3.35671 -2.77519 -2.46594 -0.254099 0.196134
+            1.07222 -3.92428 -3.38037 -3.08215 -1.00759 -0.634217
+            0.0945623 -4.48168 -3.83395 -3.54540 -1.60205 -1.31840
+            -0.734322 -4.82954 -4.23468 -3.94803 -2.05472 -1.80434
+            -1.27245 -5.19748 -4.57984 -4.28594 -2.42219 -2.18483 -1.73071
+            -5.48348 -4.89872 -4.60436 -2.75423 -2.51959 -2.06231 -5.82241
+            -5.21284 -4.90675 -3.03145 -2.79112 -2.38818 -3.88242 -3.33232
+            -3.01999 -0.988265 -0.633419 0.121320 -4.36630 -3.76414
+            -3.46091 -1.48625 -1.15077 -0.498422 -4.76842 -4.20038
+            -3.89975 -1.93433 -1.63407 -1.04290 -5.05007 -4.54203 -4.23534
+            -2.35721 -2.10330 -1.57965 -5.46384 -4.89647 -4.60567 -2.66674
+            -2.41227 -1.92884 -5.80068 -5.17731 -4.86360 -2.97354 -2.71548
+            -2.25152 -6.01552 -5.48792 -5.18651 -3.27732 -3.05193 -2.62313
+            -4.37038 -3.77348 -3.48123 -1.46468 -1.19712 -0.522913
+            -4.71164 -4.17296 -3.87214 -1.88824 -1.61792 -0.998973
+            -5.07287 -4.49791 -4.19539 -2.25537 -1.97775 -1.42073 -5.43158
+            -4.85660 -4.55542 -2.59513 -2.34448 -1.88253 -5.71928 -5.15509
+            -4.85008 -2.91869 -2.67892 -2.16537 -5.95901 -5.38920 -5.10190
+            -3.21921 -2.97088 -2.49105 -6.24842 -5.69150 -5.39236 -3.47876
+            -3.22814 -2.81954 -4.76132 -4.12120 -3.81887 -1.87640 -1.57988
+            -0.959247 -5.07595 -4.49599 -4.18062 -2.22181 -1.95429
+            -1.32816 -5.41865 -4.82420 -4.51442 -2.54584 -2.28898 -1.71129
+            -5.69988 -5.10837 -4.81872 -2.87861 -2.62537 -2.10745 -6.03815
+            -5.41121 -5.11067 -3.15726 -2.89572 -2.39236 -6.31746 -5.67322
+            -5.35729 -3.42445 -3.18255 -2.72287 -6.54722 -5.92036 -5.63475
+            -3.68619 -3.44087 -2.99590 -5.06954 -4.48980 -4.16461 -2.22770
+            -1.95682 -1.39685 -5.35737 -4.81634 -4.52940 -2.54416 -2.26355
+            -1.73669 -5.65024 -5.06222 -4.78444 -2.84019 -2.55801 -2.03438
+            -6.01717 -5.38593 -5.07183 -3.10854 -2.83015 -2.38316 -6.22810
+            -5.62644 -5.32983 -3.37920 -3.11022 -2.58412 -6.51923 -5.91250
+            -5.61917 -3.64604 -3.37807 -2.91979 -6.74433 -6.15641 -5.85483
+            -3.88559 -3.62884 -3.22791 ;
+        endif;
+    if (1 <= nobs AND nobs <=199) ;
+        let zt[35,6] = -3.40026 -2.81980 -2.49012 -0.284064 0.162780
+            0.991182 -4.02456 -3.40397 -3.08903 -0.998765 -0.638257
+            0.0929366 -4.50406 -3.91574 -3.60618 -1.64640 -1.34126
+            -0.674994 -4.97750 -4.31424 -4.00116 -2.07039 -1.80758
+            -1.24622 -5.29795 -4.65255 -4.36236 -2.43756 -2.20744 -1.74384
+            -5.69006 -5.02821 -4.70153 -2.78533 -2.55054 -2.12221 -6.01114
+            -5.32900 -5.01614 -3.10458 -2.87108 -2.45944 -4.03875 -3.38465
+            -3.06445 -1.01452 -0.670171 0.0830536 -4.49697 -3.83781
+            -3.52924 -1.50657 -1.18131 -0.494574 -4.85358 -4.24290
+            -3.92668 -1.93268 -1.67668 -1.11969 -5.23415 -4.63779 -4.32076
+            -2.35203 -2.10299 -1.58236 -5.60428 -4.99996 -4.67591 -2.71512
+            -2.45663 -1.97999 -5.89816 -5.30839 -4.98307 -3.01998 -2.78403
+            -2.33971 -6.24667 -5.61312 -5.28841 -3.32373 -3.07681 -2.65243
+            -4.50725 -3.84730 -3.53859 -1.50198 -1.21063 -0.494936
+            -4.87844 -4.22489 -3.92431 -1.88702 -1.59187 -0.972172
+            -5.20113 -4.56724 -4.27167 -2.29534 -2.03226 -1.43479 -5.61984
+            -4.95138 -4.63381 -2.62062 -2.34903 -1.81713 -5.93516 -5.26326
+            -4.95702 -2.97158 -2.70668 -2.22094 -6.20848 -5.57967 -5.28403
+            -3.27115 -3.01521 -2.58367 -6.52806 -5.84919 -5.55596 -3.54144
+            -3.30790 -2.88872 -4.84291 -4.21809 -3.89360 -1.88296 -1.62337
+            -0.998749 -5.18976 -4.56495 -4.23781 -2.23973 -1.95745
+            -1.36282 -5.49570 -4.91049 -4.57949 -2.54844 -2.30040 -1.81108
+            -5.85200 -5.24753 -4.90738 -2.89515 -2.62635 -2.11513 -6.25788
+            -5.59734 -5.23154 -3.20543 -2.95304 -2.49876 -6.42744 -5.80415
+            -5.49459 -3.46836 -3.20457 -2.78454 -6.79276 -6.11558 -5.77461
+            -3.74987 -3.49703 -3.07378 -5.25985 -4.56675 -4.25742 -2.24159
+            -1.93760 -1.40055 -5.53963 -4.88523 -4.55008 -2.53159 -2.26558
+            -1.74469 -5.86277 -5.23537 -4.92559 -2.84160 -2.58154 -2.08171
+            -6.16676 -5.52360 -5.22425 -3.12455 -2.84785 -2.41246 -6.43205
+            -5.80308 -5.46594 -3.42417 -3.19918 -2.69791 -6.81177 -6.11377
+            -5.74083 -3.67826 -3.41996 -2.95145 -6.98960 -6.36882 -6.03754
+            -3.95573 -3.71192 -3.30766;
+    endif;
+    if ((n < 1) OR (n > 5)) ;
+        retp((0~0~0~0~0~0~0)');
+        endif;
+    if (p > 5) ;
+        retp((0~0~0~0~0~0~0)');
+    endif;
+    n = (n-1)*7 + p + 2 ;
+    retp(zt[n,.]');
+endp;
+@ ---------------------------------------------------------------------- @
+/*
+**> vmadf
+**
+** Purpose: Computes the Augmented Dickey Fuller statistic, allowing
+**          for deterministic polynomial time trends of an arbitrary
+**          order.
+**
+** Format:  {alpha, tstat, adf_t_crit} = vmadf(x,p,l);
+**
+** Input:   x     -- time series variable
+**
+**          p     -- order of the time-polynomial to include in the
+**                   ADF regression.  Set p = -1 for no deterministic
+**                   part.
+**
+**          l     -- number of lagged changes of x to include in the
+**                   fitted regression.
+**
+** Output:  alpha       --  estimate of the autoregressive paramaeter;
+**
+**          tstat       --  ADF t-statistic
+**
+**          vmztcrit      --  (6 x 1)  vector of critical values for the
+**                           adf-t-statistic: 1 5 10 90 95 99%
+*/
+proc (3) = vmadf(x,p,l) ;
+    local b,k,z,res,so,var_cov,nobs,dep,ch;
+    if (p < -1);
+        print "Error: p cannot be set < -1";
+        retp(0,0,zeros(6,1));
+    endif ;
+    if (cols(x) > 1);
+        print "Error: ADF cannot handle a data matrix; cols(x) > 1 (="
+            cols(x) ")";
+        retp(0,0,zeros(6,1));
+    endif ;
+    nobs = rows(x);
+    if (nobs - (2*l) + 1 < 1) ;
+        print "Error: l is too large; negative degrees of freedom.";
+        retp(0,0,zeros(6,1));
+    endif ;
+    dep = trimr(x,1,0);
+    ch = vmdiff(x,1);
+    k = 0 ;
+    z = trimr(lagn(x,1),1,0) ;
+    If (l > 0) ;
+        do until k >= l ;
+            k = k + 1 ;
+            z = z~lagn(ch,k) ;
+        endo ;
+    Endif ;
+    z = trimr(z,k,0);
+    dep = trimr(dep,k,0);
+    if ( p > -1) ;
+        z = z~vmptrend(p,rows(z));
+    endif ;
+    b = dep/z ;
+    res = dep - z*b ;
+    so = (res'res)/(rows(dep)-cols(z));
+    var_cov = so*inv(z'z) ;
+    retp(b[1,1],(b[1,1]-1)/sqrt(var_cov[1,1]),vmztcrit(nobs,p)) ;
+endp ;
+
+@ ----------------------------------------------------------------- @
+/*
+**> vmcadf
+**
+** Purpose: Compute the Augmented Dickey Fuller statistic applied to
+**          the residuals of a cointegrating regression, allowing for
+**          deterministic polynomial time trends of an arbitrary order.
+**
+** Format:  {alpha, tstat, adf_t_crit} = vmcadf(y,x,p,l);
+**
+** Input:   y     -- dependent variable
+**          x     -- explanatory variables
+**
+**          p     -- order of the time-polynomial to include in the
+**                   cointegrating regression.  Set p = -1 for no
+**                   deterministic part.
+**
+**          l     -- number of lagged changes of the residuals to include
+**                   in the fitted regression.
+**
+** Output:  alpha       --  estimate of the autoregressive parmaeter;
+**
+**          tstat       --  ADF t-statistic
+**
+**          vmrztcrit      --  (6 x 1)  vector of critical values for the
+**                           adf-t-statistic: 1 5 10 90 95 99%
+*/
+proc (3) = vmcadf(y,x,p,l) ;
+    local beta,dep,k,z,res,so,var_cov,r,nobs ;
+    if (p < -1);
+        print "Error: p cannot be < -1";
+        retp(0,0,zeros(6,1));
+    endif ;
+    nobs = rows(x);
+    if (nobs - (2*l) + 1 < 1) ;
+        print "Error: l is too large; negative degrees of freedom.";
+        retp(0,0,zeros(6,1));
+    endif ;
+    y = vmdetrend(y,p);
+    x = vmdetrend(x,p);
+    r = y - x*(y/x);
+    dep = vmdiff(r,1);
+    k = 0 ;
+    z = trimr(lagn(r,1),1,0) ;
+    If (l > 0) ;
+        do until k >= l ;
+            k = k + 1 ;
+            z = z~lagn(dep,k) ;
+        endo ;
+    EndIf;
+    z = trimr(z,l,0) ;
+    dep = trimr(dep,l,0) ;
+    beta = vmdetrend(dep,0)/vmdetrend(z,0) ;
+    res = dep - z*beta ;
+    so = (res'res)/(rows(dep)-cols(z));
+    var_cov = so*inv(z'z) ;
+    retp(beta[1,1]+1.0,beta[1,1]/sqrt(var_cov[1,1]),vmrztcrit(nobs, cols(x)
+        ,p)) ;
+endp ;
+
+
+
+/*
+**>vmdetrend
+**
+** Purpose: Returns residuals from regressing on a time trend polynomial
+**
+** Format:  res = vmdetrend(y,p);
+**
+** Input:   y      T x L matrix of data
+**
+**          p      scalar, If p = -1 returns the data. Use p = 0 for demeaning,
+**                 p = 1 for regression against a constant term and trend,
+**                 p > 1 for a higher order polynomial time trend.
+**
+** Output:  res   T x L matrix of residuals
+**
+** Globals  None
+**
+**
+*/
+
+proc vmdetrend(data,p) ;
+    local t, u, timep, xmat, invx, beta, resid, nobs ;
+    if (p == -1) ;
+        retp(data);
+    endif ;
+    nobs = rows(data) ;
+    u = ones(nobs,1) ;
+    if p > 0 ;
+        timep = zeros(nobs,p) ;
+        t = seqa(1,1,nobs)/nobs ;
+        for m (1,p,1);
+        timep[.,m] = t^m ;
+        endfor ;
+        xmat = u~timep ;
+    else ;
+        xmat = u ;
+    endif ;
+    invx = inv(xmat'xmat) ;
+    beta = invx*(xmat'data) ;
+    resid = data - xmat*beta ;
+    retp(resid) ;
+endp ;
+
+/*
+**> vmdiff
+**
+** Purpose:  Differences matrices
+**
+**
+** Format:  y = vmdiff(x,d);
+**
+** Input:   x     T x K matrix
+**          d     scalar, the number of periods over which differencing occurs
+**
+** Output:  y     (T-d) x K matrix, the differenced data.
+**
+**
+** Globals: None
+*/
+proc vmdiff(x,k) ;
+    if ( k == 0) ;
+        retp(x) ;
+    endif ;
+    retp(trimr(x,k,0)-trimr(lagn(x,k),k,0)) ;
+endp ;
+
+
+/*
+**>vmptrend
+**
+** Purpose: Creates a polynomial matrix of time trends of order p.
+**
+** Format:  t = vmptrend(p,nobs);
+**
+** Input:   p      scalar, order of the polynomial. Set = 0 to return only a
+**                 column of ones.
+**
+**                      nobs   scalar, number of observations
+**
+**
+** Output:  t      nobs x (p+1) matrix. Column one contains ones. Column two
+**                 contains a time sequence, divided by the number of
+**                 observations. Column three contains column two squared.
+**                 Column p+1 contains column 1 to the pth power.
+**
+** Globals  None
+**
+**
+*/
+
+proc vmptrend(p,nobs) ;
+    local t, u, timep, xmat;
+    u = ones(nobs,1) ;
+    if p > 0 ;
+        timep = zeros(nobs,p) ;
+        t = seqa(1,1,nobs)/nobs ;
+        for m (1,p,1);
+        timep[.,m] = t^m ;
+        endfor ;
+        xmat = u~timep ;
+    else ;
+        xmat = u ;
+    endif ;
+    retp(xmat) ;
+endp ;
+
+@ ----------------------------------------------------------- @
+/*
+**> vmsj
+**
+**  Purpose:  Compute Johansen's (1988) ML Trace and Maximum
+**            Eigenvalue statistics
+**
+**  Format   { ev ,evec, lr1, lr2 } = vmsj(x,p,k);
+**
+**  Input:    x          TxL matrix
+**            p          scalar, order of the time polynomial in the fitted
+**                       regression
+**            k          scalar, number of lagged difference terms to use when
+**                       computing the estimator
+**
+**  Output:   ev         Lx1 vector of eigenvalues
+**            evec       LxL matrix of eigenvectors. The first r columns are
+**                       the unnormalized cointegrating vectors.
+**            lr1        Lx1 vector of Johansen's likelihood ratio trace
+**                       statistics for r = 0 to L-1 cointegrating vectors.
+**            lr2        scalar, Johansen's maximum eigenvalue statistic for
+**                       the null hypothesis of r = 0 to m-1 cointegrating
+**                       vectors.
+**
+**  Globals: _vm_NoDet
+**
+**    Set "_vm_NoDet" = 1 to suppress the constant term from the fitted
+**    regression and include it in the co-integrating regression.
+**    Remember to set _vm_NoDet = 0 after the procedure call to
+**    ensure that subsequent procedures are not affected.
+*/
+
+proc (4) = vmsj(x,p,k);
+    local dx, z, q, r0t, rkt, sig,a,c,b,d,lr1,lr2, zz, s00, sk0, skk, lx;
+
+    dx = vmdiff(x,1) ;
+    q = 2 ;
+    z = lagn(dx,1) ;
+    do until (q >= k);
+        z = z~lagn(dx,q);
+        q = q + 1 ;
+    endo ;
+
+    if (_vm_nodet NE 1) ;
+        z = vmdetrend(trimr(z,k,0),p);
+        dx = vmdetrend(trimr(dx,k,0),p);
+        r0t = dx - z*(dx/z);
+        lx = vmdetrend(trimr(lagn(x,k),k+1,0),p);
+        rkt = lx - z*(lx/z);
+    else ;
+        z = trimr(z,k,0);
+        dx = trimr(dx,k,0);
+        r0t = dx - z*(dx/z);
+        lx = trimr(lagn(x,k),k+1,0);
+        lx = lx~vmptrend(p,rows(lx)) ;
+        rkt = lx - z*(lx/z);
+    endif ;
+
+    skk = rkt'rkt/rows(rkt) ;
+    sk0 = rkt'r0t/rows(rkt) ;
+    s00 = r0t'r0t/rows(r0t) ;
+    sig = sk0*inv(s00)*(sk0');
+
+    { a,b,d,c } = eigrg2(inv(skk)*sig);
+
+    d = d*inv(chol(d'skk*d)) ;
+
+    if (_eigerr NE 0) ;
+        print "WARNING: _eigerr NOT zero! Eigerr = " _eigerr ;
+    endif ;
+
+/* Order the eigen values and eigen vectors */
+
+    zz = (-a)~(d') ;
+    zz = sortc(zz,1) ;
+    a = -zz[.,1] ;
+    d = zz[.,2:cols(zz)]' ;         /* Done */
+
+/* Compute the trace statistics */
+
+    lr1 = zeros(rows(a),1);
+    for i (1,rows(a),1);
+    lr1[i,1] = -rows(rkt)*sumc(trimr(ln(1-a),i-1,0));
+    endfor ;
+
+/* Max eigen value statistics */
+
+    lr2 = -rows(rkt)*ln(1-a) ;
+
+    retp(-sortc(-a,1),d,lr1,lr2);
+endp ;
+
+/*
+**> vmc_sja
+**
+** Purpose:    Returns critical values for the Johansen procedure
+**             Percentiles of the maximum eigen value.
+**
+**             Computed using 8000 iterations and 500 observations.
+**
+** Format:     c-values = vmc_sja(n,p);
+**
+**             n     dimension of the system
+**             p     order of the time-polynomoal in the fitted regression
+**
+*/
+proc vmc_sja(n,p) ;
+    local jc, i ;
+    let jc[35,6] = 0.000112722 0.00563980 0.0233518 2.85044 3.95282
+        6.74349 0.00353381 0.0785061 0.273587 6.48467 8.10581 11.5139
+        0.122658 0.820204 1.45635 9.69231 11.6256 15.5858 0.784025 2.16688
+        3.04997 12.4869 14.4716 18.9033 2.04083 3.52774 4.48286 15.0673
+        17.1803 21.8432 3.22600 5.03041 6.07109 17.5541 19.9121 24.6143
+        4.37777 6.44369 7.54971 20.1910 22.7242 27.8821 1.05242 1.70458
+        2.19270 9.39177 11.1404 14.9012 2.25148 3.35988 4.09745 12.8635
+        14.8388 18.4018 4.03887 5.37956 6.18791 16.1762 18.2534 22.1725
+        5.48296 7.15227 8.13376 19.1302 21.5503 26.1887 6.93317 8.79261
+        9.96182 22.2015 24.4754 29.2945 8.28460 10.5077 11.8946 24.7780
+        27.4402 32.8270 10.0844 12.3492 13.7129 27.2794 29.9303 35.5074
+        3.89153 5.17231 5.96182 15.6326 17.5779 22.1708 5.69420 7.28550
+        8.26520 19.0585 21.1440 26.0117 7.65754 9.42600 10.5365 22.2178
+        24.4821 28.8253 9.69571 11.5783 12.7282 25.2348 27.5393 32.7279
+        11.5489 13.7858 15.1060 28.3280 30.8484 36.4080 13.4071 15.6125
+        16.9640 31.0361 33.5647 38.7406 15.1762 17.6530 19.2473 33.7858
+        36.4639 42.3755 7.42825 9.24674 10.2424 21.6673 23.9687 28.6447
+        9.68886 11.5503 12.7136 24.8513 27.0734 31.9659 11.8104 14.0466
+        15.3544 28.3580 30.9160 36.3585 13.8436 16.5076 17.9035 31.2400
+        33.7903 39.2630 15.9762 18.4863 19.9448 34.3255 36.8009 42.1812
+        17.7324 20.6228 22.1052 37.1262 39.9550 45.7779 20.1397 22.6889
+        24.3679 39.8415 42.9747 48.8794 11.4894 13.4245 14.7609 27.6087
+        30.2195 35.1906 13.9084 16.0112 17.4468 30.9372 33.5377 39.2592
+        16.0913 18.5898 19.9206 34.4337 36.8548 41.8969 18.3674 21.0154
+        22.5599 37.3869 40.1017 45.8359 20.4908 23.4252 24.8309 40.2284
+        43.0752 48.7216 22.7397 25.5551 27.2737 43.2486 46.4302 52.5507
+        25.1681 27.9686 29.7454 46.2290 49.1314 55.6327 ;
+    if ((p>5) OR (p<-1));
+        retp((0~0~0~0~0~0)');
+    endif ;
+    if ((n > 5) OR (n < 1));
+        retp((0~0~0~0~0~0)');
+    endif ;
+    i = (n-1)*7 + p + 2 ;
+    retp(jc[i,.]');
+endp ;
+
+/*
+**> vmc_sjt
+**
+** Purpose:    Returns critical values for the Johansen procedure
+**             Percentiles of the trace.
+**
+** Format:     c-values = vmc_sjt(n,p);
+**
+**             n     dimension of the system
+**             p     order of the time-polynomial in the fitted regression
+**
+*/
+proc vmc_sjt(n,p) ;
+    local jc, i ;
+    let jc[35,6] = 0.000112722 0.00563980 0.0233518 2.85044 3.95282
+        6.74349 0.00353381 0.0785061 0.273587 6.48467 8.10581 11.5139
+        0.122658 0.820204 1.45635 9.69231 11.6256 15.5858 0.784025 2.16688
+        3.04997 12.4869 14.4716 18.9033 2.04083 3.52774 4.48286 15.0673
+        17.1803 21.8432 3.22600 5.03041 6.07109 17.5541 19.9121 24.6143
+        4.37777 6.44369 7.54971 20.1910 22.7242 27.8821 1.22403 1.95771
+        2.53320 10.4580 12.2799 16.1579 2.76578 4.06349 5.05861 15.5518
+        17.6517 21.9676 5.34698 7.21906 8.48217 21.2156 23.4531 28.6185
+        7.89032 10.2954 11.8089 26.1962 28.8153 34.1229 10.2741 13.3319
+        15.0157 31.1075 34.2069 40.3663 13.0945 16.4128 18.3271 35.7951
+        38.9320 45.3087 16.0778 19.4231 21.5395 40.1372 43.5597 50.0667
+        6.40557 8.05140 9.19606 21.7492 24.2286 29.5202 9.91729 12.2981
+        13.7117 28.7789 31.6177 37.3965 14.1512 17.2699 19.0710 36.2145
+        39.0979 44.9100 18.3512 22.0809 24.2061 43.0094 46.4724 53.0261
+        23.3911 27.4906 29.8312 50.3031 53.9610 60.5874 27.7697 32.0615
+        34.5059 56.7545 60.3489 68.8311 32.4565 36.9996 39.8665 63.4219
+        67.4975 75.4931 14.9175 17.9948 19.8042 36.7716 39.8157 46.6494
+        20.7398 24.1774 26.3151 45.6484 49.0972 55.5632 27.2190 31.3415
+        33.8949 55.2509 58.9566 67.1535 33.2809 38.3589 41.1010 64.1519
+        67.7740 75.6810 40.2560 45.2018 48.1072 73.0359 77.4086 85.7060
+        45.8608 51.9562 55.1466 81.5496 86.3145 94.6022 53.0030 58.7869
+        61.9696 90.1854 94.8898 104.496 27.6618 31.9744 34.2359 55.6339
+        59.4009 67.0217 34.9004 40.1273 42.7848 66.3171 70.5168 78.7976
+        43.5169 49.2773 52.0605 78.0565 82.5513 91.1168 52.3723 58.0998
+        61.4793 89.1508 93.9702 102.914 60.8712 66.6307 69.9420 99.9741
+        105.114 113.397 69.0303 75.3345 79.2879 110.184 115.551 124.968
+        77.0570 84.6590 88.7883 120.958 126.156 136.711 ;
+    if ((p>5) OR (p<-1));
+        retp((0~0~0~0~0~0)');
+    endif ;
+    if ((n > 5) OR (n < 1));
+        retp((0~0~0~0~0~0)');
+    endif ;
+    i = (n-1)*7 + p + 2 ;
+    retp(jc[i,.]');
+endp ;
+
+@-----------------------------------------------------@
+/*
+**> vmforecast
+**
+**  Purpose:     Calculates forecasts from a VARMAX model
+**
+**  Format:      f = vmforecast(coeffs,p,q,y,x,res,t);
+**
+**  Input:   coeffs    compact matrix created using "vput". Read it using
+**                     "vread". It contains:
+**
+**                phi       p*(LxL) matrix of AR coefficient estimates
+**                          stacked in the order AR(1),...,AR(p)
+**
+**                phi_se    p*(LxL) matrix of AR standard errors
+**                          stacked in the order AR(1),...,AR(p)
+**
+**                theta     q*(LxL) matrix of MA coefficient estimates
+**                          stacked in the order MA(1),...,MA(q)
+**
+**                theta_se  q*(LxL) matrix of MA standard errors
+**                          stacked in the order MA(1),...,MA(q)
+**
+**                beta      LxK matrix of x coefficient estimates
+**
+**                beta_se   LxK matrix of x coefficient standard errors
+**                          stacked in the order MA(1),...,MA(q)
+**
+**                b0        Lx1 matrix of intercept estimates
+**
+**                b0_se     Lx1 matrix of intercept standard errors
+**
+**           p    AR order
+**           q      MA order
+**           y    TxL matrix, the variables to be forecast
+**           x    txK matrix of x variables covering only the forecast
+**                        horizon, in the order T+1,...,T+t
+**           res    TxL matrix of residuals from the VARMA estimation
+**           t    scalar, the number of periods to forecast
+**
+**  Output:  f      tx(L+1) matrix. Column one contains the period
+**                        forecast, The remaining columns contain the
+**                        forecast values.
+**
+**  Globals:     None
+**
+*/
+
+
+
+proc (1) = vmforecast(coeffs,p,q,y,x,res,t);
+    local forec, s,k,yhat,i, phi, theta, beta,b0;
+
+
+phi=vread(coeffs,"phi");
+theta = vread(coeffs,"theta");
+beta=vread(coeffs,"beta");
+b0=vread(coeffs,"b0");
+
+
+    forec = zeros(t,cols(y));       /* Initialize forecast matrix */
+
+/* Setup the Forecast Horizon */
+    for k (1,t,1);
+
+    yhat = zeros(cols(y),1);
+
+/* Set up AR recursion */
+    if p > 0;
+        if p > rows(y);
+            errorlog "Error: The AR order exceeds the number of observations";
+            end;
+        endif;
+        s = seqa(1,1,cols(y));
+        for i (1, p, 1);
+    /* Forecast one period ahead */
+    /* Phi[s,.] starts at phi-1 */
+        yhat = yhat+(phi[s,.]*y[rows(y)-i,.]');
+        s = s+cols(y);
+        endfor;
+    endif;
+
+/* Setup MA Fitting */
+    if q > 0;
+        if q > rows(y);
+            errorlog "Error: The MA order exceeds the number of observations";
+            end;
+        endif;
+        s = seqa(1,1,cols(y));
+        for i (1,q,1);
+    /* Forecast one period ahead */
+    /* Theta[s,.] starts at Theta-1 */
+        yhat = yhat+(theta[s,.]*res[rows(res)-i,.]');
+        s = s+cols(y);
+        endfor;
+    endif;
+
+/* Add constant term */
+    yhat = yhat + b0;
+
+/* Add x terms */
+    if rows(x)>1;
+        if rows(x) /= k;
+            errorlog "Error: The number of x observations does not match th"\
+                "e number of periods forecast";
+            end;
+        endif;
+
+        yhat = yhat+beta*x[k,.]';
+    endif;
+
+/* Populate the Forecast Matrix */
+    forec[k,.] = yhat';
+
+/* Add Fitted Values to the Y matrix */
+    y = y|yhat';
+
+/* Add a row of zeros to the residuals matrix */
+    res = res|zeros(1,cols(y));
+
+    endfor;
+
+    retp(seqa(1,1,t)~forec);
+endp;
+
+/* -------------------------------------------------- */
+/*
+**> vmpp
+**
+**  Purpose:     Returns Phillips-Perron unit root test statistics
+**               and p-values
+**
+**  Format:      { ppb, ppt, pptcrit } = vmpp(y, p);
+**
+**  Input:     y        nx1 vector, a time series
+**
+**             p        order of the time-polynomial to include in the
+**                      ADF regression.  Set p = -1 for no deterministic
+**                      part, p = 0 for a constant term, and p = 1 for
+**                      a constant with trend.
+**
+**
+**  Output:      ppb    scalar, estimate of the autoregressive paramaeter
+**                      in the ADF specification
+**
+**               ppt    the adjusted t-statistic
+**
+**               pptcrit 6x1 vector of adjusted t-statistic Dickey-Fuller
+**                       critical values, in order 1%, 5%, 10%, 90%, 95%, 99%
+**
+**
+*/
+
+proc (3) = vmpp(y,p);
+    local vnam,m,stb,vc,stderr,sigma,cx,rsq,resid,dwstat, xt,
+        acov, seradj, lambdasq, tt, b,m0,out,n,k, ores,i, xtt,s,statret,nw_l,
+        rho,zrho,zt,zrhocrit,ztcrit,za,ztrho;
+
+    m0 = __miss;
+    ores = _olsres;
+    out = __output;
+    __output = 0;
+    __miss = 1;
+    _olsres = 1;
+
+
+        if p == -1;
+/* Phillips-Perron Test Stat - No Intercept */
+            __con = 0;
+            xt = lag1(y);
+        elseif p == 0;
+/* Phillips-Perron Test Stat - Intercept */
+            __con = 1;
+            xt = lag1(y);
+        else;
+/* Phillips-Perron Test Stat - Higher order */
+     @ Create the time trend matrix @
+     xtt = {};
+       s = seqa(1,1,rows(y));
+       for i (1,p,1);
+         xtt =  xtt~s^i;
+       endfor;
+       xt = lag1(y)~xtt;
+       __con = 1;
+   endif;
+
+        { vnam, m, b, stb, vc, stderr, sigma, cx, rsq, resid, dwstat } =
+            ols( "", y,xt );
+
+        n = rows(resid);
+        k = rows(b);
+
+
+        @ Calculate Newey-West Variances @
+        @ Set the Newey-West Truncation lag @
+        if _vm_nwtrunc == 0;
+           nw_l = trunc(4*((rows(resid)/100)^(2/9)));
+        else;
+           nw_l = _vm_nwtrunc;
+        endif;
+
+        @ Calculate Autocovariances, the gamma(i) @
+
+      @ Allow for residuals not summing to zero (if no intercept) @
+        resid = resid-meanc(resid);
+
+        @ Calculate unbiased autocovariances @
+        acov = vmautocov(resid,0,nw_l);
+
+        @ Serial correlation adjustment-2nd term of NW RHS @
+        seradj = 1-(seqa(1,1,nw_l)/(nw_l+1));
+        seradj = seradj .* acov[2:rows(acov)];
+        seradj = 2*(sumc(seradj));
+        lambdasq = acov[1]+seradj;
+
+
+        @ The Za and Zt statistics @
+        @ First the right hand side (serial correlation correction) @
+        if (p == -1);
+
+
+ /*           @ The Za statistic @
+            Za = ((n*(stderr[1]/sigma))^2)*seradj;
+            @ Now the full Za statistic @
+            Za = (n*(b[1]-1)) - .5*Za;
+*/
+
+
+            @ The Zt statistic @
+            ztrho = b[1];
+            tt = (b[1]-1)/stderr[1];
+            tt = sqrt((acov[1]/lambdasq))*tt;
+            tt = tt-(.5*((lambdasq-acov[1])/sqrt(lambdasq)));
+            Zt = tt*(n*(stderr[1]/sigma));
+
+            zrhocrit = 0;
+            ztcrit = vmztcrit(rows(resid),-1);
+/*
+            statret=vput(0,b[1],"rho");
+            statret = vput(statret,za,"zrho");
+            statret = vput(statret,zt,"zt");
+            statret = vput(statret,zrhocrit,"zrhocrit");
+            statret = vput(statret,ztcrit,"ztcrit");
+*/
+
+        else;
+
+/*            Za = ((n*(stderr[2]/sigma))^2)*seradj;
+            @ Now the full Za statistic @
+            Za = (n*(b[2]-1)) - .5*Za;
+*/
+
+            @ The Zt statistic @
+            ztrho = b[2];
+            tt = (b[2]-1)/stderr[2];
+            tt = sqrt((acov[2]/lambdasq))*tt;
+            tt = tt-(.5*((lambdasq-acov[2])/sqrt(lambdasq)));
+            Zt = tt*(n*(stderr[2]/sigma));
+
+            zrhocrit = 0;
+            ztcrit = vmztcrit(rows(resid),p);
+/*
+            statret=vput(0,b[2],"rho");
+            statret = vput(statret,za,"zrho");
+            statret = vput(statret,zt,"zt");
+            statret = vput(statret,zrhocrit,"zrhocrit");
+            statret = vput(statret,ztcrit,"ztcrit");
+*/
+
+        endif;
+
+    __miss = m0;
+    __output = out;
+    _olsres = ores;
+
+    retp(ztrho, zt, ztcrit);
+endp;
+
+
+/****************************************************************************/
+/*
+**> vmautocov
+**
+**  Purpose:    computes specified autocovariances for each column of a matrix.
+**              The data are assumed to have 0 mean. Thus, use x = x-meanc(x)'
+**              prior to the use of this function if mean is not 0.
+**
+**  Format:     a = vmautocov(x,F,L);
+**
+**  Input:      x    nxk matrix, for which autocovariances are to be computed
+**                   for each column separately. Assumed to have 0 mean.
+**              F    1x1 scaLar in range [0,rows(x)-1], denoting the first auto-
+**                   covariance to compute.
+**              L    1x1 scalar, <= rows(x)-1, denoting the last auto-
+**                   covariance to compute. It must be that: F <= L; if L = 0
+**                   and F = 0, then L is set to rows(x)-1 and all
+**                   autocovariances are computed. If L = 0 and F < 0, then
+**                   only the 0th order autocovariance is computed (this
+**                   equals x'x).
+**
+**  Output:     a    gxk matrix, where g = L - F + 1, containing the
+**                   autocovariances of order F, F+1, ..., L for each of
+**                   the columns of x.
+**
+**  Remarks:    The 0th autocovariance is just the variance of the variable.
+**              The divisor for each autocovariance is the number of elements
+**              involved in its computation. Thus, the pth order cross product
+**              is divided by N - P, where N = rows(x), to obtain the pth order
+**              autocovariance.
+**
+**  Example:     autocov(x,2,8)   will compute the 2nd through 8th order
+**                                autocovariances.
+**  See Also:    autocor, conv;
+**
+*/
+
+proc vmautocov(x,F,L);
+    local n, num;
+    n = rows(x);
+    if (L > n - 1) or F > L;
+        errorlog "ERROR: Illegal values specified for starting and ending a"\
+            "utocovariances.";
+        end;
+    endif;
+
+    if L == 0 and F == 0;
+        L = n - 1;
+        num = L - F + 1;
+    elseif L == 0 and F < 0;
+        L = 0;
+        F = 0;
+        num = 1;
+    else;
+        num = L - F + 1;
+    endif;
+    retp( rev( conv(x, rev(x), n - L, n - F ) ) / n );
+endp;
+

@@ -1,0 +1,91 @@
+/*
+** TSM.EXT
+*/
+
+external matrix _print;
+
+external matrix _tsm_gtol;
+external matrix _tsm_optmum;
+external matrix _tsm_Mcov;
+external matrix _tsm_parnm;
+external matrix _tsm_retcode;
+external matrix _ml_derivatives;
+external matrix _ml_RR;
+external matrix _ml_r;
+external matrix _ml_hessian;
+external matrix _ml_gradient;
+external matrix _ml_jacobian;
+external matrix _ml_Jacobian_proc;
+
+external matrix _arma_Y;
+external matrix _arma_p;
+external matrix _arma_q;
+external matrix _arma_epsilon;
+external matrix _arma_SIGMA;
+external matrix _varx_epsilon;
+external matrix _varx_SIGMA;
+external matrix _varx_tol;
+
+external matrix _SSM_Z;
+external matrix _SSM_d;
+external matrix _SSM_H;
+external matrix _SSM_T;
+external matrix _SSM_c;
+external matrix _SSM_R;
+external matrix _SSM_Q;
+external matrix _SSM_parameters;
+external matrix _KF_yc;
+external matrix _KF_v;
+external matrix _KF_a;
+external matrix _KF_P;
+external matrix _KF_ac;
+external matrix _KF_Pc;
+external matrix _KF_F;
+external matrix _KF_invF;
+external matrix _KF_detF;
+external matrix _KF_pinv;
+
+external matrix _TD_ml;
+external matrix _FD_sgf;
+external matrix _FD_Information;
+external matrix _FD_lambda;
+external matrix _FD_pdgm;
+external matrix _sgf_Jacobian_proc;
+
+external matrix _BSM_s;
+external matrix _cycle_prmt;
+
+external matrix _Kernel;
+external matrix _surrogate_random;
+external matrix _Truncated_prmt;
+external matrix _bandwidth;
+external matrix _fourier;
+external matrix _smoothing;
+external matrix _window;
+external matrix _arfima_p;
+external matrix _arfima_q;
+
+external matrix _wcenter;
+external matrix _wcolor;
+external matrix _wline;
+external matrix _LpNorm;
+external matrix _wgrid;
+external matrix _cost;
+
+external matrix _gmm_function;
+external matrix _gmm_iter;
+external matrix _gmm_Jacobian_proc;
+external matrix _gmm_Jtest;
+external matrix _gmm_lags;
+external matrix _gmm_r;
+external matrix _gmm_RR;
+external matrix _gmm_tol;
+external matrix _gmm_Winv;
+
+external matrix _optmum2_fct;
+external matrix _op2gdprc;
+external matrix _op2hsprc;
+external matrix _optmum2_RR;
+external matrix _optmum2_r;
+
+external matrix _tsm_hessian;

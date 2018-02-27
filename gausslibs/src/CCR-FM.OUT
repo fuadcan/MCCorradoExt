@@ -1,0 +1,52 @@
+True Regression Coefficients:
+
+       1.0000000 
+       1.0000000 
+       10.000000 
+ 
+Following estimates use PARZEN kernal
+ 
+Phillips and Hansen(1990) FM regression coefficients, tstats:
+
+       1.0055943        32.181630 
+       1.0406439        61.658493 
+       9.7629462        45.571629 
+ 
+H(0,2) statistic, p-value :       0.20193394       0.65316434 
+ 
+ 
+Park's (1992) CCR regression coefficients, tstats:
+
+       1.0043075        32.985681 
+       1.0403690        60.592942 
+       9.7537150        47.267884 
+ 
+H(0,2) statistic, p-value :        2.8185375       0.24432188 
+ 
+ 
+Now re-calculate using FEJER kernal
+ 
+ 
+True Regression Coefficients:
+
+       1.0000000 
+       1.0000000 
+       10.000000 
+ 
+Park(1988) CCR regression coefficients, tstats:
+
+       1.0090808        35.623009 
+       1.0433023        65.563657 
+       9.7735735        51.131265 
+ 
+H(0,2) statistic, p-value :        2.5456885       0.28003400 
+ 
+ 
+Phillips-Hansen FM regression coefficients, tstats:
+
+       1.0102754        34.867941 
+       1.0434262        66.673586 
+       9.7837027        49.251360 
+ 
+H(0,2) statistic, p-value :        3.0042115       0.22266080 
+run cza.ex;

@@ -1,0 +1,707 @@
+/*
+** datatran.src
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                   Line
+** ===============================================================
+** y = CODE(e,v);                                             29
+** y = DUMMYBR(x,v);                                         126
+** y = DUMMYDN(x,v,p);                                       224
+** y = DUMMY(x,v);                                           350
+** y = MISSEX(x,e);                                          454
+** y = RECODE(x,e,v);                                        513
+** y = SUBSTUTE(x,e,v);                                      624
+*/
+
+/*
+**> code
+**
+**  Purpose:    Allows a new variable to be created (coded) with different
+**              values depending upon which one of a set of logical
+**              expressions is true.
+**
+**  Format:     y = code(e,v);
+**
+**  Input:      e    NxK matrix of 1's and 0's.  Each column of this matrix
+**                   is created by a logical expression using "dot" conditional
+**                   and boolean operators.  Each of these expressions should
+**                   return a column vector result.  The columns are
+**                   horizontally concatenated to produce e.  If more than
+**                   one of these vectors contains a 1 in any given row,
+**                   the code function will terminate with an error message.
+**
+**              v    K+1x1 vector containing the values to be
+**                   assigned to the new variable.
+**
+**  Output:     y    Nx1 vector containing the new values.
+**
+**  Remarks:    If none of the K expressions is true, the new
+**              variable is assigned the default value, which is
+**              given by the last element of v.
+**
+**  Example:    let x1 = 0      /* column vector of original values */
+**                       5
+**                       10
+**                       15
+**                       20;
+**
+**              let v =  1      /* column vector of new values */
+**                       2
+**                       3;     /* the last element of v is the "default" */
+**
+**              e1 = (0 .lt x1) .and (x1 .le 5);        /* expression 1 */
+**              e2 = (5 .lt x1) .and (x1 .le 25);       /* expression 2 */
+**
+**              e = e1~e2;   /* concatenate e1 & e2 to make a 1,0 mask with
+**                           :: one less column than the number of new values
+**                           :: in v.
+**                           */
+**
+**              y = code(e,v);
+**              ___________________________________________________________
+**
+**              x1[5,1] =   0      /* column vector of original values */
+**                          5
+**                          10
+**                          15
+**                          20;
+**
+**              v[3,1] =    1     2    3     (Note: v is a column vector)
+**
+**              e[5,2] =    0     0          y[5,1] =    3
+**                          1     0                      1
+**                          0     1                      2
+**                          0     1                      2
+**                          0     1                      2
+**
+**              For every row in e, if a 1 is in the first column,
+**              the first element of v is used.  If a 1 is in the
+**              second column, the second element of v is used, and
+**              so on.  If there are only zeros in the row, the last
+**              element of v is used.  This is the default value.
+**
+**              If there is more than one 1 in any row of e, the
+**              function will terminate with an error message.
+**
+**  Globals:    None
+**
+**  See Also:   recode, subsitut
+*/
+
+proc code(e,v);
+    local nv;
+
+    if sumc(e') >= 2;
+        errorlog "ERROR: E vector has too many ones for CODE";
+        end;
+    endif;
+
+    if ismiss(v);
+        nv = abs(maxc(v))*1.1+1;
+        v = missrv(v,nv);
+        retp(
+            miss(
+                    e*trimr(v,0,1) + (.not (sumc(e')))*trimr(v,rows(v)-1,0),
+                    nv
+                )
+            );
+    else;
+        retp( e*trimr(v,0,1) + (.not (sumc(e')))*trimr(v,rows(v)-1,0) );
+    endif;
+endp;
+
+/*
+**> dummybr
+**
+**  Purpose:    Creates a set of dummy (0/1) variables by "breaking
+**              up" a variable into specified categories. The
+**              highest (right-most) category is bounded on the
+**              right.
+**
+**  Format:     y = dummybr(x,v);
+**
+**  Input:      x    Nx1 vector of data that is to be "broken up"
+**                   into dummy variables.
+**
+**              v    Kx1 vector specifying the k breakpoints (these
+**                   must be in ascending order) that determine the
+**                   k categories to be used in computing the dummy
+**                   variables.
+**
+**  Output:     y    NxK matrix containing the k dummy variables.
+**
+**  Remarks:    Missings are deleted before the dummy variables are
+**              created.
+**
+**              All categories are open on the left (i.e., do not
+**              contain their left boundaries) and are closed on the
+**              right (i.e., do contain their right boundaries).
+**              Thus, k breakpoints are required to specify k dummy
+**              variables.
+**
+**              The function dummy is similar to dummybr, but in
+**              that function the highest category is unbounded on
+**              the right.
+**
+**  Example:    let x = 0 2 4 6;
+**              v = 1|5|7;
+**              y = dummybr(x,v);
+**
+**              The resulting matrix y looks like this:
+**
+**                   1     0     0
+**                   0     1     0
+**                   0     1     0
+**                   0     0     1
+**
+**              The vector v=1|5|7 will produce 3 dummies satisfying
+**              the following conditions:
+**
+**                   x .<= 1
+**                   1 .< x .and x .<= 5
+**                   5 .< x .and x .<= 7.
+**
+**  Globals:    None
+**
+**  See Also:   dummydn, dummy
+*/
+
+proc dummybr(x,v);
+    local n, k, d, i, m;
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+
+    x = packr(x);           /* Get rid of missings. */
+    if scalmiss(x);
+        errorlog "ERROR: NO ROWS REMAIN AFTER DELETING ROWS WITH MISSINGS";
+        end;
+    endif;
+    n = rows(x);
+    m = cols(x);
+    if m > 1;
+        errorlog "ERROR: X cannot have more than 1 column.";
+        end;
+    endif;
+    k = rows(v);
+    d = zeros(n,k);
+    d[.,1] = (x .<= v[1,.]);
+    i = 2;
+    do until i > k;
+        d[.,i] = ((v[i-1,.] .< x) .and (x .<= v[i,.]));
+        i = i+1;
+    endo;
+    retp(d);
+endp;
+
+/*
+**> dummydn
+**
+**  Purpose:    Creates a set of dummy (0/1) variables by "breaking
+**              up" a variable into specified categories. The
+**              highest (right-most) category is unbounded on the
+**              right, and a specified column of dummies is dropped.
+**
+**  Format:     y = dummydn(x,v,p);
+**
+**  Input:      x    Nx1 vector of data to be "broken up" into dummy
+**                   variables.
+**
+**              v    Kx1 vector specifying the k-1 breakpoints
+**                   (these must be in ascending order) that
+**                   determine the k categories to be used in
+**                   computing the dummy variables.
+**
+**              p    positive integer in the range [1,k], specifying
+**                   which column should be dropped in the matrix of
+**                   dummy variables.
+**
+**  Output:     y    NxK-1 matrix containing the k-1 dummy variables.
+**
+**  Remarks:    This is just like the function dummy, except that
+**              the pth column of the matrix of dummies is dropped.
+**              This ensures that the columns of the matrix of
+**              dummies do not sum to 1, and so these variables will
+**              not be collinear with a vector of ones.
+**
+**              Missings are deleted before the dummy variables are
+**              created.
+**
+**              All categories are open on the left (i.e., do not
+**              contain their left boundaries) and all but the
+**              highest are closed on the right (i.e., do contain
+**              their right boundaries). The highest (right-most)
+**              category is unbounded on the right. Thus, only k-1
+**              breakpoints are required to specify k dummy
+**              variables.
+**
+**  Example:    let x = 0 2 4 6;
+**              v = 1|5|7;  p = 2;
+**              y = dummydn(x,v,p);
+**
+**              The resulting matrix y looks like this:
+**
+**                   1     0     0
+**                   0     0     0
+**                   0     0     0
+**                   0     1     0
+**
+**              The vector v=1|5|7 will produce 4 dummies satisfying
+**              the following conditions:
+**
+**                   x .<= 1
+**                   1 .< x .and x .<= 5
+**                   5 .< x .and x .<= 7
+**                   7 .< x.
+**
+**              Since p equals 2, the second dummy is dropped.
+**
+**  Globals:    None
+**
+**  See Also:   dummy, dummybr
+*/
+
+proc dummydn(x,v,p);
+    local n, k, d, i, m, indx, e;
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+    if iscplx(p);
+        if hasimag(p);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            p = real(p);
+        endif;
+    endif;
+    x = packr(x);           /* Get rid of missings. */
+    if scalmiss(x);
+        errorlog "ERROR: NO ROWS REMAIN AFTER DELETING ROWS WITH MISSINGS";
+        end;
+    endif;
+    n = rows(x);
+    m = cols(x);
+    if m > 1;
+        errorlog "ERROR: X cannot have more than 1 column.";
+        end;
+    endif;
+    k = rows(v);
+    p = round(p);           /* make sure p is integer */
+    if p < 1 or p > k+1;
+        errorlog "ERROR: The third argument (P) of DUMMYDN is out of range.";
+        end;
+    endif;
+    d = zeros(n,k+1);
+    d[.,1] = (x .<= v[1,.]);
+    d[.,k+1] = (v[k,.] .< x);
+    i = 2;
+    do until i > k;
+        d[.,i] = ((v[i-1,.] .< x) .and (x .<= v[i,.]));
+        i = i+1;
+    endo;
+    indx = seqa(1,1,k+1);
+    e = indx .== p;
+    indx = submat(indx,submat(packr(seqa(1,1,rows(indx))~miss(e,1)),0,1),0);
+    d = submat(d,0,indx);
+    retp(d);
+endp;
+
+/*
+**> dummy
+**
+**  Purpose:    Creates a set of dummy (0/1) variables by "breaking
+**              up" a variable into specified categories. The
+**              highest (right-most) category is unbounded on the
+**              right.
+**
+**  Format:     y = dummy(x,v);
+**
+**  Input:      x    Nx1 vector of data that is to be "broken up"
+**                   into dummy variables.
+**
+**              v    K-1x1 vector specifying the k-1 breakpoints
+**                   (these must be in ascending order) that
+**                   determine the k categories to be used in
+**                   computing the dummy variables.
+**
+**  Output:     y    NxK matrix containing the k dummy variables.
+**
+**  Remarks:    Missings are deleted before the dummy variables are
+**              created.
+**
+**              All categories are open on the left (i.e., do not
+**              contain their left boundaries) and all but the
+**              highest are closed on the right (i.e., do contain
+**              their right boundaries). The highest (right-most)
+**              category is unbounded on the right. Thus, only k-1
+**              breakpoints are required to specify k dummy
+**              variables.
+**
+**              The function dummybr is similar to dummy, but in
+**              that function the highest category is bounded on the
+**              right. The function dummydn is also similar to
+**              dummy, but in that function a specified column of
+**              dummies is dropped.
+**
+**  Example:    let x = 0 2 4 6 ;
+**              v = 1|5|7;
+**              y = dummy(x,v);
+**
+**              The result y looks like this:
+**
+**                   1     0     0     0
+**                   0     1     0     0
+**                   0     1     0     0
+**                   0     0     1     0
+**
+**              The vector v will produce 4 dummies satisfying the
+**              following conditions:
+**
+**                   x .<= 1
+**                   1 .< x .and x .<= 5
+**                   5 .< x .and x .<= 7
+**                   7 .< x.
+**
+**  Globals:    None
+**
+**  See Also:   dummybr, dummydn
+*/
+
+proc dummy(x,v);
+    local n, k, d, i, m;
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+
+    x = packr(x);           /* Get rid of missings. */
+    if scalmiss(x);
+        errorlog "ERROR: NO ROWS REMAIN AFTER DELETING ROWS WITH MISSINGS";
+        end;
+    endif;
+    n = rows(x);
+    m = cols(x);
+    if m > 1;
+        errorlog "ERROR: X cannot have more than 1 column.";
+        end;
+    endif;
+    k = rows(v);
+    d = zeros(n,k+1);
+    d[.,1] = (x .<= v[1,.]);
+    d[.,k+1] = (v[k,.] .< x);
+    i = 2;
+    do until i > k;
+        d[.,i] = ((v[i-1,.] .< x) .and (x .<= v[i,.]));
+        i = i+1;
+    endo;
+    retp(d);
+endp;
+
+/*
+**> missex
+**
+**  Purpose:    Converts numeric values to the missing value code
+**              according to the values given in a logical
+**              expression.
+**
+**  Format:     y = missex(x,e);
+**
+**  Input:      x    NxK matrix.
+**
+**              e    NxK logical matrix (matrix of 0's and 1's) that
+**                   serves as a "mask" for x;  the 1's in e
+**                   correspond to the values in x that are to be
+**                   converted into missing values.
+**
+**  Output:     y    NxK matrix that equals x, but with those
+**                   elements that correspond to the 1's in e
+**                   converted to missing.
+**
+**  Remarks:    The matrix e will usually be created by a logical
+**              expression.  For instance, to convert all numbers
+**              between 10 and 15 in x to missing, the following
+**              code could be used:
+**
+**                   y = missex( x, (x .> 10) .and (x .< 15) );
+**
+**              Note that "dot" operators MUST be used in
+**              constructing the logical expressions.
+**
+**              This function is like miss, but is more general in
+**              that a range of values can be converted into
+**              missings.
+**
+**  Example:    x = rndu(3,2);
+**              /* logical expression */
+**              e = (x .> .10) .and (x .< .20);
+**              y = missex(x,e);
+**
+**              A 3x2 matrix of random uniform numbers is created.
+**              All values in the interval (.10,.20) are converted
+**              to missing.
+**
+**  Globals:    None
+**
+**  See Also:   miss, missrv
+*/
+
+proc missex(x,e);
+    local y;
+    y = x + miss(e,1);
+
+    if iscplx(x);
+        y = complex( real(y), (imag(x).*(.not e)) );
+    endif;
+
+    retp(y);
+endp;
+
+/*
+**> recode
+**
+**  Purpose:    Changes the values of an existing vector, from a
+**              vector of new values. Used in data transformations.
+**
+**  Format:     y = recode(x,e,v);
+**
+**  Input:      x    Nx1 vector, to be recoded (changed).
+**
+**              e    NxK matrix of 1's and 0's.
+**
+**              v    Kx1 vector containing the new values to be assigned
+**                   to the recoded variable.
+**
+**  Output:     y    Nx1 vector containing the recoded values of x.
+**
+**  Remarks:    There should be no more than a single 1 in any
+**              row of e.
+**
+**              For any given row N of x and e, if the Kth column
+**              of e is 1, the Kth element of v will replace the
+**              original element of x.
+**
+**  Example:    x = { 20,
+**                    45,
+**                    32,
+**                    63,
+**                    29 };
+**
+**              e1 = (20 .lt x) .and (x .le 30);
+**              e2 = (30 .lt x) .and (x .le 40);
+**              e3 = (40 .lt x) .and (x .le 50);
+**              e4 = (50 .lt x) .and (x .le 60);
+**
+**              e = e1~e2~e3~e4;
+**
+**              v = { 1,
+**                    2,
+**                    3,
+**                    4 };
+**
+**              y = recode(x,e,v);
+**
+**                    20
+**                    45
+**              x =   32
+**                    63
+**                    29
+**
+**                     0    0    0    0
+**                     0    0    1    0
+**              e =    0    1    0    0
+**                     0    0    0    0
+**                     1    0    0    0
+**
+**                     1
+**              v =    2
+**                     3
+**                     4
+**
+**                    20
+**                     3
+**             y =     2
+**                    63
+**                     1
+**
+**  See Also:   code, substute
+*/
+
+proc recode(x,e,v);
+    local nxv;
+    if type(v) == 13;
+        v = 0 $+ v;
+    endif;
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(e);
+        if hasimag(e);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            e = real(e);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+
+    if ismiss(x) or ismiss(v);
+        nxv = abs(maxc(v|x))*1.1+1;
+        v = missrv(v,nxv);
+        x = missrv(x,nxv);
+        retp( miss( (x.*(.not (maxc(e')))) + e*v, nxv ) );
+    else;
+        retp( (x.*(.not (maxc(e')))) + e*v );
+    endif;
+endp;
+
+/*
+**> substute
+**
+**  Purpose:    Substitutes new values for old values in a matrix,
+**              depending on the outcome of a logical expression.
+**
+**  Format:     y = substute(x,e,v);
+**
+**  Input:      x    NxK matrix containing the data to be changed.
+**
+**              e    LxM matrix, ExE conformable with x containing
+**                   1's and 0's.
+**
+**                   Elements of x will be changed if the
+**                   corresponding element of e is 1.
+**
+**              v    PxQ matrix, ExE conformable with x and e,
+**                   containing the values to be substituted for the
+**                   original values of x when the corresponding element
+**                   of e is 1.
+**
+**  Output:     y    max of N,L,P by max of K,M,Q matrix.
+**
+**  Remarks:    The e matrix is usually the result of an expression
+**              or set of expressions using "dot" conditional and
+**              boolean operators.
+**
+**  Example:    x = { Y 55 30,
+**                    N 57 18,
+**                    Y 24  3,
+**                    N 63 38,
+**                    Y 55 32,
+**                    N 37 11 };
+**
+**              e = x[.,1] .$== "Y" .and x[.,2] .>= 55 .and x[.,3] .>= 30;
+**
+**              x[.,1] = substute(x[.,1],e,"R");
+**
+**
+**                    R   55   30
+**                    N   57   18
+**              x =   Y   24    3
+**                    N   63   38
+**                    R   55   32
+**                    N   37   11
+**
+**  See Also:   code, recode
+*/
+
+proc substute(x,e,v);
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(e);
+        if hasimag(e);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            e = real(e);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+
+    if type(v) == 13;
+        v = 0 $+ v;
+    endif;
+    x = (x.*(.not e)) + e.*v;
+    ndpclex;
+    retp(x);
+endp;
+

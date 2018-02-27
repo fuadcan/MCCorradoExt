@@ -1,0 +1,81 @@
+/*
+** hurst.src - Time Series Modelling.
+** (C) Copyright 1996 by Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {H,y} = Hurst(x,l,Npv)        R/S statistics and Hurst exponent        13
+*/
+
+
+/*
+** Hurst
+**
+** Purpose: Compute the R/S statistics and the Hurst exponent.
+**
+**          Lo [1991], Long-term memory in stock market prices,
+**          Econometrica, 59, pages 1279-1313
+**
+** Format:  {H,y} = Hurst(x,l,Npv);
+**
+** Input:     x - Nobs*1 vector, data.
+**            l - scalar, the order of the lag.
+**          Npv - scalar, the number of presample values.
+**
+** Output:    H - scalar, the Hurst exponent.
+**            y - Nobs*6 matrix, R/S statistic.
+**                y[.,1], the time index 1,...,Nobs.
+**                y[.,2], the R values.
+**                y[.,3], the S values.
+**                y[.,4], the Q = R/S values.
+**                y[.,5], the V = Q/sqrt(N) values.
+**                y[.,6], the fitted values of the regression
+**                        log(Q) = alpha + beta*log(N) + v
+**
+*/
+
+
+#include nw.src;
+
+proc (2) = HURST(x,l,Npv);
+  local nobs,j,i,y,R,S,Q,T,n,obs,xn,beta,H,V;
+  local fit;
+
+  Nobs = rows(x);  j = seqa(1,1,Nobs);
+  R = miss(zeros(Nobs,1),0); S = miss(zeros(Nobs,1),0);
+
+  y = packr(x~j);
+  x = y[.,1]; i = y[.,2];
+
+  T = rows(x);
+  if Npv <= 1;
+    n = 2;
+  else;
+    n = trunc(Npv);
+  endif;
+
+  do until n>T;
+    obs = i[n];
+    xn = x[1:n];
+    S[obs] = _nw_sigma2(xn,l);
+    xn = xn-meanc(x); xn = cumsumc(xn);
+    R[obs] = maxc(xn) - minc(xn);
+    n = n+1;
+  endo;
+
+  S = sqrt(S);
+  Q = R./S;
+  V = Q./sqrt(J);
+
+  y = log(Q)~ones(nobs,1)~log(J);
+  y = packr(y); beta = y[.,1]/y[.,2:3];
+  H = beta[2];
+  N = J;
+  fit = beta[1]+beta[2]*log(N);
+
+  retp(H,N~R~S~Q~V~fit);
+endp;
+
+
+

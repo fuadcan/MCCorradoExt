@@ -1,0 +1,44 @@
+/*
+** sqpsolve.dec - definitions for sqpSolve globals
+**
+**
+** (C) Copyright 1997-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+
+declare matrix _sqp_ParNames = 0;     /* parameter names */
+declare matrix _sqp_DirTol = 1e-5;   /* convergence tolerance for gradient  */
+declare matrix _sqp_HessProc = 0;     /* procedure to compute hessian  */
+declare matrix _sqp_GradProc = 0;     /* procedure to compute gradient  */
+declare matrix _sqp_MaxIters = 1e+5;  /* maximum number of iterations  */
+declare matrix _sqp_PrintIters = 0;
+declare matrix _sqp_FeasibleTest = 1;
+declare matrix _sqp_RandRadius = .001;
+declare matrix _sqp_TrustRadius = 0;
+
+declare matrix _sqp_A = {.};
+declare matrix _sqp_B = {.};
+declare matrix _sqp_C = {.};
+declare matrix _sqp_D = {.};
+declare matrix _sqp_EqProc = {.};
+declare matrix _sqp_IneqProc = {.};
+declare matrix _sqp_Bounds = {.};
+
+
+

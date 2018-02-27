@@ -1,0 +1,833 @@
+/*
+** gdadstat.src - descriptive statistics
+** (C) Copyright 2005-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**                  Format                                      Line
+** =====================================================================
+**
+**      dout = gdadstat(filename,vars);                          106 
+**      dout = _gdadstat(filename,vars);                         199
+**      dout = gdadstatmat(filename,var,colind,vnamevar);        465
+**      dout = _gdadstatmat(filename,var,colind,vnamevar);       610
+**/
+
+#include dstatmt.sdf
+
+/*
+**> gdadstat
+**
+**  Purpose:    Computes descriptive statistics.
+**
+**  Format:     dout = gdadstat(dc0,filename,vars);
+**
+**  Input:      dc0        an instance of an dstatmtControl structure containing 
+**                         the following members:
+** 
+**                      dc0.altnam -- string array, default "".
+**
+**                              Kx1 string array, vector of alternate names
+**                              to be used.
+**
+**                      dc0.miss -- scalar, default 0. 
+**
+**                              Determines how missing values will be handled.
+**
+**                                 0   there are no missing values.
+**
+**                                 1   listwise deletion, drop an observation
+**                                     if any missings occur in it.
+**
+**                                 2   pairwise deletion.
+**
+**                     dc0.output -- scalar, default 1. 
+**
+**                              Controls output.
+**
+**                                 1   print output table.
+**
+**                                 0   do not print output.
+**
+**              filename   string, name of GDA. 
+**
+**              vars       Kx1 string array, names of the variables in the GDA 
+**                         to be analyzed
+**                                         OR
+**                         Kx1 numeric vector, the indices of the variables in 
+**                         the GDA to be analyzed.
+**
+**                         These can be any size subset of the variables in
+**                         the GDA, and can be in any order. 
+**
+**  Output:     dout       an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+**
+**                       dout.errcode -- scalar, error code, 0 if successful,
+**                               otherwise one of the following:
+**
+**                               1    No GDA indicated. 
+**                               3    Variable must be Nx1. 
+**                               4    Not implemented for complex data. 
+**                               5    Variable must be type matrix. 
+**                               7    Too many missings - no data left 
+**                                    after packing.
+**                               9    altnames member of dstatmtControl 
+**                                    structure wrong size.
+**                              11    Data read error. 
+**
+**  Remarks:    If pairwise deletion is used, the minima and maxima will be
+**              the true values for the valid data.  The means and standard
+**              deviations will be computed using the correct number of
+**              valid observations for each variable.
+**
+**
+**  gdadstat
+**
+*/
+
+proc gdadstat(struct dstatmtControl dc0,filename,vars);
+    local n,omat,fmt,ostr,vnamelen,spacelen;
+    struct dstatmtOut dout;
+
+    filename = "" $+ filename;
+
+    if filename $== "";
+        dout.errcode = 1; // No GDA indicated 
+        retp(dout);
+    else;
+        dout = _gdadstat(dc0,filename,vars);
+    endif;
+
+    if (dout.errcode);
+        retp(dout);
+    endif;
+    msym "-----";
+    n = rows(dout.mean);
+    if rows(dout.missing) == 1;
+        dout.missing = dout.missing*ones(n,1);
+    endif;
+    if rows(dout.valid) == 1;
+        dout.valid = dout.valid*ones(n,1);
+    endif;
+    vnamelen = maxc(strlen(dout.vnames))+1;
+    if (vnamelen > 8);
+        spacelen = vnamelen-8;
+    else;
+        spacelen = 0;
+    endif;
+    if dc0.output;
+        print;
+        print chrs(45*ones(88+spacelen,1));
+        if (spacelen);
+            print "Variable"$+chrs(32*ones(spacelen,1))$+"        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        else;
+            print "Variable        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        endif;
+        print chrs(45*ones(88+spacelen,1));
+        omat = dout.mean~dout.std~dout.var~dout.min~dout.max~dout.valid~dout.missing;
+        string fmt = { "%12.4f", "%12.4f", "%14.4f", "%12.4f", "%12.4f", "%10.0f", "%5.0f" };
+        ostr = satostrC(dout.vnames,"%-"$+ftocv(vnamelen,1,0)$+"."$+ftocv(vnamelen,1,0)$+"s");
+        ostr = ostr$~ftostrC(omat,fmt);
+        ostr = strcombine(ostr,"",0);
+        print ostr;
+    endif;
+    msym ".";
+    retp(dout);
+endp;
+
+/*
+**> _gdadstat
+**
+**  Purpose:  This is called by gdadstat to read the variables and
+**            compute the descriptive statistics.
+**
+**  Format:   dout =  _gdadstat(dc0,filename,vars);
+**
+**  Input:      dc0        an instance of an dstatmtControl structure.
+**                         See gdadstat for details.
+** 
+**              filename   string, the name of the GDA to be analyzed.
+**
+**              vars      Kx1 string array, names of the variables.
+**                                       OR
+**                        Kx1 numeric vector, indices of variables.
+**
+**  Output:     dout      an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+**
+**                       dout.errcode -- scalar, error code.
+*/
+
+proc _gdadstat(struct dstatmtControl dc0,filename,vars);
+    local x,ord,nobs,sum,sumsq,types;
+    struct dstatmtOut dout;
+
+    if (rows(vars) == 1);
+        if (type(vars) == 6);
+            if (gdaiscplx(filename,gdagetname(filename,vars)));
+                dout.errcode = 4; // Not implemented for complex data 
+                retp(dout);
+            elseif (gdagettype(filename,gdagetname(filename,vars)) != 6);
+                dout.errcode = 5; // Variable must be type matrix 
+                retp(dout);
+            endif;
+            x = gdareadbyindex(filename,vars);
+
+            if (scalerr(x));
+                dout.errcode = 11; // Data read error 
+                retp(dout);
+            endif;
+        else;
+            if (gdaiscplx(filename,vars));
+                dout.errcode = 4; // Not implemented for complex data
+                retp(dout);
+            elseif (gdagettype(filename,vars) != 6);
+                dout.errcode = 5; // Variable must be type matrix 
+                retp(dout);
+            endif;
+            x = gdaread(filename,vars);
+
+            if (scalerr(x));
+                dout.errcode = 11; // Data read error 
+                retp(dout);
+            endif;
+        endif;
+        nobs = rows(x);
+        dout.missing = 0;
+        if dc0.miss == 1;     /* listwise deletion */
+            x = packr(x);
+            if scalmiss(x);
+                dout.errcode = 7; // Too many missings - no data left after packing
+                retp(dout);
+            endif;
+            dout.min = minc(x);
+            dout.max = maxc(x);
+            dout.valid = rows(x);
+        elseif dc0.miss == 2;         /* pairwise deletion */
+            dout.missing = counts(x,error(0));
+            dout.min = minc(missrv(x,__INFp));
+            dout.max = maxc(missrv(x,__INFn));
+            dout.valid = rows(x)-dout.missing;
+            x = missrv(x,0);
+        else;
+            dout.min = minc(x);
+            dout.max = maxc(x);
+            dout.valid = rows(x);
+        endif;
+        sum = sumc(x);
+        sumsq = sumc(x.*x);
+    else;
+        if (type(vars) == 6);
+            dout.vnames = gdagetnames(filename);
+            dout.vnames = dout.vnames[vars];
+            types = gdagettypes(filename);
+            if (not types[vars] == 6);
+                dout.errcode = 5; // Variable must be type matrix 
+                retp(dout);
+            endif;
+            ord = gdagetorders(filename,dout.vnames[1]);
+            nobs = ord[1];
+            dout.min = {};
+            dout.max = {};
+            dout.valid = {};
+            dout.missing = {};
+            sum = {};
+            sumsq = {};
+
+            for i (1,rows(vars),1);
+                ord = gdagetorders(filename,dout.vnames[i]);
+                if ((ord[1] != nobs) or (ord[2] != 1));
+                    dout.errcode = 3; // Variable must be Nx1
+                    retp(dout);
+                elseif (gdaiscplx(filename,vars[i]));
+                    dout.errcode = 4; // Not implemented for complex data. 
+                    retp(dout);
+                endif;
+                x = gdareadbyindex(filename,vars[i]);
+
+                if (scalerr(x));
+                    dout.errcode = 11; // Data read error 
+                    retp(dout);
+                endif;
+
+                if dc0.miss == 1;     /* listwise deletion */
+                    x = packr(x);
+                    if scalmiss(x);
+                        dout.errcode = 7; // Too many missings - no data left after packing
+                        retp(dout);
+                    endif;
+                    dout.min = dout.min|minc(x);
+                    dout.max = dout.max|maxc(x);
+                    dout.valid = dout.valid|rows(x);
+                elseif dc0.miss == 2;         /* pairwise deletion */
+                    dout.missing = dout.missing|counts(x,error(0));
+                    dout.min = dout.min|minc(missrv(x,__INFp));
+                    dout.max = dout.max|maxc(missrv(x,__INFn));
+                    dout.valid = dout.valid|(rows(x)-dout.missing[i]);
+                    x = missrv(x,0);
+                else;
+                    dout.min = dout.min|minc(x);
+                    dout.max = dout.max|maxc(x);
+                    dout.valid = dout.valid|rows(x);
+                endif;
+
+                sum = sum|sumc(x);
+                sumsq = sumsq|sumc(x.*x);
+            endfor;
+
+            if (dout.missing == error(0));
+                dout.missing = zeros(rows(vars),1);
+            endif;
+        else;
+            dout.vnames = vars; 
+            ord = gdagetorders(filename,vars[1]);
+            nobs = ord[1];
+            dout.min = {};
+            dout.max = {};
+            dout.valid = {};
+            dout.missing = {};
+            sum = {};
+            sumsq = {};
+
+            for i (1,rows(vars),1);
+                ord = gdagetorders(filename,vars[i]);
+                if ((ord[1] != nobs) or (ord[2] != 1));
+                    dout.errcode = 3; // Variable must be Nx1
+                    retp(dout);
+                elseif (gdaiscplx(filename,vars[i]));
+                    dout.errcode = 4; // Not implemented for complex data 
+                    retp(dout);
+                elseif (gdagettype(filename,vars[i]) != 6);
+                    dout.errcode = 5; // Variable must be type matrix 
+                    retp(dout);
+                endif;
+                x = gdaread(filename,vars[i]);
+
+                if (scalerr(x));
+                    dout.errcode = 11; // Data read error 
+                    retp(dout);
+                endif;
+                if dc0.miss == 1;     /* listwise deletion */
+                    x = packr(x);
+                    if scalmiss(x);
+                        dout.errcode = 7; // Too many missings - no data left after packing
+                        retp(dout);
+                    endif;
+                    dout.min = dout.min|minc(x);
+                    dout.max = dout.max|maxc(x);
+                    dout.valid = dout.valid|rows(x);
+                elseif dc0.miss == 2;         /* pairwise deletion */
+                    dout.missing = dout.missing|counts(x,error(0));
+                    dout.min = dout.min|minc(missrv(x,__INFp));
+                    dout.max = dout.max|maxc(missrv(x,__INFn));
+                    dout.valid = dout.valid|(rows(x)-dout.missing[i]);
+                    x = missrv(x,0);
+                else;
+                    dout.min = dout.min|minc(x);
+                    dout.max = dout.max|maxc(x);
+                    dout.valid = dout.valid|rows(x);
+                endif;
+
+                sum = sum|sumc(x);
+                sumsq = sumsq|sumc(x.*x);
+            endfor;
+
+            if (dout.missing == error(0));
+                dout.missing = zeros(rows(vars),1);
+            endif;
+        endif;
+    endif;
+
+    if (dc0.altnames $!= "");
+        if (rows(dc0.altnames) == rows(vars));
+            dout.vnames = dc0.altnames;
+        else;
+            dout.errcode = 9; // altnames member of dstatmtControl structure wrong size
+            retp(dout);
+        endif;
+    endif;
+
+    if dout.valid == 0;
+        dout.errcode = 7; // Too many missings - no data left after packing
+        retp(dout);
+    endif;
+    dout.mean = sum./dout.valid;
+    dout.var = (sumsq-dout.valid.*(dout.mean.*dout.mean))./( dout.valid + (dout.valid .== 1) - 1 );
+    dout.var = missex(dout.var,dout.valid.==1);
+    dout.var = maxc(dout.var'|zeros(1,rows(dout.var)));
+    dout.std = sqrt(dout.var);
+    dout.missing = nobs-dout.valid;
+
+    dout.var = missex(dout.var,dout.var .== 0);
+    dout.std = missex(dout.std,dout.std .== 0);
+
+    retp(dout);
+endp;
+
+/*
+**> gdadstatmat
+**
+**  Purpose:    Computes descriptive statistics on selected columns of a
+**              variable in a GDA.
+**
+**  Format:     dout = gdadstatmat(dc0,filename,vars,colind,vnamevar);
+**
+**  Input:      dc0        an instance of an dstatmtControl structure containing 
+**                         the following members:
+** 
+**                      dc0.altnam -- string array, default "".
+**
+**                              Kx1 string array, vector of alternate names
+**                              to be used.
+**
+**                      dc0.miss -- scalar, default 0. 
+**
+**                              Determines how missing values will be handled.
+**
+**                                 0   there are no missing values.
+**
+**                                 1   listwise deletion, drop an observation
+**                                     if any missings occur in it.
+**
+**                                 2   pairwise deletion.
+**
+**                     dc0.output -- scalar, default 1. 
+**
+**                              Controls output.
+**
+**                                 1   print output table.
+**
+**                                 0   do not print output.
+**
+**              filename   string, name of GDA. 
+**
+**              var        string, name of the variable in the GDA to be 
+**                         analyzed
+**                                         OR
+**                         scalar, index of the variable in the GDA to 
+**                         be analyzed.
+**
+**              colind     Nx1 vector, indices of columns in variable to 
+**                         use. 
+**
+**              vnamevar   string, name of variable containing variable 
+**                         names to use for output 
+**                                         OR
+**                         scalar, index of variable containing variable 
+**                         names to use for output. 
+**
+**  Output:     dout       an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+**
+**                       dout.errcode -- scalar, error code, 0 if successful,
+**                               otherwise one of the following:
+**
+**                               1    No GDA indicated. 
+**                               4    Not implemented for complex data. 
+**                               5    Variable must be type matrix. 
+**                               6    Too many variables specified. 
+**                               7    Too many missings - no data left 
+**                                    after packing.
+**                               8    Name variable wrong size.
+**                               9    altnames member of dstatmtControl 
+**                                    structure wrong size.
+**                              11    Data read error. 
+**
+**  Remarks:    If pairwise deletion is used, the minima and maxima will be
+**              the true values for the valid data.  The means and standard
+**              deviations will be computed using the correct number of
+**              valid observations for each variable.
+**
+**
+**  gdadstatmat
+**
+*/
+
+proc gdadstatmat(struct dstatmtControl dc0,filename,var,colind,vnamevar);
+    local n,omat,fmt,ostr,vnamelen,spacelen;
+    struct dstatmtOut dout;
+
+    filename = "" $+ filename;
+
+    if filename $== "";
+        dout.errcode = 1; // No GDA indicated 
+        retp(dout);
+    else;
+        dout = _gdadstatmat(dc0,filename,var,colind,vnamevar);
+    endif;
+
+    if (dout.errcode);
+        retp(dout);
+    endif;
+
+    msym "-----";
+    n = rows(dout.mean);
+    if rows(dout.missing) == 1;
+        dout.missing = dout.missing*ones(n,1);
+    endif;
+    if rows(dout.valid) == 1;
+        dout.valid = dout.valid*ones(n,1);
+    endif;
+    vnamelen = maxc(strlen(dout.vnames))+1;
+    if (vnamelen > 8);
+        spacelen = vnamelen-8;
+    else;
+        spacelen = 0;
+    endif;
+    if dc0.output;
+        print;
+        print chrs(45*ones(88+spacelen,1));
+        if (spacelen);
+            print "Variable"$+chrs(32*ones(spacelen,1))$+"        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        else;
+            print "Variable        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        endif;
+        print chrs(45*ones(88+spacelen,1));
+        omat = dout.mean~dout.std~dout.var~dout.min~dout.max~dout.valid~dout.missing;
+        string fmt = { "%12.4f", "%12.4f", "%14.4f", "%12.4f", "%12.4f", "%10.0f", "%5.0f" };
+        ostr = satostrC(dout.vnames,"%-"$+ftocv(vnamelen,1,0)$+"."$+ftocv(vnamelen,1,0)$+"s");
+        ostr = ostr$~ftostrC(omat,fmt);
+        ostr = strcombine(ostr,"",0);
+        print ostr;
+    endif;
+    msym ".";
+    retp(dout);
+endp;
+
+/*
+**> _gdadstatmat
+**
+**  Purpose:  This is called by gdadstatmat to read the variable and
+**            compute the descriptive statistics.
+**
+**  Format:     dout = _gdadstatmat(dc0,filename,var,colind,vnamevar);
+**
+**  Input:      dc0        an instance of an dstatmtControl structure containing 
+**                         the following members:
+** 
+**                      dc0.altnam -- string array, default "".
+**
+**                              Kx1 string array, vector of alternate names
+**                              to be used.
+**
+**                      dc0.miss -- scalar, default 0. 
+**
+**                              Determines how missing values will be handled.
+**
+**                                 0   there are no missing values.
+**
+**                                 1   listwise deletion, drop an observation
+**                                     if any missings occur in it.
+**
+**                                 2   pairwise deletion.
+**
+**                     dc0.output -- scalar, default 1. 
+**
+**                              Controls output.
+**
+**                                 1   print output table.
+**
+**                                 0   do not print output.
+**
+**                     dc0.row -- scalar, default 0. 
+**
+**                              The number of rows of var to be read per
+**                              iteration of the read loop. By default, the
+**                              entire variable is read at one time.
+**
+**              filename   string, name of GDA. 
+**
+**              var       string, name of the variable in the GDA to be 
+**                         analyzed
+**                                         OR
+**                         scalar, index of the variable in the GDA to 
+**                         be analyzed.
+**
+**              colind     Nx1 vector, indices of columns in variable to 
+**                         use. 
+**
+**              vnamevar   string, name of variable containing variable 
+**                         names to use for output 
+**                                         OR
+**                         scalar, index of variable containing variable 
+**                         names to use for output. 
+**
+**  Output:     dout       an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+**
+**                       dout.errcode -- scalar, error code. 
+**
+**  Remarks:    If pairwise deletion is used, the minima and maxima will be
+**              the true values for the valid data.  The means and standard
+**              deviations will be computed using the correct number of
+**              valid observations for each variable.
+**
+**
+**  _gdadstatmat
+**
+*/
+
+
+proc _gdadstatmat(struct dstatmtControl dc0,filename,var,colind,vnamevar);
+    local x,ord,sum,sumsq,types,varname,varind,nr,tobs,k,kk,rowsread,rind,chunk,i,vnam;
+    struct dstatmtOut dout;
+
+    /* process variables */
+
+    if (rows(var) > 1);
+		dout.errcode = 6; // Too many variables specified
+        retp(dout);
+    endif;
+
+    if (type(var) == 6);
+        varind = var;
+        varname = gdagetname(filename,varind);
+    else;
+        varname = var;
+        varind = gdagetindex(filename,varname); 
+    endif;
+
+    if (gdagettype(filename,varname) != 6);
+        dout.errcode = 5; // Variable must be type matrix 
+        retp(dout);
+    elseif (gdaiscplx(filename,varname));
+        dout.errcode = 4; // Not implemented for complex data 
+        retp(dout);
+    endif;
+
+    ord = gdagetorders(filename,varname);
+    tobs = ord[1]; 
+    k = ord[2]; 
+    kk = rows(colind);
+
+    if (dc0.altnames $/= "");
+        if (rows(dc0.altnames) != kk);
+            dout.errcode = 9; // altnames member of dstatmtControl structure wrong size
+            retp(dout);
+        endif;
+        dout.vnames = dc0.altnames;
+    elseif (type(vnamevar) == 6);
+        if (vnamevar == 0);
+            dout.vnames = "X"$+ftocv(seqa(1,1,k),1,0);
+        else;
+            vnam = gdareadbyindex(filename,vnamevar);
+            
+            if (scalerr(vnam));
+                dout.errcode = 11; // Data read error
+                retp(dout);
+            endif;
+ 
+            dout.vnames = vnam; 
+            if (rows(dout.vnames) != k);
+                dout.errcode = 8; // Name variable wrong size 
+                retp(dout);
+            endif;
+            dout.vnames = dout.vnames[colind];
+        endif;
+    else;
+        vnam = gdaread(filename,vnamevar);
+            
+        if (scalerr(vnam));
+            dout.errcode = 11; // Data read error
+            retp(dout);
+        endif;
+
+        dout.vnames = vnam; 
+        if (rows(dout.vnames) != k);
+            dout.errcode = 8; // Name vector wrong size 
+            retp(dout);
+        endif;
+        dout.vnames = dout.vnames[colind];
+    endif;
+            
+    if dc0.row;
+        nr = dc0.row;
+        rowsread = 0;
+        rind = 1|1;
+        dout.min = reshape(__INFp,kk,1);       /* positive infinity */
+        dout.max = reshape(__INFn,kk,1);       /* negative infinity */
+        sum = 0;
+        sumsq = 0;
+        dout.valid = 0;
+        do until (rowsread == tobs);
+            chunk = minc(tobs-rowsread,nr);
+            x = gdareadsome(filename,varname,rind,chunk|k);
+            if (scalerr(x));
+                dout.errcode = 11; // Data read error 
+                retp(dout);
+            endif;
+            x = x[.,colind];
+            if dc0.miss == 1;     /* listwise deletion */
+                x = packr(x);
+                if scalmiss(x);
+                    continue;
+                endif;
+                dout.min = minc(x|dout.min');
+                dout.max = maxc(x|dout.max');
+                dout.valid = dout.valid + rows(x);
+            elseif dc0.miss == 2;         /* pairwise deletion */
+                dout.missing = zeros(kk,1);
+                i = 1;
+                do until i > kk;
+                    dout.missing[i] = dout.missing[i] + counts(x[.,i],error(0));
+                    i = i+1;
+                endo;
+                dout.min = minc(missrv(x,__INFp)|dout.min');
+                dout.max = maxc(missrv(x,__INFn)|dout.max');
+                dout.valid = dout.valid + rows(x) - dout.missing;
+                x = missrv(x,0);
+            else;
+                dout.min = minc(x|dout.min');
+                dout.max = maxc(x|dout.max');
+                dout.valid = dout.valid + rows(x);
+            endif;
+            sum = sumc(x) + sum;
+            sumsq = sumc(x.*x) + sumsq;
+
+            rowsread = rowsread+chunk;
+            rind[1] = rind[1]+chunk;
+        endo;
+    else;
+        sum = 0;
+        sumsq = 0;
+        x = gdaread(filename,varname);
+        if (scalerr(x));
+            dout.errcode = 11; // Data read error 
+            retp(dout);
+        endif;
+        x = x[.,colind];
+        if dc0.miss == 1;     /* listwise deletion */
+            x = packr(x);
+            if scalmiss(x);
+                dout.errcode = 7; // Too many missings - no data left after packing
+                retp(dout);
+            endif;
+            dout.min = minc(x);
+            dout.max = maxc(x);
+            dout.valid = rows(x);
+        elseif dc0.miss == 2;         /* pairwise deletion */
+            dout.missing = zeros(kk,1);
+            i = 1;
+            do until i > kk;
+                dout.missing[i] = dout.missing[i] + counts(x[.,i],error(0));
+                i = i+1;
+            endo;
+            dout.min = minc(missrv(x,__INFp));
+            dout.max = maxc(missrv(x,__INFn));
+            dout.valid = rows(x) - dout.missing;
+            x = missrv(x,0);
+        else;
+            dout.min = minc(x);
+            dout.max = maxc(x);
+            dout.valid = rows(x);
+        endif;
+        sum = sumc(x) + sum;
+        sumsq = sumc(x.*x) + sumsq;
+    endif;
+
+    if dout.valid == 0;
+        dout.errcode = 7; // Too many missings - no data left after packing
+        retp(dout);
+    endif;
+
+    dout.mean = sum./dout.valid;
+    dout.var = (sumsq-dout.valid.*(dout.mean.*dout.mean))./( dout.valid + (dout.valid .== 1) - 1 );
+    dout.var = missex(dout.var,dout.valid.==1);
+    dout.var = maxc(dout.var'|zeros(1,rows(dout.var)));
+    dout.std = sqrt(dout.var);
+    dout.missing = tobs-dout.valid;
+
+    dout.var = missex(dout.var,dout.var .== 0);
+    dout.std = missex(dout.std,dout.std .== 0);
+
+    retp(dout);
+endp;
+
+

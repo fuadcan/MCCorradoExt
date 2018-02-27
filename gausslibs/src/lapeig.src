@@ -1,0 +1,946 @@
+/*
+** lapeig.src - LAPACK eigendecomposition procedures
+**
+** (C) Copyright 2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**
+**  Format                           Purpose                             Line
+** -----------------------------------------------------------------------------
+**  va  = lapeighi(x,il,iu,abstol);  index selected eigenvalues           42
+**  va  = lapeighb(x,vl,vu,abstol);  bounds selected eigenvalues         154
+**  { va,ve } = lapeighvi(x,il,iu,abstol);
+**                                   index selected eigenvalues/vectors  269
+**  { va,ve } = lapeighvb(x,vl,vu,abstol);
+**                                   bounds selected eigenvalues/vectors 390
+**  va = lapgeigh(A,B)               generalized eigenvalues for
+**                                     symmetric/Hermitian matrices      522
+**  { va,ve } = lapgeighv(A,B)       generalized eigenvalues/vectors for
+**                                     symmetric/Hermitian matrices      611
+**  va = lapgeig(A,B)                generalized eigenvalues for general
+**                                     real or complex matrices          714
+**  { va,ve } = lapgeigv(A,B)        generalized eigenvalues/vectors for
+**                                     general real or complex matrices  827
+**
+*/
+
+
+/*
+**
+**  lapeighi
+**
+** >Purpose:   computes eigenvalues only of a real symmetric or
+**                complex Hermitian matrix selected by index
+**
+**  Format:    ve = lapeighi(x,il,iu,abstol);
+**
+**  Input:     x     NxN matrix, real symmetric or complex Hermitian
+**
+**             il    1x1 scalar, index of the smallest desired eigenvalue
+**                  ranking them from smallest to largest
+**
+**             iu    1x1 scalar, index of the largest desired eigenvalue,
+**                     iu must be greater than il.
+**
+**             abstol - scalar, the absolute error tolerance for the
+**             eigenvalues.  An approximate eigenvalue is accepted
+**             as converged when it is determined to lie in an
+**             interval [a,b] of width less than or equal to
+**             ABSTOL + EPS*max(|a|,|b|), where EPS is machine
+**             precision.  If ABSTOL is less than or equal to zero,
+**             then EPS*||T|| will be used in its place, where T is the
+**             tridiagonal matrix obtained by reducing the input matrix
+**             to tridiagonal form.
+**
+**  Output:    ve    (iu-il+1)x1 vector, eigenvalues
+**
+**  Remarks:   lapeighi computes iu-il+1 eigenvalues only given a range
+**             of indices, i.e., the i-th to j-th eigenvalues, ranking
+**             them from smallest to largest.  To find eigenvalues within
+**             a specified range see lapeighxb.  For eigenvectors see LEIGHVX,
+**             lapeighvi, or lapeighvb.
+**
+**             lapeighi is based on the LAPACK drivers DYESVX and ZHEEVX.
+**             Further documentation of these functions may be found in
+**             the LAPACK User's Guide.
+**
+**  Example:
+**
+**               x = { 5   2   1,
+**                     2   6   2,
+**                     1   2   9 };
+**
+**               il = 2;
+**               iu = 3;
+**
+**               ve = lapeighi(x,il,iu,0);
+**
+**               print ve;
+**
+**
+**                6.0000
+**                10.6056
+**
+** See Also:   lapeighb, lapeighvi, lapeighvb
+*/
+
+proc lapeighi(x,il,iu,abstol);
+
+     local  w, n, info, m0, ind, rng, vl, vu, neig, z;
+     rng = 2;  /* index range */
+     ind = 0;
+     info = 0;
+     vl = 0;
+     vu = 0;
+     n = rows(x);
+     if il < 1 or il > n or iu <= il or iu > n;
+         if not trapchk(4);
+             errorlog "lapeighi:  illegal index";
+             end;
+         else;
+             retp(error(0));
+         endif;
+     endif;
+     neig = 0;
+     w = zeros(n,1);
+     z = 0;
+     if not iscplx(x);
+
+         dllcall _dsyevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+         endif;
+     else;
+
+         dllcall _zheevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+         endif;
+
+     endif;
+     if info < 0;
+         if not trapchk(4);
+             errorlog "lapeighi:  illegal value in argument";
+             end;
+         else;
+             retp(error(-info));
+         endif;
+     endif;
+
+     retp(packr(w));
+endp;
+
+
+
+
+/*
+**
+** >proc lapeighb
+**
+**  Purpose:   computes eigenvalues only of a real symmetric or
+**             complex Hermitian matrix selected by bounds
+**
+**  Format:   ve = lapeighb(x,vl,vu);
+**
+**  Input:     x   NxN matrix, real symmetric or complex Hermitian
+**
+**            vl   1x1 scalar, lower bound of the interval to be
+**                 searched for eigenvalues
+**
+**            vu   1x1 scalar, upper bound of the interval to be
+**                 searched for eigenvalues; vu must be greater than vl
+**
+**        abstol   scalar, the absolute error tolerance for the
+**                 eigenvalues.  An approximate eigenvalue is accepted
+**                 as converged when it is determined to lie in an
+**                 interval [a,b] of width less than or equal to
+**                 ABSTOL + EPS*max(|a|,|b|), where EPS is machine
+**                 precision.  If ABSTOL is less than or equal to zero,
+**                 then EPS*||T|| will be used in its place, where T is the
+**                 tridiagonal matrix obtained by reducing the input matrix
+**                 to tridiagonal form.
+**
+**  Output:   ve   Mx1 vector, eigenvalues, where M is the number of
+**                 eigenvalues on the half open interval (vl,vu].  If
+**                 no eigenvalues are found then s is a 1x1 scalar
+**                 missing value.
+**
+**  Remarks:   lapeighb computes eigenvalues only which are found on
+**             on the half open interval (vl,vu].  To find eigenvalues
+**             within a specified range of indices see lapeighi.  For
+**             eigenvectors see lapeighvi, or lapeighvb.
+**
+**             lapeighb is based on the LAPACK drivers DYESVX and ZHEEVX.
+**             Further documentation of these functions may be found in
+**             the LAPACK User's Guide.
+**
+**  Example:
+**
+**               x = { 5   2   1,
+**                     2   6   2,
+**                     1   2   9 };
+**
+**               vl = 5;
+**               vu = 10;
+**
+**               ve = lapeighi(x,il,iu,0);
+**
+**               print ve;
+**
+**
+**                6.0000
+**
+**
+** See Also:  lapeighb, lapeighvi, lapeighvb
+**
+*/
+
+proc lapeighb(x,vl,vu,abstol);
+
+     local w, n, info, m0, ind, rng, il, iu, neig, z;
+     rng = 1;  /* bounds range */
+     ind = 0;
+     info = 0;
+     il = 0;
+     iu = 0;
+     n = rows(x);
+     if vu <= vl;
+         if not trapchk(4);
+             errorlog "lapeighb:  illegal index";
+            end;
+         else;
+             retp(error(0));
+         endif;
+     endif;
+     neig = 0;
+     w = zeros(n,1);
+     z = 0;
+     if not iscplx(x);
+
+         dllcall _dsyevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+         endif;
+     else;
+
+         dllcall _zheevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+         endif;
+
+     endif;
+     if info < 0;
+         if not trapchk(4);
+             errorlog "lapeighb:  illegal value in argument";
+             end;
+         else;
+             retp(error(-info));
+         endif;
+     endif;
+     retp(packr(w));
+endp;
+
+
+
+
+
+/*
+**
+** >lapeighvi
+**
+**  Purpose:  computes selected eigenvalues and eigenvectors of a real
+**            symmetric or complex Hermitian matrix
+**
+**  Format:   { ve,va } = lapeighvi(x,il,iu,abstol);
+**
+**  Input:    x    NxN matrix, real symmetric or complex Hermitian
+**
+**            il   1x1 scalar, index of the smallest desired eigenvalue
+**                 ranking them from smallest to largest
+**
+**            iu   1x1 scalar, index of the largest desired eigenvalue,
+**                 iu must be greater than il.
+**
+**        abstol   scalar, the absolute error tolerance for the
+**                 eigenvalues.  An approximate eigenvalue is accepted
+**                 as converged when it is determined to lie in an
+**                 interval [a,b] of width less than or equal to
+**                 ABSTOL + EPS*max(|a|,|b|), where EPS is machine
+**                 precision.  If ABSTOL is less than or equal to zero,
+**                 then EPS*||T|| will be used in its place, where T is the
+**                 tridiagonal matrix obtained by reducing the input matrix
+**                 to tridiagonal form.
+**
+**  Output:   ve    (iu-il+1)x1 vector, eigenvalues
+**
+**            va    Nx(iu-il+1) matrix, eigenvectors
+**
+**  Remarks:   lapeighvi computes iu-il+1 eigenvalues and eigenvectors
+**             given a range of indices, i.e., the i-th to j-th eigenvalues,
+**             ranking them from smallest to largest.  To find eigenvalues
+**             and eigenvectors within a specified range see lapeighvb.
+**
+**             lapeighvi is based on the LAPACK drivers DYESVX and ZHEEVX.
+**             Further documentation of these functions may be found in
+**             the LAPACK User's Guide.
+**
+**  Example:
+**
+**               x = { 5   2   1,
+**                     2   6   2,
+**                     1   2   9 };
+**
+**
+**               il = 2;
+**               iu = 3;
+**
+**               { ve,va } = lapeighvi(x,il,iu,0);
+**
+**               print ve;
+**
+**                6.0000
+**                10.6056
+**
+**               print va;
+**
+**               -0.5774    0.3197
+**               -0.5774    0.4908
+**                0.5774    0.8105
+**
+**  See Also:  lapeighvb, lapeighb
+*/
+
+proc(2)=lapeighvi(x,il,iu,abstol);
+
+     local w, n, info, m0, ind, rng, vl, vu, neig, z;
+     rng = 2; /* index range */
+     ind = 1;
+     info = 0;
+     vl = 0;
+     vu = 0;
+     n = rows(x);
+     if il < 1 or il > n or iu <= il or iu > n;
+         if not trapchk(4);
+             errorlog "lapeighvi:  illegal index";
+             end;
+         else;
+             retp(error(0),error(0));
+         endif;
+     endif;
+     neig = 0;
+     w = zeros(n,1);
+     if not iscplx(x);   /* real symmetric matrix */
+         z = zeros(n,n);
+         dllcall _dsyevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+             z[1,m0] = w[m0]';
+         endif;
+
+     else;
+
+         z = complex(zeros(n,n),zeros(n,n));
+         dllcall _zheevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+             z[1,m0] = w[m0]';
+         endif;
+     endif;
+     if info < 0;
+         if not trapchk(4);
+             errorlog "lapeighvi:  illegal value in argument";
+             end;
+         else;
+             retp(error(abs(info)),error(0));
+         endif;
+     endif;
+
+     retp(packr(w),packr(z')');
+endp;
+
+
+
+
+/*
+**
+** >proc lapeighvb
+**
+**  Purpose:   computes eigenvalues and eigenvectors of a real
+**             symmetric or complex Hermitian matrix selected by bounds
+**
+**  Format:    { ve,va } = lapeighvb(x,vl,vu,abstol);
+**
+**  Input:     x   NxN matrix, real symmetric or complex Hermitian
+**
+**            vl   1x1 scalar, lower bound of the interval to be
+**                 searched for eigenvalues
+**
+**            vu   1x1 scalar, upper bound of the interval to be
+**                 searched for eigenvalues; vu must be greater than vl
+**
+**        abstol   scalar, the absolute error tolerance for the
+**                 eigenvalues.  An approximate eigenvalue is accepted
+**                 as converged when it is determined to lie in an
+**                 interval [a,b] of width less than or equal to
+**                 ABSTOL + EPS*max(|a|,|b|), where EPS is machine
+**                 precision.  If ABSTOL is less than or equal to zero,
+**                 then EPS*||T|| will be used in its place, where T is the
+**                 tridiagonal matrix obtained by reducing the input matrix
+**                 to tridiagonal form.
+**
+**  Output:    ve  Mx1 vector, eigenvalues, where M is the number of
+**                 eigenvalues on the half open interval (vl,vu].  If
+**                 no eigenvalues are found then s is a 1x1 scalar
+**                 missing value.
+**
+**             va  NxM matrix, eigenvectors
+**
+**
+**  Remarks:   lapeighvb computes eigenvalues and eigenvectors which are
+**             found on the half open interval (VL,VU].
+**
+**             lapeighvb is based on the LAPACK drivers DYESVX and ZHEEVX.
+**             Further documentation of these functions may be found in
+**             the LAPACK User's Guide.
+**
+**
+**  Example:
+**
+**               x = { 5   2   1,
+**                     2   6   2,
+**                     1   2   9 };
+**
+**               vl = 5;
+**               vu = 10;
+**
+**               { ve,va } = lapeighvb(x,il,iu,0);
+**
+**               print ve;
+**
+**
+**                6.0000
+**
+**               print va;
+**
+**               -0.5774
+**               -0.5774
+**                0.5774
+**
+**  See Also:  lapeighvb
+**
+*/
+
+proc(2)=lapeighvb(x,vl,vu,abstol);
+
+     local w, n, info, m0, ind, rng, il, iu, neig, z;
+
+     rng = 1;  /* bounds range */
+     ind = 1;
+     info = 0;
+     il = 0;
+     iu = 0;
+     n = rows(x);
+     if vu <= vl;
+        if not trapchk(4);
+            errorlog "lapeighvb:  illegal range";
+            end;
+        else;
+            retp(error(0),error(0));
+        endif;
+     endif;
+     neig = 0;
+     w = zeros(n,1);
+     if not iscplx(x);
+         z = zeros(n,n);
+         dllcall _dsyevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+             z[1,m0] = w[m0]';
+         endif;
+     else;
+         z = complex(zeros(n,n),zeros(n,n));
+         dllcall _zheevx(n,x,w,z,rng,vl,vu,il,iu,abstol,neig,info,ind);
+
+         if neig < n;
+             m0 = seqa(neig+1,1,n-neig);
+             w[m0] = miss(zeros(n-neig,1),0);
+             z[1,m0] = w[m0]';
+         endif;
+     endif;
+     if info < 0;
+         if not trapchk(4);
+             errorlog "lapeighvb:  illegal value in argument";
+             end;
+         else;
+             retp(error(-info),error(0));
+         endif;
+     endif;
+
+     retp(packr(w),packr(z')');
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+** >proc lapgeigh
+**
+**  Purpose:  computes generalized eigenvalues for a pair of
+**                real symmetric or Hermitian matrices
+**
+**
+**  Format:   ve = lapgeigh(A,B);
+**
+**  Input:    A     NxN matrix, real or complex symmetric or Hermitian matrix
+**
+**            B     NxN matrix, real or complex positive definite
+**                              symmetric or Hermitian matrix
+**
+**  Output:   ve    Nx1 vector, eigenvalues
+**
+**  Remarks:  ve is the vector of eigenvalues of the solution of the
+**            generalized symmetric eigenproblem of the form Ax = eBx.
+**
+**
+**  Example:
+**
+**                   A = { 3  4  5,
+**                         2  5  2,
+**                         3  2  4 };
+**
+**                   B = { 4  2  2,
+**                         2  6  1,
+**                         2  1  8 };
+**
+**                   ve = lapgeigh(A,B);
+**                   print ve;
+**
+**                      -0.18577146
+**                       0.50880165
+**                       1.1335370
+**
+**
+**           This procedure calls the LAPACK routines DSYGV and ZHEGV.
+**
+**  See also:  lapgeig, lapgeighv
+*/
+
+proc lapgeigh(a,b);
+
+     local n,s,ind,info;
+     n = cols(a);
+     ind = 0;
+     info = 0;
+
+     if not iscplx(a) and not iscplx(b);
+
+         s = zeros(n,1);
+         dllcall _dsygv(n,a,b,s,info,ind);
+
+     else;
+
+         s = complex(zeros(n,1),zeros(n,1));
+         if not iscplx(a);
+             a = complex(a,zeros(n,n));
+         endif;
+         if not iscplx(b);
+             b = complex(b,zeros(n,n));
+         endif;
+         dllcall _zhegv(n,a,b,s,info,ind);
+
+     endif;
+
+     if info /= 0;
+         if not trapchk(4);
+             if info < 0;
+                 errorlog "lapgeigh:  illegal value in argument";
+             elseif info > 0;
+                 errorlog "lapgeigh:  failure to converge";
+                 end;
+             endif;
+         else;
+            retp(error(abs(info)));
+         endif;
+     endif;
+
+     retp(s);
+endp;
+
+
+
+
+
+
+/*
+** >proc lapgeighv
+**
+**  Purpose:  computes generalized eigenvalues and eigenvectors for
+**                a pair of real symmetric or Hermitian matrices
+**
+**
+**  Format:   { ve,va } = lapgeighv(A,B);
+**
+**  Input:    A     NxN matrix, real or complex symmetric or Hermitian matrix
+**
+**            B     NxN matrix, real or complex positive definite
+**                              symmetric or Hermitian matrix
+**
+**  Output:   ve    Nx1 vector, eigenvalues
+**
+**            va    NxN matrix, eigenvectors
+**
+**  Remarks:  ve and va are the eigenvalues and eigenvectors of the
+**            solution of the generalized symmetric eigenproblem of
+**            the form Ax = eBx.   Equivalently, va diagonalizes
+**            U^(-1)' A U^(-1) in the following way
+**
+**                  va U^(-1)' A U^(-1) va' = e
+**
+**            where B = U'U.
+**
+**            This procedure calls the LAPACK routines DSYGV and ZHEGV.
+**
+**  Example:
+**
+**                   A = { 3  4  5,
+**                         2  5  2,
+**                         3  2  4 };
+**
+**                   B = { 4  2  2,
+**                         2  6  1,
+**                         2  1  8 };
+**
+**                   { ve, va } = lapgeighv(A,B);
+**
+**                   print ve;
+**
+**                      -0.0425
+**                       0.5082
+**                       0.8694
+**
+**                   print va;
+**
+**                      0.3575   -0.0996   0.9286
+**                     -0.2594    0.9446   0.2012
+**                     -0.8972   -0.3128   0.3118
+**
+**  See also:  lapgeig, lapgeigh
+*/
+
+proc(2)=lapgeighv(a,b);
+
+     local n,s,ind,info;
+     n = cols(a);
+     ind = 1;
+     info = 0;
+
+     if not iscplx(a) and not iscplx(b);
+
+         s = zeros(n,1);
+         dllcall _dsygv(n,a,b,s,info,ind);
+
+     else;
+
+         s = complex(zeros(n,1),zeros(n,1));
+         if not iscplx(a);
+             a = complex(a,zeros(n,n));
+         endif;
+         if not iscplx(b);
+             b = complex(b,zeros(n,n));
+         endif;
+         dllcall _zhegv(n,a,b,s,info,ind);
+
+     endif;
+
+     if info /= 0;
+         if not trapchk(4);
+             if info < 0;
+                 errorlog "lapgeigh:  illegal value in argument";
+             elseif info > 0;
+                 errorlog "lapgeigh:  failure to converge";
+                 end;
+             endif;
+         else;
+            retp(error(abs(info)),error(0));
+         endif;
+     endif;
+
+     retp(s,a);
+endp;
+
+
+
+
+
+
+
+/*
+** >proc lapgeig
+**
+**  Purpose:  computes generalized eigenvalues for a pair of
+**                 real or complex general matrices
+**
+**
+**  Format:   { va1,va2 } = lapgeig(A,B);
+**
+**  Input:    A     NxN matrix, real or complex general matrix
+**
+**            B     NxN matrix, real or complex general matrix
+**
+**  Output:   va1   Nx1 vector, numerator of eigenvalues
+**
+**            va2   Nx1 vector, denominator of eigenvalues
+**
+**  Remarks:  va1 and va2 are the vectors of the numerators and denominators
+**            respectively of the eigenvalues of the solution of the
+**            generalized symmetric eigenproblem of the form Aw = eBw
+**            where A and B are real or complex general matrices and
+**            w = va1 ./ va2.  The generalized eigenvalues are not computed
+**            directly because some elements of va2 may be zero, i.e.,
+**            the eigenvalues may be infinite.
+**
+**            This procedure calls the LAPACK routines DGEGV and ZGEGV.
+**
+**  See also:  lapgeig, lapgeigh
+*/
+
+
+
+
+proc(2)=lapgeig(a,b);
+
+     local n,s,ind,e1,e2,vr,vl,e,info;
+     n = cols(a);
+     if rows(a) /= n;
+         if not trapchk(4);
+             errorlog "lapgeig: first matrix not square";
+             end;
+         else;
+             retp(error(0),error(0));
+         endif;
+     endif;
+     if rows(b) /= cols(b);
+         if not trapchk(4);
+             errorlog "lapgeig: second matrix not square";
+             end;
+         else;
+             retp(error(0),error(0));
+         endif;
+     endif;
+     if rows(b) /= n;
+         if not trapchk(4);
+             errorlog "lapgeig: arguments not conformable";
+             end;
+         else;
+             retp(error(0),error(0));
+         endif;
+     endif;
+     vr = 0;
+     vl = 0;
+
+     ind = 0;
+     info = 0;
+     if not iscplx(a) and not iscplx(b);
+
+         s = zeros(n,1);
+         e1 = zeros(n,1);
+         e2 = zeros(n,1);
+         dllcall _dgegv(n,a,b,e1,e2,s,vr,vl,info,ind);
+         e = complex(e1,e2);
+
+     else;
+
+         e = complex(zeros(n,1),zeros(n,1));
+         s = complex(zeros(n,1),zeros(n,1));
+         if not iscplx(a);
+             a = complex(a,zeros(n,n));
+         endif;
+         if not iscplx(b);
+             b = complex(b,zeros(n,n));
+         endif;
+         dllcall _zgegv(n,a,b,e,s,vr,vl,info,ind);
+
+     endif;
+
+     if info /= 0;
+         if not trapchk(4);
+             if info < 0;
+                 errorlog "lapgeig:  illegal value in argument";
+             elseif info > 0;
+                 errorlog "lapgeig:  failure to converge";
+                 end;
+             endif;
+         else;
+            retp(error(abs(info)));
+         endif;
+     endif;
+
+     retp(e,s);
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+** >proc lapgeigv
+**
+**  Purpose:  computes generalized eigenvalues, left eigenvectors,
+**            and right eigenvectors for a pair of real or complex
+**            general matrices
+**
+**
+**  Format:   { va1,va2,lve,rve } = lapgeigv(A,B);
+**
+**  Input:    A     NxN matrix, real or complex general matrix
+**
+**            B     NxN matrix, real or complex general matrix
+**
+**  Output:   va1    Nx1 vector, numerator of eigenvalues
+**
+**            va2    Nx1 vector, denominator of eigenvalues
+**
+**            lve    NxN left eigenvectors
+**
+**            rve    NxN right eigenvectors
+**
+**  Remarks:  va1 and va2 are the vectors of the numerators and denominators
+**            respectively of the eigenvalues of the solution of the
+**            generalized symmetric eigenproblem of the form Aw = eBw
+**            where A and B are real or complex general matrices and
+**            w = va1 ./ va2.  The generalized eigenvalues are not computed
+**            directly because some elements of e2 may be zero, i.e.,
+**            the eigenvalues may be infinite.
+**
+**            The left and right eigenvectors diagonalize U^(-1)' A U^(-1)
+**            where B = U'U, that is,
+**
+**                  lve^(-1) U^(-1)' A U^(-1) lve' = w
+**
+**            and
+**
+**                  rve^(-1)' U^(-1)' A U^(-1) rve = w
+**
+**
+**            This procedure calls the LAPACK routines DGEGV and ZGEGV.
+**
+**  See also:  lapgeig,lapgeigh
+*/
+
+
+
+proc(4)=lapgeigv(a,b);
+
+     local n,s,ind,e1,e2,vr,vl,e,info;
+     n = cols(a);
+     if rows(a) /= n;
+         if not trapchk(4);
+             errorlog "lapgeigv: first matrix not square";
+             end;
+         else;
+             retp(error(0),error(0),error(0),error(0));
+         endif;
+     endif;
+     if rows(b) /= cols(b);
+         if not trapchk(4);
+             errorlog "lapgeigv: second matrix not square";
+             end;
+         else;
+             retp(error(0),error(0),error(0),error(0));
+         endif;
+     endif;
+     if rows(b) /= n;
+         if not trapchk(4);
+             errorlog "lapgeigv: arguments not conformable";
+             end;
+         else;
+             retp(error(0),error(0),error(0),error(0));
+         endif;
+     endif;
+
+     ind = 1;
+     info = 0;
+     if not iscplx(a) and not iscplx(b);
+
+         s = zeros(n,1);
+         e1 = zeros(n,1);
+         e2 = zeros(n,1);
+         vl = zeros(n,n);
+         vr = zeros(n,n);
+         dllcall _dgegv(n,a,b,e1,e2,s,vr,vl,info,ind);
+         e = complex(e1,e2);
+
+     else;
+
+         e = complex(zeros(n,1),zeros(n,1));
+         s = complex(zeros(n,1),zeros(n,1));
+         vr = complex(zeros(n,n),zeros(n,n));
+         vl = complex(zeros(n,n),zeros(n,n));
+         if not iscplx(a);
+             a = complex(a,zeros(n,n));
+         endif;
+         if not iscplx(b);
+             b = complex(b,zeros(n,n));
+         endif;
+         dllcall _zgegv(n,a,b,e,s,vr,vl,info,ind);
+
+     endif;
+
+     if info /= 0;
+         if not trapchk(4);
+             if info < 0;
+                 errorlog "lapgeigv:  illegal value in argument";
+             elseif info > 0;
+                 errorlog "lapgeigv:  failure to converge";
+                 end;
+             endif;
+         else;
+            retp(error(abs(info)),error(0),error(0),error(0));
+         endif;
+     endif;
+
+     retp(e,s,vr,vl);
+endp;
+
+

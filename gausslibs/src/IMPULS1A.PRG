@@ -1,0 +1,131 @@
+/*
+**  LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+**  Springer-Verlag, Berlin-Heidelberg
+**
+**  This program reproduces the figures 3.4-3.7 of LUTKEPOHL [1991].
+*/
+
+new;
+library tsm,optmum,pgraph;
+TSMset;
+
+#include rndn2.src;
+
+load y[92,3] = lutkepoh.asc;
+
+y = ln(y[1:76,.]);
+
+INVEST = y[.,1];
+dinv = INVEST-lag1(INVEST);
+INCOME = y[.,2];
+dinc = INCOME-lag1(INCOME);
+CONSUM = y[.,3];
+dcons = CONSUM-lag1(CONSUM);
+data = dinv~dinc~dcons;
+
+/* First, estimate the coefficients */
+
+_print = 0;
+{theta,stderr,Mcov,LOGL} = varx_LS(data,1,2);  /* Constant and 2 lags */
+
+/* Take the AR part of the VARX model */
+
+beta = theta[1:18];
+Mcov_beta = Mcov[1:18,1:18];
+
+Nr = 8;        /* Number of responses */
+Ns = 500;      /* Number of simulations */
+
+rep1 = zeros(1+Nr,1);  /* Responses of Consumption to an
+                          impulse in Income */
+rep2 = zeros(1+Nr,1);  /* Responses of Investment to an
+                          impulse in Consumption */
+rep3 = zeros(1+Nr,1);  /* Accumulated responses of Consumption to an
+                          impulse in Income */
+rep4 = zeros(1+Nr,1);  /* Accumulated responses of Investment to an
+                          impulse in Consumption */
+
+/* Compute the responses */
+
+call arma_impulse(beta,2,0,Nr);
+
+j = 0;
+do until j > Nr;
+  z = varget("IMPULSE"$+ftos(j,"%lf",1,0));
+  rep1[1+j,1] = z[3,2];
+  rep2[1+j,1] = z[1,3];
+  z = varget("_IMPULSE"$+ftos(j,"%lf",1,0));
+  rep3[1+j,1] = z[3,2];
+  rep4[1+j,1] = z[1,3];
+  j = j + 1;
+endo;
+
+/* Compute the standard errors with the Monte Carlo Method */
+
+RND_beta = rndn2(beta,Mcov_beta,Ns);
+
+rep1s = zeros(1+Nr,Ns);
+rep2s = zeros(1+Nr,Ns);
+rep3s = zeros(1+Nr,Ns);
+rep4s = zeros(1+Nr,Ns);
+
+i = 1;
+do until i > Ns;
+
+  betas = RND_beta[i,.]';
+  call arma_impulse(betas,2,0,Nr);
+
+  j = 0;
+  do until j > Nr;
+    z =  varget("IMPULSE"$+ftos(j,"%lf",1,0));
+    rep1s[1+j,i] = z[3,2];
+    rep2s[1+j,i] = z[1,3];
+    z =  varget("_IMPULSE"$+ftos(j,"%lf",1,0));
+    rep3s[1+j,i] = z[3,2];
+    rep4s[1+j,i] = z[1,3];
+    j = j + 1;
+  endo;
+
+  i = i + 1;
+endo;
+
+stderr1 = stdc(rep1s');
+stderr2 = stdc(rep2s');
+stderr3 = stdc(rep3s');
+stderr4 = stdc(rep4s');
+
+period = seqa(0,1,Nr+1);
+
+graphset;
+  _pnum = 2; _pdate = ""; _pltype = 1|6|1; _pframe = {0,0}; _pcross = 1;
+  _pcolor = 12|11|12;
+  bound = rep1 + (-2~0~2).*stderr1;
+  title("Fig. 3.4. Estimated responses of consumption to a forecast"\
+        "\Lerror impulse in income with two-standard error bounds");
+  xy(period,bound);
+
+graphset;
+  _pnum = 2; _pdate = ""; _pltype = 1|6|1; _pframe = {0,0}; _pcross = 1;
+  _pcolor = 12|11|12;
+  bound = rep2 + (-2~0~2).*stderr2;
+  title("Fig. 3.5. Estimated responses of investment to a forecast"\
+        "\Lerror impulse in consumption with two-standard error bounds");
+  xy(period,bound);
+
+graphset;
+  _pnum = 2; _pdate = ""; _pltype = 1|6|1; _pframe = {0,0}; _pcross = 1;
+  _pcolor = 12|11|12;
+  bound = rep3 + (-2~0~2).*stderr3;
+  title("Fig. 3.6. Accumulated responses of consumption to a forecast"\
+        "\Lerror impulse in income with two-standard error bounds");
+  xy(period,bound);
+
+graphset;
+  _pnum = 2; _pdate = ""; _pltype = 1|6|1; _pframe = {0,0}; _pcross = 1;
+  _pcolor = 12|11|12;
+  bound = rep4 + (-2~0~2).*stderr4;
+  title("Fig. 3.7. Accumulated responses of investment to a forecast"\
+        "\Lerror impulse in consumption with two-standard error bounds");
+  xy(period,bound);
+
+

@@ -1,0 +1,1343 @@
+/*
+** gdaols.src - Least Squares Regression
+** (C) Copyright 2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  oout = gdaols(oc0,filename,depvar,indvars);
+**
+**> gdaols
+**
+**  Purpose:    Computes least squares regression on Nx1 variables in a GAUSS 
+**              Data Archive.
+**
+**  Format:     oout = gdaols(struct olsmtControl oc1,filename,depvar,indvars);
+**
+**  Input:  oc0     an instance of an olsmtControl structure containing the
+**                  following members:
+** 
+**                    oc0.altnam -- string array, default "".
+**
+**                        This can be a (K+2)x1 or (K+1)x1 string
+**                        array of alternate variable names for the
+**                        output. If oc0.con is 1, this must be (K+2)x1.
+**                        The dependent variable is the last element.
+**                        This has an effect only if the data are passed
+**                        in as matrices.
+**
+**                    oc0.con -- scalar, default 1.
+**
+**                        1   a constant term will be added, D = K+1.
+**
+**                        0   no constant term will be added, D = K.
+**
+**                        A constant term is always used in
+**                        constructing the moment matrix m.
+**
+**                    oc0.fcmptol -- scalar, default 1e-12.
+**
+**                        Tolerance used to fuzz the comparison operations 
+**                        to allow for round off error.
+**
+**                    oc0.maxvec -- scalar, default 20000. 
+**
+**                        The largest number of elements allowed in any
+**                        one matrix.
+**
+**                    oc0.miss -- scalar, default 0.
+**
+**                        0   there are no missing values (fastest).
+**
+**                        1   listwise deletion, drop any cases in
+**                            which missings occur.
+**
+**                        2   pairwise deletion, this is equivalent to
+**                            setting missings to 0 when calculating m.
+**                            The number of cases computed is equal to
+**                            the total number of cases in the data set.
+**
+**                    oc0.output -- scalar, default 1.
+**
+**                        1   print the statistics.
+**
+**                        0   do not print statistics.
+**
+**                    oc0.res -- scalar, default 0.
+**
+**                        1   compute residuals (resid) and Durbin-
+**                            Watson statistic (dwstat).
+**
+**                        0   resid = 0, dwstat = 0.
+**
+**                    oc0.rnam -- string, default "_olsmtres".
+**
+**                        If the data is taken from a data set, a new 
+**                        data set will be created for the residuals, 
+**                        using the name in oc0.rnam. 
+**
+**                    oc0.row -- scalar, the number of rows to read 
+**                        per iteration of the read loop. Default 0.
+**
+**                        If 0, the number of rows will be calculated
+**                        internally. If you get an "Insufficient 
+**                        memory" error while executing OLS you can 
+**                        supply a value for oc0.row that works on your 
+**                        system.
+**
+**                        The answers may vary slightly due to rounding
+**                        error differences when a different number of
+**                        rows is read per iteration. You can use 
+**                        oc0.row to control this if you want to get 
+**                        exactly the same rounding effects between 
+**                        several runs.
+**
+**                    oc0.vpad -- scalar, default 1.
+**
+**                        If 0, internally created variable names are not
+**                        padded to the same length (e.g. "X1, X2,..., X10").
+**
+**                        If 1, they are padded with zeros to the same
+**                        length (e.g., "X01, X02,..., X10").
+**
+**          filename    string, name of GDA.
+**
+**          depvar      dependent variable.
+**
+**                        string, name of dependent variable.
+**                                    or
+**                        scalar, index of dependent variable. If scalar 0,
+**                        the last variable in the GDA will be used.
+**
+**          indvars     independent variables.
+**
+**                        Kx1 string array, names of independent
+**                        variables
+**                                    or
+**                        Kx1 numeric vector, indices of independent
+**                        variables
+**
+**                        These can be any size subset of the variables in
+**                        the GDA, and can be in any order.  If a
+**                        scalar 0 is passed, all variables in the GDA
+**                        will be used except for the one used for the
+**                        dependent variable.
+**
+**  Output:  oout0   an instance of an olsmtControl structure containing the
+**                   following members:
+**                    
+**                    oout0.vnam -- (K+2)x1 or (K+1)x1 string array, the variable
+**                        names used in the regression. If a constant term
+**                        is used this vector will be (K+2)x1, and the first
+**                        name will be "CONSTANT". The last name will be the
+**                        name of the dependent variable.
+**
+**                    oout0.m -- MxM matrix, where M = K+2, the moment matrix
+**                        constructed by calculating x'x where x is a matrix
+**                        containing all useable observations and having 
+**                        columns in the order:
+**
+**                        constant   ~     indvars        ~        depvar
+**                        ------------------------------------------------------
+**                        (1.0) ~ (independent variables) ~ (dependent variable)
+**
+**                        A constant term is always used in computing m.
+**
+**                    oout0.b -- Dx1 vector, the least squares estimates of 
+**                        parameters.
+**
+**                        Error handling is controlled by the low order bit
+**                        of the trap flag.
+**
+**                            TRAP 0     terminate with error message
+**
+**                            TRAP 1     return scalar error code in b
+**
+**                                30  system singular
+**                                31  system underdetermined
+**                                32  same number of columns as rows
+**                                33  too many missings
+**                                34  file not found
+**                                35  no variance in an independent variable
+**
+**                        The system can become underdetermined if you use 
+**                        listwise deletion and have missing values. In that 
+**                        case it is possible to skip so many cases that there 
+**                        are fewer useable rows than columns in the data set.
+**
+**                    oout0.stb -- Kx1 vector, the standardized coefficients.
+**
+**                    oout0.vc -- DxD matrix, the variance-covariance matrix of
+**                        estimates.
+**
+**                    oout0.stderr -- Dx1 vector, the standard errors of the 
+**                        estimated parameters.
+**
+**                    oout0.sigma -- scalar, standard deviation of residual.
+**
+**                    oout0.cx -- (K+1)x(K+1) matrix, correlation matrix of 
+**                        variables in the order:
+**
+**                        independent variables ~ dependent variable
+**
+**                    oout0.rsq -- scalar, R square, coefficient of determination.
+**
+**                    oout0.resid -- residuals, resid = y - x * b
+**
+**                        If oc0.res = 1, the residuals will be computed.
+**
+**                        If the data is taken from a data set, a new data
+**                        set will be created for the residuals, using the
+**                        name in the rnam member of the olsmtControl
+**                        structure. The residuals will be saved in this 
+**                        data set as an Nx1 column. The resid return value 
+**                        will be a string containing the name of the new 
+**                        data set containing the residuals.
+**
+**                        If the data is passed in as a matrix, the
+**                        oout0.resid return value will be the Nx1 vector of
+**                        residuals.
+**
+**                    oout0.dwstat -- scalar, Durbin-Watson statistic.
+**
+**  Remarks:          No output file is modified, opened, or closed by this
+**                    procedure.  If you want output to be placed in a file
+**                    you need to open an output file before calling gdaols.
+**                    If a column of constant value has been included among
+**                    the independent variables, this variable will be
+**                    deleted.
+**
+**                    You must include olsmt.sdf at the beginning of any program
+**                    that calls gdaols to enable GAUSS to find the definition
+**                    of the olsmtControl structure. You should also call 
+**                    olsmtControlCreate before calling gdaols to set the members
+**                    of the olsmtControl structure to default values. 
+**
+**  Example:          #include olsmt.sdf
+**                    struct olsmtControl oc1;
+**                    struct olsmtOut oout1;
+**                    oc1 = olsmtControlCreate;
+**                    
+**                    data = "olsdat.gda";
+**                    depvar = "score";
+**                    string indvars = { "region","age","marstat" };
+**                    oc1.res = 1;
+**                    output file = lpt1 on;
+**                    oout1 = gdaols(oc1,data,depvar,indvars);
+**                    output off;
+**
+**                    In this example, the GDA, olsdat.gda is used to compute a 
+**                    regression. The dependent variable is "score". The 
+**                    independent variables are: "region", "age", and "marstat".  
+**                    The residuals and Durbin-Watson statistic are computed.
+**                    The output is sent to the printer as well as the screen 
+**                    and the returned values are assigned to variables.
+**
+**  See Also:   gdaolsmat, olsmt
+*/
+
+#include olsmt.sdf
+
+proc gdaols(struct olsmtControl oc0,filename,depvar,indvars);
+    local const,tobs,depindx,indindx,nvar,nr,k,y0,mn,nc,cy,
+        i,constflg,constvlu,vardx,std,vnames,cxx,cxxi,cxy,cyy,df,
+        sse,nobs,mobs,be,b,vc,stderr,t,rsq,rbsq,fstat,pvf,pvt,ms,
+        omat,fmt,dwstat,mss,prcn,nvar1,cvec,old,u2,m,cor,constant,
+        stdb,u,str,tv,oldtrp,cov,stdest,dd,cnstname,tmpnm,
+        colwid,ostr,indvarnms,depvarnm,j,rind,chunk,rowsread,fout;
+	struct olsmtOut oout0;
+
+    clear constflg,mobs,constant;
+    const = oc0.con;
+    constvlu = 1;
+    mss = { . };
+    fout = -1;
+
+    filename = "" $+ filename;
+
+    if (type(depvar) == 6);
+        if (depvar == 0);
+            depvarnm = gdaGetNames(filename);
+            depindx = rows(depvarnm);
+            depvarnm = depvarnm[depindx];       
+        else;
+            depvarnm = gdaGetName(filename,depvar);
+            depindx = depvar;
+        endif;
+    else;
+        depvarnm = depvar;
+        depindx = gdaGetIndex(filename,depvarnm);
+    endif;
+
+    if type(indvars) == 6;
+        if indvars == 0;
+            indvarnms = gdaGetNames(filename);
+            indindx = seqa(1,1,rows(indvarnms));
+            indindx = packr(miss(indindx,depindx));
+            indvarnms = indvarnms[indindx];
+        else;
+            indvarnms = gdaGetNames(filename);
+            indindx = indvars;
+            indvarnms = indvarnms[indindx];
+        endif;
+    else;
+        indvarnms = indvars; 
+        indindx = {};
+        for i (1,rows(indvarnms),1);
+            indindx = indindx|gdaGetIndex(filename,indvarnms[i]);
+        endfor;
+    endif;
+
+    vardx = indindx|depindx;
+    tobs = gdaGetOrders(filename,indvarnms[1]);
+    tobs = tobs[1];
+    nobs = tobs;
+    nvar = rows(indindx);
+    nvar1 = nvar+1;
+
+    /* Computation of max number of rows to read at one time */
+    if oc0.row;
+        nr = oc0.row;
+    else;
+        nr = floor(minc(maxbytes/(nvar1*8*3.5)|oc0.maxvec/(nvar1)));
+    endif;
+
+    if oc0.miss == 2;
+        clear mn,nc,m,i,nobs;
+        constflg = ones(1,nvar1);
+        do until i == tobs;
+            i = i+1;
+            y0 = {};
+            for j (1,nvar,1);
+                y0 = y0~gdaReadSome(filename,indvarnms[j],i,1);
+            endfor;
+            y0 = y0~gdaReadSome(filename,depvarnm,i,1);
+            cy = (y0 .> 0 .or y0 .< 1);
+            y0 = missrv(y0,0);
+            m = m+y0'*y0;
+            mn = mn + y0'*cy;
+            nc = nc+cy'*cy;
+            nobs = nobs+(cy /= 0);
+        endo;
+        if nc == 0;
+            goto errout(31);
+        endif;
+        mobs = tobs-nobs;
+        mn = mn./nc;
+        m = m./nc;
+    else;
+        clear mn,m,nc,rowsread,i;
+        rind = 1;
+        do until (rowsread == tobs);
+            chunk = minc(tobs-rowsread|nr);
+            y0 = {};
+            for j (1,nvar,1);
+                y0 = y0~gdaReadSome(filename,indvarnms[j],rind,chunk);
+            endfor;
+            y0 = y0~gdaReadSome(filename,depvarnm,rind,chunk);
+            if oc0.miss == 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            elseif ismiss(y0);
+                errorlog "missing data found - using listwise deletion";
+                oc0.miss = 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            endif;
+            if not scalmiss(y0);
+                m = m+moment(y0,0);
+                mn = mn + sumc(y0);
+            endif;
+            
+            rind = rind+chunk;
+            rowsread = rowsread+chunk;
+        endo;
+        if oc0.miss == 1;
+            if nc == 0;
+                goto errout(31);
+            endif;
+            nobs = nc;
+            mobs = tobs-nobs;
+        endif;
+        mn = mn/nobs;
+        m = m/nobs;
+    endif;
+
+
+    if m[rows(m),rows(m)] == y0[1,cols(y0)];
+        errorlog "dependent variable has no variation";
+        end;
+    endif;
+
+
+    if oc0.miss == 2;
+        constflg = indexcat(dotfeqmt(diag(m),diag(mn)^2,oc0.fcmptol),1);
+    else;
+        constflg = indexcat(dotfeqmt(diag(m),mn^2,oc0.fcmptol),1);
+    endif;
+
+    if scalmiss(constflg);
+        constflg = 0;
+    elseif rows(constflg) > 1;
+        goto errout(35);
+    endif;
+
+    if constflg;
+        cvec = packr(miss(seqa(1,1,rows(mn)),constflg));
+        if oc0.miss == 2;
+            constvlu = mn[constflg,constflg];
+            mn = mn[cvec,cvec];
+        else;
+            constvlu = mn[constflg];
+            mn = mn[cvec];
+        endif;
+        m = m[cvec,cvec];
+        nvar1 = rows(cvec);
+        nvar = nvar1 - 1;
+        cnstname = indvarnms[constflg];
+        indvarnms = indvarnms[packr(miss(seqa(1,1,rows(indvarnms)),constflg))];
+    endif;
+
+    if oc0.miss == 2;
+        mn = diag(mn);
+    endif;
+
+    if const == 1 and constflg;
+        const = 0;
+    endif;
+
+    if const or constflg;
+      cov = m - mn*mn';
+    else;
+      cov = m;
+    endif;
+
+    k = diag(cov);
+    cyy = k[nvar1];
+    std = sqrt(k);
+    cxy = cov[1:nvar,nvar1];
+    cxx = cov[1:nvar,1:nvar];
+    cor = cov./std./std';
+
+    oldtrp = trapchk(1);
+    trap 1,1;
+    cxxi = invpd(cxx);
+    trap oldtrp,1;
+    if scalmiss(cxxi);
+        goto errout(30);
+    endif;
+
+    b = cxxi*cxy;
+
+    if const or constflg;
+        constant = (mn[nvar1]-mn[1:nvar]'*b)/constvlu;
+        if constflg == 0;
+            indvarnms = "CONSTANT"$|indvarnms;
+        endif;
+    endif;
+
+    vnames = indvarnms$|depvarnm;
+
+    if rows(indvarnms) == nvar and (const or constflg);
+        indvarnms = cnstname$|indvarnms;
+    endif;
+
+    if const or constflg;
+       df = nobs-nvar-1;
+    else;
+       df = nobs-nvar;
+    endif;
+
+    if df == 0;
+        goto errout(32);
+    elseif df<0;
+        goto errout(31);
+    endif;
+
+    sse = cyy-b'*cxy;
+    if const or constflg;
+        k = -cxxi*mn[1:nvar]/constvlu;
+        vc = (sse/df)*(((1/constvlu-mn[1:nvar]'*k)/constvlu|k)~(k'|cxxi));
+        stderr = sqrt(diag(vc));
+        t = (constant|b)./stderr;
+        tv = nobs*cyy;
+    else;
+        vc = (sse/df)*cxxi;
+        stderr = sqrt(diag(vc));
+        t = b./stderr;
+        tv = nobs*(cyy - mn[nvar1]^2);
+    endif;
+    sse = nobs*sse;
+    rsq = (tv - sse)/tv;
+    rbsq = 1-(1-rsq)*((nobs-1)/df);
+    fstat = (rsq/(1-rsq))*(df/nvar);
+    if fstat>0;
+        pvf = cdffc(fstat,nvar,df);
+    else;
+        pvf = mss;
+    endif;
+    pvt = 2*cdftc(abs(t),df);
+
+    if sse > 0;
+      stdest = sqrt(sse/df);
+    else;
+      stdest = error(0);
+    endif;
+
+    stdb = b.*(std[1:nvar]/std[nvar1]);     /* Standardized coefficients  */
+    if const or constflg;
+        stdb = mss|stdb;
+    endif;
+
+    if oc0.res;
+        prcn = 8;
+        if oc0.res == 4;
+            prcn = 4;
+        endif;
+		tmpnm = oc0.rnam;
+        create fout = ^tmpnm with u,1,prcn;
+        if fout == -1;
+            errorlog "Can't open temporary file for residuals";
+            end;
+        endif;
+        clear dwstat,u2,i,rowsread;
+        rind = 1;
+        do until (rowsread == tobs);
+            i = i + 1;
+            chunk = minc(tobs-rowsread|nr);
+            y0 = {};
+            for j (1,nvar,1);
+                y0 = y0~gdaReadSome(filename,indvarnms[j],rind,chunk);
+            endfor;
+            y0 = y0~gdaReadSome(filename,depvarnm,rind,chunk);
+            if oc0.miss == 2;
+                y0 = missrv(y0,0);
+            endif;
+            if constflg;
+                y0 = y0[.,cvec];
+            endif;
+            u = y0[.,nvar1]-y0[.,1:nvar]*b - constant*constvlu;
+            if writer(fout,u) /= rows(u);
+                errorlog "ERROR - disk full, Durbin-Watson statistic no"\
+                    "t computed";
+                end;
+            endif;
+            if oc0.miss;
+                u = packr(u);
+            endif;
+            u2 = u2+u'*u;
+            if nr > 1;
+              dwstat = dwstat+sumc((trimr(u,1,0)-trimr(u,0,1))^2);
+            endif;
+            if i > 1 and i < tobs;
+              dwstat = dwstat + (u[1] - dd)^2;
+            endif;
+            dd = u[rows(u)];
+            rind = rind+chunk;
+            rowsread = rowsread+chunk;
+        endo;
+        dwstat = dwstat/u2;
+    else;
+        u = 0;
+        dwstat = 0;
+    endif;
+    if const or constflg;
+        b = constant|b;
+    endif;
+
+    if oc0.output;
+		colwid = maxc(maxc(strlen(indvarnms)+1)|9);
+        print ftos(nobs,"Valid cases:  %*.*f",20,0);;
+        print "      Dependent variable:" strcombine(satostrC(depvarnm,"%20.18s"),"",0);
+
+        print ftos(mobs,"Missing cases:%*.*f",20,0);;
+        print "      Deletion method:               ";;
+        if oc0.miss == 0;
+            print "    None";
+        elseif oc0.miss == 2;
+            print "Pairwise";
+        else;
+            print "Listwise";
+        endif;
+
+        print ftos(tv,"Total SS:     %*.*f",20,3);;
+
+        print ftos(df,"      Degrees of freedom:%*.*f",20,0);
+
+        print ftos(rsq,"R-squared:    %*.*f",20,3);;
+        print ftos(rbsq,"      Rbar-squared:      %*.*f",20,3);
+        print ftos(sse,"Residual SS:  %*.*f",20,3);;
+        print ftos(stdest,"      Std error of est:  %*.*f",20,3);
+        str = ftos(nvar,"F(%*.*f,",1,0) $+ ftos(df,"%*.*f):             "
+            ,1,0);
+        str = strsect(str,1,15) $+ ftos(fstat,"%*.*f",19,3);
+        print str;;
+        print ftos(pvf,"      Probability of F:  %*.*f",20,3);
+
+        if oc0.res;
+            print ftos(dwstat,"Durbin-Watson:%*.*f",20,3);
+        endif;
+        print;
+        print chrs(32*ones(colwid,1))$+"                Standard                 Prob   Sta"\
+            "ndardized  Cor with";
+        print "Variable"$+chrs(32*ones(colwid-8,1))$+"    Estimate      Error      t-value"\
+			"     >|t|     Estimate    Dep Var";
+
+        print chrs(45*ones(70+colwid,1));;
+        omat = b~stderr~t~pvt~stdb;
+        if const or constflg;
+            omat = omat~(mss|cor[1:nvar,nvar1]);
+        else;
+            omat = omat~cor[1:nvar,nvar1];
+        endif;
+        ms = ftos(mss,"%*.*f",1,0);
+        msym "---  ";
+		fmt = ("%-"$+ftos(colwid,"%*.*f",1,0)$+"."$+ftos(colwid,"%*.*f",1,0)$+"s") $|
+				"%12.6f" $| "%12.6f" $| "%12.6f" $| "%10.3f" $| "%12.6f" $| "%12.6f";
+		ostr = satostrC(indvarnms,fmt[1]) $~ ftostrC(omat,fmt[2:7]);
+		ostr = strcombine(ostr,"",0);
+		print ostr;
+        msym ^ms;
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+
+    m = (1~mn')|(mn~m);
+
+	oout0.vnam = vnames;
+	oout0.m = nobs*m;
+	oout0.b = b;
+	oout0.stb = stdb;
+	oout0.vc = vc;
+	oout0.stderr = stderr;
+	oout0.sigma = stdest;
+	oout0.cx = cor;
+	oout0.rsq = rsq;
+	oout0.resid = u;
+	oout0.dwstat = dwstat;
+    retp(oout0);
+
+ERROUT:
+        pop be;
+    if be == 34;
+        errorlog "ERROR: File not found: " $+ filename;
+    elseif be == 30;
+        errorlog "ERROR: covariance matrix of independent variables is sing"\
+            "ular.";
+    elseif be == 31;
+        errorlog "ERROR: system underdetermined";
+    elseif be == 32;
+        errorlog "ERROR: same number columns as rows";
+    elseif be == 33;
+        errorlog "ERROR: too many missings";
+    elseif be == 35;
+        errorlog "ERROR: no variation in at least one independent variable";
+    else;
+        errorlog "Coefficients vector is an error code: " $+ ftos(be,"%*.*l"\
+            "f",1,0);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+	oout0.vnam = 0;
+	oout0.m = 0;
+	oout0.b = 0;
+	oout0.stb = error(be);
+	oout0.vc = 0;
+	oout0.stderr = 0;
+	oout0.sigma = 0;
+	oout0.cx = 0;
+	oout0.rsq = 0;
+	oout0.resid = 0;
+	oout0.dwstat = 0;
+    retp(oout0);
+
+endp;
+
+/*
+**  oout = gdaolsmat(oc0,filename,var,depcol,indcols,vnamevar);
+**
+**> gdaols
+**
+**  Purpose:    Computes least squares regression on columns of an NxK variable
+**              in a GAUSS Data Archive.
+**
+**  Format:     oout = 
+**              gdaols(struct olsmtControl oc1,filename,var,depcol,indcols,vnamevar);
+**
+**  Input:  oc0     an instance of an olsmtControl structure containing the
+**                  following members:
+** 
+**                    oc0.altnam -- string array, default "".
+**
+**                        This can be a (K+2)x1 or (K+1)x1 string
+**                        array of alternate variable names for the
+**                        output. If oc0.con is 1, this must be (K+2)x1.
+**                        The dependent variable is the last element.
+**                        This has an effect only if the data are passed
+**                        in as matrices.
+**
+**                    oc0.con -- scalar, default 1.
+**
+**                        1   a constant term will be added, D = K+1.
+**
+**                        0   no constant term will be added, D = K.
+**
+**                        A constant term is always used in
+**                        constructing the moment matrix m.
+**
+**                    oc0.fcmptol -- scalar, default 1e-12.
+**
+**                        Tolerance used to fuzz the comparison operations 
+**                        to allow for round off error.
+**
+**                    oc0.maxvec -- scalar, default 20000. 
+**
+**                        The largest number of elements allowed in any
+**                        one matrix.
+**
+**                    oc0.miss -- scalar, default 0.
+**
+**                        0   there are no missing values (fastest).
+**
+**                        1   listwise deletion, drop any cases in
+**                            which missings occur.
+**
+**                        2   pairwise deletion, this is equivalent to
+**                            setting missings to 0 when calculating m.
+**                            The number of cases computed is equal to
+**                            the total number of cases in the data set.
+**
+**                    oc0.output -- scalar, default 1.
+**
+**                        1   print the statistics.
+**
+**                        0   do not print statistics.
+**
+**                    oc0.res -- scalar, default 0.
+**
+**                        1   compute residuals (resid) and Durbin-
+**                            Watson statistic (dwstat).
+**
+**                        0   resid = 0, dwstat = 0.
+**
+**                    oc0.rnam -- string, default "_olsmtres".
+**
+**                        If the data is taken from a data set, a new 
+**                        data set will be created for the residuals, 
+**                        using the name in oc0.rnam. 
+**
+**                    oc0.row -- scalar, the number of rows to read 
+**                        per iteration of the read loop. Default 0.
+**
+**                        If 0, the number of rows will be calculated
+**                        internally. If you get an "Insufficient 
+**                        memory" error while executing OLS you can 
+**                        supply a value for oc0.row that works on your 
+**                        system.
+**
+**                        The answers may vary slightly due to rounding
+**                        error differences when a different number of
+**                        rows is read per iteration. You can use 
+**                        oc0.row to control this if you want to get 
+**                        exactly the same rounding effects between 
+**                        several runs.
+**
+**                    oc0.vpad -- scalar, default 1.
+**
+**                        If 0, internally created variable names are not
+**                        padded to the same length (e.g. "X1, X2,..., X10").
+**
+**                        If 1, they are padded with zeros to the same
+**                        length (e.g., "X01, X02,..., X10").
+**
+**          filename    string, name of GDA.
+**
+**          var         string, name of the variable in the GDA to be 
+**                      analyzed
+**                                         OR
+**                      scalar, index of the variable in the GDA to 
+**                      be analyzed.
+**
+**          depcol      scalar, index of column in variable to use as the
+**                      dependent variable. 
+**
+**                      If a scalar 0 is passed, the last column will be
+**                      used as the dependent variable.
+**
+**          indcols     Nx1 vector, indices of columns in variable to use 
+**                      as the independent variables. 
+**
+**                      If a scalar 0 is passed, all columns except for 
+**                      the one used for the dependent variable will be
+**                      used as independent variables.
+**
+**          vnamevar    string, name of variable containing variable 
+**                      names to use for output 
+**                                         OR
+**                      scalar, index of variable containing variable 
+**                      names to use for output. 
+**
+**  Output:  oout0   an instance of an olsmtControl structure containing the
+**                   following members:
+**                    
+**                    oout0.vnam -- (K+2)x1 or (K+1)x1 string array, the variable
+**                        names used in the regression. If a constant term
+**                        is used this vector will be (K+2)x1, and the first
+**                        name will be "CONSTANT". The last name will be the
+**                        name of the dependent variable.
+**
+**                    oout0.m -- MxM matrix, where M = K+2, the moment matrix
+**                        constructed by calculating x'x where x is a matrix
+**                        containing all useable observations and having 
+**                        columns in the order:
+**
+**                        constant   ~     indvars        ~        depvar
+**                        ------------------------------------------------------
+**                        (1.0) ~ (independent variables) ~ (dependent variable)
+**
+**                        A constant term is always used in computing m.
+**
+**                    oout0.b -- Dx1 vector, the least squares estimates of 
+**                        parameters.
+**
+**                        Error handling is controlled by the low order bit
+**                        of the trap flag.
+**
+**                            TRAP 0     terminate with error message
+**
+**                            TRAP 1     return scalar error code in b
+**
+**                                30  system singular
+**                                31  system underdetermined
+**                                32  same number of columns as rows
+**                                33  too many missings
+**                                34  file not found
+**                                35  no variance in an independent variable
+**
+**                        The system can become underdetermined if you use 
+**                        listwise deletion and have missing values. In that 
+**                        case it is possible to skip so many cases that there 
+**                        are fewer useable rows than columns in the data set.
+**
+**                    oout0.stb -- Kx1 vector, the standardized coefficients.
+**
+**                    oout0.vc -- DxD matrix, the variance-covariance matrix of
+**                        estimates.
+**
+**                    oout0.stderr -- Dx1 vector, the standard errors of the 
+**                        estimated parameters.
+**
+**                    oout0.sigma -- scalar, standard deviation of residual.
+**
+**                    oout0.cx -- (K+1)x(K+1) matrix, correlation matrix of 
+**                        variables in the order:
+**
+**                        independent variables ~ dependent variable
+**
+**                    oout0.rsq -- scalar, R square, coefficient of determination.
+**
+**                    oout0.resid -- residuals, resid = y - x * b
+**
+**                        If oc0.res = 1, the residuals will be computed.
+**
+**                        If the data is taken from a data set, a new data
+**                        set will be created for the residuals, using the
+**                        name in the rnam member of the olsmtControl
+**                        structure. The residuals will be saved in this 
+**                        data set as an Nx1 column. The resid return value 
+**                        will be a string containing the name of the new 
+**                        data set containing the residuals.
+**
+**                        If the data is passed in as a matrix, the
+**                        oout0.resid return value will be the Nx1 vector of
+**                        residuals.
+**
+**                    oout0.dwstat -- scalar, Durbin-Watson statistic.
+**
+**  Remarks:          No output file is modified, opened, or closed by this
+**                    procedure.  If you want output to be placed in a file
+**                    you need to open an output file before calling gdaols.
+**                    If a column of constant value has been included among
+**                    the independent variables, this variable will be
+**                    deleted.
+**
+**                    You must include olsmt.sdf at the beginning of any program
+**                    that calls gdaols to enable GAUSS to find the definition
+**                    of the olsmtControl structure. You should also call 
+**                    olsmtControlCreate before calling gdaols to set the members
+**                    of the olsmtControl structure to default values. 
+**
+**  Example:          #include olsmt.sdf
+**                    struct olsmtControl oc1;
+**                    struct olsmtOut oout1;
+**                    oc1 = olsmtControlCreate;
+**                    
+**                    data = "olsdat.gda";
+**                    depcol = 5;
+**                    indcols = { 1, 2, 4, 7 };
+**                    oc1.res = 1;
+**                    output file = lpt1 on;
+**                    oout1 = gdaolsmat(oc1,data,"odata",depcol,indcols,"vnames");
+**                    output off;
+**
+**                    In this example, the "odata" variable in the GDA, olsdat.gda 
+**                    is used to compute a regression. The fifth column is the
+**                    dependent variable, and the first, second, fourth, and 
+**                    seventh columns are independent variables. The residuals and 
+**                    Durbin-Watson statistic are computed. The output is sent to 
+**                    the printer as well as the screen and the returned values 
+**                    are assigned to variables.
+**
+**  See Also:   gdaolsmat, olsmt
+*/
+
+
+proc gdaolsmat(struct olsmtControl oc0, filename, var, depcol, indcols, vnamevar);
+    local const,tobs,depindx,indindx,nvar,nr,k,y0,mn,nc,cy,
+        i,constflg,constvlu,vardx,std,vnames,cxx,cxxi,cxy,cyy,df,
+        sse,nobs,mobs,be,b,vc,stderr,t,rsq,rbsq,fstat,pvf,pvt,ms,
+        omat,fmt,dwstat,mss,prcn,nvar1,cvec,old,u2,m,cor,constant,
+        stdb,fout,u,str,tv,oldtrp,cov,stdest,dd,cnstname,tmpnm,
+        colwid,ostr,indvarnms,depvarnm,j,varnm,varind,outnames,rind,
+        chunk,rowsread,defaultnames;
+	struct olsmtOut oout0;
+
+    clear constflg,mobs,constant;
+    const = oc0.con;
+    constvlu = 1;
+    mss = { . };
+    fout = -1;
+
+    filename = "" $+ filename;
+
+    if (type(var) == 6);
+        varind = var;
+        varnm = gdaGetName(filename,varind);
+    else;
+        varnm = var;
+        varind = gdaGetIndex(filename,varnm);
+    endif;
+
+    tobs = gdaGetOrders(filename,varnm);
+    k = tobs[2];
+    tobs = tobs[1]; 
+
+    if (depcol == 0);
+        depcol = k;
+    endif;
+
+    if (indcols == 0);
+       indcols = packr(miss(seqa(1,1,k),depcol));
+    endif;
+
+    nvar = rows(indcols);
+    nvar1 = nvar+1;
+
+    if (type(vnamevar) == 6);
+        if (vnamevar == 0);
+            indvarnms = "X"$+ftocv(seqa(1,1,nvar),oc0.vpad*(floor(log(nvar))+1),0);
+            depvarnm = "Y";
+            outnames = indvarnms$|depvarnm;
+            defaultnames = 1;
+        else;
+            outnames = gdaReadbyIndex(filename,vnamevar);
+            indvarnms = outnames[indcols]; 
+            depvarnm = outnames[depcol]; 
+            defaultnames = 0;
+        endif;
+    else;
+       if (vnamevar $== "");
+            indvarnms = "X"$+ftocv(seqa(1,1,nvar),oc0.vpad*(floor(log(nvar))+1),0);
+            depvarnm = "Y";
+            outnames = indvarnms$|depvarnm;
+            defaultnames = 1;
+        else;
+            outnames = gdaRead(filename,vnamevar);
+            indvarnms = outnames[indcols]; 
+            depvarnm = outnames[depcol]; 
+            defaultnames = 0;
+        endif;
+    endif;
+
+    vardx = indcols|depcol;
+    nobs = tobs;
+
+    /* Computation of max number of rows to read at one time */
+    if oc0.row;
+        nr = oc0.row;
+    else;
+        nr = floor(minc(maxbytes/(k*8*3.5)|oc0.maxvec/(k+1)));
+    endif;
+    rind = 1|1;
+
+    if oc0.miss == 2;
+        clear mn,nc,m,i,nobs;
+        constflg = ones(1,nvar1);
+        do until i == tobs;
+            y0 = gdareadsome(filename,varnm,rind,1|k);
+            y0 = y0[vardx];
+            cy = (y0 .> 0 .or y0 .< 1);
+            y0 = missrv(y0,0);
+            m = m+y0'*y0;
+            mn = mn + y0'*cy;
+            nc = nc+cy'*cy;
+            nobs = nobs+(cy /= 0);
+            rind[1] = rind[1]+1;
+        endo;
+        if nc == 0;
+            goto errout(31);
+        endif;
+        mobs = tobs-nobs;
+        mn = mn./nc;
+        m = m./nc;
+    else;
+        clear mn,m,nc,rowsread;
+        do until (rowsread == tobs);
+            chunk = minc(tobs-rowsread|nr);
+            y0 = gdareadsome(filename,varnm,rind,chunk|k);
+            y0 = y0[.,vardx];
+            if oc0.miss == 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            elseif ismiss(y0);
+                errorlog "missing data found - using listwise deletion";
+                oc0.miss = 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            endif;
+            if not scalmiss(y0);
+                m = m+moment(y0,0);
+                mn = mn + sumc(y0);
+            endif;
+
+            rowsread = rowsread+chunk;
+            rind[1] = rind[1]+chunk;
+        endo;
+        if oc0.miss == 1;
+            if nc == 0;
+                goto errout(31);
+            endif;
+            nobs = nc;
+            mobs = tobs-nobs;
+        endif;
+        mn = mn/nobs;
+        m = m/nobs;
+    endif;
+
+
+    if m[rows(m),rows(m)] == y0[1,cols(y0)];
+        errorlog "dependent variable has no variation";
+        end;
+    endif;
+
+
+    if oc0.miss == 2;
+        constflg = indexcat(dotfeqmt(diag(m),diag(mn)^2,oc0.fcmptol),1);
+    else;
+        constflg = indexcat(dotfeqmt(diag(m),mn^2,oc0.fcmptol),1);
+    endif;
+
+    if scalmiss(constflg);
+        constflg = 0;
+    elseif rows(constflg) > 1;
+        goto errout(35);
+    endif;
+
+    if constflg;
+        cvec = packr(miss(seqa(1,1,rows(mn)),constflg));
+        if oc0.miss == 2;
+            constvlu = mn[constflg,constflg];
+            mn = mn[cvec,cvec];
+        else;
+            constvlu = mn[constflg];
+            mn = mn[cvec];
+        endif;
+        m = m[cvec,cvec];
+        nvar1 = rows(cvec);
+        nvar = nvar1 - 1;
+        cnstname = indvarnms[constflg];
+        if defaultnames;
+            indvarnms = "X"$+ftocv(seqa(1,1,nvar),
+                oc0.vpad*(floor(log(nvar))+1),0);
+        else;
+            indvarnms = indvarnms[packr(miss(seqa(1,1,rows(indvarnms)),constflg))];
+        endif;
+    endif;
+
+    if oc0.miss == 2;
+        mn = diag(mn);
+    endif;
+
+    if const == 1 and constflg;
+        const = 0;
+    endif;
+
+    if const or constflg;
+      cov = m - mn*mn';
+    else;
+      cov = m;
+    endif;
+
+    k = diag(cov);
+    cyy = k[nvar1];
+    std = sqrt(k);
+    cxy = cov[1:nvar,nvar1];
+    cxx = cov[1:nvar,1:nvar];
+    cor = cov./std./std';
+
+    oldtrp = trapchk(1);
+    trap 1,1;
+    cxxi = invpd(cxx);
+    trap oldtrp,1;
+    if scalmiss(cxxi);
+        goto errout(30);
+    endif;
+
+    b = cxxi*cxy;
+
+    if const or constflg;
+        constant = (mn[nvar1]-mn[1:nvar]'*b)/constvlu;
+        if constflg == 0;
+            indvarnms = "CONSTANT"$|indvarnms;
+        endif;
+    endif;
+
+    if oc0.altnam $/= "";
+        outnames = oc0.altnam;
+        if const == 0 and constflg;
+            k = packr(miss(seqa(1,1,rows(outnames)),constflg));
+            outnames = outnames[constflg]$|outnames[k];
+        endif;
+        depvarnm = outnames[rows(outnames)];
+        indvarnms = outnames[1:rows(outnames)-1];
+    else;
+        outnames = indvarnms$|depvarnm;
+    endif;
+
+    if rows(indvarnms) == nvar and (const or constflg);
+        indvarnms = "CONSTANT"$|indvarnms;
+    endif;
+
+    if const or constflg;
+       df = nobs-nvar-1;
+    else;
+       df = nobs-nvar;
+    endif;
+
+    if df == 0;
+        goto errout(32);
+    elseif df<0;
+        goto errout(31);
+    endif;
+
+    sse = cyy-b'*cxy;
+    if const or constflg;
+        k = -cxxi*mn[1:nvar]/constvlu;
+        vc = (sse/df)*(((1/constvlu-mn[1:nvar]'*k)/constvlu|k)~(k'|cxxi));
+        stderr = sqrt(diag(vc));
+        t = (constant|b)./stderr;
+        tv = nobs*cyy;
+    else;
+        vc = (sse/df)*cxxi;
+        stderr = sqrt(diag(vc));
+        t = b./stderr;
+        tv = nobs*(cyy - mn[nvar1]^2);
+    endif;
+    sse = nobs*sse;
+    rsq = (tv - sse)/tv;
+    rbsq = 1-(1-rsq)*((nobs-1)/df);
+    fstat = (rsq/(1-rsq))*(df/nvar);
+    if fstat>0;
+        pvf = cdffc(fstat,nvar,df);
+    else;
+        pvf = mss;
+    endif;
+    pvt = 2*cdftc(abs(t),df);
+
+    if sse > 0;
+      stdest = sqrt(sse/df);
+    else;
+      stdest = error(0);
+    endif;
+
+    stdb = b.*(std[1:nvar]/std[nvar1]);     /* Standardized coefficients  */
+    if const or constflg;
+        stdb = mss|stdb;
+    endif;
+
+    if oc0.res;
+        prcn = 8;
+        if oc0.res == 4;
+            prcn = 4;
+        endif;
+		tmpnm = oc0.rnam;
+        create fout = ^tmpnm with u,1,prcn;
+        if fout == -1;
+            errorlog "Can't open temporary file for residuals";
+            end;
+        endif;
+        clear dwstat,u2,i,rowsread;
+        rind = 1|1;
+        do until (rowsread == tobs);
+            i = i + 1;
+            chunk = minc(tobs-rowsread|nr);
+            y0 = gdareadsome(filename,varnm,rind,chunk|k);
+            y0 = y0[.,vardx];
+            if oc0.miss == 2;
+                y0 = missrv(y0,0);
+            endif;
+            if constflg;
+                y0 = y0[.,cvec];
+            endif;
+            u = y0[.,nvar1]-y0[.,1:nvar]*b - constant*constvlu;
+            if writer(fout,u) /= rows(u);
+                errorlog "ERROR - disk full, Durbin-Watson statistic no"\
+                    "t computed";
+                end;
+            endif;
+            if oc0.miss;
+                u = packr(u);
+            endif;
+            u2 = u2+u'*u;
+            if nr > 1;
+              dwstat = dwstat+sumc((trimr(u,1,0)-trimr(u,0,1))^2);
+            endif;
+            if i > 1 and i < tobs;
+              dwstat = dwstat + (u[1] - dd)^2;
+            endif;
+            dd = u[rows(u)];
+
+            rowsread = rowsread+chunk;
+            rind[1] = rind[1]+chunk;
+        endo;
+        dwstat = dwstat/u2;
+    else;
+        u = 0;
+        dwstat = 0;
+    endif;
+    if const or constflg;
+        b = constant|b;
+    endif;
+
+    if oc0.output;
+		colwid = maxc(maxc(strlen(indvarnms)+1)|9);
+        print ftos(nobs,"Valid cases:  %*.*f",20,0);;
+        print "      Dependent variable:" strcombine(satostrC(depvarnm,"%20.18s"),"",0);
+
+        print ftos(mobs,"Missing cases:%*.*f",20,0);;
+        print "      Deletion method:               ";;
+        if oc0.miss == 0;
+            print "    None";
+        elseif oc0.miss == 2;
+            print "Pairwise";
+        else;
+            print "Listwise";
+        endif;
+
+        print ftos(tv,"Total SS:     %*.*f",20,3);;
+
+        print ftos(df,"      Degrees of freedom:%*.*f",20,0);
+
+        print ftos(rsq,"R-squared:    %*.*f",20,3);;
+        print ftos(rbsq,"      Rbar-squared:      %*.*f",20,3);
+        print ftos(sse,"Residual SS:  %*.*f",20,3);;
+        print ftos(stdest,"      Std error of est:  %*.*f",20,3);
+        str = ftos(nvar,"F(%*.*f,",1,0) $+ ftos(df,"%*.*f):             "
+            ,1,0);
+        str = strsect(str,1,15) $+ ftos(fstat,"%*.*f",19,3);
+        print str;;
+        print ftos(pvf,"      Probability of F:  %*.*f",20,3);
+
+        if oc0.res;
+            print ftos(dwstat,"Durbin-Watson:%*.*f",20,3);
+        endif;
+        print;
+        print chrs(32*ones(colwid,1))$+"                Standard                 Prob   Sta"\
+            "ndardized  Cor with";
+        print "Variable"$+chrs(32*ones(colwid-8,1))$+"    Estimate      Error      t-value"\
+			"     >|t|     Estimate    Dep Var";
+
+        print chrs(45*ones(70+colwid,1));;
+        omat = b~stderr~t~pvt~stdb;
+        if const or constflg;
+            omat = omat~(mss|cor[1:nvar,nvar1]);
+        else;
+            omat = omat~cor[1:nvar,nvar1];
+        endif;
+        ms = ftos(mss,"%*.*f",1,0);
+        msym "---  ";
+		fmt = ("%-"$+ftos(colwid,"%*.*f",1,0)$+"."$+ftos(colwid,"%*.*f",1,0)$+"s") $|
+				"%12.6f" $| "%12.6f" $| "%12.6f" $| "%10.3f" $| "%12.6f" $| "%12.6f";
+		ostr = satostrC(indvarnms,fmt[1]) $~ ftostrC(omat,fmt[2:7]);
+		ostr = strcombine(ostr,"",0);
+		print ostr;
+        msym ^ms;
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+
+    m = (1~mn')|(mn~m);
+
+	oout0.vnam = outnames;
+	oout0.m = nobs*m;
+	oout0.b = b;
+	oout0.stb = stdb;
+	oout0.vc = vc;
+	oout0.stderr = stderr;
+	oout0.sigma = stdest;
+	oout0.cx = cor;
+	oout0.rsq = rsq;
+	oout0.resid = u;
+	oout0.dwstat = dwstat;
+    retp(oout0);
+
+ERROUT:
+        pop be;
+    if be == 34;
+        errorlog "ERROR: File not found: " $+ filename;
+    elseif be == 30;
+        errorlog "ERROR: covariance matrix of independent variables is sing"\
+            "ular.";
+    elseif be == 31;
+        errorlog "ERROR: system underdetermined";
+    elseif be == 32;
+        errorlog "ERROR: same number columns as rows";
+    elseif be == 33;
+        errorlog "ERROR: too many missings";
+    elseif be == 35;
+        errorlog "ERROR: no variation in at least one independent variable";
+    else;
+        errorlog "Coefficients vector is an error code: " $+ ftos(be,"%*.*l"\
+            "f",1,0);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+	oout0.vnam = 0;
+	oout0.m = 0;
+	oout0.b = 0;
+	oout0.stb = error(be);
+	oout0.vc = 0;
+	oout0.stderr = 0;
+	oout0.sigma = 0;
+	oout0.cx = 0;
+	oout0.rsq = 0;
+	oout0.resid = 0;
+	oout0.dwstat = 0;
+    retp(oout0);
+
+endp;
+
+

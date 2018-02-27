@@ -1,0 +1,292 @@
+/*
+** indices.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> indices
+**
+**  Purpose:    To process a set of variable names or indices and
+**              return a vector of variable names and a vector of
+**              indices.
+**
+**  Format:     { name,indx } = indices(dataset,vars);
+**
+**  Input:      dataset    string, the name of the data set.
+**
+**              vars       Nx1 vector, a character vector of names or a
+**                         numeric vector of column indices.
+**
+**                         if 0, all variables in the data set will be
+**                         selected.
+**
+**  Output:     name       Nx1 character vector, the names associated
+**                         with vars.
+**
+**              indx       Nx1 numeric vector, the column indices
+**                         associated with var.
+**
+**                If errors are encountered a message will be sent to the
+**                error log.  Also, output will contain a scalar error code.
+**                This code appears as missing unless it is translated with
+**                the command scalerr(name).  The codes are defined as:
+**
+**                       1  data file not found
+**                       2  found undefined variables
+**
+**  Globals:    None
+*/
+
+proc (2) = indices(dataset,vars);
+    local t1,i,nvec,kd,indx,err,errmsg,f1,flag;
+
+    flag = 0;
+    dataset = "" $+ dataset;
+    open f1 = ^dataset;
+    if f1 == -1;
+        errmsg = "ERROR:  Can't open file " $+ dataset $+ ".";
+        goto errout(1);
+    endif;
+
+    nvec = getname(dataset);
+    kd = rows(nvec);
+
+    if type(vars) == 13;
+        vars = stof(vars);
+    endif;
+
+    if round(vars) == vars and vars >= 1 and vars < 131072;
+        if vars > kd;
+            errmsg = "ERROR: index of variable out of range: " $+
+                ftos(vars,"%*.*lf",1,0);
+            goto errout(2);
+        endif;
+        indx = vars;       /* numeric index used */
+        vars = nvec[indx];
+    elseif vars[1] $== 0;
+        indx = seqa(1,1,kd);
+        vars = nvec;
+    else;
+        ndpclex;
+        indx = indcv(vars,nvec);
+        if ismiss(indx);
+            flag = 1;
+            errmsg = "ERROR: Undefined data set variables:";
+            goto errout(2);
+        endif;
+        vars = nvec[indx];
+    endif;
+    ndpclex;
+    if f1 > 0;
+        f1 = close(f1);
+    endif;
+    retp(vars,indx);
+
+ERROUT:
+
+    pop err;
+    cls;
+    if f1 > 0;
+        f1 = close(f1);
+    endif;
+    ndpclex;
+    if not trapchk(1);
+        errorlog errmsg;
+        print;
+        if flag == 1;
+            t1 = packr(miss(indx.$==error(0),0)~vars);
+            vars = t1[.,2];
+            format /ro 8,8;
+            i = 1;
+            do while i <= rows(vars);
+                errorlog "     " $+ vars[i];
+                i = i+1;
+            endo;
+        endif;
+        print;
+        end;
+    endif;
+    retp(error(err),error(err));
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> indicesf
+**
+**  Purpose:    To process a set of variable names or indices and
+**              return a vector of variable names and a vector of
+**              indices.
+**
+**  Format:     { name,indx } = indicesf(fp,namesa,vars);
+**
+**  Input:      fp         scalar, file handle of GAUSS dataset.
+**
+**              namesa     Nx1 string vector, names of selected columns
+**                         in dataset.  If set to null string, columns
+**                         are selected using vars.
+**
+**              vars       Nx1 vector, numeric vector, indices of selected
+**                         columns in dataset.  If set to 0, columns
+**                         are selected using namesa.
+**
+**  Output:     name       Nx1 string vector, the names associated
+**                         with vars.
+**
+**              indx       Nx1 numeric vector, the column indices
+**                         associated with var.
+**
+**                If errors are encountered a message will be sent to the
+**                error log.  Also, output will contain a scalar error code.
+**                This code appears as missing unless it is translated with
+**                the command scalerr(name).  The codes are defined as:
+**
+**                       1  data file not found
+**                       2  no names or indices in arguments
+**                       3  variable not found
+**                       4  indices outside of range of columns
+**
+**  Globals:    None
+*/
+
+
+proc (2) = indicesf(fp, names, vars);
+    local ind, nam, found, nam0;
+
+    if (rows(vars) == 0 or vars == 0) and names[1] $== "";
+
+            retp("",-2);
+
+    elseif names[1] $/= "";
+
+        if type(names) == 15;
+            nam = getnamef(fp);
+            ind = {};
+
+            for i (1, rows(names), 1);
+                found = 0;
+                for j (1, rows(nam), 1);
+                    if lower(nam[j]) $== lower(names[i]);
+                        ind = ind | j;
+                        found = 1;
+                    endif;
+                endfor;
+                if not found;
+                    retp(names[i], -3);
+                endif;
+            endfor;
+
+            retp(names, ind);
+
+        elseif type(vars) == 13;
+            nam = getnamef(fp);
+            nam0 = lower(names);
+            for j (1, rows(nam), 1);
+                if lower(nam[j]) $== nam0;
+                    ind = j;
+                    retp(names, ind);
+                endif;
+            endfor;
+
+            retp(names, -3);
+        endif;
+
+    else;
+        nam = getnamef(fp);
+
+        if maxc(vars) > rows(nam) or minc(vars) < 1;
+            retp("", -4);
+        endif;
+
+        retp(nam[vars], vars);
+    endif;
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> indicesfn
+**
+**  Purpose:    To process a set of variable names or indices and
+**              return a vector of variable names and a vector of
+**              indices.
+**
+**  Format:     { name,indx } = indicesfn(dataset,namesa,vars);
+**
+**  Input:      dataset    string, name of GAUSS dataset.
+**
+**              namesa     Nx1 string vector, names of selected columns
+**                         in dataset.  If set to null string, columns
+**                         are selected using vars.
+**
+**              vars       Nx1 vector, numeric vector, indices of selected
+**                         columns in dataset.  If set to 0, columns
+**                         are selected using namesa.
+**
+**  Output:     name       Nx1 string vector, the names associated
+**                         with vars.
+**
+**              indx       Nx1 numeric vector, the column indices
+**                         associated with vars.
+**
+**                If errors are encountered a message will be sent to the
+**                error log.  Also, output will contain a scalar error code.
+**                This code appears as missing unless it is translated with
+**                the command scalerr(name).  The codes are defined as:
+**
+**                       1  data file not found
+**                       2  no names or indices in arguments
+**                       3  variable not found
+**                       4  indices outside of range of columns
+**
+**  Globals:    None
+*/
+
+
+
+proc (2) = indicesfn(dsn, names, vars);
+    local nam, ind, fp;
+
+    open fp = ^dsn;
+
+    if fp == -1;
+       retp("", -1);
+    endif;
+    { nam, ind } = indicesf(fp, names, vars);
+
+    fp = close(fp);
+    retp(nam, ind);
+endp;
+
+
+
+

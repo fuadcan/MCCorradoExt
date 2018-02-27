@@ -1,0 +1,13 @@
+/*
+** loess.dec - LOESS regression
+** (C) Copyright 1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definitions for loess procedure
+*/
+
+declare matrix _loess_Span = .6667;
+declare matrix _loess_NumEval = 50;
+declare matrix _loess_Degree = 1;
+declare matrix _loess_WgtType = 2;
+

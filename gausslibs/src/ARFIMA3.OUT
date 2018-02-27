@@ -1,0 +1,11 @@
+
+There is only one maximum when the fractional root d is fixed:
+
+Parameter         Scoring         OPTMUM
+    phi1       0.91971795       0.91971515 
+  theta1       0.46713308       0.46712854 
+       d                0                0 
+   sigma        2.0190068        2.0190213 
+
+So, d can be estimated before computing the MLE of the ARFIMA process.
+For example, we can use the GPH (Geweke Porter-Hudak) estimate to fix d.

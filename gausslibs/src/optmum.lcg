@@ -1,0 +1,81 @@
+/*
+** GAUSS library file
+**
+** (C) Copyright 1988-1998  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+
+gradient.dec
+    _grdh                            : matrix
+    _grnum                           : matrix
+    _grsca                           : matrix
+    _grstp                           : matrix
+
+optmum.dec
+    _op_ver                          : matrix
+    _opalgr                          : matrix
+    _opcoef                          : matrix
+    _opdfct                          : matrix
+    _opditer                         : matrix
+    _opparnm                         : matrix
+    _opstep                          : matrix
+    _opshess                         : matrix
+    _opfhess                         : matrix
+    _opmbkst                         : matrix
+    _opgtol                          : matrix
+    _ophsprc                         : matrix
+    _opgdprc                         : matrix
+    _opgdmd                          : matrix
+    _opmiter                         : matrix
+    _opitdta                         : matrix
+    _oprteps                         : matrix
+    _opusrch                         : matrix
+    _opdelta                         : matrix
+    _opmxtry                         : matrix
+    _opstmth                         : string
+    _opmdmth                         : string
+    _opkey                           : matrix
+    _opmtime                         : matrix
+    _opgrdh                          : matrix
+    _opusrgd                         : matrix
+    _opusrhs                         : matrix
+
+gradient.src
+    gradre                           : proc
+    gradfd                           : proc
+    gradcd                           : proc
+
+optmum.src
+    optmum                           : proc
+    optset                           : proc
+    optprt                           : proc
+
+optutil.src
+    _optmum                          : proc
+    _strsch                          : proc
+    _sctu2                           : proc
+    _stepl2                          : proc
+    _deriv2                          : proc
+    _gdfd                            : proc
+    _gdcd                            : proc
+    _hssp                            : proc
+    _stepb2                          : proc
+    _usrsch2                         : proc
+    _brackt2                         : proc
+    _brent2                          : proc
+    _half2                           : proc
+

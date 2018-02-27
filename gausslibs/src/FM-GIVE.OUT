@@ -1,0 +1,13 @@
+system of two equations, two explanatory variables
+True coefficients =       0.20000000       0.50000000 
+                          0.50000000       0.10000000 
+Ahat, FM-GIVE = 
+      0.25269714       0.53122897 
+      0.50260616       0.10286965 
+Long-Run Variance of the residuals 
+       1.0077325     -0.061060741 
+    -0.061060741       0.88462770 
+s1 =        3.7871195 
+s2 =        2.0803096 
+st (= s1 + s2)       5.8674291 
+run fm-gmm.ex;

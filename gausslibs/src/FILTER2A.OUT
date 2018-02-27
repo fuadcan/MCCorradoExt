@@ -1,0 +1,40 @@
+Time-Domain Estimation (CSS method):
+------------------------------------
+
+Total observations:                                          200  
+Usable observations:                                         200  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                          195  
+Value of the maximized log-likelihood function:       -278.43483  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+Phi1            0.439477        0.129521         3.393107        0.000837
+Phi2            0.385300        0.099569         3.869673        0.000149
+Theta1          0.163190        0.205766         0.793082        0.428694
+d              -0.057332        0.205883        -0.278469        0.780947
+sigma           0.947878        0.094792         9.999612        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+Frequency-Domain Estimation (Whittle method):
+---------------------------------------------
+
+Total observations:                                          200  
+Usable observations:                                         200  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                          195  
+Value of the maximized log-likelihood function:       -357.76189  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+phi1            0.437366        0.118038         3.705288        0.000275
+phi2            0.379464        0.094815         4.002158        0.000089
+theta1          0.164285        0.225357         0.729001        0.466876
+d              -0.056142        0.237643        -0.236246        0.813490
+sigma           0.978404        0.043273        22.609925        0.000000
+
+Covariance matrix: inverse of the negative Hessian.

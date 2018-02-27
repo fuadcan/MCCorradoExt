@@ -1,0 +1,95 @@
+/*
+** TSM.DEC
+*/
+
+declare matrix _tsm_ver = {1,2,7};
+
+declare matrix _print = 1;
+
+declare matrix _tsm_gtol = 0.001;
+declare matrix _tsm_optmum = 1;
+declare matrix _tsm_Mcov = 1;
+declare matrix _tsm_parnm;
+declare matrix _tsm_retcode;
+declare matrix _ml_derivatives;
+declare matrix _ml_RR;
+declare matrix _ml_r;
+declare matrix _ml_hessian;
+declare matrix _ml_gradient;
+declare matrix _ml_jacobian;
+declare matrix _ml_Jacobian_proc = 0;
+
+declare matrix _arma_Y;
+declare matrix _arma_p;
+declare matrix _arma_q;
+declare matrix _arma_epsilon;
+declare matrix _arma_SIGMA;
+declare matrix _varx_epsilon;
+declare matrix _varx_SIGMA;
+declare matrix _varx_tol = 0.0001;
+
+declare matrix _SSM_Z;
+declare matrix _SSM_d;
+declare matrix _SSM_H;
+declare matrix _SSM_T;
+declare matrix _SSM_c;
+declare matrix _SSM_R;
+declare matrix _SSM_Q;
+declare matrix _SSM_dv;
+declare matrix _SSM_parameters;
+declare matrix _KF_yc;
+declare matrix _KF_v;
+declare matrix _KF_a;
+declare matrix _KF_P;
+declare matrix _KF_ac;
+declare matrix _KF_Pc;
+declare matrix _KF_F;
+declare matrix _KF_invF;
+declare matrix _KF_detF;
+declare matrix _KF_pinv;
+
+
+declare matrix _TD_ml;
+declare matrix _FD_sgf;
+declare matrix _FD_Information;
+declare matrix _FD_lambda;
+declare matrix _FD_pdgm;
+declare matrix _sgf_Jacobian_proc = 0;
+
+declare matrix _BSM_s;
+declare matrix _cycle_prmt = 0;
+
+declare matrix _Kernel = {.,.,.,1,.,.};
+declare matrix _surrogate_random = 1;
+declare matrix _Truncated_prmt;
+declare matrix _bandwidth = 0;
+declare matrix _fourier = 1;
+declare matrix _smoothing = {0,1,1,0.23};
+declare matrix _window = 0;
+declare matrix _arfima_p;
+declare matrix _arfima_q;
+
+declare matrix _wcenter = 0;
+declare matrix _wcolor = 0;
+declare matrix _wline = 0;
+declare matrix _LpNorm = 1;
+declare matrix _wgrid = 1;
+declare matrix _cost;
+
+declare matrix _gmm_function;
+declare matrix _gmm_iter = 20;
+declare matrix _gmm_Jacobian_proc = 0;
+declare matrix _gmm_Jtest;
+declare matrix _gmm_lags = 0;
+declare matrix _gmm_r = 0;
+declare matrix _gmm_RR = 0;
+declare matrix _gmm_tol = 0.001;
+declare matrix _gmm_Winv;
+
+declare matrix _optmum2_fct;
+declare matrix _op2gdprc;
+declare matrix _op2hsprc;
+declare matrix _optmum2_RR;
+declare matrix _optmum2_r;
+
+declare matrix _tsm_hessian = 1;

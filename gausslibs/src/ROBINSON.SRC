@@ -1,0 +1,97 @@
+/*
+** robinson.src - Time Series Modelling.
+** (C) Copyright 1996 by Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  H = Robinson(x,Delta1,Delta2,m)
+**                                Semiparametric estimation of long
+**                                range dependence                         16
+**
+*/
+
+
+/*
+** Robinson
+**
+** Purpose: Compute the Hurst exponent with gaussian semiparametric estimation.
+**
+**                 ROBINSON [1995], Gaussian semiparametric estimation of long
+**                 range dependence, Annals of Statistics, 23, 1630-1661
+**
+** Format:  H = Robinson(x,Delta1,Delta2,m);
+**
+** Input:     x - Nobs*1 vector, data.
+**       Delta1 - scalar, Delta1 parameter.
+**       Delta1 - scalar, Delta2 parameter.
+**            m - scalar, define the M lowest Fourier frequecies.
+**                if m = 0, then m takes the value 0.5*Nstar.
+**
+** Output:    H - scalar, the Hurst exponent.
+**
+** Globals: _fourier - 1 for the inverse discrete transform (dffti)
+**                     - or -
+**                     0 for the inverse fast transform (ffti)
+**
+** Remarks:   The interval of admissible estimates is [Delta1,Delta2]
+**            with 0 < Delta1 < Delta2 < 1.
+**            M must be less than Nobs/2
+**
+*/
+
+
+declare external _robinson_I,_robinson_lambda,_robinson_m;
+
+proc Robinson(x,Delta1,Delta2,m);
+  local lambda,I,N,H,fmin,gmin,retcode;
+
+  if Delta1 < 0 and Delta2 > 1;
+    retp(error(0));
+  endif;
+
+  {lambda,I} = PDGM(x);
+  N = rows(I);
+
+  if m == 0;
+    m = N/2;
+  endif;
+
+  _robinson_lambda = lambda;
+  _robinson_I = I;
+  _robinson_m = m;
+
+  {H,fmin,gmin,retcode} = optmum(&_Robinson,0.5);
+
+  if H < Delta1 or H > Delta2;
+    H = minindc(_Robinson(Delta1)|_robinson(Delta2)) - 1;
+    H = (1-H)*Delta1 + H*Delta2;
+  endif;
+
+  retp(H);
+endp;
+
+
+proc _Robinson(H);
+  local m,I,lambda,GH,RH;
+
+  lambda = _robinson_lambda;
+  I = _robinson_I;
+  m = _robinson_m;
+
+  I = I[2:m];
+  I = I/(2*pi);
+  lambda = lambda[2:m];
+
+  /* G(H) formula, page 1633 */
+
+  GH = meanc(lambda^(2*H-1).*I);
+
+  /* R(H) formula, page 1633 */
+
+  RH = ln(GH) -(2*H-1)*meanc(ln(lambda));
+
+  retp(RH);
+endp;
+
+

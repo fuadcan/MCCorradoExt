@@ -1,0 +1,551 @@
+/*
+** qyr.src - Procedures related to the QR decomposition.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS 3.0.
+**
+**  Format                   Purpose                                     Line
+** ---------------------------------------------------------------------------
+** { qy,r }    = QYR(y,x);        QR decomposition                          28
+** { qy,r,e }  = QYRE(y,x);       QR decomposition with pivoting           187
+** { qy,r,e }  = QYREP(y,x,pvt);  QR decomposition with pivoting control   353
+**
+*/
+
+/*
+**> qyr
+**
+**  Purpose:    Computes the orthogonal-triangular (QR)
+**              decomposition of a matrix X and returns
+**              Q * Y and R.                                 (66)
+**
+**  Format:     { QY,R } = qyr(Y,X);
+**
+**  Input:      Y     NxL matrix.
+**
+**              X     NxP matrix.
+**
+**  Output:     QY    KxL unitary matrix, K = min(N,P).
+**
+**              R     LxP upper triangular matrix, L = min(N,P).
+**
+**  Remarks:   Given X, there is an orthogonal matrix Q such that Q' * X
+**             is zero below its diagonal, i.e.,
+**
+**                   Q'* X =  [ R ]                              (67)
+**                            [ 0 ]
+**
+**             where R is upper triangular.  If we partition
+**
+**                   Q = [ Q1 Q2 ]                              (68)
+**
+**             where Q1 has P columns then
+**
+**                   X = Q1 * R                                (69)
+**
+**             is the QR decomposition of X.  If X has linearly
+**             independent columns, R is also the Cholesky factorization of
+**             the moment matrix of X, i.e., of X'* X.
+**
+**             For most problems Q or Q1 are not what is required.
+**             Since Q can be a very large matrix, qyr has been
+**             provided for the calculation of Q * Y, where Y is
+**             some NxL matrix, which will be a much smaller matrix.
+**
+**             If either Q'* Y or Q1'* Y are required see qtyr.
+**
+**  Globals:    _qrdc, _qrsl
+**
+**  See Also:  qqr, qyre, qyrep, olsqr
+*/
+
+proc (2) = qyr(y,x);
+    local flag,n,p,l,qraux,work,pvt,job,dum,info,r,v,q,i,k0,k,dif,qy,
+          ty,yi;
+
+    /* check for complex input */
+    if iscplx(y);
+        if hasimag(y);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            y = real(y);
+        endif;
+    endif;
+
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    l = cols(y);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+
+    dum = 0;
+    info = 0;
+    job = 10000;    /* compute qy only */
+    x = x';
+
+    flag = 0;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    k0 = k;
+    dif = abs(n-p);
+    qy = zeros(n,l);
+    ty = zeros(n,1);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+        clear v;
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+        clear v;
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+        clear v;
+    endif;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+
+#endif
+
+    i = 1;
+    do until i > l;  /* Compute Q'y */
+        yi = y[.,i];
+
+#ifDLLCALL
+#else
+
+        callexe _qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+#ifDLLCALL
+
+        dllcall qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+        qy[.,i] = ty;
+        i = i + 1;
+    endo;
+    retp(qy,r);
+endp;
+
+
+/*
+**> qyre
+**
+**  Purpose:    Computes the orthogonal-triangular (QR)
+**              decomposition of a matrix X and returns
+**              Q * Y and R.                                  (70)
+**
+**  Format:     { QY,R,E } = qyre(Y,X);
+**
+**  Input:      Y     NxL matrix.
+**
+**              X     NxP matrix.
+**
+**  Output:     QY    KxL unitary matrix, K = min(N,P).
+**
+**              R     LxP upper triangular matrix, L = min(N,P).
+**
+**              E     Px1 permutation vector.
+**
+**  Remarks:   Given X[.,E], where E is a permutation vector that permutes
+**             the columns of X, there is an orthogonal matrix Q such that
+**             Q' * X[.,E] is zero below its diagonal, i.e.,
+**
+**                   Q'* X[.,E] = [ R ]                       (71)
+**                                [ 0 ]
+**
+**             where R is upper triangular.
+**             If we partition
+**
+**                   Q = [ Q1 Q2 ]                          (72)
+**
+**             where Q1 has P columns then
+**
+**                    X[.,E] = Q1 * R                       (73)
+**
+**             is the QR decomposition of X[.,E].
+**
+**             For most problems Q or Q1 are not what is required.
+**             Since Q can be a very large matrix, qyr has been
+**             provided for the calculation of Q * Y, where Y is
+**             some NxL matrix, which will be a much smaller matrix.
+**
+**             If either Q'* Y or Q1'* Y are required see qtyre.
+**
+**             If N < P the factorization assumes the form:
+**
+**                   Q'* X[.,E] = [ R1  R2 ]                    (74)
+**
+**             where R1 is a PxP upper triangular matrix and R2 is Px(N-P).
+**             Thus Q is a PxP matrix and R is a PxN matrix containing R1 and
+**             R2.
+**
+**  Globals:    _qrdc, _qrsl
+**
+**  See Also:   qqr, qre, qyr
+*/
+
+proc (3) = qyre(y,x);
+    local flag,n,p,l,qraux,work,pvt,job,dum,info,r,v,q,i,k,dif,qy,ty,yi;
+
+    /* check for complex input */
+    if iscplx(y);
+        if hasimag(y);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            y = real(y);
+        endif;
+    endif;
+
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    l = cols(y);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+
+    dum = 0;
+    info = 0;
+    job = 10000;
+    x = x';
+
+    flag = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    dif = abs(n-p);
+    qy = zeros(n,l);
+    ty = zeros(n,1);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+        clear v;
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+        clear v;
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+        clear v;
+    endif;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+
+#endif
+
+    i = 1;
+    do until i > l;         /* Compute the QY */
+        yi = y[.,i];
+
+#ifDLLCALL
+#else
+
+        callexe _qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+#ifDLLCALL
+
+        dllcall qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+        qy[.,i] = ty;
+        i = i + 1;
+    endo;
+    retp(qy,r,pvt);
+endp;
+
+/*
+**> qyrep
+**
+**
+**  Purpose:    Computes the orthogonal-triangular (QR)
+**              decomposition of a matrix X using a pivot vector
+**              and returns Q * Y and R.                        (75)
+**
+**  Format:     { QY,R,E } = qyrep(Y,X,PVT);
+**
+**  Input:      Y    NxL matrix.
+**
+**              X    NxP matrix.
+**
+**  Output:     QY   KxL unitary matrix, K = min(N,P).
+**
+**              R    LxP upper triangular matrix, L = min(N,P).
+**
+**              E    Px1 permutation vector.
+**
+**              PVT  Px1 vector, controls the selection of the pivot
+**                       columns:
+**
+**                          if PVT[i] gt 0 then X[i] is an initial column
+**                          if PVT[i] eq 0 then X[i] is a free column
+**                          if PVT[i] lt 0 then X[i] is a final column
+**
+**                     The initial columns are placed at the beginning
+**                     of the matrix and the final columns are placed
+**                     at the end.  Only the free columns will be moved
+**                     during the decomposition.
+**
+**  Output:      QY    KxL unitary matrix, K = min(N,P).
+**
+**               R     LxP upper triangular matrix, L = min(N,P).
+**
+**               E     Px1 permutation vector.
+**
+**
+**  Remarks:   Given X[.,E], where E is a permutation vector that permutes
+**             the columns of X, there is an orthogonal matrix Q such that
+**             Q' * X[.,E] is zero below its diagonal, i.e.,
+**
+**                   Q'* X[.,E] = [ R ]                    (76)
+**                                [ 0 ]
+**
+**             where R is upper triangular.
+**             If we partition
+**
+**                   Q = [ Q1 Q2 ]                          (77)
+**
+**             where Q1 has P columns then
+**
+**                    X[.,E] = Q1 * R                        (78)
+**
+**             is the QR decomposition of X[.,E].
+**
+**             qyrep allows you to control the pivoting.  For example,
+**             suppose that X is a data set with a column of ones in the
+**             first column.  If there are linear dependencies among the
+**             columns of X, the column of ones for the constant may get
+**             pivoted away.  This column can be forced to be included
+**             among the linearly independent columns using pvt.
+**
+**             For most problems Q or Q1 is not what is required.
+**             Since Q can be a very large matrix, qyrep has been
+**             provided for the calculation of Q * Y, where Y is
+**             some NxL matrix, which will be a much smaller matrix.
+**
+**             If either Q'* Y or Q1'* Y are required see qtyrep.
+**
+**             If N < P the factorization assumes the form:
+**
+**                   Q'* X[.,E] = [ R1  R2 ]                (79)
+**
+**             where R1 is a PxP upper triangular matrix and R2 is Px(N-P).
+**             Thus Q is a PxP matrix and R is a PxN matrix containing R1 and
+**             R2.
+**
+**  Globals:    _qrdc, _qrsl
+**
+**  See Also:  qqrep, qr, qrep, qtyrep
+*/
+
+proc (3) = qyrep(y,x,pvt);
+    local flag,n,p,l,qraux,work,job,dum,info,r,v,q,i,k,dif,qy,ty,yi;
+
+    /* check for complex input */
+    if iscplx(y);
+        if hasimag(y);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            y = real(y);
+        endif;
+    endif;
+
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if iscplx(pvt);
+        if hasimag(pvt);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            pvt = real(pvt);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    l = cols(y);
+    qraux = zeros(p,1);
+    work = qraux;
+
+    dum = 0;
+    info = 0;
+    job = 10000;    /* compute qy */
+    x = x';
+
+    flag = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    dif = abs(n-p);
+    qy = zeros(n,l);
+    ty = zeros(n,1);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+        clear v;
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+        clear v;
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+        clear v;
+    endif;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+
+#endif
+
+    i = 1;
+    do until i > l;         /* Compute Q'Y */
+        yi = y[.,i];
+
+#ifDLLCALL
+#else
+
+        callexe _qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+#ifDLLCALL
+
+        dllcall qrsl(x,n,n,k,qraux,yi,ty,dum,dum,dum,dum,job,info);
+
+#endif
+
+        qy[.,i] = ty;
+        i = i + 1;
+    endo;
+    retp(qy,r,pvt);
+endp;

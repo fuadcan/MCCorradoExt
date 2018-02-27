@@ -1,0 +1,941 @@
+/*
+** ols.src - Least Squares Regression
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** { vnam,m,b,stb,vc,stderr,sigma,cx,rsq,resid,dwstat } =
+**                                              OLS(dataset,depvar,indvars);
+**
+**> ols
+**
+**  Purpose:    To compute least squares regression.
+**
+**  Format:     { vnam,m,b,stb,vc,stderr,sigma,cx,rsq,resid,dwstat } =
+**                        ols(dataset,depvar,indvars);
+**
+**  Input:  dataset     string, name of data set.
+**
+**                         If this is a null string, the procedure assumes
+**                         that the actual data has been passed in the
+**                         next two arguments.
+**
+**          depvar      dependent variable.
+**
+**                        If dataset contains the name of a data set, this is
+**                        interpreted as:
+**
+**                            string, name of dependent variable
+**                                or
+**                            scalar, index of dependent variable. If scalar 0,
+**                            the last column of the data set will be used.
+**
+**                        If dataset is a null string or 0, this is
+**                        interpreted as:
+**
+**                            Nx1 vector, the dependent variable
+**
+**          indvars      independent variables.
+**
+**                         If dataset contains the name of a data set, this is
+**                         interpreted as:
+**
+**                             Kx1 character vector, names of independent
+**                             variables
+**                                  or
+**                             Kx1 numeric vector, indices of independent
+**                             variables
+**
+**                             These can be any size subset of the variables in
+**                             the data set, and can be in any order.  If a
+**                             scalar 0 is passed, all columns of the data set
+**                             will be used except for the one used for the
+**                             dependent variable.
+**
+**                         If dataset is a null string or 0, this is
+**                         interpreted as:
+**
+**                             NxK matrix, the independent variables
+**
+**              Defaults are provided for the following global input
+**              variables so they can be ignored unless you need control
+**              over the other options provided by this procedure.
+**
+**          __altnam     global vector, default 0.
+**
+**                          This can be a (K+2)x1 or (K+1)x1 character
+**                          vector of alternate variable names for the
+**                          output.  If __con is 1, this must be (K+2)x1.
+**                          The dependent variable is the last element.
+**                          This has an effect only if the data are passed
+**                          in as matrices.
+**
+**          __con        global scalar, default 1.
+**
+**                          1   a constant term will be added, D = K+1.
+**
+**                          0   no constant term will be added, D = K.
+**
+**                          A constant term is always used in
+**                          constructing the moment matrix m.
+**
+**          __miss       global scalar, default 0.
+**
+**                          0   there are no missing values (fastest).
+**
+**                          1   listwise deletion, drop any cases in
+**                              which missings occur.
+**
+**                          2   pairwise deletion, this is equivalent to
+**                              setting missings to 0 when calculating m.
+**                              The number of cases computed is equal to
+**                              the total number of cases in the data set.
+**
+**          __row        global scalar, the number of rows to read per
+**                               iteration of the read loop. Default 0.
+**
+**                              If 0, the number of rows will be calculated
+**                              internally.  If you get an "Insufficient memory"
+**                              error while executing OLS you can supply a value
+**                              for __row that works on your system.
+**
+**                              The answers may vary slightly due to rounding
+**                              error differences when a different number of
+**                              rows is read per iteration.  You can use __row
+**                              to control this if you want to get exactly the
+**                              same rounding effects between several runs.
+**
+**          __output      global scalar, default 1.
+**
+**                          1   print the statistics.
+**
+**                          0   do not print statistics.
+**
+**          _olsres       global scalar, default 0.
+**
+**                          1   compute residuals (resid) and
+**                              Durbin-Watson statistic (dwstat).
+**
+**                          0   resid = 0, dwstat = 0.
+**
+**  Output:   vnam       (K+2)x1 or (K+1)x1 character vector, the variable
+**                       names used in the regression.  If a constant term is
+**                       used this vector will be (K+2)x1, and the first
+**                       name will be "CONSTANT".  The last name will be the
+**                       name of the dependent variable.
+**
+**            m          MxM matrix, where M = K+2, the moment matrix
+**                       constructed by calculating x'x where x is a matrix
+**                       containing all useable observations and having columns
+**                       in the order:
+**
+**                   constant   ~     indvars        ~        depvar
+**                   ------------------------------------------------------
+**                    (1.0) ~ (independent variables) ~ (dependent variable)
+**
+**                   A constant term is always used in computing m, even if
+**                   __CON = 0.
+**
+**            b          Dx1 vector, the least squares estimates of parameters.
+**
+**                     Error handling is controlled by the low order bit
+**                     of the trap flag.
+**
+**                         TRAP 0     terminate with error message
+**
+**                         TRAP 1     return scalar error code in b
+**
+**                                30  system singular
+**                                31  system underdetermined
+**                                32  same number of columns as rows
+**                                33  too many missings
+**                                34  file not found
+**                                35  no variance in an independent variable
+**
+**                     The system can become underdetermined if you use listwise
+**                     deletion and have missing values.  In that case it is
+**                     possible to skip so many cases that there are fewer
+**                     useable rows than columns in the data set.
+**
+**            stb        Kx1 vector, the standardized coefficients.
+**
+**            vc         DxD matrix, the variance-covariance matrix of
+**                       estimates.
+**
+**            stderr     Dx1 vector, the standard errors of the estimated
+**                           parameters.
+**
+**            sigma      scalar, standard deviation of residual.
+**
+**            cx         (K+1)x(K+1) matrix, correlation matrix of variables
+**                       in the order:
+**
+**                           independent variables ~ dependent variable
+**
+**            rsq      scalar, R square, coefficient of determination.
+**
+**            resid    residuals, resid = y - x * b
+**
+**                       If _olsres = 1, the residuals will be computed.
+**
+**                       If the data is taken from a data set, a new data
+**                       set will be created for the residuals, using the
+**                       name in the global string variable _olsrnam.  The
+**                       residuals will be saved in this data set as an
+**                       Nx1 column.  The resid return value will be a
+**                       string containing the name of the new data set
+**                       containing the residuals.
+**
+**                       If the data is passed in as a matrix, the
+**                       resid return value will be the Nx1 vector of
+**                       residuals.
+**
+**            dwstat     scalar, Durbin-Watson statistic.
+**
+**  Remarks:    No output file is modified, opened, or closed by this
+**              procedure.  If you want output to be placed in a file
+**              you need to open an output file before calling ols.
+**              If a column of constant value has been included among
+**              the independent variables, this variable will be
+**              deleted.
+**
+**  Examples:   y = { 2,
+**                    3,
+**                    1,
+**                    7,
+**                    5 };
+**
+* *             x = { 1 3 2,
+**                    2 3 1,
+**                    7 1 7,
+**                    5 3 1,
+**                    3 5 5 };
+**
+**              output file = ols.out reset;
+**              call ols(0,y,x);
+**              output off;
+**
+**              In this example, the output from ols was put into a
+**              file called ols.out as well as being printed on the
+**              screen.  This example will to compute a least squares
+**              regression of y on x.  The returned values were
+**              discarded by using a call statement.
+**
+**              data = "olsdat";
+**              depvar = { score };
+**              indvars = { region,age,marstat };
+**              _olsres = 1;
+**              output file = lpt1 on;
+**              { nam,m,b,stb,vc,std,sig,cx,rsq,resid,dbw } =
+**                  ols(data,depvar,indvars);
+**              output off;
+**
+**              In this example the data set, olsdat.dat was used
+**              to compute a regression. The dependent variable
+**              is "score". The independent variables are:
+**              "region", "age", and "marstat".  The residuals
+**              and Durbin-Watson statistic will be computed.
+**              The output will be sent to the printer as well as
+**              the screen and the returned values are assigned
+**              to variables.
+**
+**  Globals:    __altnam, __output, __row, __miss __con, _olsres, _olsrnam,
+**              indices2(), maxvec(), indexcat(), dotfeq()
+**
+**  See Also:   olsqr
+*/
+
+#ifDLLCALL
+external proc indices2;
+#else
+external proc indices2,indexcat;
+#endif
+
+proc (11) = ols(dataset, depvar, indvars);
+
+    dataset = "" $+ dataset;
+
+    if dataset $== "";
+        retp(_olsx(depvar, indvars, __con, __vpad, __miss, __altnam, __output, _olsres));
+    else;
+        retp(_olsd(dataset, depvar, indvars, __row, __con,  __miss,  __output, _olsres, _olsrnam));
+    endif;
+
+endp;
+
+proc (11) = _olsx(depvar, indvars, local__con, local__vpad, local__miss, local__altnam, local__output, local_olsres);
+
+    local const,fin,tobs,nvar,k,dta,y0,mn,nc,cy,
+        i,constflg,constvlu,std,vnames,cxx,cxxi,cxy,cyy,df,
+        sse,nobs,mobs,be,b,vc,stderr,t,rsq,rbsq,fstat,pvf,pvt,ms,
+        omat,mask,fmt,dwstat,mss,nvar1,cvec,old,m,cor,constant,
+        stdb,fout,u,str,tv,oldtrp,u0,cov,stdest;
+
+    clear constflg,mobs,constant;
+    const = local__con;
+    constvlu = 1;
+    mss = { . };
+    fin = -1;
+    fout = -1;
+
+    if rows(indvars) /= rows(depvar);
+        errorlog "ERROR: Matrices X and Y have different numbers of rows";
+        end;
+    endif;
+
+    dta = indvars~depvar;
+    tobs = rows(dta);
+    nobs = tobs;
+    nvar1 = cols(dta);
+    nvar = nvar1-1;
+    indvars = 0$+"X"$+ftocv(seqa(1,1,nvar),local__vpad*(floor(log(nvar))+1),0);
+    depvar = 0$+"Y";
+    vnames = indvars|depvar;
+
+    if local__miss == 2;
+        old = ndpcntrl(0,0);
+        call ndpcntrl(1,1);
+        clear mn,nc,m,i,nobs;
+        constflg = ones(1,nvar1);
+        do until i == tobs;
+            i = i+1;
+            y0 = dta[i,.];
+            cy = (y0 .> 0 .or y0 .< 1);
+            y0 = missrv(y0,0);
+            m = m+y0'*y0;
+            mn = mn + y0'*cy;
+            nc = nc+cy'*cy;
+            nobs = nobs+(cy /= 0);
+        endo;
+        call ndpcntrl(old,0xffff);
+        if nc == 0;
+            goto errout(31);
+        endif;
+        mobs = tobs-nobs;
+        mn = mn./nc;
+        m = m./nc;
+    else;
+        if local__miss == 0 and ismiss(dta);
+            errorlog "missing data found - using listwise deletion";
+            local__miss = 1;
+        endif;
+        if local__miss == 1;
+            dta = packr(dta);
+            if scalmiss(dta);
+                goto errout(31);
+            endif;
+            nobs = rows(dta);
+            mobs = tobs-nobs;
+        endif;
+        mn = meanc(dta);
+        m = moment(dta,0)/nobs;
+    endif;
+
+    if local__miss == 2;
+        constflg = indexcat(dotfeq(diag(m),diag(mn)^2),1);
+    else;
+        constflg = indexcat(dotfeq(diag(m),mn^2),1);
+    endif;
+
+    if scalmiss(constflg);
+        constflg = 0;
+    elseif rows(constflg) > 1;
+        goto errout(35);
+    endif;
+
+    if constflg;
+        cvec = packr(miss(seqa(1,1,rows(mn)),constflg));
+        if local__miss == 2;
+            constvlu = mn[constflg,constflg];
+            mn = mn[cvec,cvec];
+        else;
+            constvlu = mn[constflg];
+            mn = mn[cvec];
+        endif;
+        m = m[cvec,cvec];
+        nvar1 = rows(cvec);
+        nvar = nvar1 - 1;
+        indvars = 0$+"X"$+ftocv(seqa(1,1,nvar),
+            local__vpad*(floor(log(nvar))+1),0);
+    endif;
+
+    if local__miss == 2;
+        mn = diag(mn);
+    endif;
+
+    if const == 1 and constflg;
+        const = 0;
+    endif;
+
+    if const or constflg;
+      cov = m - mn*mn';
+    else;
+      cov = m;
+    endif;
+
+    k = diag(cov);
+    cyy = k[nvar1];
+    std = sqrt(k);
+    cxy = cov[1:nvar,nvar1];
+    cxx = cov[1:nvar,1:nvar];
+    cor = cov./std./std';
+
+    oldtrp = trapchk(1);
+    trap 1,1;
+    cxxi = invpd(cxx);
+    trap oldtrp,1;
+    if scalmiss(cxxi);
+        goto errout(30);
+    endif;
+
+    b = cxxi*cxy;
+
+    if const or constflg;
+        constant = (mn[nvar1]-mn[1:nvar]'*b)/constvlu;
+        if constflg == 0;
+            indvars = "CONSTANT"|indvars;
+        endif;
+    endif;
+    if local__altnam $/= 0;
+        vnames = local__altnam;
+        if const == 0 and constflg;
+            k = packr(miss(seqa(1,1,rows(vnames)),constflg));
+            vnames = vnames[constflg]|vnames[k];
+        endif;
+        depvar = vnames[rows(vnames)];
+        indvars = vnames[1:rows(vnames)-1];
+    endif;
+
+    if rows(indvars) == nvar and (const or constflg);
+        indvars = "CONSTANT"|indvars;
+    endif;
+
+    if const or constflg;
+       df = nobs-nvar-1;
+    else;
+       df = nobs-nvar;
+    endif;
+
+    if df == 0;
+        goto errout(32);
+    elseif df<0;
+        goto errout(31);
+    endif;
+
+    sse = cyy-b'*cxy;
+    if const or constflg;
+        k = -cxxi*mn[1:nvar]/constvlu;
+        vc = (sse/df)*(((1/constvlu-mn[1:nvar]'*k)/constvlu|k)~(k'|cxxi));
+        stderr = sqrt(diag(vc));
+        t = (constant|b)./stderr;
+        tv = nobs*cyy;
+    else;
+        vc = (sse/df)*cxxi;
+        stderr = sqrt(diag(vc));
+        t = b./stderr;
+        tv = nobs*(cyy - mn[nvar1]^2);
+    endif;
+    sse = nobs*sse;
+    rsq = (tv - sse)/tv;
+    rbsq = 1-(1-rsq)*((nobs-1)/df);
+    fstat = (rsq/(1-rsq))*(df/nvar);
+    if fstat>0;
+        pvf = cdffc(fstat,nvar,df);
+    else;
+        pvf = mss;
+    endif;
+    pvt = 2*cdftc(abs(t),df);
+
+    if sse > 0;
+      stdest = sqrt(sse/df);
+    else;
+      stdest = error(0);
+    endif;
+
+    stdb = b.*(std[1:nvar]/std[nvar1]);     /* Standardized coefficients  */
+    if const or constflg;
+        stdb = mss|stdb;
+    endif;
+
+    if local_olsres;
+        old = ndpcntrl(0,0);
+        call ndpcntrl(1,1);
+        if constflg;
+            dta = dta[.,cvec];
+        endif;
+        u = dta[.,nvar1]-dta[.,1:nvar]*b - constant*constvlu;
+        ndpclex;
+        if local__miss;
+            u0 = packr(u);
+        else;
+            u0 = u;
+        endif;
+        dwstat = sumc((trimr(u0,1,0)-trimr(u0,0,1))^2)/(u0'*u0);
+        clear u0;
+        call ndpcntrl(old,0xffff);
+    else;
+        u = 0;
+        dwstat = 0;
+    endif;
+    if const or constflg;
+        b = constant|b;
+    endif;
+
+    if local__output;
+        print ftos(nobs,"Valid cases:  %*.*lf",20,0);;
+        print ftos(depvar,"      Dependent variable:%*.*s",20,8);
+
+        print ftos(mobs,"Missing cases:%*.*lf",20,0);;
+        print "      Deletion method:               ";;
+        if local__miss == 0;
+            print "    None";
+        elseif local__miss == 2;
+            print "Pairwise";
+        else;
+            print "Listwise";
+        endif;
+
+        print ftos(tv,"Total SS:     %*.*lf",20,3);;
+
+        print ftos(df,"      Degrees of freedom:%*.*lf",20,0);
+
+        print ftos(rsq,"R-squared:    %*.*lf",20,3);;
+        print ftos(rbsq,"      Rbar-squared:      %*.*lf",20,3);
+        print ftos(sse,"Residual SS:  %*.*lf",20,3);;
+        print ftos(stdest,"      Std error of est:  %*.*lf",20,3);
+        str = ftos(nvar,"F(%*.*lf,",1,0) $+ ftos(df,"%*.*lf):             "
+            ,1,0);
+        str = strsect(str,1,15) $+ ftos(fstat,"%*.*lf",19,3);
+        print str;;
+        print ftos(pvf,"      Probability of F:  %*.*lf",20,3);
+
+        if local_olsres;
+            print ftos(dwstat,"Durbin-Watson:%*.*lf",20,3);
+        endif;
+        print;
+        print "                         Standard                 Prob   Sta"\
+            "ndardized  Cor with";
+        print "Variable     Estimate      Error      t-value     >|t|     E"\
+            "stimate    Dep Var";
+
+        print "------------------------------------------------------------"\
+            "-------------------";
+        omat = indvars~b~stderr~t~pvt~stdb;
+        if const or constflg;
+            omat = omat~(mss|cor[1:nvar,nvar1]);
+        else;
+            omat = omat~cor[1:nvar,nvar1];
+        endif;
+        mask = 0~1~1~1~1~1~1;
+        let fmt[7,3] = "-*.*s" 9 8 "*.*lf" 12 6 "*.*lf" 12 6 "*.*lf" 12 6 ""\
+            "*.*lf" 10 3 "*.*lf" 12 6 "*.*lf" 12 6;
+        ms = ftos(mss,"%*.*lf",1,0);
+        msym "---  ";
+        call printfm(omat,mask,fmt);
+        msym ^ms;
+    endif;
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+
+    m = (1~mn')|(mn~m);
+
+    retp(vnames,nobs*m,b,stdb,vc,stderr,stdest,cor,rsq,u,dwstat);
+
+ERROUT:
+        pop be;
+    if be == 30;
+        errorlog "ERROR: covariance matrix of independent variables is sing"\
+            "ular.";
+    elseif be == 31;
+        errorlog "ERROR: system underdetermined";
+    elseif be == 32;
+        errorlog "ERROR: same number columns as rows";
+    elseif be == 33;
+        errorlog "ERROR: too many missings";
+    elseif be == 35;
+        errorlog "ERROR: no variation in at least one independent variable";
+    else;
+        errorlog "Coefficients vector is an error code: " $+ ftos(be,"%*.*l"\
+            "f",1,0);
+    endif;
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+    retp(0,0,error(be),0,0,0,0,0,0,0,0);
+
+endp;
+
+proc (11) = _olsd(dataset, depvar, indvars, local__row, local__con, local__miss, local__output, local_olsres, local_olsrnam);
+
+    local const,fin,tobs,depindx,indindx,nvar,nr,k,y0,mn,nc,cy,
+        i,constflg,constvlu,vardx,std,vnames,cxx,cxxi,cxy,cyy,df,
+        sse,nobs,mobs,be,b,vc,stderr,t,rsq,rbsq,fstat,pvf,pvt,ms,
+        omat,mask,fmt,dwstat,mss,prcn,nvar1,cvec,old,u2,m,cor,constant,
+        stdb,fout,u,str,tv,oldtrp,cov,stdest,dd,cnstname;
+
+    clear constflg,mobs,constant;
+    const = local__con;
+    constvlu = 1;
+    mss = { . };
+    fin = -1;
+    fout = -1;
+
+    dataset = "" $+ dataset;
+        
+    /* open file using name in variable DATASET */
+    open fin = ^dataset;
+    if fin == -1;
+        goto errout(34);
+    endif;
+    tobs = rowsf(fin);
+    { depvar,depindx,indvars,indindx } = indices2(dataset,depvar,indvars);
+    vardx = indindx|depindx;
+    nobs = tobs;
+    nvar = rows(indindx);
+    nvar1 = nvar+1;
+
+    /* Computation of max number of rows to read at one time */
+    if local__row;
+        nr = local__row;
+    else;
+        k = colsf(fin);
+        nr = floor(minc(coreleft/(k*8*3.5)|maxvec/(k+1)));
+    endif;
+
+    if local__miss == 2;
+        old = ndpcntrl(0,0);
+        call ndpcntrl(1,1);
+        clear mn,nc,m,i,nobs;
+        constflg = ones(1,nvar1);
+        do until i == tobs;
+            i = i+1;
+            y0 = readr(fin,1);
+            y0 = y0[vardx];
+            cy = (y0 .> 0 .or y0 .< 1);
+            ndpclex;
+            y0 = missrv(y0,0);
+            m = m+y0'*y0;
+            mn = mn + y0'*cy;
+            nc = nc+cy'*cy;
+            nobs = nobs+(cy /= 0);
+        endo;
+        call ndpcntrl(old,0xffff);
+        if nc == 0;
+            goto errout(31);
+        endif;
+        mobs = tobs-nobs;
+        mn = mn./nc;
+        m = m./nc;
+    else;
+        clear mn,m,nc;
+        do until eof(fin);
+            y0 = readr(fin,nr);
+            y0 = y0[.,vardx];
+            if local__miss == 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            elseif ismiss(y0);
+                errorlog "missing data found - using listwise deletion";
+                local__miss = 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            endif;
+            if not scalmiss(y0);
+                m = m+moment(y0,0);
+                mn = mn + sumc(y0);
+            endif;
+        endo;
+        if local__miss == 1;
+            if nc == 0;
+                goto errout(31);
+            endif;
+            nobs = nc;
+            mobs = tobs-nobs;
+        endif;
+        mn = mn/nobs;
+        m = m/nobs;
+    endif;
+
+    if local__miss == 2;
+        constflg = indexcat(dotfeq(diag(m),diag(mn)^2),1);
+    else;
+        constflg = indexcat(dotfeq(diag(m),mn^2),1);
+    endif;
+
+    if scalmiss(constflg);
+        constflg = 0;
+    elseif rows(constflg) > 1;
+        goto errout(35);
+    endif;
+
+    if constflg;
+        cvec = packr(miss(seqa(1,1,rows(mn)),constflg));
+        if local__miss == 2;
+            constvlu = mn[constflg,constflg];
+            mn = mn[cvec,cvec];
+        else;
+            constvlu = mn[constflg];
+            mn = mn[cvec];
+        endif;
+        m = m[cvec,cvec];
+        nvar1 = rows(cvec);
+        nvar = nvar1 - 1;
+        cnstname = indvars[constflg];
+        indvars = indvars[packr(miss(seqa(1,1,rows(indvars)),constflg))];
+    endif;
+
+    if local__miss == 2;
+        mn = diag(mn);
+    endif;
+
+    if const == 1 and constflg;
+        const = 0;
+    endif;
+
+    if const or constflg;
+      cov = m - mn*mn';
+    else;
+      cov = m;
+    endif;
+
+    k = diag(cov);
+    cyy = k[nvar1];
+    std = sqrt(k);
+    cxy = cov[1:nvar,nvar1];
+    cxx = cov[1:nvar,1:nvar];
+    cor = cov./std./std';
+
+    oldtrp = trapchk(1);
+    trap 1,1;
+    cxxi = invpd(cxx);
+    trap oldtrp,1;
+    if scalmiss(cxxi);
+        goto errout(30);
+    endif;
+
+    b = cxxi*cxy;
+
+    if const or constflg;
+        constant = (mn[nvar1]-mn[1:nvar]'*b)/constvlu;
+        if constflg == 0;
+            indvars = "CONSTANT"|indvars;
+        endif;
+    endif;
+
+    vnames = indvars|depvar;
+
+    if rows(indvars) == nvar and (const or constflg);
+        indvars = cnstname|indvars;
+    endif;
+
+    if const or constflg;
+       df = nobs-nvar-1;
+    else;
+       df = nobs-nvar;
+    endif;
+
+    if df == 0;
+        goto errout(32);
+    elseif df<0;
+        goto errout(31);
+    endif;
+
+    sse = cyy-b'*cxy;
+    if const or constflg;
+        k = -cxxi*mn[1:nvar]/constvlu;
+        vc = (sse/df)*(((1/constvlu-mn[1:nvar]'*k)/constvlu|k)~(k'|cxxi));
+        stderr = sqrt(diag(vc));
+        t = (constant|b)./stderr;
+        tv = nobs*cyy;
+    else;
+        vc = (sse/df)*cxxi;
+        stderr = sqrt(diag(vc));
+        t = b./stderr;
+        tv = nobs*(cyy - mn[nvar1]^2);
+    endif;
+    sse = nobs*sse;
+    rsq = (tv - sse)/tv;
+    rbsq = 1-(1-rsq)*((nobs-1)/df);
+    fstat = (rsq/(1-rsq))*(df/nvar);
+    if fstat>0;
+        pvf = cdffc(fstat,nvar,df);
+    else;
+        pvf = mss;
+    endif;
+    pvt = 2*cdftc(abs(t),df);
+
+    if sse > 0;
+      stdest = sqrt(sse/df);
+    else;
+      stdest = error(0);
+    endif;
+
+    stdb = b.*(std[1:nvar]/std[nvar1]);     /* Standardized coefficients  */
+    if const or constflg;
+        stdb = mss|stdb;
+    endif;
+
+    if local_olsres;
+        old = ndpcntrl(0,0);
+        call ndpcntrl(1,1);
+        prcn = 8;
+        if local_olsres == 4;
+            prcn = 4;
+        endif;
+        create fout = ^local_olsrnam with u,1,prcn;
+        if fout == -1;
+            errorlog "Can't open temporary file for residuals";
+            end;
+        endif;
+        call seekr(fin,1);
+        clear dwstat,u2,i;
+        do until eof(fin);
+            i = i + 1;
+            y0 = readr(fin,nr);
+            y0 = y0[.,vardx];
+            if local__miss == 2;
+                y0 = missrv(y0,0);
+            endif;
+            if constflg;
+                y0 = y0[.,cvec];
+            endif;
+            u = y0[.,nvar1]-y0[.,1:nvar]*b - constant*constvlu;
+            ndpclex;
+            if writer(fout,u) /= rows(u);
+                errorlog "ERROR - disk full, Durbin-Watson statistic no"\
+                    "t computed";
+                end;
+            endif;
+            if local__miss;
+                u = packr(u);
+            endif;
+            u2 = u2+u'*u;
+            if nr > 1;
+              dwstat = dwstat+sumc((trimr(u,1,0)-trimr(u,0,1))^2);
+            endif;
+            if i > 1 and i < tobs;
+              dwstat = dwstat + (u[1] - dd)^2;
+            endif;
+            dd = u[rows(u)];
+        endo;
+        dwstat = dwstat/u2;
+        call ndpcntrl(old,0xffff);
+    else;
+        u = 0;
+        dwstat = 0;
+    endif;
+    if const or constflg;
+        b = constant|b;
+    endif;
+
+    if local__output;
+        print ftos(nobs,"Valid cases:  %*.*lf",20,0);;
+        print ftos(depvar,"      Dependent variable:%*.*s",20,8);
+
+        print ftos(mobs,"Missing cases:%*.*lf",20,0);;
+        print "      Deletion method:               ";;
+        if local__miss == 0;
+            print "    None";
+        elseif local__miss == 2;
+            print "Pairwise";
+        else;
+            print "Listwise";
+        endif;
+
+        print ftos(tv,"Total SS:     %*.*lf",20,3);;
+
+        print ftos(df,"      Degrees of freedom:%*.*lf",20,0);
+
+        print ftos(rsq,"R-squared:    %*.*lf",20,3);;
+        print ftos(rbsq,"      Rbar-squared:      %*.*lf",20,3);
+        print ftos(sse,"Residual SS:  %*.*lf",20,3);;
+        print ftos(stdest,"      Std error of est:  %*.*lf",20,3);
+        str = ftos(nvar,"F(%*.*lf,",1,0) $+ ftos(df,"%*.*lf):             "
+            ,1,0);
+        str = strsect(str,1,15) $+ ftos(fstat,"%*.*lf",19,3);
+        print str;;
+        print ftos(pvf,"      Probability of F:  %*.*lf",20,3);
+
+        if local_olsres;
+            print ftos(dwstat,"Durbin-Watson:%*.*lf",20,3);
+        endif;
+        print;
+        print "                         Standard                 Prob   Sta"\
+            "ndardized  Cor with";
+        print "Variable     Estimate      Error      t-value     >|t|     E"\
+            "stimate    Dep Var";
+
+        print "------------------------------------------------------------"\
+            "-------------------";
+        omat = indvars~b~stderr~t~pvt~stdb;
+        if const or constflg;
+            omat = omat~(mss|cor[1:nvar,nvar1]);
+        else;
+            omat = omat~cor[1:nvar,nvar1];
+        endif;
+        mask = 0~1~1~1~1~1~1;
+        let fmt[7,3] = "-*.*s" 9 8 "*.*lf" 12 6 "*.*lf" 12 6 "*.*lf" 12 6 ""\
+            "*.*lf" 10 3 "*.*lf" 12 6 "*.*lf" 12 6;
+        ms = ftos(mss,"%*.*lf",1,0);
+        msym "---  ";
+        call printfm(omat,mask,fmt);
+        msym ^ms;
+    endif;
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+
+    m = (1~mn')|(mn~m);
+
+    retp(vnames,nobs*m,b,stdb,vc,stderr,stdest,cor,rsq,u,dwstat);
+
+ERROUT:
+        pop be;
+    if be == 34;
+        errorlog "ERROR: File not found: " $+ dataset;
+    elseif be == 30;
+        errorlog "ERROR: covariance matrix of independent variables is sing"\
+            "ular.";
+    elseif be == 31;
+        errorlog "ERROR: system underdetermined";
+    elseif be == 32;
+        errorlog "ERROR: same number columns as rows";
+    elseif be == 33;
+        errorlog "ERROR: too many missings";
+    elseif be == 35;
+        errorlog "ERROR: no variation in at least one independent variable";
+    else;
+        errorlog "Coefficients vector is an error code: " $+ ftos(be,"%*.*l"\
+            "f",1,0);
+    endif;
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    if fout > 0;
+        fout = close(fout);
+    endif;
+    retp(0,0,error(be),0,0,0,0,0,0,0,0);
+
+endp;
+
+

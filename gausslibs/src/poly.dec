@@ -1,0 +1,10 @@
+/*
+** poly.dec - Nth order polynomial interpolation.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definitions for procedure POLYINT.
+*/
+
+declare matrix _polerr = 0;
+declare matrix _poldeg = 6;

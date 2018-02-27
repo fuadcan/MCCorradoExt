@@ -1,0 +1,228 @@
+/*
+**  lnpdfn.src   compute log of normal probability function
+**
+** (C) Copyright 1996-2001 Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                        Line
+** =========================================================================
+**  z = lnpdfn(x);                                                 28
+**  z = lnpdfmvn(x,s);                                             54
+**  z = lnpdft(x,nu);                                             113
+**  z = lnpdfmvt(x,s,nu);                                         152
+*/
+
+
+/*
+**> lnpdfn
+**
+**  Purpose:  Computes normal log-probabilities.
+**
+**  Format:   z = lnpdfn(x);
+**
+**  Input:    x    NxK matrix, data.
+**
+**  Output:   z    NxK matrix, log-probabilities.
+**
+**  Remarks:  This does not compute the log of the joint Normal
+**            pdf.  Instead, the scalar Normal density function
+**            is computed element by element.
+**
+**            For multivariate probabilities with covariance matrix
+**            see lnpdfmvn.
+**
+*/
+
+
+proc lnpdfn(x);
+    retp( -.918938533204672741 - (x.*x) / 2 );
+endp;
+
+
+/*
+**> lnpdfmvn
+**
+**  Purpose:   Computes multivariate normal log-probabilities.
+**
+**  Format:   z = lnpdfmvn(x,s);
+**
+**  Input:    x    NxK matrix, data.
+**
+**            s    KxK matrix, covariance matrix.
+**
+**  Output:   z    Nx1 vector, log-probabilities.
+**
+*/
+
+
+proc lnpdfmvn(x,s);
+      local si, oldt;
+
+      if cols(x) /= cols(s);
+          if not trapchk(1);
+              errorlog "ERROR:  covariance matrix not conformable";
+              end;
+          else;
+              retp(error(0));
+          endif;
+      endif;
+
+      if cols(x) == 1;
+           retp(-.918938533204672741 - 0.5 * ( ln(s) + x.*x / s ) );
+      endif;
+
+      if rows(s) /= cols(s);
+          if not trapchk(1);
+              errorlog "ERROR:  covariance matrix not square";
+              end;
+          else;
+              retp(error(0));
+          endif;
+      endif;
+
+      oldt = trapchk(1);
+      trap 1,1;
+      si = solpd(x',s);
+      trap oldt,1;
+      if scalmiss(si);
+          if not trapchk(1);
+             errorlog "ERROR: covariance matrix not positive definite";
+             end;
+          else;
+              retp(error(0));
+          endif;
+      endif;
+
+
+    retp(-0.5*(rows(s)*1.83787706640934548 + ln(detl) + sumc(si.*x')));
+endp;
+
+
+/*
+**> lnpdft
+**
+**  Purpose:  Computes Student's t log-probabilities.
+**
+**  Format:   z = lnpdft(x,nu);
+**
+**  Input:    x    NxK matrix, data.
+**
+**            nu   scalar, degrees of freedom.
+**
+**  Output:   z    NxK matrix, log-probabilities.
+**
+**  Remarks:  This does not compute the log of the joint Student's t
+**            pdf.  Instead, the scalar Normal density function
+**            is computed element by element.
+**
+**            For multivariate probabilities with covariance matrix
+**            see lnpdfmvt.
+**
+*/
+
+
+proc lnpdft(x,nu);
+    local nu2;
+    nu2 = nu - 2;
+    if nu2 <= 0;
+        if not trapchk(1);
+            errorlog "ERROR:  nu <= 2";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    retp(-0.5723649429247001 + lnfact((nu-1)/2) - lnfact(nu2/2)
+               - 0.5 * ((nu+1)*ln(nu2 + x.*x) - nu*ln(nu2)) );
+endp;
+
+
+/*
+**> lnpdfmvt
+**
+**  Purpose:   Computes multivariate Student's t log-probabilities.
+**
+**  Format:   z = lnpdfmvt(x,s,nu);
+**
+**  Input:    x    NxK matrix, data.
+**
+**            s    KxK matrix, covariance matrix.
+**
+**            nu   scalar, degrees of freedom
+**
+**  Output:   z    Nx1 vector, log-probabilities.
+**
+*/
+
+
+proc lnpdfmvt(x,s,nu);
+      local si, oldt, nu2, s2, m;
+
+      m = cols(x);
+      if m /= cols(s);
+          if not trapchk(1);
+              errorlog "ERROR:  covariance matrix not conformable";
+              end;
+          else;
+              retp(error(0));
+          endif;
+      endif;
+
+      nu2 = nu - 2;
+      if nu2 <= 0;
+          if not trapchk(1);
+              errorlog "ERROR:  nu <= 2";
+              end;
+          else;
+              retp(error(0));
+          endif;
+      endif;
+
+      s2 = nu2 * s;
+
+      if m == 1;
+
+           retp( -.5723649429247001 + lnfact((nu-1)/2) - lnfact(nu2/2)
+                  -0.5*((nu+1)*ln(s2 + x.*x) - nu*ln(s2)) );
+
+      else;
+
+          if m /= cols(s);
+              if not trapchk(1);
+                  errorlog "ERROR:  covariance matrix not square";
+                  end;
+              else;
+                  retp(error(0));
+              endif;
+          endif;
+
+          oldt = trapchk(1);
+          trap 1,1;
+          si = solpd(x',s2);
+          trap oldt,1;
+          if scalmiss(si);
+              if not trapchk(1);
+                 errorlog "ERROR: covariance matrix not positive definite";
+                 end;
+              else;
+                  retp(error(0));
+              endif;
+          endif;
+
+          retp(-.5723649429247001*m + lnfact((m+nu2)/2) - lnfact(nu2/2)
+                  -0.5*(ln(detl) + (nu+m)*ln(1 + sumc(si.*x'))));
+     endif;
+
+endp;
+

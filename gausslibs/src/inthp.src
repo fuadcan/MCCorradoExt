@@ -1,0 +1,858 @@
+/*
+** inthp.src
+**
+**
+** (C) Copyright 2005-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** if you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+** ===========================================================================
+**   Procedure     Format                       Purpose                 Line
+** ===========================================================================
+**   inthp1   y = inthp1(&f,pds,ctl);   integration over -inf,+inf
+**   inthp2   y = inthp2(&f,pds,ctl,a); integration over a, +inf non-oscil
+**   inthp3   y = inthp3(&f,pds,ctl,a); integration over a, +inf oscill
+**   inthp4   y = inthp3(&f,pds,ctl,c); integration over a, b
+** ===========================================================================
+*/
+
+/*
+**> inthp1
+**
+**  Purpose:    integrates a user-defined function over an infinite interval
+**
+**  Format:     y = inthp1(&f,pds,ctl);
+**
+**  Input:     &f  pointer to the procedure computing the function to be
+**                 integrated
+**
+**            pds  pointer to instance of DS structure containing data
+**                 in any of the following members:
+**
+**                     pds->dataMatrix   matrix
+**                     pds->dataArray    array
+**                     pds->dname        string
+**                     pds->vnames       string array
+**                     pds->type         scalar
+**
+**            ctl  instance of an inthpControl structure containing the
+**                 following members:
+**
+**                   ctl.p   scalar, termination parameter
+**                              0 - heuristic termination (default)
+**                              1 - deterministic with infinity norm
+**                              2+ - deterministic with p-th norm
+**
+**                   ctl.d   scalar, if heuristic terminiation, any real
+**                              number, if deterministic 0 < d <= p/2.
+**                              Default = 1.
+**
+**                   ctl.maxEvaluations  scalar, maximum function evaluations,
+**                              Default = 1e6;
+**
+**                   ctl.eps  scalar, relative error bound.  Default = 1e-6.
+**
+**  Output:     y   scalar, the estimated integral of f(x) over the infinite interval.
+**
+**  Example:
+**
+**
+**         #include inthp.sdf
+**
+**         proc normal(struct DS *pds x);
+**             local var;
+**             var = pds->dataMatrix;
+**             retp( exp( -(x*x) / (2*var) ) );
+**         endp;
+**
+**         struct DS d0;
+**         struct DS *pds;
+**
+**         variance = 3;
+**
+**         pds = &d0;
+**         d0.dataMatrix = variance;
+**
+**         struct inthpControl c0;
+**         c0 = inthpControlCreate;
+**
+**         r = inthp1(&normal,pds,c0);
+**
+**         format /ld 16,10;
+**         print r;
+**         print;
+**         print sqrt(2*pi*variance);
+**
+**            4.3416075273    
+**     
+**            4.3416075273    
+**
+**
+**  Remarks:  The function f() must return a scalar value.
+**
+**            if d can be specified (see Sikorski and Stenger, 1984), deterministic
+**            termination can be specified and accuracy guaranteed.  if not, the
+**            heuristic method can be used and the value of d is disregarded.
+**
+**            The pointer to the instance of the data structure, pds, is passed
+**            untouched to the user-provided procedure computing the function to
+**            be integrated.  Any information needed by that function can be put
+**            into that data structure.
+**
+**  References:  "Optimal Quadratures in H_p Spaces" by K. Sikorski and F. Stenger,
+**               ACM Transactions on Mathematical Software, 10(2):140-151, June 1984.
+*/
+
+#include inthp.sdf
+
+proc intHP1( &fct, struct DS *pds, struct intHPcontrol c0 );
+
+    retp(inthp(pds,0,0,c0.d,fct,c0.maxEvaluations,c0.p,c0.eps,1));
+
+endp;
+
+/*
+**> inthp2
+**
+**  Purpose:    integrates a user-defined non-oscillatory function over the [a,+inf) interval
+**
+**  Format:     y = inthp2(&fct,pds,ctl,a);
+**
+**  Input:     &fct  pointer to the procedure computing the function to be
+**                   integrated
+**
+**              pds  pointer to instance of DS structure containing data
+**                   in any of the following members:
+**
+**                     pds->dataMatrix   matrix
+**                     pds->dataArray    array
+**                     pds->dname        string
+**                     pds->vnames       string array
+**                     pds->type         scalar
+**
+**              ctl  instance of an inthpControl structure containing the
+**                   following members:
+**
+**                     ctl.p   scalar, termination parameter
+**                              0 - heuristic termination (default)
+**                              1 - deterministic with infinity norm
+**                              2+ - deterministic with p-th norm
+**
+**                     ctl.d   scalar, if heuristic terminiation, any real
+**                              number, if deterministic 0 < d <= p/2.
+**                              Default = 1.
+**
+**                     ctl.maxEvaluations  scalar, maximum function evaluations,
+**                              Default = 1e6;
+**
+**                     ctl.eps  scalar, relative error bound.  Default = 1e-6.
+**
+**                a  1xN vector, lower limits of integration
+**
+**  Output:       y  Nx1 vector, the estimated integrals of f(x) over [a,+inf).
+**
+**  Remarks:  The function f() must return a scalar value.
+**
+**            The pointer to the instance of the data structure, pds, is passed
+**            untouched to the user-provided procedure computing the function to
+**            be integrated.  Any information needed by that function can be put
+**            into that data structure.
+**
+**            if d can be specified (see Sikorski and Stenger, 1984), deterministic
+**            termination can be specified and accuracy guaranteed.  if not, the
+**            heuristic method can be used and the value of d is disregarded.
+**
+**            The pointer to the instance of the data structure, pds, is passed
+**            untouched to the user-provided procedure computing the function to
+**            be integrated.  Any information needed by that function can be put
+**            into that data structure.
+**
+**            The method employed by inthp2 is optimized for a non-oscillatory function.
+**            for a method optimized for oscillatory functions see inthp3.
+**
+**  Example:
+**
+**     #include inthp.sdf
+**     
+**     proc normal(struct DS *pd0, x);
+**         local var;
+**         var = pd0->dataMatrix;
+**         retp( (1/sqrt(2*pi*var))*exp( -(x*x) / (2*var) ) );
+**     endp;
+**     
+**     struct DS d0;
+**     struct DS *pd0;
+**     
+**     struct inthpControl c0;
+**     c0 = inthpControlCreate;
+**     
+**     lim = 2;
+**     
+**     c0.d = pi/4;
+**     c0.p = 2;
+**     
+**     variance = 1;
+**     
+**     pd0 = &d0;
+**     d0.dataMatrix = variance;
+**     
+**     r = inthp2(&normal,pd0,c0,lim);
+**     
+**     format /ld 16,10;
+**     print r;
+**     print;
+**     print cdfnc(2);
+**
+**         0.0227501281    
+**     
+**         0.0227501319    
+**
+**
+**  References:  "Optimal Quadratures in H_p Spaces" by K. Sikorski and F. Stenger,
+**               ACM Transactions on Mathematical Software, 10(2):140-151, June 1984.
+*/
+
+proc intHP2( &fct, struct DS *pds, struct intHPcontrol c0, a );
+
+    local result;
+    if cols(a) == 1 and rows(a) > 1;
+        a = a';
+    endif;
+    result = zeros(cols(a),1);
+    for i(1,cols(a),1);
+        result[i] = inthp(pds,a[1,i],0,c0.d,fct,c0.maxEvaluations,c0.p, c0.eps,2);
+    endfor;
+    retp(result);
+
+endp;
+
+/*
+**> inthp3
+**
+**  Purpose:    integrates a user-defined oscillatory function over the [a,+inf) interval
+**
+**  Format:     y = inthp3(&fct,pds,a,ctl);
+**
+**  Input:     &f  pointer to the procedure computing the function to be
+**                 integrated
+**
+**              a  1xN vector, lower limits of integration
+**
+**            pds  pointer to instance of DS structure containing data
+**                 in any of the following members:
+**
+**                     pds->dataMatrix   matrix
+**                     pds->dataArray    array
+**                     pds->dname        string
+**                     pds->vnames       string array
+**                     pds->type         scalar
+**
+**            ctl  instance of an inthpControl structure containing the
+**                 following members:
+**
+**                   ctl.p   scalar, termination parameter
+**                              0 - heuristic termination (default)
+**                              1 - deterministic with infinity norm
+**                              2+ - deterministic with p-th norm
+**
+**                   ctl.d   scalar, if heuristic terminiation, any real
+**                              number, if deterministic 0 < d <= p/2.
+**                              Default = 1.
+**
+**                   ctl.maxEvaluations  scalar, maximum function evaluations,
+**                              Default = 1e6;
+**
+**                   ctl.eps  scalar, relative error bound.  Default = 1e-6.
+**
+**  Output:     y   Nx1 vector, the estimated integrals of f(x) over [a,+inf).
+**
+**  Remarks:  The function f() must return a scalar value.
+**
+**            if d can be specified (see Sikorski and Stenger, 1984), deterministic
+**            termination can be specified and accuracy guaranteed.  if not, the
+**            heuristic method can be used and the value of d is disregarded.
+**
+**            The method employed by inthp3 is optimized for an oscillatory function.
+**            for a method optimized for non-oscillatory functions see inthp2.
+**
+**            The pointer to the instance of the data structure, pds, is passed
+**            untouched to the user-provided procedure computing the function to
+**            be integrated.  Any information needed by that function can be put
+**            into that data structure.
+**
+**  Example:
+**
+**     #include inthp.sdf
+**     
+**     proc fct(struct DS *pd0, x);
+**         local m,a;
+**         m = pd0->dataMatrix[1];
+**         a = pd0->dataMatrix[2];
+**         retp( exp(-a*x)*cos(m*x) );
+**     endp;
+**     
+**     
+**     struct DS d0;
+**     struct DS *pd0;
+**     
+**     
+**     struct inthpControl c0;
+**     c0 = inthpControlCreate;
+**     
+**     c0.p = 2;
+**     c0.d = pi/3;
+**     
+**     m = 2;
+**     a = 1;
+**     pd0 = &d0;
+**     d0.dataMatrix = m | a;
+**     
+**     lim = 0;
+**     
+**     r = inthp3(&fct,pd0,c0,lim);
+**     
+**     format /ld 16,10;
+**     print r;
+**     print;
+**     print a/(a*a + m*m);
+**     
+**         0.2000000000    
+**     
+**         0.2000000000    
+**
+**
+**  References:  "Optimal Quadratures in H_p Spaces" by K. Sikorski and F. Stenger,
+**               ACM Transactions on Mathematical Software, 10(2):140-151, June 1984.
+*/
+
+proc intHP3( &fct, struct DS *pds, struct intHPcontrol c0, a );
+
+    local result;
+    if cols(a) == 1 and rows(a) > 1;
+        a = a';
+    endif;
+    result = zeros(cols(a),1);
+    for i(1,cols(a),1);
+        result[i] = inthp(pds,a[1,i],0,c0.d,fct,c0.maxEvaluations,c0.p, c0.eps,3);
+    endfor;
+    retp(result);
+
+endp;
+
+/*
+**> inthp4
+**
+**  Purpose:    integrates a user-defined function over the [a,b] interval
+**
+**  Format:     y = inthp4(&f,pds,ctl,c);
+**
+**  Input:     &f  pointer to the procedure computing the function to be
+**                 integrated
+**
+**              c  2xN matrix, the first containing the upper limits of integration
+**                     and the second row the lower limits.
+**
+**            pds  pointer to instance of DS structure containing data
+**                 in any of the following members:
+**
+**                     pds->dataMatrix   matrix
+**                     pds->dataArray    array
+**                     pds->dname        string
+**                     pds->vnames       string array
+**                     pds->type         scalar
+**
+**            ctl  instance of an inthpControl structure containing the
+**                 following members:
+**
+**                   ctl.p   scalar, termination parameter
+**                              0 - heuristic termination (default)
+**                              1 - deterministic with infinity norm
+**                              2+ - deterministic with p-th norm
+**
+**                   ctl.d   scalar, if heuristic terminiation, any real
+**                              number, if deterministic 0 < d <= p/2.
+**                              Default = 1.
+**
+**                   ctl.maxEvaluations  scalar, maximum function evaluations,
+**                              Default = 1e6;
+**
+**                   ctl.eps  scalar, relative error bound.  Default = 1e-6.
+**
+**  Output:     y   Nx1 vector, the estimated integrals of f(x) over [a,b].
+**
+**  Remarks:  The function f() must return a scalar value.
+**
+**            if d can be specified (see Sikorski and Stenger, 1984), deterministic
+**            termination can be specified and accuracy guaranteed.  if not, the
+**            heuristic method can be used and the value of d is disregarded.
+**
+**            The pointer to the instance of the data structure, pds, is passed
+**            untouched to the user-provided procedure computing the function to
+**            be integrated.  Any information needed by that function can be put
+**            into that data structure.
+**
+**  Example:
+**
+**     #include inthp.sdf
+**     
+**     proc fct(struct DS *pd0, x);
+**         local a,b,c;
+**         a = pd0->dataMatrix[1];
+**         b = pd0->dataMatrix[2];
+**         c = pd0->dataMatrix[3];
+**         retp( 1/sqrt(a*x*x + b*x + c) );
+**     endp;
+**     
+**     struct DS d0;
+**     struct DS *pd0;
+**     
+**     struct inthpControl c0;
+**     c0 = inthpControlCreate;
+**     
+**     c0.p = 2;
+**     c0.d = pi/2;
+**     
+**     a = -1;
+**     b = -2;
+**     c = 3;
+**     pd0 = &d0;
+**     d0.dataMatrix = a|b|c;
+**     
+**     lim = 1 | -1;
+**     
+**     r = inthp4(&fct,pd0,c0,lim);
+**     
+**     format /ld 16,10;
+**     print r;
+**     print;
+**     print pi/2;
+**
+**          1.5707962283    
+**     
+**          1.5707963268        
+**
+**
+**  References:  "Optimal Quadratures in H_p Spaces" by K. Sikorski and F. Stenger,
+**               ACM Transactions on Mathematical Software, 10(2):140-151, June 1984.
+*/
+
+proc intHP4( &fct, struct DS *pds, struct intHPcontrol c0, a );
+
+    local result;
+    if cols(a) == 2 and rows(a) != 2;
+        a = a';
+    endif;
+    result = zeros(cols(a),1);
+    for i(1,cols(a),1);
+        result[i] = inthp(pds,a[2,i],a[1,i],c0.d,fct,c0.maxEvaluations,c0.p, c0.eps,4);
+    endfor;
+    retp(result);
+
+endp;
+
+proc inthpControlCreate;
+
+    struct inthpControl c0;
+
+    c0.maxEvaluations = 1e6;        // maximum function evaluations
+
+    c0.d = 1;       // heuristic termination - any real number
+                    // deterministic termination - 0 < d <= pi/2
+
+    c0.p = 0;       // termination parameter
+                    // 0 - heuristic termination
+                    // 1 - deterministic with infinity norm
+                    // 2,.. - deterministic with p-th norm
+
+    c0.eps = 1e-6;          // relative error bound
+
+    retp(c0);
+endp;
+
+proc inthp(struct DS *pd, a,b,d,&f,m,p,eps,inf);
+    local f:proc;
+    local i,i1,k,l,l1,m1,m2,n,n1,alfa,ba,c,c0,cor,e1,eps3,exph,exph0,h,h0;
+    local h1,quadr,s,s1,sr,sq2,sum,sum1,sum2,u,t,v,v0,v1,v2,w,w1,w2,w3,w4, inf1,inf2;
+
+    if (inf != 1) and (inf != 2) and (inf != 3) and (inf != 4);
+        goto L300;
+    endif;
+
+    if (m < 3);
+        goto L270;
+    endif;
+    if (p < 1) and (p != 0);
+        goto L280;
+    endif;
+    if (p >= 1) and ((d <= 0) or (d > (pi/2)));
+        goto L280;
+    endif;
+    if (inf == 4) and (a >= b);
+        goto L290;
+    endif;
+
+    sq2 = sqrt(2);
+    i1 = inf - 2;
+    ba = b - a;
+    n1 = 0;
+
+    u = machEpsilon();
+    t = 1;
+    if (eps < u);
+        eps = u;
+    endif;
+
+    if (p == 0);
+        goto L40;
+    endif;
+
+    /* SET UP DATA FOR DETERMINISTIC TERMINATION */
+    if (p == 1);
+        alfa = 1;
+    endif;
+    if (p > 1);
+        alfa = (p-1)/p;
+    endif;
+    c = 2*pi/(1-1/exp(pi*sqrt(alfa))) + (4^alfa)/alfa;
+    w = ln(c/eps);
+    w1 = 1/(pi*pi*alfa)*w*w;
+    n = floor(w1);
+    if (w1 > n);
+        n = n+1;
+    endif;
+    if (w1 == 0);
+        n = 1;
+    endif;
+    n1 = 2*n+1;
+    sr = sqrt(alfa*n);
+
+    if (n1 <= m);
+        goto L20;
+    endif;
+
+    /* EPS TOO SMALL WITH RESPECT TO M. COMPUTE THE NEW EPS GUARANTEED BY THE VALUE OF M. */
+    n1 = 1;
+    n = floor((m-1)/2);
+    sr = sqrt(alfa*n);
+    m = 2*n+1;
+    eps = c/exp(pi*sr);
+    goto L30;
+
+L20:
+
+    m = n1;
+    n1 = 0;
+L30:
+
+    h = 2*d/sr;
+    sum2 = 0;
+    l1 = n;
+    k = n;
+    inf1 = 0;
+    inf2 = 0;
+    h0 = h;
+    goto L50;
+
+    /* SET UP DATA FOR THE HEURISTIC TERMINATION */
+L40:
+
+    h = 1;
+    h0 = 1;
+    eps3 = eps/3;
+    sr = sqrt(eps);
+    v1 = eps*10;
+    v2 = v1;
+    m1 = m - 1;
+    n = floor(m1/2);
+    m2 = n;
+    l1 = 0;
+    inf1 = 1;
+    inf2 = 0;
+
+    /* INITIALIZE THE QUADRATURE */
+L50:
+
+    i = 0;
+    if (inf == 1);
+        sum = f(pd,0);
+    endif;
+    if (inf == 2);
+        sum = f(pd,a+1);
+    endif;
+    if (inf == 3);
+        sum = f(pd,a+ln(1+sq2))/sq2;
+    endif;
+    if (inf == 4);
+        sum = f(pd,(a+b)/2)/4*ba;
+    endif;
+
+    /* COMPUTE WEIGHTS, NODES, AND FUNCTION VALUES */
+L60:
+
+    exph = exp(h);
+    exph0 = exp(h0);
+    h1 = h0;
+    e1 = exph0;
+    u = 0;
+    cor = 0;
+
+L70:
+
+    if (i1 < 0);
+        goto L80;
+    elseif (i1 == 0);
+        goto L90;
+    else;
+        goto L100;
+    endif;
+L80:
+
+    v = f(pd,h1);
+    h1 = h1 + h;
+    goto L150;
+L90:
+
+    v = e1*f(pd,a+e1);
+    e1 = e1*exph;
+    goto L150;
+L100:
+
+    if (inf == 4);
+        goto L140;
+    endif;
+    w1 = sqrt(e1+1/e1);
+    w2 = sqrt(e1);
+    if (e1 < 0.1);
+        goto L110;
+    endif;
+    s = ln(e1+w1*w2);
+    goto L130;
+L110:
+
+    w3 = e1;
+    w4 = e1*e1;
+    c0 = 1;
+    s = e1;
+    s1 = e1;
+    t = 0;
+L120:
+
+    c0 = -c0*(.5+t)*(2*t+1)/(2*t+3)/(t+1);
+    t = t+1;
+    w3 = w3*w4;
+    s = s + c0*w3;
+    if (s == s1);
+        goto L130;
+    endif;
+    s1 = s;
+    goto L120;
+L130:
+
+    v = w2/w1*f(pd,a+s);
+    e1 = e1*exph;
+    goto L150;
+L140:
+
+    w1 = e1+1;
+    v = e1/w1/w1*f(pd,(a+b*e1)/w1)*ba;
+    e1 = e1*exph;
+
+    /* SUMMATION ALGORITHM */
+L150:
+
+    i = i+1;
+    sum1 = u + v;
+    if (abs(u) < abs(v));
+        goto L160;
+    endif;
+    cor = v - (sum1-u) + cor;
+    goto L170;
+L160:
+
+    cor = u - (sum1-v) + cor;
+L170:
+
+    u = sum1;
+    if (i < l1);
+        goto L70;
+    endif;
+
+    /* SWITCH TO CHECK TRUNCATION CONDITION (HEURISTIC TERMINATION) */
+    if (inf1 == 1);
+        goto L190;
+    endif;
+
+    /* SWITCH TO COMPUTE THE MIDORDINATE APPROXIMATION (HEURISTIC TERMINATION) OR TO STOP
+    :: (DETERMINISTIC TERMINATION)
+    */
+    if (inf2 == 1);
+        goto L210;
+    endif;
+
+    /* SET UP PARAMETERS TO CONTINUE SUMMATION */
+    l1 = k;
+L180:
+
+    inf2 = 1;
+    i = 0;
+    exph = 1/exph;
+    h0 = -h0;
+    e1 = 1/exph0;
+    h1 = h0;
+    h = -h;
+    goto L70;
+
+    /* TRUNCATION CONDITION */
+
+L190:
+
+    v0 = v1;
+    v1 = v2;
+    v2 = abs(v);
+    if ((v0+v1+v2) <= eps3);
+        goto L200;
+    endif;
+    if (i < m2);
+        goto L70;
+    endif;
+    n1 = 5;
+L200:
+
+    if (inf2 == 1);
+        k = i;
+    endif;
+    if (inf2 == 0);
+        l = i;
+    endif;
+    v1 = 10*eps;
+    v2 = v1;
+    m2 = m1 - l;
+    if (inf2 == 0);
+        goto L180;
+    endif;
+
+    /* n1 = 5 - TRUNCATION CONDITION NOT SATISFIED */
+    if (n1 == 5);
+        goto L260;
+    endif;
+
+    /* TRUNCATION CONDITION SATISFIED, sum2 = TRAPEZOIDAL APPROXIMATION */
+    sum2 = sum1 + cor + sum;
+    m2 = 2*(k+l);
+
+    /* CHECK THE NUMBER OF FUNCTION EVALUATIONS */
+
+    if (m2 > m1);
+        goto L240;
+    endif;
+
+    /* INITIALIZE ITERATION */
+    inf1 = 0;
+    inf2 = 0;
+    l1 = l;
+    i = 0;
+    h = -h;
+    h0 = h/2;
+    goto L60;
+
+    /* p >= 1, DETERMINISTIC TERMINATION */
+L210:
+
+    if (p >= 1);
+        goto L220;
+    endif;
+
+    /* COMPUTE THE MIDORDINATE APPROXIMATION SUM1 */
+    h = -h;
+    sum1 = (sum1 + cor)*h;
+    w1 = (sum1 + sum2)/2;
+
+    /* TERMINATION CONDITION */
+    if (abs(sum1-sum2)<=sr);
+        goto L230;
+    endif;
+
+    /* SET UP DATA FOR THE NEXT ITERATION */
+    m2 = 2*m2;
+    if (m2 >m1);
+        goto L250;
+    endif;
+    i = 0;
+    k = 2*k;
+    l = 2*l;
+    l1 = l;
+    h = h/2;
+    h0 = h/2;
+    sum2 = w1;
+    inf2 = 0;
+    goto L60;
+
+    /* FINAL RESULTS */
+L220:
+
+    quadr = -h*(sum1+cor+sum);
+    inf = n1;
+    retp(quadr);
+L230:
+
+    quadr = w1;
+    inf = 2;
+    m = m2 + 1;
+    retp(quadr);
+L240:
+
+    quadr = sum2;
+    inf = 3;
+    m = k + l + 1;
+    retp(quadr);
+L250:
+
+    quadr = w1;
+    inf = 3;
+    m = m2/2 + 1;
+    retp(quadr);
+L260:
+
+    quadr = u + cor + sum;
+    inf = 4;
+    m = k + l + 1;
+    retp(quadr);
+L270:
+
+    inf = 10;
+    errorlog "ERROR: m < 3";
+    end;
+L280:
+
+    inf = 11;
+    if (p < 1) and not (p == 0);
+        errorlog "ERROR: p does not satisfy p = 0, p = 1, or p > 1";
+        end;
+    elseif (p >= 1) and ((d <= 0) or (d>(pi/2)));
+        errorlog "ERROR: d does not satisfy 0 < d <= pi/2";
+        end;
+    endif;
+    end;
+L290:
+
+    inf = 12;
+    errorlog "ERROR: Lower limit is greater than upper limit";
+    end;
+L300:
+
+    inf = 13;
+    errorlog "ERROR: inf not equal to 1, 2, 3, or 4";
+    end;
+endp;
+

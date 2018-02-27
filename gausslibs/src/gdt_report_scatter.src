@@ -1,0 +1,139 @@
+/*
+** gdt_report_scatter.src - Compute scattergram
+**
+** (C) Copyright 2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Purpose:
+**
+**      To compute frequency distributions for variables contained in a
+**      GAUSS data file.  Printout includes counts percentages and
+**      cumulative percentages.  If there are missing data for a variable,
+**      counts excluding the missing category are also made.
+**
+** Format:
+**
+**      { r,n } = _gdt_report_scatter(data, args, names, types);
+**
+** Inputs:
+**
+**      data      NxK matrix, data for frequency distributions.
+**
+**      args      Lx1 string array, keywords for freq options
+**
+**                     use   variable list
+**
+**      names     Kx1 vector with names of variables in data for which
+**                   frequency distributions are requested.
+**
+**      types     Kx1 vector, types of variables in data, 0 character,
+**                     1 - numeric, 2 - date
+**
+** Outputs:
+**
+**     r     scalar, return code
+**
+**     s     scalar, return code
+**
+**
+** Examples:
+**
+*/
+
+
+#include pgraph.ext
+
+
+
+proc (2) = _gdt_report_scatter(data,args,names,types);
+    local usevars,s1,s2,indx,b,minx,maxx,r,oldm;
+
+    useVars = error(0);
+
+    for i(1,rows(args),1);
+
+        if args[i] $/= "";
+
+            { s1,s2 } = token(args[i]);
+            if lower(s1) $== "use";
+                 useVars = strsplit(s2)';
+            endif;
+        endif;
+     endfor;
+
+    if not scalmiss(useVars);
+        indx = indsav(useVars,names);
+    else;
+        indx = seqa(1,1,rows(names));
+    endif;
+
+    if rows(indx) < 2;
+       errorlog "two or more variables are required for scattergrams";
+       retp(0,-1);
+    endif;
+
+    graphset;
+    _plctrl = -1;
+    _pline = zeros(1,9);
+    _pline[1] = 1;
+    _pline[2] = 6;
+    _pline[8] = 5;
+    _pline[9] = 1;
+    _paxht = .25;
+    oldm = setvwrmode("many");
+    for i(2,rows(indx),1);
+       for j(1,i-1,1);
+             b = data[.,indx[j]]/(ones(rows(data),1)~data[.,indx[i]]);
+             r = corrx(data[.,indx[i]]~data[.,indx[j]]);
+             _plegstr = ""$+names[indx[j]]$+" = "$+ftos(b[1],"*.*lf",7,3)$+" + "
+                           $+ftos(b[2],"*.*lf",7,3)$+" "$+names[indx[i]]$+"    r2 = "$+
+                           ftos(r[1,2]^2,"*.*lf",7,3);
+             _plegctl = 1;
+             minx = minc(data[.,indx[i]]);
+             maxx = maxc(data[.,indx[i]]);
+             _pline[3] = minx;
+             _pline[4] = b[1] + b[2]*minx;
+             _pline[5] = maxx;
+             _pline[6] = b[1] + b[2]*maxx;
+             call ylabel(names[indx[j]]);
+             call xlabel(names[indx[i]]);
+             call xy(data[.,indx[i]],data[.,indx[j]]);
+       endfor;
+    endfor;
+    call setvwrmode(oldm);
+    retp(-1,0);
+
+endp;
+
+
+
+    proc(0) = _gdt_report_scatter_help;
+
+       local s1;
+
+       s1 = "
+Purpose: generates scattergram with fitted regression line
+
+Format:  report scatter
+         [options]
+
+Example: report scatter
+         use y,x1
+
+Options: use     list of variables, default is all variables in pairs";
+
+       print s1;
+
+    endp;
+

@@ -1,0 +1,42 @@
+
+Total observations:                                          100  
+Usable observations:                                          99  
+Number of parameters to be estimated:                          7  
+Degrees of freedom:                                           91  
+Value of the maximized log-likelihood function:       -511.40145  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+AR1_11          1.000000        0.000000                .               .
+AR1_21          1.037344        0.173645         5.973925        0.000000
+AR1_12         -0.098889        0.033604        -2.942825        0.004126
+AR1_22          0.742301        0.056031        13.248137        0.000000
+MA1_11          0.337930        0.107850         3.133329        0.002326
+MA1_21          0.378969        0.232177         1.632241        0.106084
+MA1_12         -0.282458        0.072462        -3.897997        0.000185
+MA1_22          0.073622        0.118948         0.618944        0.537500
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+
+Total observations:                                          100  
+Usable observations:                                          99  
+Number of parameters to be estimated:                          7  
+Degrees of freedom:                                           91  
+Value of the maximized log-likelihood function:       -511.40145  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+AR1_11          1.000000        0.000000                .               .
+AR1_21          1.037344        0.173645         5.973926        0.000000
+AR1_12         -0.098890        0.033604        -2.942824        0.004126
+AR1_22          0.742301        0.056031        13.248131        0.000000
+MA1_11          0.337928        0.107850         3.133311        0.002326
+MA1_21          0.378968        0.232177         1.632236        0.106086
+MA1_12         -0.282458        0.072462        -3.897994        0.000185
+MA1_22          0.073622        0.118948         0.618942        0.537501
+
+Covariance matrix: inverse of the negative Hessian.

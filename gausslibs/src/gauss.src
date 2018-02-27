@@ -1,0 +1,504 @@
+/*
+** gauss.src
+**
+**
+** (C) Copyright 1988-2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                       Purpose                              Line
+**  ---------------------------------------------------------------------------
+**  nr = getnr(nsets,ncols);     compute number of rows to read         38
+**  header(prcnm,dsn,ver);       print header for analysis              89
+**  printfmt(x,mask);            print matrix                          243
+**  oldfmt = formatnv(newfmt);   revise numeric format for printfmt    309
+**  oldfmt = formatcv(newfmt);   revise character format for printfmt  341
+**  gausset;                     reset common globals                  371
+**  chdir dirstr;                change working directory              422
+**  shell [cmd];                 invoke shell, execute commands        455
+**  doswin;                      open the DOS compatibility window     474
+*/
+
+#include gauss.ext
+
+/*
+**> getnr
+**
+**  Purpose:    Compute number of rows to read.
+**
+**  Format:     nr = getnr(nsets,ncols);
+**
+**  Input:      nsets    scalar, number of 'copies' of the data read by
+**                       readr to be kept in memory.
+**
+**              ncols    scalar, columns in the data file.
+**
+**  Output:     nr       scalar, number of rows reader should read.
+**
+**  Globals:    __row       if __row is greater than 0, nr will be set to __row.
+**
+**              __rowfac    if insufficient memory error is encounted, change
+**                          this to a number less than one (e.g., 0.9).  Then
+**                          nr will be reduced in size by this factor.
+*/
+
+proc getnr(nsets,ncols);
+    local nr;
+
+    /* check for complex input */
+    if iscplx(nsets);
+        if hasimag(nsets);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            nsets = real(nsets);
+        endif;
+    endif;
+
+    if iscplx(ncols);
+        if hasimag(ncols);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            ncols = real(ncols);
+        endif;
+    endif;
+
+    if __row > 0;           /* if __row is set, it determines nr */
+        nr = __row;
+    else;
+        nr = ceil(__rowfac*minc(coreleft/(ncols*nsets*8)|maxvec/(ncols+1)));
+    endif;
+    retp(nr);
+endp;
+
+/*
+**> header
+**
+**  Purpose:    Print header for application programs.
+**
+**  Format:     header(prcnm,dsn,ver);
+**
+**  Input:      prcnm     string, title of procedure that calls header.
+**
+**              dsn       string, name of data set.
+**
+**              ver       3x1 vector, the first element is the major version
+**                        number of the module, the second element is the
+**                        minor version number and the third element is the
+**                        revision number.  Normally this argument will be
+**                        the version/revision global (__??_ver) associated
+**                        with the module within which header is called.
+**                        This argument will be ignored if set to 0.
+**
+**                     A 2x1 vector is supported for backward compatibility.
+**
+**  Globals:    __header, string which contains the letters:
+**
+**                   't'  title
+**                   'l'  lines bracket header
+**                   'd'  date and time
+**                   'v'  procedure name and version number
+**                   'f'  data set name
+**
+**              __title -- string, title for header.
+*/
+
+proc _cntrlin(s,n,c);
+    local str;
+    c = vals(strsect(c,1,1));
+    if s $== "";
+        str = chrs(c+zeros(floor((n-strlen(s))/2),1));
+        str = str $+ s $+ str;
+    else;
+        str = chrs(c+zeros(floor((n-(strlen(s)+2))/2),1));
+        str = str $+ " " $+ s $+ " " $+ str;
+    endif;
+    if strlen(str) < n;
+        str = str $+ chrs(c);
+    endif;
+    retp(str);
+endp;
+
+proc (0) = header(prcnm,dsn,ver);
+    local xll,xdd,xvv,xff,xtt,opt,sl,i,sel,b,dts,nm,hr,hrs,ap,title,l1;
+
+    clear xll,xdd,xvv,xff,xtt;
+    opt = { d, f, l, t, v };
+    sl = strlen(__header);
+    if sl == 0;
+        retp;
+    endif;
+    i = 1;
+    sel = { . };
+    do until i gt sl;
+        sel = sel|strsect(__header,i,1);
+        i = i+1;
+    endo;
+    sel = sortc(packr(indcv(sel,opt)),1);
+    if not ismiss(sel);
+        i = zeros(6,1);
+        i[sel] = ones(rows(sel),1);
+        if i[1];
+            xdd = 1;
+        endif;
+        if i[2];
+            xff = 1;
+        endif;
+        if i[3];
+            xll = 1;
+        endif;
+        if i[4];
+            xtt = 1;
+        endif;
+        if i[5];
+            xvv = 1;
+        endif;
+        hr = time;
+        ap = " am";         /* add am or pm designation */
+        if hr[1] eq 0;
+            hr[1] = 12;
+        elseif hr[1] eq 12;
+            ap = " pm";
+        elseif hr[1] gt 12;
+            hr[1] = hr[1]-12;
+            ap = " pm";
+        endif;
+        hrs = ( ftos(hr[1],"%*.*lf",2,0) $+ ":" $+ ftos(hr[2],"%0*.*lf",2,0))
+            $+ ap;
+        dts = datestring(DATE);
+        b = _cntrlin("",79,"=");
+        if xtt and __title $/= "";
+            title = "  " $+ __title $+ "  ";
+            if xll;
+                print b;
+            endif;
+            if strlen(title) < 80;
+                print _cntrlin(title,79," ");
+            else;
+                print title;
+            endif;
+        endif;
+
+        nm = " ";
+        if xvv and prcnm $/= "";
+            if xvv or xdd;
+                nm = " ";
+            else;
+                nm = "";
+            endif;
+            nm = nm $+ prcnm;
+        endif;
+        if xvv and ver[1] /= 0 and (rows(ver) == 3 or rows(ver) == 2);
+            if prcnm $/= "";
+               nm = nm $+ " ";
+            endif;
+            if rows(ver) == 3;
+                nm = nm $+ "Version " $+ ftos(ver[1],"%*.*lf",1,0);
+                nm = nm $+ "." $+ ftos(ver[2],"%*.*lf",1,0);
+                nm = nm $+ "." $+ ftos(ver[3],"%*.*lf",1,0);
+            elseif rows(ver) == 2;
+                nm = nm $+ " Version "$+ftos(ver[1],"%-*.*lf",3,2);
+                nm = nm $+ " (R"$+ftos(ver[2],"%-*.*lf",1,0) $+ ")";
+            endif;
+        endif;
+        if xdd;
+            nm = nm $+ chrs(ones(79-strlen(nm)-21,1)*32) $+
+                        dts $+ "  " $+ hrs;
+        else;
+            nm = nm $+ chrs(ones(79-strlen(nm),1)*32);
+        endif;
+        if xll;
+            print b;
+        endif;
+        if xvv or xdd;
+            print nm;
+        endif;
+        if xll and (xvv or xdd);
+            print b;
+        endif;
+        if xff and dsn $/= "";
+            print _cntrlin("Data Set:  "$+dsn,79," ");
+            print _cntrlin("",79,"-");
+            print;
+        endif;
+    endif;
+endp;
+
+
+/*
+**> printfmt
+**
+**  Purpose:  print character or numeric matrix using format stored
+**            in globals, __fmtnv and __fmtcv.
+**
+**  Format:   y = printfmt(x,mask);
+**
+**  Inputs:   x      NxK matrix which is to be printed.
+**
+**            mask   scalar, 1 if x is numeric or 0 if x is character,
+**                              - or -
+**                   1xK vector, each column of which is set to 1 if the
+**                   corresponding column of x is numeric, or to 0 if the
+**                   corresponding column of x is character.
+**
+**  Output:   y      scalar, 1 if the function is successful and 0 if it
+**                   fails.
+**
+**  Globals:  __fmtnv      1x3 vector, format for numeric data.
+**                         Default = { "*.*lg " 16 8 }.
+**
+**            __fmtcv      1x3 vector, format for character data.
+**                         Default = { "*.*s " 8 8 }.
+**
+**  Remarks:   The global format vectors can be modifed by calls
+**             to formatnv for the numeric format and to formatcv
+**             for the character format.
+**
+**  Example:   x = rndn(5,4);
+**             call printfmt(x,1);
+**
+*/
+
+
+proc printfmt(x,mask);
+    local fmt,i;
+    if rows(mask) == 1 and cols(mask) == 1;
+        if mask;
+            fmt = __fmtnv;
+        else;
+            fmt = __fmtcv;
+        endif;
+    elseif rows(mask) == 1 and cols(mask) == cols(x);
+        i = 2;
+        if mask[1];
+            fmt = __fmtnv;
+        else;
+            fmt = __fmtcv;
+        endif;
+        do while i <= cols(x);
+            if mask[i];
+                fmt = fmt|__fmtnv;
+            else;
+                fmt = fmt|__fmtcv;
+            endif;
+            i = i+1;
+        endo;
+    else;
+        errorlog "ERROR: invalid mask vector to printfmt";
+        end;
+    endif;
+    retp(printfm(x,mask,fmt));
+endp;
+
+
+/*
+**> formatnv
+**
+**  Purpose:  Revises the global variable __fmtnv, the numeric format
+**            used by printfmt.
+**
+**  Format:   oldfmt = formatnv(newfmt);
+**
+**  Input:    newfmt   1x3 row vector, the new format specification.
+**
+**  Output:   oldfmt   1x3 row vector, the old format specification.
+**
+**  Globals:  __fmtnv  1x3 row vector, the format specification used
+**                     by printfmt for numeric data.
+**
+**  Example:
+**
+**            oldfmt = formatnv("*.*lf"~6~2);
+**            x = rndn(10,10);
+**            call printfmt(x,1);
+**            call formatnv(oldfmt);
+*/
+
+proc formatnv(fmt);
+    local oldfmt;
+    oldfmt = __fmtnv;
+    __fmtnv = fmt;
+    retp(oldfmt);
+endp;
+
+
+
+/*
+**> formatcv
+**
+**  Purpose:  Revises the global variable __fmtcv, the character format
+**            used by printfmt.
+**
+**  Format:   oldfmt = formatcv(newfmt);
+**
+**  Input:    newfmt   1x3 row vector, the new format specification.
+**
+**  Output:   oldfmt   1x3 row vector, the old format specification.
+**
+**  Globals:  __fmtcv  1x3 row vector, the format specification used
+**                     by printfmt for character data.
+**
+**  Example:
+**
+**            oldfmt = formatcv("*.*s"~3~3);
+**            x = { A 1, B 2, C 3 };
+**            call printfmt(x,0|1);
+**            call formatcv(oldfmt);
+*/
+
+proc formatcv(fmt);
+    local oldfmt;
+    oldfmt = __fmtcv;
+    __fmtcv = fmt;
+    retp(oldfmt);
+endp;
+
+/*
+**> gausset
+**
+**  Purpose: reset defaults.
+**
+**  Format:    gausset;
+**
+**  Remarks:   If you want to edit the initial defaults you should edit
+**             both this file and GAUSS.DEC.
+*/
+
+proc (0) = gausset;
+    local eps,leps;
+
+    __altnam = 0;         /* Alternate variable names */
+    __con = 1;            /* use a constant term */
+    __fmtcv = { "*.*s " 8 8 };
+    __fmtnv = { "*.*lg " 16 8 };
+    __ff = 1;
+    __header = "tldvf";
+    __miss = 0;           /* no deletion of missing values */
+
+#ifDLLCALL
+    __output = 1;         /* serial ASCII output */
+#else
+    __output = 2;         /* full screen output */
+#endif
+
+    __range = { 0, 0 };   /* set range for observation */
+    __row = 0;            /* compute rows to read automatically */
+    __rowfac = 1;
+    __sort = 0;           /* 1 to sort input vars by name */
+    __title = "";
+    __tol = 1e-5;         /* tolerance for convergence */
+    __vpad = 1;
+    __vtype = -1;   /* variable type, -1 = upper/lower convention followed */
+    __weight = 0;   /* weighting variable */
+
+    __INFp = error("+inf");
+    __INFn = error("-inf");
+    __INDEFp = error("+indef");
+    __INDEFn = error("-indef");
+
+    eps = 1;
+    do while 1+eps > 1;
+        leps = eps;
+        eps = eps/2;
+    endo;
+    __macheps = leps;
+endp;
+
+/*
+**> chdir
+**
+**  Purpose:   Change directory.
+**
+**  Format:    chdir dirstr;
+**
+**  Input:     dirstr    literal, directory to change to.
+**
+**  Remarks:   This is for interactive use. Use ChangeDir() in
+**             a program.
+**
+**             The working directory is listed in the status
+**             report on the UNIX version.
+*/
+
+#ifDOS
+
+keyword chdir(dir);
+        dir = "cd " $+ dir;
+        dos ^dir;
+endp;
+
+#else
+
+keyword chdir(dir);
+    if (ChangeDir(dir) $== "");
+        errorlog "Cannot change directory to "$+dir;
+    endif;
+endp;
+
+#endif
+
+/*
+**> shell
+**
+**  Purpose:   Invoke OS shell, execute commands.
+**
+**  Format:    shell [cmd];
+**
+**  Input:     cmd       literal, command to execute
+**
+**  Remarks:   If cmd is specified, it is executed, then control
+**             returns to GAUSS. Otherwise, an OS shell is opened
+**             for interactive use. Exiting the shell returns control
+**             to GAUSS.
+*/
+
+keyword shell(cmd);
+    dos ^cmd;
+endp;
+
+keyword license_id(str);
+    local id;
+
+    format /rd 1,0;
+    { id, str } = token(sysstate(36,0));
+    print "License ID: " id;
+endp;
+
+
+/*
+**> doswin
+**
+**  Purpose:  Opens the DOS compatibility window with default settings.
+**
+**  Format:   doswin;
+**
+**  Remarks:
+**
+**    Calling doswin is equivalent to:
+**
+**        call DOSWinOpen("",error(0));
+**
+**  Portability:
+**
+**    doswin is currently supported under Windows.
+*/
+
+#ifOS2WIN
+keyword doswin(cmd);
+    call DOSWinOpen("",error(0));
+endp;
+#endif

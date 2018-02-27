@@ -1,0 +1,140 @@
+/*
+** pcart3d.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** _3dfilt()  Process globals common to 3d graphs.
+** _pwrsc3d() Rescale data according to _qxpow and _qypow.
+** _volum3d   Calculate the volume for the data ranges passed in.
+*/
+
+#include pgraph.ext
+
+/* Procedure common to 3d graphs */
+proc (6) = _3dfilt;
+    local psym3d,nsym3d,pline3d,npline3d,arrow3d,narrow3d,t1;
+    psym3d = _psym3d;
+    nsym3d = 0;
+    if cols(psym3d) > 1;
+        nsym3d = rows(psym3d);
+        psym3d[.,4] = psym3d[.,4] - 1;
+        if cols(psym3d) /= 7;
+            errorlog "Invalid _psym3d matrix, too many columns.";
+            end;
+        endif;
+    endif;
+
+    pline3d = _pline3d;
+    npline3d = 0;
+    if cols(pline3d) > 1;
+        npline3d = rows(pline3d);
+        if cols(pline3d) == 9;
+            pline3d = pline3d ~ zeros(npline3d,1);
+        endif;
+        if cols(pline3d) /= 10;
+            errorlog "Invalid _pline3d matrix, wrong number of columns.";
+            end;
+        endif;
+    endif;
+
+    arrow3d = _parrow3;
+    narrow3d = 0;
+    if cols(arrow3d) > 1;
+        narrow3d = rows(arrow3d);
+        if cols(arrow3d) == 12;
+            arrow3d = arrow3d ~ zeros(narrow3d,1);
+        endif;
+        if cols(arrow3d) /= 13;
+            errorlog "Invalid _parrow3 matrix, wrong number of columns.";
+            end;
+        endif;
+    endif;
+
+    if cols(_pmsgctl) > 1;
+        if _pmsgctl[.,5] /= 2;
+            errorlog "WARNING: all messages located in inches in 3D graphs.";
+            t1 = hsec;
+            do while hsec-100 < t1;
+            endo;
+        endif;
+    endif;
+
+    retp(psym3d,nsym3d,pline3d,npline3d,arrow3d,narrow3d);
+endp;
+
+
+/* _pwrsc3d() Rescale 3d data according to _qxpow, _qypow, and _qzpow. */
+proc (3) = _pwrsc3d(qxpow,qypow,qzpow,pline3d,arrow3d,psym3d);
+    if not pline3d == 0;
+        if qxpow;
+            pline3d[.,1] = pline3d[.,1] * 10^(-qxpow);
+            pline3d[.,4] = pline3d[.,4] * 10^(-qxpow);
+        endif;
+        if qypow;
+            pline3d[.,2] = pline3d[.,2] * 10^(-qypow);
+            pline3d[.,5] = pline3d[.,5] * 10^(-qypow);
+        endif;
+        if qzpow;
+            pline3d[.,3] = pline3d[.,3] * 10^(-qzpow);
+            pline3d[.,6] = pline3d[.,6] * 10^(-qzpow);
+        endif;
+    endif;
+    if not arrow3d == 0;
+        if qxpow;
+            arrow3d[.,1] = arrow3d[.,1] * 10^(-qxpow);
+            arrow3d[.,4] = arrow3d[.,4] * 10^(-qxpow);
+        endif;
+        if qypow;
+            arrow3d[.,2] = arrow3d[.,2] * 10^(-qypow);
+            arrow3d[.,5] = arrow3d[.,5] * 10^(-qypow);
+        endif;
+        if qzpow;
+            arrow3d[.,3] = arrow3d[.,3] * 10^(-qzpow);
+            arrow3d[.,6] = arrow3d[.,6] * 10^(-qzpow);
+        endif;
+    endif;
+    if not psym3d == 0;
+        if qxpow;
+            psym3d[.,1] = psym3d[.,1] * 10^(-qxpow);
+        endif;
+        if qypow;
+            psym3d[.,2] = psym3d[.,2] * 10^(-qypow);
+        endif;
+        if qzpow;
+            psym3d[.,3] = psym3d[.,3] * 10^(-qzpow);
+        endif;
+    endif;
+    retp(pline3d,arrow3d,psym3d);
+endp;
+
+/* Calculate the volume for the data ranges passed in. */
+proc 1 = _volum3d(xr,yr,zr);
+    local vol;
+    vol = xr | yr | zr;
+    if maxc(vol)/minc(vol) > 3;
+        if maxc(vol) == zr or minc(vol) == zr;
+            if maxc(vol[1 2])/minc(vol[1 2]) > 3;
+                vol = { 1,1,1 };
+            else;
+                vol = vol[1 2]/minc(vol[1 2])|1;
+            endif;
+        else;
+            vol = { 1,1,1 };
+        endif;
+    else;
+        vol = vol/minc(vol);
+    endif;
+
+    retp(vol);
+endp;

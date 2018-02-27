@@ -1,0 +1,206 @@
+/*
+** pxy.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> xy
+**
+**  Purpose:    Graphs x vs y using cartesian coordinates.
+**
+**  Format:     xy(x,y);
+**
+**  Inputs:     x    NxM or Nx1 matrix. Each column represents the
+**                   x values for a particular line.
+**
+**              y    NxM or Nx1 matrix. Each column represents the
+**                   y values for a particular line.
+**
+**  See Also:   logx, logy, loglog, scale, xtics, ytics
+*/
+
+#include pgraph.ext
+
+proc 0 = xy(x,y);
+    local symbol,colorq,xformat,yformat,frame,msgstr,psym,psymnum, msgnum,
+        n,k,sca,gcode,linenum,arrownum,arrow,c,t1,t2, msx,xlab,ylab,
+        gridflag,errbnum,pstype,pcolor,pltype,psymsiz, plctrl,xinc,yinc,
+        pline,pmsgctl,fontnum,fntsize,plwidth,mem,pnum,paxes,gpcpath;
+    /* ----------------------------------------------------------------*/
+    local minx,maxx,miny,maxy,qxsig,qxfield,qxprec,qxpow,qxorig,qxstep,
+        qxmax,qxmint,qxlab,qysig,qyfield,qyprec,qypow,qyorig,qystep,qymax,
+        qymint,qylab;
+
+    clear xlab,ylab;
+
+    _pqgtype = { 1, 1 };    /* graph type xy, 2d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    /* ---- test input variables and take appropriate action ---- */
+
+    /* create x variable if needed */
+    if rows(y) > 1 and rows(x)==1 and cols(x)==1;
+        x = seqa(1,1,rows(y));
+    endif;
+
+    /* test x and y for rows */
+    if rows(x) /= rows(y);
+        errorlog "X and Y matrices must have the same number of rows.";
+        end;
+    endif;
+
+    /* test x and y for cols */
+    if cols(x) /= cols(y) and cols(x) /= 1 and cols(y) /= 1;
+        errorlog "X and Y matrices not conformable.";
+        end;
+    endif;
+
+    xinc = cols(x) /= 1;
+    yinc = cols(y) /= 1;
+    goto g00;
+
+makestru:
+        pop msx;    /* _pasc? */
+    c = 1;
+    t1 = 1|0|0|0|0|0|0|0|0|0;
+    do while c <= rows(msx);
+        if strlen(msx[c,1]);
+            t2 = vals(""$+msx[c,1]);
+            t1 = t1|t2|zeros(10-rows(t2),1);
+        else;
+            t1 = t1|zeros(10,1);
+        endif;
+        c = c+1;
+    endo;
+    return(chrs(t1));
+
+g00:
+
+    /* Dimensions of data matrices. */
+    if rows(y)==1 and cols(y)==1;
+        n = 0;
+        k = 0;
+    else;
+        n = rows(x);
+        k = maxc(cols(x)|cols(y));
+    endif;
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+
+    { qxsig,qxfield,qxprec,qxpow,qxorig,qxstep,qxmax,qxmint,qxlab } =
+        _paxnum(pnum[1],minx,maxx,_pxsci,_pxscale,_pxpmax);
+
+    { qysig,qyfield,qyprec,qypow,qyorig,qystep,qymax,qymint,qylab } =
+        _paxnum(pnum[2],miny,maxy,_pysci,_pyscale,_pypmax);
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+    endif;
+    if qypow;
+        y = y * 10^(-qypow);
+    endif;
+
+    if not(_pascx $== 0);
+        gosub makestru(_pascx);
+            pop xlab;
+        xformat = 0;
+    elseif strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);
+    endif;
+
+    if not(_pascy $== 0);
+        gosub makestru(_pascy);
+            pop ylab;
+        yformat = 0;
+    elseif strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);
+    endif;
+
+    sca = qxorig | qxstep | qxmax | qyorig | qystep | qymax;
+
+    _setpage();
+
+    if _pstype == 0;
+        pstype = _pssel;
+    else;
+        pstype = _pstype;
+    endif;
+
+    if _pltype == 0;
+        pltype = _plsel;
+    else;
+        pltype = _pltype;
+    endif;
+
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        pcolor = _pcsel;
+    else;
+        pcolor = _pcolor;
+    endif;
+
+    pstype = reshape(pstype,k,1)-1;
+    psymsiz = reshape(_psymsiz,k,1);
+    pltype = reshape(pltype,k,1);
+    pcolor = reshape(pcolor,k,1);
+    plctrl = reshape(_plctrl,k,1);
+    plwidth = reshape(_plwidth,k,1);
+    symbol = pstype~psymsiz~pltype~pcolor~plctrl~plwidth;
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+
+    if _pgrid $== 0;
+        gridflag = 0|2|qxmint|qymint;
+    else;
+        gridflag = _pgrid[1 2]|qxmint|qymint;
+    endif;
+
+    /* Transpose data matrices */
+    x = x';
+    y = y';
+
+    if rows(_perrbar) == 1 and cols(_perrbar) == 1;
+        errbnum = 0;
+    elseif cols(_perrbar) /= 9;
+        errorlog "Error bar matrix invalid";
+        end;
+    else;
+        errbnum = rows(_perrbar);
+    endif;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,pline,_pmsgctl,psym);
+
+    { fontnum,mem,fntsize } = _fontsiz();
+
+    /* pxy <=> 8 */
+
+    GraphSEv3(x,y,k,n,xinc,yinc,sca,_ptitle,_pxlabel,_pylabel,_ptek,
+        symbol,_pfonts,fontnum,fntsize,_pcross,gridflag,xformat,yformat,
+        _pbox,paxes,msgstr,pmsgctl,msgnum,psym,psymnum,_paxht,_pnumht,
+        _ptitlht,_pagesiz,_pageshf,_plotsiz,_plotshf,_protate,frame,pline,
+        linenum,arrow,arrownum,xlab,ylab,colorq,_pdate,_perrbar, errbnum,
+        qxpow,qypow,pnum,_plegctl,_plegstr,_pnotify, _pappend,_pmargin,
+        _pcwin,_pncwin,_pcrop,_pticout,gpcpath,8);
+
+    clear x,y,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+endp;

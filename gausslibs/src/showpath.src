@@ -1,0 +1,41 @@
+#ifDOS
+
+/*
+** showpath.src
+** (C) Copyright 1992-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+proc (0) = showpath;
+    print "EXE file location:  \"" lower(_dbslash(sysstate(2,0))) "\"";
+    print "Source path:        \"" lower(envget("gausspath")) "\"";
+    print "Library path:       \"" lower(envget("gausslib")) "\"";
+    print "Error file path:    \"" lower(envget("gausserr")) "\"";
+    print "Log file:           \"" lower(envget("gausslog")) "\"";
+    print "LOADEXE path:       \"" lower(_dbslash(sysstate(3,0))) "\"";
+    print "SAVE path:          \"" lower(_dbslash(sysstate(4,0))) "\"";
+    print "LOAD, LOADM path:   \"" lower(_dbslash(sysstate(5,0))) "\"";
+    print "LOADF, LOADP path:  \"" lower(_dbslash(sysstate(6,0))) "\"";
+    print "LOADS path:         \"" lower(_dbslash(sysstate(6,0))) "\"";
+endp;
+
+proc _dbslash(str);
+    if strsect(str,strlen(str),1) $== "\\";
+        retp(strsect(str,1,strlen(str)-1));
+    else;
+        retp(str);
+    endif;
+endp;
+
+#endif

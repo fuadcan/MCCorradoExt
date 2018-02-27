@@ -1,0 +1,387 @@
+/*
+** optmum.src - General Nonlinear Optimization
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**   Written by Ronald Schoenberg
+**
+**        CONTENTS                       LINE
+**        --------                       ----
+**        PROC OPTMUM                      29
+**        Global Variables                 69
+**        Using OPTMUM recursively        232
+**        Source Code                     249
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   PROC OPTMUM
+**
+**   FORMAT
+**          { x,f,g,retcode } = optmum(&fct,x0)
+**
+**   INPUT
+**
+**        &fct - pointer to a procedure that computes the function to
+**               be minimized.  This procedure must have one input
+**               argument, a vector of parameter values, and one
+**               output argument, the value of the function evaluated
+**               at the input vector of parameter values.
+**
+**          x0 - vector of start values
+**
+**   OUTPUT
+**          x - vector of parameters at minimum
+**          f - function evaluated at x
+**          g - gradient evaluated at x
+**    retcode - return code:
+**
+**           0   normal convergence
+**           1   forced exit
+**           2   maximum number of iterations exceeded
+**           3   function calculation failed
+**           4   gradient calculation failed
+**           5   Hessian calculation failed
+**           6   step length calculation failed
+**           7   function cannot be evaluated at initial parameter values
+**           8   number of elements in the gradient vector inconsistent
+**               with number of starting values
+**           9   gradient function returned a column vector rather than
+**               the required row vector
+**          10   secant update failed
+**          20   Hessian failed to invert
+**
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   GLOBAL VARIABLES                                                 LINE
+**
+**   (default values in parantheses)
+**  __title   -  string, title ("")                                    84
+**  _opalgr   -  scalar, optimization algorithm (2)                    86
+**  _opstep   -  scalar, selects type of step length (2)               93
+**  _opshess  -  scalar or KxK matrix, selects starting Hessian (0)   105
+**  _opfhess  -  KxK matrix, contains final Hessian                   111
+**  _opmbkst  -  scalar, # of backsteps in computing steplength (10)  114
+**  _opgtol   -  scalar, convergence tolerance for gradient (1e-5)    120
+**  _opgdprc  -  scalar, pointer to gradient procedure (0)            124
+**  _ophsprc  -  scalar, pointer to Hessian procedure (0)             143
+**  _opgdmd   -  scalar, numerical gradient method (1)                158
+**  _opparnm  -  Kx1 Char. vector, parameter names (0)                163
+**  _opdfct   -  scalar, criterion for change in function (.001)      165
+**  _opditer  -  scalar, # of iters to switch algorithms (20)         169
+**  _opmiter  -  scalar, maximum number of iterations (1e+5)          173
+**  _opmtime  -  scalar, maximum time in iterations in minutes (1e+5) 175
+**  _oprteps  -  scalar, radius of random direction (0)               183
+**  _opusrch  -  scalar, flag for user-controlled line search (0)     188
+**  _opdelta  -  scalar, floor of Hessian eigenvalues in NEWTON (.1)  192
+**  _opstmth  -  string, contains starting method ("")                196
+**  _opmdmth  -  string, contains "middle" method ("")                204
+**  _opkey    -  scalar, keyboard capture flag (1)                    210
+**  _opgrdh   -  scalar, increment size for computing gradient (0)    219
+**
+**   __title -  string, title of run
+**
+**    _opalgr -  scalar, indicator for optimization method:
+**                = 1   SD (steepest descent - default)
+**                = 2   BFGS (Broyden, Fletcher, Goldfarb, Shanno)
+**                = 3   Scaled BFGS
+**                = 4   Self-Scaling DFP (Davidon, Fletcher, Powell)
+**                = 5   NEWTON (Newton-Raphson)
+**                = 6   Polak-Ribiere Conjugate Gradient
+**
+**    _opstep - scalar, indicator determining the method for computing step
+**              length.
+**              = 1,  steplength = 1
+**              = 2,  STEPBT  (default)
+**              = 3,  golden steplength.
+**              = 4,  Brent
+**
+**             Usually _opstep = 2 will be best.  If the optimization bogs
+**             down try setting _opstep = 1 or 3.  _opstep = 3 will generate
+**             slow iterations but faster convergence and _opstep = 1 will
+**             generate fast iterations but slower convergence.
+**
+**   _opshess - scalar or KxK matrix, determines the starting hessian for
+**              BFGS, DFP, and Newton methods.
+**              = 0,  start with identity matrix  (default)
+**              = 1,  computing starting hessian
+**              = matrix,  user-defined starting hessian.
+**
+**   _opfhess - KxK matrix, contains the final Hessian, if one has been
+**              calculated.  If the inversion of the Hessian fails during
+**              NEWTON iterations this matrix can be analyzed for linear
+**              dependencies which will suggest tactics for re-specifying
+**              the model.
+**
+**  _opmbkst - scalar, maximum number of backsteps taken to find step length.
+**             Default = 10.
+**
+**   _opgtol - scalar, convergence tolerance for gradient of estimated
+**             coefficients.  Default = 1e-5.  When this criterion has been
+**             satisifed OPTMUM will exit the iterations.
+**
+**  _opgdprc - scalar, pointer to a procedure that computes the gradient of the
+**             function with respect to the parameters.  For example,
+**             the instruction:
+**
+**                     _opgdprc=&gradproc
+**
+**             will tell OPTMUM that a gradient procedure exists as well
+**             where to find it.  The user-provided procedure has a
+**             single input argument, a vector of parameter values, and
+**             a single output argument, a vector of gradients of the
+**             function with respect to the parameters evaluated at the
+**             vector of parameter values.  For example, suppose the
+**             procedure is named gradproc and the function is a quadratic
+**             function with one parameter: y=x^2+2*x+1, then
+**
+**                    proc gradproc(x); retp(2*x+2); endp;
+**
+**             Default = 0, i.e., no gradient procedure has been provided.
+**
+**  _ophsprc - scalar, pointer to a procedure that computes the hessian,
+**             i.e., the matrix of second order partial derivatives of the
+**             function with respect to the parameters.  For example, the
+**             instruction:
+**
+**                    _ophsprc=&hessproc;
+**
+**             will tell OPTMUM that a procedure has been provided for the
+**             computation of the hessian and where to find it.  The
+**             procedure that is provided by the user must have a single
+**             input argument, the vector of parameter values, and a single
+**             output argument, the symmetric matrix of second order
+**             derivatives of the function evaluated at the parameter
+**             values.
+**
+**   _opgdmd - scalar, method for computing numerical gradient.
+**                = 0, central difference
+**                = 1, forward difference (default)
+**                = 2, forward difference, Richardson Extrapolation
+**
+**  _opparnm - Kx1 character vector, parameter labels.
+**
+**   _opdfct - scalar, criterion for change in function which will cause
+**             OPTMUM to switch algorithms when __design is nonzero.
+**             Default = .001.
+**
+**  _opditer - scalar, criterion for maximum number of iterations before
+**             switching algorithms when __design is nonzero.
+**             Default = 20.
+**
+**  _opmiter - scalar, maximum number of iterations.  Default = 1e+5.
+**
+**  _opmtime - scalar, maximum time in iterations in minutes.
+**              Default = 1e+5, about 10 weeks.
+**
+**  _oprteps - scalar, if _oprteps is set to a nonzero value (1e-2, say)
+**             and all other line search methods fail then
+**             OPTMUM will attempt a random direction with radius
+**             determined by _oprteps.
+**
+**  _opusrch - scalar, if nonzero and if all other line search methods fail
+**             OPTMUM will enter an interactive mode in which the
+**             user can select a line search parameter.
+**
+**  _opdelta - scalar, used in NEWTON.  The eigenvalues of the Hessian
+**             will be constrained to be greater than this value.
+**             If set to zero the constraint will be disabled.
+**
+**  _opstmth - String, contains starting methods for algorithm, step
+**             length, and Hessian.  For example,
+**
+**                  _opstmth = "NEWTON BRENT";
+**
+**             will cause OPTMUM to start with the NEWTON algorithm and
+**             the BRENT step length method.
+**
+**  _opmdmth - String, contains "middle" methods for algorithm, step
+**             length, and Hessian.  OPTMUM will switch to the methods
+**             in _opmdmth either when the functions fails to change by
+**             _opdfct, or when _opditer iterations have occured.
+**
+**    _opkey - scalar, flag controlling the keyboard capture feature.  During
+**             the iterations OPTMUM will respond to the keyboard in order to
+**             allow the user to modify global variables on the fly.  If
+**             OPTMUM is being run recursively, however, (i.e., OPTMUM is
+**             being called inside of the user procedure) then the keyboard
+**             capture feature should be turned off for the version of
+**             OPTMUM being called inside the user procedure which will
+**             permit the outer version of OPTMUM to retain keyboard
+**             control.
+**
+**   _opgrdh - scalar, increment size for computing gradient.
+**
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   Calling OPTMUM recursively
+**
+**       The procedure provided by the user for computing the function to
+**   to be minimized can itself call OPTMUM.  In fact the number of nested
+**   levels is limited only by the amount of workspace memory.  Each level
+**   will also contain its own set of global variables.  Thus nested versions
+**   can have their own set of attributes and optimization methods.
+**       It will be important to call OPTSET for all nested versions, and
+**   generally if you wish the outer version of OPTMUM to retain control
+**   over the keyboard you will need to set _opkey to zero for all the
+**   nested versions.
+**
+*/
+
+/*-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+/*  SOURCE CODE  */
+
+#include optmum.ext
+#include gauss.ext
+
+proc (4) = optmum(fnct,x0);
+    local x,f0,g,retcode;
+    local Lopfhess,Lopitdta,LLoutput;
+
+#ifUNIX
+    LLoutput = __output /= 0;
+#else
+    LLoutput = __output;
+#endif
+
+    { x,f0,g,retcode,Lopfhess,Lopitdta } = _optmum(fnct,x0,
+      _opalgr,
+      _opdelta,
+      _opdfct,
+      _opditer,
+      _opgdmd,
+      _opgdprc,
+      _opgrdh,
+      _opgtol,
+      _ophsprc,
+      _opkey,
+      _opmbkst,
+      _opmdmth,
+      _opmiter,
+      _opmtime,
+      _opmxtry,
+      _opparnm,
+      _oprteps,
+      _opshess,
+      _opstep,
+      _opstmth,
+      _opusrch,
+      _opusrgd,
+      _opusrhs,
+      LLoutput,
+      __title
+      );
+
+    _opfhess = Lopfhess;
+    _opitdta = Lopitdta;
+
+    retp(x,f0,g,retcode);
+endp;
+
+
+
+proc(0) = optset;
+     gausset;
+    _opalgr = 2;    /* optimization algorithm */
+    _opparnm = 0;           /* parameter names */
+    _opstep = 2;            /* selects type of step length */
+    _opshess = 0;           /* selects starting hessian */
+    _opmbkst = 10;          /* # of backsteps in computing steplength  */
+    _opgtol = 1e-5;         /* convergence tolerance for gradient */
+    _ophsprc = 0;           /* procedure to compute hessian */
+    _opgdprc = 0;           /* procedure to compute gradient */
+    _opgdmd = 0;            /* numerical gradient method */
+    _opditer = 20;          /* # iters to switch algorithms for _opmdmth  */
+    _opdfct = 0.001;        /* % change in function for _opmdmth */
+    _opmiter = 1e+5;        /* maximum number of iterations */
+    _opitdta = { 0,0,0 };
+    _oprteps = .01;
+    _opusrch = 0;
+    _opdelta = .1;
+    _opmxtry = 100;
+    _opfhess = 0;
+    _opusrgd = 0;
+    _opusrhs = 0;
+    _opstmth = "";
+    _opmdmth = "";
+    _opkey = 1;
+    _opgrdh = 0;
+
+endp;
+
+proc(4) = optprt(x,f,g,ret);
+    local lbl,mask,fmt;
+    print;
+    call header("OPTMUM","",_op_ver);
+    print;
+    print "return code = " ftos(ret,"%*.*lf",4,0);
+    if ret == 0;
+       print "normal convergence";
+    elseif ret == 1;
+       print "forced termination";
+    elseif ret == 2;
+       print "maximum number of iterations exceeded";
+    elseif ret == 3;
+       print "function calculation failed";
+    elseif ret == 4;
+       print "gradient calculation failed";
+    elseif ret == 5;
+       print "Hessian calculation failed";
+    elseif ret == 6;
+       print "step length calculation failed";
+    elseif ret == 7;
+       print "function cannot be evaluated at initial parameter values";
+    elseif ret == 8;
+       print "number of elements in the gradient vector inconsistent";
+       print "with number of starting values";
+    elseif ret == 9;
+       print "gradient function returned a column vector rather than";
+       print "the required row vector";
+    elseif ret == 11;
+       print "maximum time exceeded";
+    elseif ret == 20;
+       print "Hessian failed to invert";
+    endif;
+    print;
+    print "Value of objective function " ftos(f,"%*.*lf",15,6);
+    print;
+    print "Parameters    Estimates    Gradient";
+    print "-----------------------------------------";
+
+    if rows(g) /= rows(x);
+         g = miss(zeros(rows(x),1),0);
+    endif;
+
+    if _opparnm $== 0;
+        lbl = 0 $+ "P" $+ ftocv(seqa(1,1,rows(x)),2,0);
+    else;
+        lbl = _opparnm;
+    endif;
+    mask = 0~1~1;
+    let fmt[3,3] = "-*.*s" 9 8 "*.*lf" 14 4 "*.*lf" 14 4;
+    call printfm(lbl~x~g,mask,fmt);
+
+    print;
+    print "Number of iterations    " ftos(_opitdta[1],"%*.*lf",5,0);
+    print "Minutes to convergence  " ftos(_opitdta[2],"%*.*lf",10,5);
+    retp(x,f,g,ret);
+endp;
+
+

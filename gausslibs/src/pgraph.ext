@@ -1,0 +1,121 @@
+/*
+** pgraph.ext - Publication Quality Graphics Support.
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This file contains the external global variables
+** used in the GAUSS publication quality graphics.
+*/
+
+external matrix _pqg_ver;
+
+external matrix _pagedim;
+external matrix _pappend;
+external matrix _parrow;
+external matrix _parrow3;
+external matrix _pascx;
+external matrix _pascy;
+external matrix _paxes;
+external matrix _paxht;
+external matrix _paxmarx;
+external matrix _pbox;
+external matrix _pcrop;
+external matrix _pcolor;
+external matrix _pcross;
+external matrix _pcwin;
+external matrix _pncwin;
+external matrix _pcsel;
+external matrix _perrbar;
+external matrix _pfonts;
+external matrix _pframe;
+external matrix _pgrid;
+external matrix _plctrl;
+external matrix _pline;
+external matrix _plotsiz;
+external matrix _plotshf;
+external matrix _pageshf;
+external matrix _pagesiz;
+external matrix _plegctl;
+external matrix _plsel;
+external matrix _pltype;
+external matrix _plwidth;
+external matrix _pmargin;
+external matrix _pmcolor;
+external matrix _pmsgctl;
+external matrix _pnotify;
+external matrix _pnum;
+external matrix _pnumht;
+external matrix _protate;
+external matrix _pqgplay;
+external matrix _pqgtype;
+external matrix _pscreen;
+external matrix _pinbegwind;
+external matrix _psilent;
+external matrix _pssel;
+external matrix _pstype;
+external matrix _psym;
+external matrix _psymsiz;
+external matrix _ptitlht;
+external matrix _pworld;
+external matrix _pxpmax;
+external matrix _pxscale;
+external matrix _pypmax;
+external matrix _pyscale;
+external matrix _pwindmx;
+external matrix _pwindno;
+external matrix _pfirstw;
+external matrix _pxmem;
+external matrix _pxsci;
+external matrix _pysci;
+external matrix _pzsci;
+external matrix _pzclr;
+external matrix _pzoom;
+
+external string _pvwr;
+external string _pvwrflags;
+external string _pvwrmode;
+
+external string _pcmdlin;
+external string _pcvfile;
+external string _pdate;
+external string _phard;
+external string _plegstr;
+external string _pmsgstr;
+external string _prtfile;
+external string _ptek;
+external string _ptitle;
+external string _pxfmt;
+external string _pxlabel;
+external string _pyfmt;
+external string _pylabel;
+external matrix _pqgedit;
+
+external matrix _pmnr;
+external matrix _pmjr;
+external matrix _poptic;
+external matrix _pmtic;
+
+/* bar globals */
+external matrix _pbarwid;
+external matrix _pbartyp;
+
+/* box globals */
+external matrix _pboxctl;
+external matrix _pboxlim;
+
+/* 3d globals */
+external matrix _pbox3d;
+external matrix _psym3d;
+external matrix _pline3d;
+external matrix _psurf;
+external matrix _pview;
+external matrix _pvolume;
+external matrix _pticout;
+external string _pzlabel;
+external matrix _pzpmax;
+external matrix _pzscale;
+external string _pzfmt;
+
+/* contour globals */
+external matrix _plev;
+

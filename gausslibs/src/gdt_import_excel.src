@@ -1,0 +1,291 @@
+/* 
+** gdt_import_excel.src 
+** 
+** 
+** (C) Copyright 2004-2006  Aptech Systems, Inc. 
+** All Rights Reserved. 
+** 
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH 
+** SYSTEMS, INC.    This File Header must accompany all files using 
+** any portion, in whole or in part, of this Source Code.   In 
+** addition, the right to create such files is strictly limited by 
+** Section 2.A. of the GAUSS Applications License Agreement 
+** accompanying this Software Product. 
+** 
+** If you wish to distribute any portion of the proprietary Source 
+** Code, in whole or in part, you must first obtain written 
+** permission from Aptech Systems. 
+** 
+**-------------------**------------------**-------------------**-----------** 
+**-------------------**------------------**-------------------**-----------** 
+** 
+** 
+**> _gdt_import_excel 
+** 
+**  Purpose:    reads data from Excel file into GAUSS data set 
+** 
+**  Format:     { r,s } = _gdt_import_excel(args); 
+** 
+**  Input:      args    string array, keywords for simulation options 
+** 
+**                         file   output file name, default = "excel" 
+**                         open   resulting dataset opened in Data Tool. Default 
+**                                  is closed 
+** 
+** 
+**  Output:     r           scalar, return code.  Normal return = 0. 
+** 
+**              s           string, return message.  Normal return = "". 
+** 
+** 
+*/ 
+
+
+#include gdttools.ext 
+
+#ifOS2WIN 
+
+proc(2) = _gdt_import_excel(args); 
+
+    local fp,infname,outfname,drange,dsheet,nrange,nsheet,i1,s3, 
+          vls,opn,names,s1,s2,n0,data,overwrite,append,spech,vtypes, 
+          k,m,xrange,arow,acol; 
+
+    infname = ""; 
+    outfname = ""; 
+    opn = 0; 
+    vls = ""; 
+    nsheet = error(0); 
+    dsheet = 1; 
+    drange = "B1"; 
+    nrange = ""; 
+    vls = error(0); 
+    names = ""; 
+    overwrite = 0; 
+    append = 0; 
+    spech = "empty"$| 
+            "#N/A"$| 
+            "#VALUE!"$| 
+            "#DIV/0!"$| 
+            "#NAME?"$| 
+            "#REF!"$| 
+            "#NUM!"$| 
+            "#NULL!"$| 
+            "#ERR"; 
+
+
+    for i(1,rows(args),1); 
+
+        if args[1] $== ""; 
+            retp(-1,"No input file specified"); 
+        else; 
+
+            { s1,s2 } = token(args[i]); 
+            if lower(s1) $== "input"; 
+                 infname = s2; 
+            elseif lower(s1) $== "output"; 
+                 outfname = s2; 
+            elseif lower(s1) $== "datarange"; 
+                 drange = s2; 
+            elseif lower(s1) $== "datasheet"; 
+                 dsheet = stof(s2); 
+            elseif lower(s1) $== "namerange"; 
+                 nrange = s2; 
+            elseif lower(s1) $== "namesheet"; 
+                 nsheet = stof(s2); 
+            elseif lower(s1) $== "overwrite"; 
+                 overwrite = 1; 
+            elseif lower(s1) $== "append"; 
+                 append = 1; 
+            elseif lower(s1) $== "names"; 
+                 do until s2 $== ""; 
+                     { n0,s2 }  = token(s2); 
+                     names = names $| n0; 
+                 endo; 
+                 names = names[2:rows(names)]; 
+            elseif lower(s1) $== "translate"; 
+                 i1 = strindx(s2,"=",1); 
+                 if i1; 
+                     { s1,s3 } = token(strsect(s2,1,i1-1)); 
+                     { s2,s3 } = token(strsect(s2,i1+1,strlen(s2)-i1)); 
+                 else; 
+                     { s1,s2 } = token(s2); 
+                 endif; 
+                 if scalmiss(vls); 
+                     vls = error(0)*zeros(9,1); 
+                 endif; 
+                 i1 = indsav(s1,spech); 
+                 if i1; 
+                     vls[i1] = stof(s2); 
+                 else; 
+                     retp(-3,"Illegal special character in translate statement"); 
+                 endif; 
+            elseif lower(s1) $== "open"; 
+                opn = 1; 
+            endif; 
+
+       endif; 
+
+     endfor; 
+
+     if not strindx(infname,".xls",1); 
+           infname = infname $+ ".xls"; 
+     endif; 
+     if not strindx(outfname,".dat",1); 
+           outfname = outfname $+ ".dat"; 
+     endif; 
+     if filesa(infname) $== ""; 
+           retp(-2,"Input Excel file not found"); 
+     endif; 
+     if scalmiss(nsheet); 
+          nsheet = dsheet; 
+     endif; 
+
+     if (not overwrite) and (not append); 
+         open fp = ^outfname; 
+         if fp > 0; 
+             if outfname $== ".dat"; 
+                 fp = close(fp); 
+                 retp(-4,"No output file specified"); 
+             else; 
+                 fp = close(fp); 
+                 retp(-5,outfname$+" already exists, choose a different name"); 
+             endif; 
+         endif; 
+         fp = close(fp); 
+     endif; 
+
+     k = 1; 
+     xrange = vals(upper(drange)); 
+     do until xrange[k] < 65; 
+         k = k + 1; 
+     endo;   
+     if k == 1; 
+        retp(-6,"Illegal argument for datarange"); 
+     endif; 
+     m = strindx(drange,":",1); 
+     if m == 0; 
+         arow = stof(strsect(drange,k,strlen(drange)-k+1)); 
+     else; 
+         arow = stof(strsect(drange,k,m-k)); 
+     endif; 
+
+     data = xlsreadm(infname,drange,dsheet,vls);
+     vtypes = xlsGetSheetTypes(infname,dsheet,arow); 
+
+     if (xrange[1] > 65);
+         vtypes = vtypes[1,xrange[1]-64:cols(vtypes)];
+     endif;
+
+     if nrange $== ""; 
+         if names $== ""; 
+              names = ftostrc(seqa(1,1,cols(data)),"X%1.0lf"); 
+         elseif cols(data) /= rows(names); 
+              retp(-7,"Rows of names not equal to columns of data"); 
+         endif; 
+     else; 
+         if strindx(nrange,":",1) == 0; 
+
+            k = 1; 
+            xrange = vals(upper(nrange)); 
+            do until xrange[k] < 65; 
+                k = k + 1; 
+            endo;   
+            if k == 1; 
+               retp(-8,"Illegal argument for namerange"); 
+            endif; 
+            k = k - 1; 
+            arow = stof(strsect(nrange,k+1,strlen(nrange)-k)); 
+            acol = xrange[1:k]-64; 
+            nrange = xlsmakerange(acol|arow,acol+cols(data)-1|arow); 
+
+         endif; 
+
+         names = xlsreadsa(infname,nrange,nsheet,""); 
+         if type(names) == 6; 
+             retp(-9,"Variable name read failed"); 
+         endif; 
+     endif; 
+
+
+     if append; 
+         open fp = ^outfname for append; 
+         if colsf(fp) /= cols(data); 
+             retp(-10,"Columns of data in Excel file different from columns in GAUSS data set"); 
+         endif;   
+         if vartypef(fp) /= vtypes; 
+             retp(-11,"Column variable types in Excel file differ from columns in GAUSS data set"); 
+         endif; 
+     else; 
+         create fp = ^outfname with ^names,0,8,vtypes; 
+     endif; 
+     if fp <= 0; 
+          retp(-12,"Unable to write GAUSS data set"); 
+     endif; 
+     call writer(fp,data); 
+     fp = close(fp); 
+
+     if opn; 
+         retp(1,outfname); 
+     else; 
+         retp(0,""); 
+     endif; 
+
+endp; 
+
+#else 
+
+
+proc(2) = _gdt_import_excel(args); 
+        errorlog "Not supported on this platform"; 
+        retp(-1,""); 
+endp; 
+
+#endif 
+
+
+proc(0) = _gdt_import_excel_help; 
+
+       local s1; 
+
+       s1 = " 
+Purpose: reads data from Excel file 
+
+Format:  excel 
+         [options] 
+
+Example: excel 
+     input test1.xls 
+     output test1 
+     empty 99 
+     namerange b1:d1 
+     datarange b3:d5 
+
+Options: input       input Excel file name 
+         output      output dataset name 
+         datarange   range of data in Excel file, default = a1 
+         datasheet   sheet in Excel file containing data 
+         namerange   range of names, if any, in Excel file 
+         namesheet   sheet in Excel file containing names 
+         names       list of names if not in Excel file 
+         open        resulting dataset opened in Data Tool. Default is not open 
+         overwrite   overwrites the GAUSS data set if it already exists 
+         append      appends to existing GAUSS data set 
+         translate   special_character = num 
+                        where num is a number and special_character is one 
+                        of the following: 
+                                   
+                                empty   
+                                #N/A         
+                                #VALUE!     
+                                #DIV/0!     
+                                #NAME?       
+                                #REF!       
+                                #NUM!       
+                                #NULL!       
+                                #ERR         
+         "; 
+
+       print s1; 
+
+endp; 

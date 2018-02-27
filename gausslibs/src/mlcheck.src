@@ -1,0 +1,81 @@
+/*
+** mlcheck.src
+**
+**
+** (C) Copyright 1994-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+proc _ml_check(options,r0,s0,n0,d);
+    local i,j,sel;
+
+    if type(options) == 13;
+        if options $/= "";
+           j = 1;
+           do until j > rows(s0);
+               if upper(options) $== ""$+upper(s0[j]);
+                  goto A0;
+               endif;
+               j = j + 1;
+           endo;
+    A0:
+           if j > rows(s0);
+                sel = r0;
+           else;
+                sel = n0[j];
+           endif;
+        else;
+            if r0 > maxc(n0) or r0 < minc(n0);
+                sel = d;
+            else;
+                sel = r0;
+            endif;
+        endif;
+
+    else;
+        if options[1] $/= "";
+            options = vec(options);
+            i = 1;
+            do until i > rows(options);
+                j = 1;
+                do until j > rows(s0);
+                    if upper(options[i]) $== upper(s0[j]);
+                       goto A1;
+                    endif;
+                    j = j + 1;
+                endo;
+                i = i + 1;
+            endo;
+    A1:
+                if j > rows(s0);
+                     sel = r0;
+                else;
+                     sel = n0[j];
+                endif;
+        else;
+            if r0 > maxc(n0) or r0 < minc(n0);
+                sel = d;
+            else;
+                sel = r0;
+            endif;
+        endif;
+
+    endif;
+    retp(sel);
+endp;
+

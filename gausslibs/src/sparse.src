@@ -1,0 +1,973 @@
+#ifDLLCALL
+
+/*
+**  sparse.src - library for sparse operations
+**
+** (C) Copyright 1996-2000 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**  Format                                Purpose                     Line
+** ---------------------------------------------------------------------------
+**    x = sparseSolve(A,B)      solve Ax=B with sparse A                60
+**
+**    y = sparseFD(x,eps)       dense to sparse matrix                 187
+**
+**    y = sparseFP(x,r,c)       packed to sparse matrix                231
+**
+**    z = sparseOnes(x,r,c)     sparse matrix of ones and zeros        269
+**
+**    y = isSparse(x)           checks whether x is sparse             305
+**
+**    y = sparseEye(n)          creates sparse identity matrix         329
+**
+**    y = sparseVconcat(y,x)    vertically concatenates sparse
+**                               matrices                              352
+**
+**    y = sparseHconcat(y,x)    horizontally concatenates sparse       407
+**                               matrices
+**
+**    r = sparseRows(x)         rows of sparse matrix                  464
+**
+**    r = sparseCols(x)         columns of sparse matrix               493
+**
+**    r = sparseNZE(x)          returns number of nonzero elements
+**                              in sparse matrix                       523
+**
+**    y = denseSubmat(x,r,c)    dense submatrix of sparse matrix       551
+**
+**    y = sparseSubmat(x,r,c)   sparse submatrix of sparse matrix      604
+**
+**    z = sparseTD(x,y)         matrix product of sparse times
+**                                dense matrix                         684
+**
+**    z = sparseTrTD(x,y)       matrix product of sparse matrix
+**                                transpose times dense matrix         739
+**
+**    z = sparseTranspose(y)    tranposes sparse matrix                792
+**
+**    e = sparseTScalar(x,z,r,c) multiply scalar times sparse matrix   828
+**
+**    { a,r,s } = sparseScale(x) scale sparse matrix                   906
+**
+**    call sparseSet            resets globals to default values       948
+**
+*/
+
+
+/*
+**> sparseSolve
+**
+**
+**  Purpose:  solve Ax = B for x when A is a sparse matrix.
+**
+**  Format:  x = sparseSolve(A,B);
+**
+**  Input:  A   MxN sparse matrix.
+**
+**          B   Nx1 vector.
+**
+**  Output: x   Nx1 vector, solution of Ax = B.
+**
+**  Input Globals:
+**
+**    _sparse_Damping   if nonzero, damping coefficient for damped
+**                      least squares solve, i.e.,
+**
+**                             (   A   ) * X = ( B )
+**                             (  D*I  )       ( 0 )
+**
+**                      is solved for X where D = _sparse_Damping,
+**                      I is a conformable identity matrix, and
+**                      0 a conformable matrix of zeros.
+**
+**       _sparse_Atol   an estimate of the relative error in A.  If
+**                      zero, _sparse_Atol is assumed to be machine
+**                      precision.  Default = 0.
+**
+**       _sparse_Btol   an estimate of the relative error in B.  If
+**                      zero, _sparse_Btol is assumed to be machine
+**                      precision.  Default = 0.
+**
+**  _sparse_CondLimit   upper limit on condition of A.  Iterations
+**                      will be terminated if a computed estimate
+**                      of the condition of A exceeds _sparse_CondLimit.
+**                      If zero, set to 1 / machine precision.
+**
+**   _sparse_NumIters   maximum number of iterations
+**
+**
+**
+**  Output Globals:
+**
+**    _sparse_RetCode   termination condition:
+**
+**                       0 - X is the exact solution, no iterations
+**                           performed
+**
+**                       1 - solution is nearly exact with accuracy
+**                           on the order of _sparse_Atol and _sparse_Btol
+**
+**                       2 - solution is not exact and a least squares
+**                           solution has been found with accuracy on
+**                           the order of _sparse_Atol.
+**
+**                       3 - the estimate of the condition of A has
+**                           exceeded _sparse_CondLimit.  The system
+**                           appears to be ill-conditioned.
+**
+**                       4 - solution is nearly exact with reasonable
+**                           accuracy
+**
+**                       5 - solution is not exact and a least squares
+**                           solution has been found with reasonable
+**                           accuracy
+**
+**                       6 - iterations halted due to poor condition
+**                           given machine precision
+**
+**                       7 - _sparse_NumIters exceeded.
+**
+**
+**      _sparse_Anorm -  estimate of frobenius norm of (  A  )
+**                                                     ( D*I )
+**
+**      _sparse_Acond -  estimate of condition of A
+**
+**      _sparse_Rnorm -  estimate of norm of (  A  ) X - ( B )
+**                                           ( D*I )     ( 0 )
+**
+**     _sparse_ARnorm -  estimate of norm of (  A  )' (  A  )
+**                                           ( D*I )  ( D*I )
+**
+**     _sparse_XAnorm -  estimate of norm of X
+*/
+
+#include sparse.ext
+
+proc sparseSolve(A,B);
+
+    local x,damp,v,w,se,atol,btol,conlim,intlim,ierr,anorm,
+       acond,rnorm,arnorm,xnorm;
+    clear ierr,anorm,acond,rnorm,arnorm,xnorm;
+
+    if type(A) /= 6 or type(B) /= 6;
+        errorlog "sparseSolve:  argument is wrong type";
+        end;
+    endif;
+
+    x = zeros(sparseCols(A),1);
+    v = zeros(sparseCols(A),1);
+    w = zeros(sparseCols(A),1);
+    se = zeros(sparseCols(A),1);
+
+    damp = _sparse_Damping;
+    atol = _sparse_Atol;
+    btol = _sparse_Btol;
+    conlim = _sparse_CondLimit;
+
+    if _sparse_NumIters <= 0;
+        intlim = 2*rows(b);
+    else;
+        intlim = _sparse_NumIters;
+    endif;
+
+    dllcall sparseSolvedll(a,b,x,damp,v,w,se,atol,btol,conlim,intlim,ierr,
+               anorm,acond,rnorm,arnorm,xnorm);
+
+    _sparse_RetCode = ierr;
+    _sparse_Anorm = anorm;
+    _sparse_Acond = acond;
+    _sparse_Rnorm = rnorm;
+    _sparse_ARnorm = arnorm;
+    _sparse_Xnorm = xnorm;
+
+    retp(x);
+endp;
+
+
+
+
+/*
+**> sparseFD
+**
+**  Purpose:  dense to sparse matrix.
+**
+**  Format:  y = sparseFD(x,eps);
+**
+**  Input:   x     MxN matrix, dense matrix.
+**
+**           eps   elements of x less than eps will be treated
+**                 as zero.
+**
+**  Output:  y     Kx1 vector, sparse matrix
+**
+*/
+
+
+proc sparseFD(x,eps);
+    local r_x, c_x, y, r_y, c_y, num, aeps;
+
+    r_x = rows(x);
+    c_x = cols(x);
+
+    if eps == 0;
+        eps = __macheps;
+    endif;
+    aeps = abs(eps);
+
+    num = sumc(sumc(x .> aeps .or x .< -aeps));
+
+    r_y = floor((rows(x) + num + 5)/2) + num;
+    y = zeros(r_y,1);
+
+    dllcall sparseFDdll(x,r_x,c_x,y,eps,num);
+
+    retp(y);
+endp;
+
+
+
+/*
+**> sparseFP
+**
+**  Purpose:  packed matrix to sparse matrix.
+**
+**  Format:  y = sparseFP(x,r,c);
+**
+**  Input:  x    Mx3 matrix, packed matrix.
+**
+**          r    scalar, rows of matrix.
+**
+**          c    scalar, columns of matrix.
+**
+**  Output: y    Kx1 vector, sparse matrix.
+**
+**  Remarks:  x contains the nonzero elements of the sparse
+**            matrix.  The first column of x contains the
+**            element value, the second column the row number,
+**            and the third column the column number.
+*/
+
+
+proc sparseFP(x,r_y,c_y);
+
+    local r_x, y;
+    r_x = rows(x);
+
+    y = zeros(r_y + 2 * r_x + 4,1);
+    y = zeros(floor((r_y+r_x+5)/2)+r_x,1);
+    x = sortc(x,2);
+
+    dllcall sparseFPdll(x,r_x,y,r_y,c_y);
+
+    retp(y);
+endp;
+
+
+
+/*
+**> sparseOnes
+**
+**  Purpose:  produces sparse matrix of ones and zeros
+**
+**  Format:  y = sparseOnes(x,r,c);
+**
+**  Input:   x    Mx2 matrix, row numbers of ones in first column
+**                           and column numbers in second column
+**
+**           r    scalar, rows of matrix.
+**
+**           c    scalar, columns of matrix.
+**
+**  Output:  y    Kx1 vector, sparse matrix.
+**
+*/
+
+
+proc sparseOnes(x,r_y,c_y);
+
+    local r_x, y;
+    r_x = rows(x);
+
+    y = zeros(r_y + 2 * r_x + 4,1);
+    y = zeros(floor((r_y+r_x+5)/2)+r_x,1);
+    x = sortc(x,1);
+
+    dllcall sparseOnesdll(x,r_x,y,r_y,c_y);
+
+    retp(y);
+endp;
+
+
+
+
+/*
+**> isSparse
+**
+**  Purpose:  determine whether matrix is a sparse matrix.
+**
+**  Format:  r = isSparse(x);
+**
+**  Input:   x    MxN sparse or dense matrix.
+**
+**  Output:  r    scalar, 1 - sparse, 0 - dense.
+*/
+
+proc isSparse(x);
+    local r;
+    if cols(x) > 1;
+        retp(0);
+    endif;
+    r = 0;
+    dllcall isSparsedll(x,r);
+    retp(r==rows(x));
+endp;
+
+
+
+/*
+**> sparseEye
+**
+**  Purpose:  returns sparse identity matrix.
+**
+**  Format:  y = sparseEye(n);
+**
+**  Input:   n    scalar, order of identity matrix.
+**
+**  Output:  y    nxn sparse identity matrix.
+*/
+
+proc sparseEye(n);
+    local y;
+    y = zeros(2*n+2,1);
+
+    dllcall sparseEyedll(y,n);
+    retp(y);
+endp;
+
+
+
+
+/*
+**> sparseVConcat
+**
+**  Purpose:  concatenates a sparse matrix below
+**            another sparse matrix.
+**
+**  Format:  z = sparseVConcat(y,x);
+**
+**  Input:   y    MxN sparse matrix.
+**
+**           x    LxN sparse matrix.
+**
+**  Output:  z    (M+L)xN sparse matrix.
+*/
+
+proc sparseVConcat(y,x);
+    local n,z;
+
+    if not isSparse(y);
+        if not trapchk(4);
+            errorlog "sparseVConcat:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseVConcat:  second argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if sparseCols(x) /= sparseCols(y);
+        if not trapchk(4);
+            errorlog "sparseVConcat:  sparse matrices not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    n = sparseNZE(y) + sparseNZE(x);
+    z = zeros(floor((sparseRows(y)+sparseRows(x)+n+5)/2)+n,1);
+
+    dllcall sparseVConcatdll(z,y,x);
+    retp(z);
+endp;
+
+
+/*
+**> sparseHConcat
+**
+**  Purpose:  concatenates a sparse matrix on the right of
+**            another sparse matrix.
+**
+**  Format:  z = sparseHConcat(y,x);
+**
+**  Input:   y    MxN sparse matrix.
+**
+**           x    MxL sparse matrix.
+**
+**  Output:  z    Mx(L+N) sparse matrix.
+*/
+
+proc sparseHConcat(y,x);
+    local n,z;
+
+    if not isSparse(y);
+        if not trapchk(4);
+            errorlog "sparseHConcat:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseHConcat:  second argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if sparseRows(x) /= sparseRows(y);
+        if not trapchk(4);
+            errorlog "sparseHConcat:  sparse matrices not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    n = sparseNZE(y) + sparseNZE(x);
+    z = zeros(floor((sparseRows(y)+n+5)/2)+n,1);
+
+    dllcall sparseHConcatdll(z,y,x);
+    retp(z);
+endp;
+
+
+
+
+/*
+**> sparseRows
+**
+**  Purpose:  get number of rows in sparse matrix.
+**
+**  Format:  r = sparseRows(x);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**  Output:  r    scalar, number of rows.
+*/
+
+proc sparseRows(x);
+    local r;
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseRows:  not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    r = 0;
+    dllcall sparseRowsdll(x,r);
+    retp(r);
+endp;
+
+
+/*
+**> sparseCols
+**
+**  Purpose:  get number of cols in sparse matrix.
+**
+**  Format:  c = sparseCols(x);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**  Output:  c    scalar, number of cols.
+*/
+
+proc sparseCols(x);
+    local c;
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseCols:  not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    c = 0;
+    dllcall sparseColsdll(x,c);
+    retp(c);
+endp;
+
+
+/*
+**> sparseNZE
+**
+**  Purpose:  get number of nonzero elements.
+**
+**  Format:  r = sparseNZE(x);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**  Output:  r    scalar, number of nonzero elements.
+*/
+
+proc sparseNZE(x);
+    local r;
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseRows:  not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    r = 0;
+    dllcall sparseNZEdll(x,r);
+    retp(r);
+endp;
+
+
+/*
+**> denseSubmat
+**
+**  Purpose:  get dense submatrix of sparse matrix.
+**
+**  Format:  e = denseSubmat(x,r,c);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**           r    Kx1 vector, row indices.
+**
+**           c    Lx1 vector, column indices.
+**
+**  Output:  e    KxL dense matrix.
+**
+**  Remarks:  if r or c are scalar zeros, all rows or columns will
+**            be returned.
+*/
+
+
+proc denseSubmat(x,r,c);
+    local e, rows_r, rows_c;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "denseSubmat:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    r=vec(r);
+    c=vec(c);
+    if r == 0;
+        r = seqa(1,1,sparseRows(x));
+    endif;
+    if c == 0;
+        c = seqa(1,1,sparseCols(x));
+    endif;
+
+    rows_r = rows(r);
+    rows_c = rows(c);
+    e = ones(rows(r),rows(c));
+
+    dllcall denseSubmatdll(x,e,r,rows_r,c,rows_c);
+
+    retp(e);
+endp;
+
+
+/*
+**> sparseSubmat
+**
+**  Purpose:  get sparse submatrix of sparse matrix.
+**
+**  Format:  e = sparseSubmat(x,r,c);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**           r    Kx1 vector, row indices.
+**
+**           c    Lx1 vector, column indices.
+**
+**  Output:  e    KxL sparse matrix.
+**
+**  Remarks:  if r or c are scalar zeros, all rows or columns will
+**            be returned.
+*/
+
+proc sparseSubmat(x,r,c);
+    local e, rows_r, rows_c, len;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseSubmat:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    r=vec(r);
+    c=vec(c);
+    len = 0;
+
+    if r == 0;
+        r = seqa(1,1,sparseRows(x));
+    endif;
+    if minc(r) < 0 or maxc(r) > sparseRows(x);
+        if not trapchk(4);
+            errorlog "sparseSubmat:  rows of submatrix exceed rows of matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if c /= 0;
+        if minc(c) < 0 or maxc(c) > sparseCols(x);
+            if not trapchk(4);
+                errorlog "sparseSubmat:  columns of submatrix exceed columns"\
+                         " of matrix";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+    endif;
+
+    rows_r = rows(r);
+
+    if c == 0;
+
+        e = zeros(floor((rows_r+sparseRows(x)+5)/2)+sparseRows(x),1);
+        dllcall sparseSubmatRowsdll(x,e,r,rows_r,len);
+
+    else;
+
+        rows_c = rows(c);
+        e = zeros(floor((rows_r+rows_r*rows_c+5)/2)+rows_r*rows_c,1);
+        dllcall sparseSubmatdll(x,e,r,rows_r,c,rows_c,len);
+
+    endif;
+    retp(e[1:len]);
+endp;
+
+
+
+
+/*
+**> sparseTD
+**
+**  Purpose:  multiply sparse matrix times dense matrix.
+**
+**  Format:  z = sparseTD(x,y);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**           y    NxL matrix, dense matrix.
+**
+**  Output:  z    MxL dense matrix, the result of x times y.
+**
+*/
+
+
+proc sparseTD(x,y);
+    local r_x, c_x, r_y, c_y, z;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseTD:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    r_y = rows(y);
+    c_x = sparseCols(x);
+
+    if c_x /= r_y;
+        if not trapchk(4);
+            errorlog "sparseTimesdense:  matrices not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    r_x = sparseRows(x);
+    c_y = cols(y);
+
+    z = zeros(r_x,c_y);
+
+    dllcall sparseTDdll(x,y,z,c_y);
+
+    retp(z);
+endp;
+
+
+
+
+/*
+**> sparseTrTD
+**
+**  Purpose:  multiply sparse matrix transposed times dense matrix.
+**
+**  Format:  z = sparseTrTD(x,y);
+**
+**  Input:   x    NxM GAUSS sparse matrix.
+**
+**           y    NxL matrix, dense matrix.
+**
+**  Output:  z    MxL dense matrix, the result of x transpose times y.
+**
+*/
+
+
+proc sparseTrTD(x,y);
+    local r_x, c_x, r_y, c_y, z;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseTD:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    r_y = rows(y);
+    r_x = sparseRows(x);
+
+    if r_x /= r_y;
+        if not trapchk(4);
+            errorlog "sparseTransposeTimesdense:  matrices not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    c_y = cols(y);
+    c_x = sparseCols(x);
+
+    z = zeros(c_x,c_y);
+
+    dllcall sparseTrTDdll(x,y,z,c_y);
+
+    retp(z);
+endp;
+
+
+
+
+
+
+
+/*
+**> sparseTranpose
+**
+**  Purpose:  transposes a sparse matrix
+**
+**  Format:  z = sparseTranspose(y);
+**
+**  Input:   y    MxN sparse matrix.
+**
+**  Output:  z    NxM sparse matrix, transpose of y.
+*/
+
+proc sparseTranspose(y);
+    local n,z;
+
+    if not isSparse(y);
+        if not trapchk(4);
+            errorlog "sparseTranspose:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    n = sparseNZE(y);
+    z = zeros(floor((sparseCols(y)+n+5)/2)+n,1);
+
+    dllcall sparseTransposedll(z,y);
+    retp(z);
+endp;
+
+
+
+
+
+
+/*
+**> sparseTscalar
+**
+**  Purpose:  multiplies a scalar times a sparse matrix
+**
+**  Format:  e = sparseTscalar(x,z,r,c);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**           z    scalar, multiplicand
+**
+**           r    Kx1 vector, row indices.
+**
+**           c    Lx1 vector, column indices.
+**
+**  Output:  e    KxL sparse matrix.
+**
+**  Remarks:  if r or c are scalar zeros, all rows or columns will
+**            be included.
+*/
+
+proc sparseTscalar(x,z,r,c);
+    local rows_r, rows_c;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseTScalar:  first argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+
+    if r == 0;
+        r = seqa(1,1,sparseRows(x));
+    endif;
+    r = sortc(vec(r),1);
+    rows_r = rows(r);
+
+    if c == 0;
+        c = seqa(1,1,sparseCols(x));
+    endif;
+    c = sortc(vec(c),1);
+    rows_c = rows(c);
+
+    if r[1] < 1 or r[rows_r] > sparseRows(x);
+        if not trapchk(4);
+            errorlog "sparseTscalar:  rows of submatrix exceed rows of matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if c[1] < 1 or c[rows_c] > sparseCols(x);
+        if not trapchk(4);
+            errorlog "sparseTScalar:  columns of submatrix exceed columns"\
+                     " of matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    r = r - 1;
+    c = c - 1;
+
+    dllcall sparseTscalardll(x,z,r,rows_r,c,rows_c);
+
+    retp(x);
+endp;
+
+
+
+
+
+
+
+
+/*
+**> sparseScale
+**
+**  Purpose:  scales sparse matrix
+**
+**  Format:  { a,r,s } = sparseScale(x);
+**
+**  Input:   x    MxN sparse matrix.
+**
+**  Output:  a    MxN scaled sparse matrix.
+**
+**           r    Mx1 row scale factors
+**
+**           s    Nx1 column scale factors
+**
+*/
+
+proc(3) = sparseScale(x);
+    local r, s;
+
+    if not isSparse(x);
+        if not trapchk(4);
+            errorlog "sparseScale:  argument not a sparse matrix";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    r = zeros(sparseRows(x),1);
+    s = zeros(sparseCols(x),1);
+
+    dllcall sparseScaledll(x,r,s);
+
+    retp(x,r,s);
+endp;
+
+
+
+
+
+
+
+/*
+**  sparseSet  -  resets global matrices to default values
+**
+*/
+
+
+
+proc(0) = sparseSet;
+
+  _sparse_Damping = 0;
+  _sparse_Atol = 0;
+  _sparse_Btol = 0;
+  _sparse_CondLimit = 0;
+  _sparse_NumIters = 0;
+  _sparse_RetCode = 0;
+  _sparse_Anorm = 0;
+  _sparse_Acond = 0;
+  _sparse_Rnorm = 0;
+  _sparse_ARnorm = 0;
+  _sparse_Xnorm = 0;
+endp;
+
+
+
+
+
+#endif

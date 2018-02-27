@@ -1,0 +1,1344 @@
+/*
+** datalist.src
+** (C) Copyright 1991-2000 by Aptech Systems, Inc.
+** All Rights Reserved Worldwide.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> datalist
+**
+**  Purpose:    List a GAUSS data set.
+**
+**  Format:     datalist dataset var1 var2 ... ;
+**
+**              dataset    name of file to be selected from.
+**
+**              vars       if none are listed,  all variables will be printed.
+**
+**  Globals:    __range    range of records in the data set to list.  The
+**                         default is the whole data set.
+**
+**              __miss     deletion of missing data.
+**
+**                            1   delete cases containing missing data
+**                            0   missing data will be displayed
+**
+**              __prec    the number of places to the right of the decimal
+**                        point in the listing.
+**
+**  Example:    datalist freq age sex pay;
+**
+**           This command will display three variables age, sex, and pay
+**           of the data set freq.dat.
+*/
+
+#include gauss.ext
+
+proc _sweeppath(path);
+    local delim, di;
+
+#ifUNIX
+    delim = "/";
+    di = strindx(path, "\\", 1);
+    if di;
+        path = strsect(path, 1, di-1) $+ "/" $+ strsect(path, di+1, strlen(path));
+        retp(_sweeppath(path));
+    else;
+        retp(path);
+    endif;
+#else
+    delim = "\\";
+    di = strindx(path, "/", 1);
+    if di;
+        path = strsect(path, 1, di-1) $+ "\\" $+ strsect(path, di+1, strlen(path));
+        retp(_sweeppath(path));
+    else;
+        retp(path);
+    endif;
+#endif;
+
+endp;
+
+keyword datalist(strng);
+
+    local dataset, varnm, str, temp, fp, np;
+
+    if strng $== "";
+
+    newfile:
+
+        print "Data set: ";;
+#ifDOS
+#else
+        print /flush "";;
+#endif
+        strng = cons;
+        if strng $== "";
+            retp;
+        endif;
+
+        strng = _sweeppath(strng);
+
+        print;
+    newvars:
+
+        print "Variables to list: ";;
+#ifDOS
+#else
+        print /flush "";;
+#endif
+        temp = cons;
+        print;
+        if temp $== "?";
+            open fp = ^strng;
+            if fp == -1;
+                print "'" strng "'" " not found";
+                goto newfile;
+            else;
+                fp = close(fp);
+                print $getname(strng)';
+                goto newvars;
+            endif;
+        endif;
+        strng = strng $+ " " $+ temp;
+    else;
+        strng = _sweeppath(strng);
+    endif;
+
+    str = chrs(missrv(miss(miss(miss(vals(strng),10),13),44),32));
+
+    { dataset, str } = token(str);
+    np = 0;
+    varnm = { };
+
+    do while strlen(str);
+        { temp,str } = token(str);
+        if strsect(temp, 1, 1) $== "-";
+            if temp $== "-np";
+                np = 1;
+            elseif temp $== "-";
+                { temp, str } = token(str);
+                if temp $== np;
+                    np = 1;
+                endif;
+            endif;
+        else;
+            varnm = varnm|temp;
+        endif;
+    endo;
+
+    if scalerr(varnm);
+        varnm = 0;
+    endif;
+
+    call _dtlist(dataset, varnm, __prec, np);
+    retp;
+endp;
+
+#ifDOS
+
+proc (0) = _dtlist(infile, vname, dgt, np);
+
+    local colper,fin,flag,inindx,invar,k,ky, nrow,ncol,dcol,dflt, vtype,nr,
+        start,outlbl,qq,rlbl,tx,x,nm,rmax,dfltc, csrold,dlstpau,dlstdgt,
+        lastobs,counter,rpos,cstrt;
+    cstrt = 1;
+    csrold = csrtype(0);
+    clear dlstpau;
+    fin = -1;
+    flag = 1;
+    dflt = 27;
+    nrow = 20;
+
+    dcol = 65;
+    dfltc = "Esc";
+    cls;
+
+    infile = "" $+ infile;
+    open fin = ^infile;
+    if fin == -1;
+        errorlog "ERROR:  Can't open file " $+ infile $+ ".";
+        ndpclex;
+        print;
+        call csrtype(csrold);
+        retp;
+    endif;
+    if vname == 0;
+        invar = getname(infile);
+    else;
+        invar = vname;
+    endif;
+    { nr,start,counter,lastobs } = _rngchk(infile,__range);
+
+    rmax = rowsf(fin);
+    if rmax > lastobs;
+        rmax = lastobs;
+    endif;
+
+    dlstdgt = dgt;
+    if np == 0;
+        dlstpau = 1;
+        nr = nrow;
+    else;
+        dlstpau = 0;
+    endif;
+
+    { nm, inindx } = indices(infile, invar);
+    { outlbl,vtype } = nametype(nm,__vtype);
+
+    call seekr(fin,start);
+    do while 1;
+
+        x = readr(fin,nr);
+        x = x[.,inindx];
+        counter = counter+rows(x);
+        if counter > lastobs;
+            x = trimr(x, 0, counter-lastobs);
+        endif;
+        if __miss == 1;
+            x = packr(x);
+        endif;
+        if scalmiss(x);
+            continue;       /* no observations returned */
+        endif;
+
+        if flag;
+            if vtype == 0;
+                colper = 10;
+            else;
+                tx = packr(miss(vtype,0)~x')';
+                k = 2+strlen(ftos( maxc(maxc(tx)),"#*.*lG",1,dlstdgt));
+                clear tx;
+                colper = maxc(k|10);        /* columns per number */
+                if colper > dcol;
+                    colper = dcol;
+                endif;
+            endif;
+            ncol = trunc(dcol/colper);      /* number of columns */
+            flag = 0;
+        endif;
+
+        rlbl = 0$+"#"$+ftocv(seqa(start,1,rows(x)),1,0);
+        { qq,cstrt } = _dtwrt(infile,x,rlbl,outlbl,vtype,dlstpau,
+            ncol, colper,dlstdgt,cstrt,dflt,dfltc);
+        if qq == 1;
+            goto quit;
+        endif;
+        print;
+        if dlstpau;
+
+            if qq > 1;
+                ky = qq;
+                goto havekey;
+            endif;
+
+        skipkey:
+
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+        havekey:
+
+            if ky == 27;    /* ESC */
+                goto quit;
+
+            elseif ky == 1081;      /* PGDN */
+                dflt = 1081;
+                dfltc = "PgDn";
+                rpos = seekr(fin,-1);
+                if rpos + nrow == rmax;
+                    call seekr(fin,rpos-nrow);
+                    counter = seekr(fin,-1)-1;
+                elseif rpos == rmax + 1;
+                    call seekr(fin,rpos-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos > rmax;
+                    call seekr(fin,rmax-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos + nrow > rmax;
+                    call seekr(fin,rmax-rows(x)+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            elseif ky == 1073;      /* PGUP */
+                dflt = 1073;
+                dfltc = "PgUp";
+                rpos = seekr(fin,-1);
+                if rpos - 2*nrow < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-2*nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1072;      /* CURSOR_UP */
+                dflt = 1072;
+                dfltc "\30";
+
+                rpos = seekr(fin,-1);
+                if rpos - nrow - 1 < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-nrow-1);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1080;      /* CURSOR_DN */
+                dflt = 1080;
+                dfltc = "\31";
+
+                rpos = seekr(fin,-1);
+                if rmax < nrow;
+                    call seekr(fin,1);
+                elseif rpos+1 > rmax;
+                    call seekr(fin,rmax-nrow+1);
+                elseif not eof(fin);
+                    call seekr(fin,rpos-nrow+1);
+                else;
+                    call seekr(fin,rpos-nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1071;      /* HOME */
+                dflt = 1071;
+                dfltc = "Home";
+                call seekr(fin,1);
+                counter = 0;
+
+            elseif ky == 1079;      /* END */
+                dflt = 1079;
+                dfltc = "End";
+                if rmax < nrow;
+                    call seekr(fin,1);
+                    counter = 0;
+                else;
+                    call seekr(fin,rmax-nrow+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            else;
+                goto skipkey;
+            endif;
+            cls;
+
+        endif;
+        start = counter+1;
+    endo;
+
+quit:
+
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    ndpclex;
+    call csrtype(csrold);
+    retp;
+
+endp;
+
+proc (2) = _dtwrt(lbl,mat,rlbl,clbl,ctyp,pause,ncol, colper,dlstdgt,cstrt,
+    dflt,dfltc);
+
+    local lcnprt,cnprt,cslct,fmt,ky,msk,pcsn,oldnfmt,oldcfmt,klist;
+
+    /* Home,End, PgDn,PgUp,down,up, rt, lft, ^rt, ^lft,? */
+    klist = { 1071,1079,1081,1073,1080,1072,1075,1077,1115,1116,63 };
+
+    pcsn = dlstdgt;
+    cnprt = minc(ncol|cols(mat));
+    do while 1;
+
+        /* display the title */
+        if strindx(lower(lbl), ".dat", 1);
+            _cntrprt(1, _sweeppath(lower(getpath(lbl))),vals("_"));
+        else;
+            _cntrprt(1, _sweeppath(lower(getpath(lbl $+ ".dat"))),vals("_"));
+        endif;
+        print;
+
+        /* display the data matrix */
+        cslct = seqa(cstrt,1,cnprt);
+        msk = zeros(1,cnprt+1);
+        fmt = "-*.*s"~colper~colper|((zeros(cnprt,1)$+("*.*s"))~
+            (zeros(cnprt,1) +(colper~9)));
+        if clbl[1,1] ne 0;
+            print;
+            call printfm(""~clbl[cslct,.]',msk,fmt);
+        endif;
+        msk = ctyp[cslct];
+        print;
+        msk = 0~msk';
+        oldnfmt = formatnv("#*.*lG"~colper~pcsn);
+        oldcfmt = formatcv("*.*s"~colper~colper);
+        call printfmt(rlbl~mat[.,cslct],msk);
+        if rows(mat) == 1;
+            print;
+        endif;
+        cstrt = cstrt+minc(ncol|cols(mat));
+        lcnprt = cnprt;
+        cnprt = minc(cnprt|(cols(mat)-cstrt+1));
+
+    skipkey:
+
+        if pause;
+            _cntrprt(24,"",vals("_"));
+
+            print "PgDn  PgUp  Home  End  \17  \16  \30  \31  Ctrl-\17" "  "\
+                "Ctrl-\16  ?  Esc  [" dfltc "] ";;
+
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+            if ky == 27;
+                goto quit;
+
+            elseif ky == 1116;      /* CTRL_RIGHT */
+                dflt = 1116;
+                dfltc = "Ctrl-\16";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cols(mat)-cnprt+1;
+
+            elseif ky == 1115;      /* CTRL_LEFT */
+                dflt = 1115;
+                dfltc = "Ctrl-\17";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = 1;
+
+            elseif ky == 1077;      /* CURSOR_RIGHT */
+                dflt = 1077;
+                dfltc = "\16";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt+1;
+                if cstrt > cols(mat)-cnprt+1;
+                    cstrt = cols(mat)-cnprt+1;
+                endif;
+            elseif ky == 1075;      /* CURSOR_LEFT */
+                dflt = 1075;
+                dfltc = "\17";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt-1;
+                if cstrt < 1;
+                    cstrt = 1;
+                endif;
+
+            elseif ky == 1071;      /* Home */
+                cstrt = 1;
+                retp(ky,cstrt);
+
+            elseif ky == 1079;      /* End */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cols(mat)-cnprt+1;
+                retp(ky,cstrt);
+
+            elseif ky == 63;        /* ? */
+                print;
+                print;
+                print "Datalist Commands :";
+                print;
+                print "PgDn     Page Down";
+                print "PgUp     Page Up";
+                print "\16        right 1 column";
+                print "\17        left  1 column";
+                print "\30        up   1 row";
+                print "\31        down 1 row";
+                print "ctrl-\16   page Right";
+                print "ctrl-\17   page Left";
+                print "Home     upper left element";
+                print "End      lower right element";
+                print "Esc      quit";
+                print;
+                print;
+                print "Press Return to continue...";
+                call keyw;
+                ky = dflt;
+                goto skipkey;
+
+            elseif not (ky /= klist);
+                if cstrt > cols(mat);
+                    cstrt = maxc(1|cols(mat) - ncol + 1);
+                else;
+                    cstrt = cstrt-ncol;
+                endif;
+                ndpclex;
+                cls;
+                retp(ky,cstrt);
+            else;
+                goto skipkey;
+            endif;
+            cls;
+        endif;
+    endo;
+    ndpclex;
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    retp(0,cstrt);
+quit:
+
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    ndpclex;
+    retp(1,1);
+endp;
+
+proc (0) = _cntrprt(row,str,pv);
+    local pad;
+    locate row,1;
+    if str $== "";
+        print chrs(zeros(80,1)+pv);;
+    else;
+        pad = chrs(zeros(floor((80-strlen(str))/2)-2,1)+pv);
+        print pad " " str " " pad;;
+    endif;
+endp;
+
+#else
+
+proc (0) = _dtlist(infile, vname, dgt, np);
+
+    local colper,fin,flag,inindx,invar,k,ky,n,nrow,ncol,dcol,dflt, vtype,
+        nr,start,outlbl,qq,rlbl,tx,x,nm,rmax,dfltc,s,v, csrold,dlstpau,
+        dlstdgt,lastobs,counter,rpos,cstrt;
+    cstrt = 1;
+    csrold = csrtype(0);
+    clear dlstpau;
+    fin = -1;
+    flag = 1;
+    dflt = 81;
+    nrow = 20;
+    ncol = 6;
+    dcol = 65;
+    dfltc = "Quit";
+
+    infile = "" $+ infile;
+    open fin = ^infile;
+    if fin == -1;
+        errorlog "ERROR:  Can't open file " $+ infile $+ ".";
+        ndpclex;
+        print;
+        call csrtype(csrold);
+        retp;
+    endif;
+    if vname == 0;
+        invar = getname(infile);
+    else;
+        invar = vname;
+    endif;
+    { nr,start,counter,lastobs } = _rngchk(infile,__range);
+
+    rmax = rowsf(fin);
+    if rmax > lastobs;
+        rmax = lastobs;
+    endif;
+
+    dlstdgt = dgt;
+    if np == 0;
+        dlstpau = 1;
+        nr = nrow;
+    else;
+        dlstpau = 0;
+    endif;
+
+    { nm, inindx } = indices(infile, invar);
+    { outlbl,vtype } = nametype(nm,__vtype);
+
+    call seekr(fin,start);
+    do while 1;
+        nr = nrow;
+
+        x = readr(fin,nr);
+        x = x[.,inindx];
+        counter = counter+rows(x);
+        if counter > lastobs;
+            x = trimr(x, 0, counter-lastobs);
+        endif;
+        if __miss == 1;
+            x = packr(x);
+        endif;
+        if scalmiss(x);
+            continue;       /* no observations returned */
+        endif;
+
+        if flag;
+            if vtype == 0;
+                colper = 10;
+            else;
+                tx = packr(miss(vtype,0)~x')';
+                k = 2+strlen(ftos( maxc(maxc(tx)),"#*.*lG",1,dlstdgt));
+                clear tx;
+                colper = k;         /* columns per number */
+/*                if colper > dcol; colper = dcol; endif; */
+            endif;
+        /* ncol = trunc(dcol/colper); */
+/* number of columns */
+            flag = 0;
+        endif;
+
+        rlbl = 0$+"#"$+ftocv(seqa(start,1,rows(x)),1,0);
+        { qq,cstrt } = _dtwrt(infile,x,rlbl,outlbl,vtype,dlstpau,ncol,
+            colper,dlstdgt,cstrt,dflt,dfltc);
+        if qq == 1;
+            goto quit;
+        endif;
+        print;
+        if dlstpau;
+
+            if qq > 1;
+                ky = qq;
+                goto havekey;
+            endif;
+
+        skipkey:
+
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+        havekey:
+
+            if ky == 81 or ky == 113;       /* Quit */
+                goto quit;
+
+            elseif ky == 100;       /* d -> pgDn */
+                dflt = 100;
+                dfltc = "down";
+                rpos = seekr(fin,-1);
+                if rpos + nrow == rmax;
+                    call seekr(fin,rpos-nrow);
+                    counter = seekr(fin,-1)-1;
+                elseif rpos == rmax + 1;
+                    call seekr(fin,rpos-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos > rmax;
+                    call seekr(fin,rmax-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos + nrow > rmax;
+                    call seekr(fin,rmax-rows(x)+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            elseif ky == 117;       /* u -> pgUp */
+                dflt = 117;
+                dfltc = "up";
+                rpos = seekr(fin,-1);
+                if rpos - 2*nrow < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-2*nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 85 or ky == 45;    /* U,- -> up */
+                dflt = ky;
+                if dflt == 85;
+                    dfltc = "Up";
+                else;
+                    dfltc = "-";
+                endif;
+                rpos = seekr(fin,-1);
+                if rpos - nrow - 1 < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-nrow-1);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 68 or ky == 43;    /* D,+ -> down */
+                dflt = ky;
+                if dflt == 68;
+                    dfltc = "Down";
+                else;
+                    dfltc = "+";
+                endif;
+                rpos = seekr(fin,-1);
+                if rmax < nrow;
+                    call seekr(fin,1);
+                elseif rpos+1 > rmax;
+                    call seekr(fin,rmax-nrow+1);
+                elseif not eof(fin);
+                    call seekr(fin,rpos-nrow+1);
+                else;
+                    call seekr(fin,rpos-nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 84 or ky == 116;           /* T,t -> Top */
+                dflt = 84;
+                dfltc = "Top";
+                call seekr(fin,1);
+                counter = 0;
+
+            elseif ky == 66 or ky == 98;    /* B,b -> Bottom */
+                dflt = 66;
+                dfltc = "Bottom";
+                if rmax < nrow;
+                    call seekr(fin,1);
+                    counter = 0;
+                else;
+                    call seekr(fin,rmax-nrow+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            elseif ky == 79 or ky == 111;           /* Options */
+
+                dfltc = "Quit";
+                print /flush "Precision  Width  Columns  Rows  Quit  ["
+                    dfltc "] ";;
+                ky = 0;
+                do while ky == 0;
+
+                    ky = keyw;
+                    if ky == 10 or ky == 13 or ky == 81 or ky == 113;
+                        dflt = 79;
+                        dfltc = "Options";
+                        counter = start-1;
+
+                    elseif ky == 80 or ky == 112;
+                        print "Precision : ";;
+                        s = cons;
+                        if strlen(s) > 0;
+                            v = stof(s);
+                            if v > 0 and v < 17;
+                                dlstdgt = v;
+                                counter = start-1;
+                            endif;
+                        endif;
+
+                    elseif ky == 87 or ky == 119;
+                        print "Column width : ";;
+                        s = cons;
+                        if strlen(s) > 0;
+                            v = stof(s);
+                            if v > 0 and v < 51;
+                                colper = v;
+                                counter = start-1;
+                            endif;
+                        endif;
+
+                    elseif ky == 67 or ky == 99;
+                        print "Number of columns : ";;
+                        s = cons;
+                        if strlen(s) > 0;
+                            v = stof(s);
+                            if v > 0 and v < 101;
+                                ncol = minc(v|cols(x));
+                                counter = start-1;
+                            endif;
+                        endif;
+
+                    elseif ky == 82 or ky == 114;
+                        print "Number of rows : ";;
+                        s = cons;
+                        if strlen(s) > 0;
+                            v = stof(s);
+                            if v > 0 and v <= 101;
+                                nrow = minc(v|rmax);
+
+                                rpos = seekr(fin,-1);
+                                if rpos+1 > rmax;
+                                    call seekr(fin,maxc(1|rmax-nr+1));
+                                elseif not eof(fin);
+                                    call seekr(fin,maxc(1|rpos-nr));
+                                else;
+                                        /* call seekr(fin,maxc(1|rpos-
+                                        :: nrow));
+                                        */
+                                    errorlog "ERROR:  Internal Error 129";
+                                endif;
+                                counter = seekr(fin,-1)-1;
+                            endif;
+                        endif;
+
+                    else;
+                        ky = 0;
+
+                    endif;
+                endo;
+            else;
+                goto skipkey;
+            endif;
+
+        endif;
+        start = counter+1;
+        call seekr(fin,start);
+    endo;
+
+quit:
+
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    ndpclex;
+    call csrtype(csrold);
+    retp;
+
+endp;
+
+proc (2) = _dtwrt(lbl,mat,rlbl,clbl,ctyp,pause,ncol, colper,dlstdgt,cstrt,
+    dflt,dfltc);
+
+    local lcnprt,cnprt,cslct,fmt,ky,msk,pcsn,oldnfmt,oldcfmt,klist;
+
+    klist = {
+        85,117,  /* U, u */
+        68,100,  /* D, d */
+        76,108,  /* L, l */
+        82,114,  /* R, r */
+        84,116,  /* T, t */
+        66,98,   /* B, b */
+        72,104,  /* H, h */
+        69,101,  /* E, e */
+        79,111,  /* O, o */
+        43,45,   /* +, - */
+        63,      /* ?    */
+        81,113   /* Q, q */
+        };
+
+    pcsn = dlstdgt;
+    cnprt = minc(ncol|cols(mat));
+    do while 1;
+
+        /* display the title */
+        if strindx(lower(lbl), ".dat", 1);
+            _cntrprt(1, _sweeppath(getpath(lbl)), vals("_"));
+        else;
+            _cntrprt(1, _sweeppath(getpath(lbl $+ ".dat")), vals("_"));
+        endif;
+
+        /* display the data matrix */
+        cslct = seqa(cstrt,1,cnprt);
+        msk = zeros(1,cnprt+1);
+        fmt = "*.*s"~colper~colper|((zeros(cnprt,1)$+("*.*s"))~
+            (zeros(cnprt,1) +(colper~9)));
+        if clbl[1,1] ne 0;
+            print;
+            call printfm(""~clbl[cslct,.]',msk,fmt);
+        endif;
+        msk = ctyp[cslct];
+        print;
+        msk = 0~msk';
+        oldnfmt = formatnv("#*.*lG"~colper~pcsn);
+        oldcfmt = formatcv("*.*s"~colper~colper);
+        call printfmt(rlbl~mat[.,cslct],msk);
+        if rows(mat) == 1;
+            print;
+        endif;
+        cstrt = cstrt+minc(ncol|cols(mat));
+        lcnprt = cnprt;
+        cnprt = minc(cnprt|(cols(mat)-cstrt+1));
+
+    skipkey:
+
+        if pause;
+            _cntrprt(24,"",vals("_"));
+
+            print /flush "Up  Down  Left  Right  Top  Bottom  Home  End  "
+                "Options  +  -  ?  Quit  [" dfltc "] ";;
+
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+            if ky == 81 or ky == 113;
+                goto quit;
+
+            elseif ky == 82;        /* R -> col right */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt+1;
+                if cstrt > cols(mat)-cnprt+1;
+                    cstrt = cols(mat)-cnprt+1;
+                endif;
+                dflt = 82;
+                dfltc = "Right";
+
+            elseif ky == 76;        /* L -> col left */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt-1;
+                if cstrt < 1;
+                    cstrt = 1;
+                endif;
+                dflt = 76;
+                dfltc = "Left";
+
+            elseif ky == 114;       /* r -> page right */
+                cnprt = minc(ncol|cols(mat));
+                if cstrt > cols(mat)-cnprt+1;
+                    cstrt = cols(mat)-cnprt+1;
+                endif;
+                dflt = 114;
+                dfltc = "right";
+
+            elseif ky == 108;       /* l -> page left */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt - 2*cnprt;
+                if cstrt < 1;
+                    cstrt = 1;
+                endif;
+                dflt = 108;
+                dfltc = "left";
+
+            elseif ky == 72 or ky == 104;           /* Home */
+                cstrt = 1;
+                cnprt = minc(ncol|cols(mat));
+                dflt = 72;
+                dfltc = "Home";
+
+            elseif ky == 69 or ky == 101;           /* End */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cols(mat)-cnprt+1;
+                dflt = 69;
+                dfltc = "End";
+
+            elseif ky == 63;        /* ? */
+                print;
+                print;
+                print "Datalist Commands :";
+                print;
+                print "u    page Up";
+                print "d    page Down";
+                print "l    page Left";
+                print "r    page Right";
+                print;
+                print "U,+  up    1 row";
+                print "D,-  down  1 row";
+                print "L    left  1 column";
+                print "R    right 1 column";
+                print;
+                print "T,t  top row";
+                print "B,b  bottom row";
+                print "H,h  home column";
+                print "E,e  end column";
+                print;
+                print "O,o  options menu";
+                print "Q,q  quit";
+                print;
+                print "Options:";
+                print "   P,p  set precision";
+                print "   W,w  set column width";
+                print "   C,c  set # of columns";
+                print "   R,r  set # of rows";
+                print;
+                print "Press Return to continue...";
+                print;
+                print;
+                call keyw;
+                ky = dflt;
+                goto skipkey;
+
+            elseif not (ky /= klist);
+                if cstrt > cols(mat);
+                    cstrt = maxc(1|cols(mat) - ncol + 1);
+                else;
+                    cstrt = cstrt-ncol;
+                endif;
+                ndpclex;
+
+                retp(ky,cstrt);
+            else;
+                goto skipkey;
+            endif;
+
+        endif;
+    endo;
+    ndpclex;
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    retp(0,cstrt);
+quit:
+
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    ndpclex;
+    retp(1,1);
+endp;
+
+proc (0) = _cntrprt(row,str,pv);
+    local pad;
+
+    if str $== "";
+        print chrs(zeros(80,1)+pv);
+    else;
+        pad = chrs(zeros(floor((80-strlen(str))/2)-2,1)+pv);
+        print pad " " str " " pad;
+    endif;
+endp;
+
+#endif
+
+#ifdef OLDOS2WIN
+
+proc (0) = _dtlist(infile, vname, dgt, np);
+
+    local colper,fin,flag,inindx,invar,k,ky, nrow,ncol,dcol,dflt, vtype,nr,
+        start,outlbl,qq,rlbl,tx,x,nm,rmax,dfltc, csrold,dlstpau,dlstdgt,
+        lastobs,counter,rpos,cstrt;
+    cstrt = 1;
+    csrold = csrtype(0);
+    clear dlstpau;
+    fin = -1;
+    flag = 1;
+    dflt = 27;
+    nrow = 20;
+
+    dcol = 65;
+    dfltc = "Esc";
+    cls;
+
+    infile = "" $+ infile;
+    open fin = ^infile;
+    if fin == -1;
+        errorlog "ERROR:  Can't open file " $+ infile $+ ".";
+        ndpclex;
+        print;
+        call csrtype(csrold);
+        retp;
+    endif;
+    if vname == 0;
+        invar = getname(infile);
+    else;
+        invar = vname;
+    endif;
+    { nr,start,counter,lastobs } = _rngchk(infile,__range);
+
+    rmax = rowsf(fin);
+    if rmax > lastobs;
+        rmax = lastobs;
+    endif;
+
+    dlstdgt = dgt;
+    if np == 0;
+        dlstpau = 1;
+        nr = nrow;
+    else;
+        dlstpau = 0;
+    endif;
+
+    { nm, inindx } = indices(infile, invar);
+    { outlbl,vtype } = nametype(nm,__vtype);
+
+    call seekr(fin,start);
+    do while 1;
+
+        x = readr(fin,nr);
+        x = x[.,inindx];
+        counter = counter+rows(x);
+        if counter > lastobs;
+            x = trimr(x, 0, counter-lastobs);
+        endif;
+        if __miss == 1;
+            x = packr(x);
+        endif;
+        if scalmiss(x);
+            continue;       /* no observations returned */
+        endif;
+
+        if flag;
+            if vtype == 0;
+                colper = 10;
+            else;
+                tx = packr(miss(vtype,0)~x')';
+                k = 2+strlen(ftos( maxc(maxc(tx)),"#*.*lG",1,dlstdgt));
+                clear tx;
+                colper = maxc(k|10);        /* columns per number */
+                if colper > dcol;
+                    colper = dcol;
+                endif;
+            endif;
+            ncol = trunc(dcol/colper);      /* number of columns */
+            flag = 0;
+        endif;
+
+        rlbl = 0$+"#"$+ftocv(seqa(start,1,rows(x)),1,0);
+        { qq,cstrt } = _dtwrt(infile,x,rlbl,outlbl,vtype,dlstpau,
+            ncol, colper,dlstdgt,cstrt,dflt,dfltc);
+        if qq == 1;
+            goto quit;
+        endif;
+        print;
+        if dlstpau;
+
+            if qq > 1;
+                ky = qq;
+                goto havekey;
+            endif;
+
+        skipkey:
+
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+        havekey:
+
+            if ky == 27;    /* ESC */
+                goto quit;
+
+            elseif ky == 1081;      /* PGDN */
+                dflt = 1081;
+                dfltc = "PgDn";
+                rpos = seekr(fin,-1);
+                if rpos + nrow == rmax;
+                    call seekr(fin,rpos-nrow);
+                    counter = seekr(fin,-1)-1;
+                elseif rpos == rmax + 1;
+                    call seekr(fin,rpos-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos > rmax;
+                    call seekr(fin,rmax-rows(x));
+                    counter = counter - rows(x);
+                elseif rpos + nrow > rmax;
+                    call seekr(fin,rmax-rows(x)+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            elseif ky == 1073;      /* PGUP */
+                dflt = 1073;
+                dfltc = "PgUp";
+                rpos = seekr(fin,-1);
+                if rpos - 2*nrow < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-2*nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1072;      /* CURSOR_UP */
+                dflt = 1072;
+                dfltc "\30";
+
+                rpos = seekr(fin,-1);
+                if rpos - nrow - 1 < 1;
+                    call seekr(fin,1);
+                else;
+                    call seekr(fin,rpos-nrow-1);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1080;      /* CURSOR_DN */
+                dflt = 1080;
+                dfltc = "\31";
+
+                rpos = seekr(fin,-1);
+                if rmax < nrow;
+                    call seekr(fin,1);
+                elseif rpos+1 > rmax;
+                    call seekr(fin,rmax-nrow+1);
+                elseif not eof(fin);
+                    call seekr(fin,rpos-nrow+1);
+                else;
+                    call seekr(fin,rpos-nrow);
+                endif;
+                counter = seekr(fin,-1)-1;
+
+            elseif ky == 1071;      /* HOME */
+                dflt = 1071;
+                dfltc = "Home";
+                call seekr(fin,1);
+                counter = 0;
+
+            elseif ky == 1079;      /* END */
+                dflt = 1079;
+                dfltc = "End";
+                if rmax < nrow;
+                    call seekr(fin,1);
+                    counter = 0;
+                else;
+                    call seekr(fin,rmax-nrow+1);
+                    counter = seekr(fin,-1)-1;
+                endif;
+
+            else;
+                goto skipkey;
+            endif;
+            cls;
+
+        endif;
+        start = counter+1;
+    endo;
+
+quit:
+
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    ndpclex;
+    call csrtype(csrold);
+    retp;
+
+endp;
+
+proc (2) = _dtwrt(lbl,mat,rlbl,clbl,ctyp,pause,ncol, colper,dlstdgt,cstrt,
+    dflt,dfltc);
+
+    local lcnprt,cnprt,cslct,fmt,ky,msk,pcsn,oldnfmt,oldcfmt,klist;
+
+    /* Home,End, PgDn,PgUp,down,up, rt, lft, ^rt, ^lft,? */
+    klist = { 1071,1079,1081,1073,1080,1072,1075,1077,1115,1116,63 };
+
+    pcsn = dlstdgt;
+    cnprt = minc(ncol|cols(mat));
+    do while 1;
+
+        /* display the title */
+        if strindx(lower(lbl), ".dat", 1);
+            _cntrprt(1, _sweeppath(getpath(lbl)),vals("_"));
+        else;
+            _cntrprt(1, _sweeppath(getpath(lbl $+ ".dat")),vals("_"));
+        endif;
+        print;
+
+        /* display the data matrix */
+        cslct = seqa(cstrt,1,cnprt);
+        msk = zeros(1,cnprt+1);
+        fmt = "-*.*s"~colper~colper|((zeros(cnprt,1)$+("*.*s"))~
+            (zeros(cnprt,1) +(colper~9)));
+        if clbl[1,1] ne 0;
+            print;
+            call printfm(""~clbl[cslct,.]',msk,fmt);
+        endif;
+        msk = ctyp[cslct];
+        print;
+        msk = 0~msk';
+        oldnfmt = formatnv("#*.*lG"~colper~pcsn);
+        oldcfmt = formatcv("*.*s"~colper~colper);
+        call printfmt(rlbl~mat[.,cslct],msk);
+        if rows(mat) == 1;
+            print;
+        endif;
+        cstrt = cstrt+minc(ncol|cols(mat));
+        lcnprt = cnprt;
+        cnprt = minc(cnprt|(cols(mat)-cstrt+1));
+
+    skipkey:
+
+        if pause;
+            _cntrprt(24,"",vals("_"));
+            print;
+            print;
+            print "PgDn  PgUp  Home  End  \17  \16  \30  \31  Ctrl-\17" "  "\
+                "Ctrl-\16  ?  Esc  [" dfltc "] ";;
+            print /flush "";;
+            ky = keyw;
+            if ky == 10 or ky == 13;
+                ky = dflt;
+            endif;
+
+            if ky == 27;
+                goto quit;
+
+            elseif ky == 1116;      /* CTRL_RIGHT */
+                dflt = 1116;
+                dfltc = "Ctrl-\16";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cols(mat)-cnprt+1;
+
+            elseif ky == 1115;      /* CTRL_LEFT */
+                dflt = 1115;
+                dfltc = "Ctrl-\17";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = 1;
+
+            elseif ky == 1077;      /* CURSOR_RIGHT */
+                dflt = 1077;
+                dfltc = "\16";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt+1;
+                if cstrt > cols(mat)-cnprt+1;
+                    cstrt = cols(mat)-cnprt+1;
+                endif;
+            elseif ky == 1075;      /* CURSOR_LEFT */
+                dflt = 1075;
+                dfltc = "\17";
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cstrt-cnprt-1;
+                if cstrt < 1;
+                    cstrt = 1;
+                endif;
+
+            elseif ky == 1071;      /* Home */
+                cstrt = 1;
+                retp(ky,cstrt);
+
+            elseif ky == 1079;      /* End */
+                cnprt = minc(ncol|cols(mat));
+                cstrt = cols(mat)-cnprt+1;
+                retp(ky,cstrt);
+
+            elseif ky == 63;        /* ? */
+                print;
+                print;
+                print "Datalist Commands :";
+                print;
+                print "PgDn     Page Down";
+                print "PgUp     Page Up";
+                print "\16        right 1 column";
+                print "\17        left  1 column";
+                print "\30        up   1 row";
+                print "\31        down 1 row";
+                print "ctrl-\16   page Right";
+                print "ctrl-\17   page Left";
+                print "Home     upper left element";
+                print "End      lower right element";
+                print "Esc      quit";
+                print;
+                print;
+                print "Press Return to continue...";
+                call keyw;
+                ky = dflt;
+                goto skipkey;
+
+            elseif not (ky /= klist);
+                if cstrt > cols(mat);
+                    cstrt = maxc(1|cols(mat) - ncol + 1);
+                else;
+                    cstrt = cstrt-ncol;
+                endif;
+                ndpclex;
+                cls;
+                retp(ky,cstrt);
+            else;
+                goto skipkey;
+            endif;
+            cls;
+        endif;
+    endo;
+    ndpclex;
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    retp(0,cstrt);
+quit:
+
+    call formatnv(oldnfmt);
+    call formatcv(oldcfmt);
+    ndpclex;
+    retp(1,1);
+endp;
+
+proc (0) = _cntrprt(row,str,pv);
+    local pad;
+    locate row,1;
+    if str $== "";
+        print /flush chrs(zeros(80,1)+pv);;
+    else;
+        pad = chrs(zeros(floor((80-strlen(str))/2)-2,1)+pv);
+        print /flush pad " " str " " pad;;
+    endif;
+endp;
+
+#endif
+

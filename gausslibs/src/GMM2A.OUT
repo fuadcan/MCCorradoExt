@@ -1,0 +1,39 @@
+
+Total observations:                                          250  
+Usable observations:                                         250  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          246  
+Value of the maximized log-likelihood function:       -241.08331  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+beta1           1.991529        0.070570        28.220629        0.000000
+beta2           3.012205        0.041051        73.377578        0.000000
+alpha0          0.475157        0.036564        12.995184        0.000000
+alpha1          0.765838        0.092417         8.286730        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          250  
+Usable observations:                                         249  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          245  
+Number of moment conditions:                                   4  
+Value of the criterion function:                         0.00000  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+beta1           2.012233        0.097410        20.657458        0.000000
+beta2           3.016165        0.052755        57.172677        0.000000
+alpha0          0.543039        0.088499         6.136087        0.000000
+alpha1          0.650224        0.197368         3.294469        0.001132
+
+
+
+                 True values        TDML            GMM
+   beta1                2        1.9915287        2.0122332 
+   beta2                3        3.0122053        3.0161655 
+  alpha0              0.5       0.47515683       0.54303944 
+  alpha1              0.6       0.76583755       0.65022352 

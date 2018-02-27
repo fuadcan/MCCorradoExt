@@ -1,0 +1,11 @@
+/*
+** svd.ext - Singular value decomposition.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable declarations for procedures SVDx, PINV, COND and RANK.
+*/
+
+external matrix _svdtol;
+external matrix _svderr;
+external matrix _svd;          /* not used by 32-Bit versions */

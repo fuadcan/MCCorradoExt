@@ -1,0 +1,365 @@
+/*
+** svd.src - Procedures related to the singular value decomposition.
+**
+**
+** (C) Copyright 1988-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                 Purpose                                    Line
+**  ---------------------------------------------------------------------------
+**  s = SVD(x);           - singular values of a matrix                 32
+**  { u,s,v } = SVD1(x);  - singular value decomposition                76
+**  { u,s,v } = SVD2(x);  - singular value decomposition (compact u)   127
+**  y = PINV(x);          - pseudo-inverse (Moore-Penrose)             180
+**  c = COND(x);          - condition number                           270
+**  k = RANK(x);          - rank                                       315
+*/
+
+#include svd.ext
+
+/*
+**> svd
+**
+**  Purpose:    Computes the singular values of a matrix.
+**
+**  Format:     s = svd(x);
+**
+**  Input:      x          NxP matrix whose singular values are to be computed.
+**
+**  Output:     s          Mx1 vector, where M = min(N,P), containing the
+**                         singular values of x arranged in descending order.
+**
+**              _svderr    global scalar, if not all of the singular values
+**                         can be computed _svderr will be nonzero.  The
+**                         singular values in s[_svderr+1], ... s[M]
+**                         will be correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set _svderr and continue execution
+**
+**  Globals:    _svderr
+*/
+
+proc svd(x);
+    local s;
+
+    s = svds(x);
+    if scalerr(s[1]);
+        _svderr = scalerr(s[1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1] = 0;
+    else;
+        _svderr = 0;
+    endif;
+    retp(s);
+endp;
+
+/*
+**> svd1
+**
+**  Purpose:    Computes the singular value decomposition of a matrix
+**              so that:  x = u*s*v'
+**
+**  Format:     { u,s,v } = svd1(x);
+**
+**  Input:      x          NxP matrix whose singular values are to be computed.
+**
+**  Output:     u          NxN matrix, the left singular vectors of x.
+**
+**              s          NxP diagonal matrix, containing the singular
+**                         values of x arranged in descending order on the
+**                         principal diagonal.
+**
+**              v          PxP matrix, the right singular vectors of x.
+**
+**              _svderr    global scalar, if all of the singular values are
+**                         correct, _svderr is 0.  If not all of the singular
+**                         values can be computed, _svderr is set and the
+**                         diagonal elements of s with indices greater than
+**                         _svderr are correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set _svderr and continue execution
+**
+**  Globals:    _svderr
+*/
+
+proc (3) = svd1(x);
+    local u,s,v;
+
+    { u,s,v } = svdusv(x);
+    if scalerr(s[1,1]);
+        _svderr = scalerr(s[1,1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1,1] = 0;
+    else;
+        _svderr = 0;
+    endif;
+    retp(u,s,v);
+endp;
+
+/*
+**> svd2
+**
+**  Purpose:    Computes the singular value decomposition of a matrix
+**              so that:  x = u*s*v'     (compact u).
+**
+**  Format:     { u,s,v } = svd2(x);
+**
+**  Input:      x          NxP matrix whose singular values are to be computed.
+**
+**  Output:     u          NxN or NxP matrix, the left singular vectors of x.
+**                         If N > P then u will be NxP containing only the P
+**                         left singular vectors of x.
+**
+**              s          NxP or PxP diagonal matrix, containing the singular
+**                         values of x arranged in descending order on the
+**                         principal diagonal.  If N > P then s will be PxP.
+**
+**              v          PxP matrix, the right singular vectors of x.
+**
+**              _svderr    global scalar, if all of the singular values are
+**                         correct, _svderr is 0.  If not all of the singular
+**                         values can be computed, _svderr is set and the
+**                         diagonal elements of s with indices greater than
+**                         _svderr are correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set _svderr and continue execution
+**
+**  Globals:    _svderr
+*/
+
+proc (3) = svd2(x);
+    local u,s,v;
+
+    { u,s,v } = svdcusv(x);
+    if scalerr(s[1,1]);
+        _svderr = scalerr(s[1,1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1,1] = 0;
+    else;
+        _svderr = 0;
+    endif;
+    retp(u,s,v);
+endp;
+
+/*
+**> pinv
+**
+**  Purpose:    Compute the Moore-Penrose pseudo-inverse of a
+**              matrix, using the singular value decomposition.
+**
+**              This pseudo-inverse is one particular type of
+**              generalized inverse.
+**
+**  Format:     y = pinv(x);
+**
+**  Input:      x          NxM matrix.
+**
+**              _svdtol    global scalar, any singular values less than
+**                         _svdtol are treated as zero in determining the
+**                         rank of the input matrix.  The default value for
+**                         _svdtol is 1.0e-13.
+**
+**              _svderr    global scalar, if not all of the singular values
+**                         can be computed _svderr will be nonzero.  The
+**                         singular values in s[_svderr+1], ... s[M]
+**                         will be correct.
+**
+**  Output:     y          MxN matrix that satisfies the 4 Moore-Penrose
+**                         conditions:
+**
+**                   1). X*Y*X = X;           2). Y*X*Y = Y;
+**                   3). X*Y is symmetric     4). Y*X is symmetric
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set _svderr and continue execution, if
+**                               the input matrix contains only zeros,
+**                               a scalar error code 33 is returned
+**
+**  Globals:    _svdtol, _svderr
+*/
+
+proc pinv(x);
+    local n,p,tflag,mask,k,r,u,s,v;
+
+    n = rows(x);
+    p = cols(x);
+    if n == 1 and p == 1;
+        if x == 0;
+           retp(error(0));
+        else;
+           retp(1/x);
+        endif;
+    endif;
+    if p > n;
+        x = x';
+        tflag = 1;
+        n = rows(x);
+        p = cols(x);
+    else;
+        tflag = 0;
+    endif;
+    { u,s,v } = svdcusv(x);
+    s = diag(s);
+    if scalerr(s[1]);
+        _svderr = scalerr(s[1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1] = 0;
+    else;
+        _svderr = 0;
+    endif;
+    mask = (abs(s) .> _svdtol);
+
+    k = sumc(mask);         /* rank of the matrix */
+    r = rows(s);
+    if k == 0;
+        if not trapchk(1);
+            errorlog "Singular values all zero";
+            end;
+        else;
+            retp(error(33));
+        endif;
+    endif;
+    s = trimr(s,0,r-k);     /* trim off nonzero elements of s */
+    v = trimr(v',0,p-k);     /* trim off last p-k cols of v */
+    u = trimr(u',0,p-k);     /* trim off last p-k cols of u */
+
+    if tflag;
+        x = (v' ./s')*u;
+        retp(x');
+    else;
+        retp( (v'./s')*u );
+    endif;
+endp;
+
+/*
+**> cond
+**
+**  Purpose:    This proc will compute the condition number of a matrix,
+**              using the singular value decomposition.
+**
+**  Format:     c = cond(x);
+**
+**  Input:      x    NxP matrix.
+**
+**  Output:     c    scalar, an estimate of the condition number of x.
+**                   This equals the ratio of the largest singular
+**                   value to the smallest.  If the smallest singular
+**                   value is zero or not all of the singular values
+**                   can be computed the return value is 1.0e+300.
+**
+**
+**  Globals:    None
+*/
+
+proc cond(x);
+    local s,sl,sm;
+
+    s = svds(x);
+
+    if scalerr(s[1]);
+        retp(1e+300);
+    endif;
+
+    sl = maxc(s);
+    sm = minc(s);
+
+    if (sm == 0);
+        retp(1e+300);
+    endif;
+
+    retp(sl/sm);
+endp;
+
+/*
+**> rank
+**
+**  Purpose:    Computes the rank of a matrix, using the
+**              singular value decomposition.
+**
+**  Format:     k = rank(x);
+**
+**  Input:      x          NxP matrix.
+**
+**              _svdtol    global scalar, the tolerance used in determining
+**                         if any of the singular values are effectively 0.
+**                         The default value is 1e-13.  This be changed
+**                         before calling the procedure.
+**
+**              _svderr    global scalar, if not all of the singular values
+**                         can be computed _svderr will be nonzero.  The
+**                         singular values in s[_svderr+1], ... s[M]
+**                         will be correct.
+**
+**  Output:     k          an estimate of the rank of x. This equals the
+**                         number of singular values of x that exceed a
+**                         prespecified tolerance in absolute value.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set _svderr and continue execution
+**
+**  Globals:    _svdtol, _svderr
+*/
+
+proc rank(x);
+    local mask,s;
+
+    s = svds(x);
+    if scalerr(s[1]);
+        _svderr = scalerr(s[1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1] = 0;
+    else;
+        _svderr = 0;
+    endif;
+    mask = (abs(s) .> _svdtol);
+    retp(sumc(mask));
+endp;

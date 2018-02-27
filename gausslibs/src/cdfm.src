@@ -1,0 +1,379 @@
+/*
+**  cdfm.src
+**
+** (C) Copyright 2005-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Function                     Purpose                            line
+** ---------------------------------------------------------------------
+**  cdfmvt                       noncentral multivariate t cdf       33
+**
+*/
+
+/*
+**> cdfmvne
+**
+**  Purpose:  computes noncentral multivariate Normal cdf
+**
+**  Format:  { y, err, retc } = cdfmvne(ctl, x, r, m);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             x   NxK matrix, abscissae
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+#include cdfm.sdf
+
+proc (3) = cdfmvne(struct cdfmControl ctl, x, r, m );
+    local correl,rr,nn;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+    nn = -1;
+
+    retp( _cdfme001(nn, x, x, zeros(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmvte
+**
+**  Purpose:  computes noncentral multivariate Student's t cdf
+**
+**  Format:  { y, err, retc } = cdfmvte(ctl, x, r, m, n);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             x   NxK matrix, abscissae
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**             n   scalar, degrees of freedom
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+proc (3) = cdfmvte(struct cdfmControl ctl, x, r, m, n );
+    local correl,rr;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+
+    retp( _cdfme001(n, x, x, zeros(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmvnce
+**
+**  Purpose:  computes complement of noncentral multivariate Normal cdf
+**
+**  Format:  { y, err, retc } = cdfmvnce(ctl, x, r, m);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             x   NxK matrix, abscissae
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+proc (3) = cdfmvnce(struct cdfmControl ctl, x, r, m );
+    local correl,rr,nn;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+    nn = -1;
+
+    retp( _cdfme001(nn, x, x, ones(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmvtce
+**
+**  Purpose:  computes complement of noncentral multivariate Student's t cdf
+**
+**  Format:  { y, err, retc } = cdfmvtce(ctl, x, r, m, n);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             x   NxK matrix, abscissae
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**             n   scalar, degrees of freedom
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+proc (3) = cdfmvtce(struct cdfmControl ctl, x, r, m, n );
+    local correl,rr;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+
+    retp( _cdfme001(n, x, x, ones(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmvn2e
+**
+**  Purpose:  computes noncentral multivariate Normal cdf over [a,b]
+**
+**  Format:  { y, err, retc } = cdfmvn2e(ctl, a, b, r, m);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             a   NxK matrix, lower limits
+**
+**             b   NxK matrix, upper limits
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+proc (3) = cdfmvn2e(struct cdfmControl ctl, a, b, r, m );
+    local correl,rr,nn;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+    nn = -1;
+
+    retp( _cdfme001(nn, a, b, 2*ones(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmvt2e
+**
+**  Purpose:  computes noncentral multivariate Student's t cdf over [a,b] interval
+**
+**  Format:  { y, err, retc } = cdfmvt2e(ctl, a, b, r, m, n);
+**
+**  Input:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+**
+**             a   NxK matrix, lower limits
+**
+**             b   NxK matrix, upper limits
+**
+**             r   KxK matrix, symmetric correlation matrix
+**
+**             m   Kx1 vector, noncentralities
+**
+**             n   scalar, degrees of freedom
+**
+**
+**  Output:    y   Nx1 vector, cdf's
+**
+**           err   Nx1 vector, estimated absolute error
+**
+**          retc   Nx1 vector, return codes
+**                    0   normal completion, err < ctl.absErrorTolerance
+**                    1   completion with err > ctl.absErrorTolerance and
+**                          ctl.maxEvaluations exceeded.  Increase ctl.maxEvaluations
+**                          for greater accuracy.
+**                    2   N > 100 or N < 1
+**                    3   correlation matrix not positive definite
+**
+**  References:  "Numerical computation of multivariate t-probabilities with
+**               application to power calculation of multiple contrasts",
+**               Journal of Statistical Computation and Simulation, 63:361-378, 1999.
+**
+**               "Numerical computation of multivariate normal probabilities",
+**               Journal of Computational and Graphical Statistics, 1:141-149, 1992.
+*/
+
+proc (3) = cdfmvt2e(struct cdfmControl ctl, a, b, r, m, n );
+    local correl,rr;
+
+    rr = rows(r);
+    correl = packr(miss(vech(r),1));
+
+    if rows(correl) != (rr*rr-rr)/2;
+        retp(0,0,error(20));
+    endif;
+
+    retp( _cdfme001(n, a, b, 2*ones(rr,1), correl, m, ctl.maxEvaluations,
+        ctl.absErrorTolerance, ctl.relErrorTolerance) );
+endp;
+
+/*
+**> cdfmControlCreate
+**
+**  Purpose:  creates default instance of cdfmControl structure
+**
+**  Format:  ctl = cdfmControlCreate;
+**
+**  Output:   ctl   instance of a cdfmControl structure with members:
+**                    ctl.maxEvaluations, default = 5e5.
+**                    ctl.absErrorTolerance, default = 1e-6.
+**                    ctl.relErrorTolerance, default = 1e-14;
+*/
+
+proc cdfmControlCreate;
+
+    struct cdfmControl ctl;
+    ctl.maxEvaluations = 5e5;
+    ctl.absErrorTolerance = 1e-6;
+    ctl.relErrorTolerance = 1e-12;
+    retp(ctl);
+
+endp;
+

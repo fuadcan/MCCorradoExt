@@ -1,0 +1,25 @@
+/*
+**  eqSolve.ext - global definitions for eqSolve
+**
+** (C) Copyright 1997 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+
+external matrix _eqs_typicalX;
+external matrix _eqs_typicalF;
+external matrix _eqs_IterInfo;
+external matrix _eqs_JacobianProc;
+external matrix _eqs_MaxIters;
+external matrix _eqs_StepTol;

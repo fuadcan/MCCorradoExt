@@ -1,0 +1,15 @@
+
+Total observations:                                          500  
+Usable observations:                                         499  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                          496  
+Value of the maximized log-likelihood function:       -817.55670  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+theta1          2.090954        2.064420         1.012853        0.311624
+sigma_u         0.518692        0.979205         0.529707        0.596552
+sigma_v         0.434307        1.805847         0.240500        0.810042
+
+Covariance matrix: inverse of the negative Hessian.

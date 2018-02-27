@@ -1,0 +1,207 @@
+/*
+** pxyz.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> xyz
+**
+**  Purpose:    Graphs a 3D curve.
+**
+**  Format:     xyz(x,y,z);
+**
+**  Inputs:     x    NxK or Nx1 matrix.  Each column contains the X values for
+**                   a particular line.
+**
+**              y    NxK or Nx1 matrix.  Each column contains the Y values for
+**                   a particular line.
+**
+**              z    NxK or Nx1 matrix.  Each column contains the Z values for
+**                   a particular line.
+**
+**  See Also:   view, volume, scale3d, surface
+*/
+
+#include pgraph.ext
+
+proc 0 = xyz(x,y,z);
+    local colorq,msgstr,psym,psymnum,psym3d,nsym3d,msgnum,n,k,frame,sca,
+        gcode,linenum,arrownum,arrow,vol,symbol,fontnum,pstype,pcolor,
+        pltype,psymsiz,xinc,yinc,zinc,plctrl,opt,mem,fntsize,plwidth,pline,
+        pline3d,npline3d,arrow3d,narrow3d,pnum,paxes,gpcpath,pmsgctl;
+    /* -------------------------------------------------------- */
+    local minx,maxx,miny,maxy,minz,maxz,qsig,qfield,qprec,qxpow,qxorig,
+        qxstep,qmax,qmint,qlab,qypow,qyorig,qystep,qzpow,qzorig,
+        qzstep,qzmax,qxmax,qymax,qxprec,qyprec,qzprec,xformat,yformat,
+        zformat;
+    local xdatmin,ydatmin,xdatmax,ydatmax,xfact,yfact;
+
+
+    _pqgtype = { 10, 2 };           /* graph type xyz, 3d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    /* --- test input variables and take appropriate action --- */
+
+    /* test x and y for rows */
+    if rows(x) /= rows(y) or rows(x) /= rows(z);
+        errorlog "X, Y and Z matrices must have the same number of rows.";
+        end;
+    endif;
+
+    /* test x and y for cols */
+    if cols(x) /= cols(y) and cols(x) /= 1 and cols(y) /= 1;
+        errorlog "X and Y matrices not conformable.";
+        end;
+    endif;
+
+    /* test x and z for cols */
+    if cols(x) /= cols(z) and cols(x) /= 1 and cols(z) /= 1;
+        errorlog "X and Z matrices not conformable.";
+        end;
+    endif;
+    n = rows(x);
+    k = maxc(cols(x) | cols(y) | cols(z));
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+    { minz,maxz } = _pcartz(_pworld,z);
+
+    opt = _poptic;
+    _poptic = 2;
+    { qsig,qfield,qxprec,qxpow,qxorig,qxstep,qxmax,qmint,qlab } =
+        _paxnum(pnum[1],minx,maxx,_pxsci,_pxscale,_pxpmax);
+
+    { qsig,qfield,qyprec,qypow,qyorig,qystep,qymax,qmint,qlab } =
+        _paxnum(pnum[2],miny,maxy,_pysci,_pyscale,_pypmax);
+
+    if rows(_pzscale) > 1;
+        if _pzscale[4] < 1;
+            _pzscale[4] = 1;
+        endif;
+    endif;
+    { qsig,qfield,qzprec,qzpow,qzorig,qzstep,qzmax,qmint,qlab } =
+        _paxnum(pnum[3],minz,maxz,_pzsci,_pzscale,_pzpmax);
+    _poptic = opt;
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+        _pxlabel = _pxlabel $+ "  x 10" $+ ftos(qxpow,"[%*.*lf]",1,0);
+    endif;
+    if qypow;
+        y = y * 10^(-qypow);
+        _pylabel = _pylabel $+ "  x 10" $+ ftos(qypow,"[%*.*lf]",1,0);
+    endif;
+    if qzpow;
+        z = z * 10^(-qzpow);
+        _pzlabel = _pzlabel $+ "  x 10" $+ ftos(qzpow,"[%*.*lf]",1,0);
+    endif;
+
+    xdatmin = minc(minc(x)); /* required for 3d scaling routines */
+    ydatmin = minc(minc(y));
+    xdatmax = maxc(maxc(x));
+    ydatmax = maxc(maxc(y));
+
+    sca = qxorig | qxmax  | qxstep | xdatmin | xdatmax |
+          qyorig | qymax  | qystep | ydatmin | ydatmax |
+          qzorig | qzstep | qzmax;
+
+    if strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);  /* user defined format string */
+    endif;
+
+    if strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);  /* user defined format string */
+    endif;
+
+    if strlen(_pzfmt) < 2;
+        zformat = "%1." $+ ftos(qzprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        zformat = lower(_pzfmt);  /* user defined format string */
+    endif;
+
+    _setpage();
+
+    if _pstype == 0;
+        pstype = _pssel;
+    else;
+        pstype = _pstype;
+    endif;
+
+    if _pltype == 0;
+        pltype = _plsel;
+    else;
+        pltype = _pltype;
+    endif;
+
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        pcolor = _pcsel;
+    else;
+        pcolor = _pcolor;
+    endif;
+
+    pstype = reshape(pstype,k,1)-1;
+    psymsiz = reshape(_psymsiz,k,1);
+    pltype = reshape(pltype,k,1);
+    pcolor = reshape(pcolor,k,1);
+    plctrl = reshape(_plctrl,k,1);
+    plwidth = reshape(_plwidth,k,1);
+    symbol = pstype~psymsiz~pltype~pcolor~plctrl~plwidth;
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+    { psym3d,nsym3d,pline3d,npline3d,arrow3d,narrow3d } = _3dfilt;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,pline,_pmsgctl,psym);
+    { pline3d,arrow3d,psym3d } =
+          _pwrsc3d(qxpow,qypow,qzpow,pline3d,arrow3d,psym3d);
+
+    if _pvolume == 0;
+        vol = _volum3d( _range(x), _range(y), _range(z) );
+    elseif rows(_pvolume) == 3 and cols(_pvolume) == 1;
+        vol = _pvolume;
+    else;
+        errorlog "ERROR: Invalid _PVOLUME vector";
+        end;
+    endif;
+    xinc = cols(x) /= 1;
+    yinc = cols(y) /= 1;
+    zinc = cols(z) /= 1;
+
+    x = x';
+    y = y';
+    z = z';
+
+    { fontnum,mem,fntsize } = _fontsiz();
+
+    /* pxyz <=> 9 */
+
+    GraphSEv3(x,y,z,k,n,sca,symbol,xinc,yinc,zinc,vol,_pview,
+        _ptitle,_pxlabel,_pylabel,_pzlabel,_ptek,_pfonts,fontnum,fntsize,
+        _pbox,frame,paxes,xformat,yformat,zformat,msgstr,pmsgctl,msgnum,
+        _paxht,_pnumht,_ptitlht,_pagesiz,_pageshf,_plotsiz,_plotshf,
+        _protate,_pticout,colorq,psym,psymnum,psym3d,nsym3d,pline,linenum,
+        pline3d,npline3d,arrow,arrownum,_pdate,pnum,_plegctl,_plegstr,
+        _pnotify,_pappend,_pmargin,_pcwin,_pncwin,_pcrop,arrow3d,narrow3d,
+        gpcpath,9);
+
+    clear x,y,z,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+endp;

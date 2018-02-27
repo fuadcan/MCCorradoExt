@@ -1,0 +1,312 @@
+/*
+** vars.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                          Line
+** =======================================================================
+** MAKEVARS(x,varnames,xnames);                                      25
+** x = MERGEVAR(varnames);                                          145
+** nvec = SETVARS(dataset);                                         218
+*/
+
+/*
+**> makevars
+**
+**  Purpose:    Creates separate global vectors from the columns of a
+**              matrix.
+**
+**  Format:     makevars(x,varnames,xnames);
+**
+**  Input:      x           NxK matrix whose columns will be converted into
+**                          individual vectors.
+**
+**              varnames    string or Mx1 character vector containing names
+**                          of global vectors to create. If 0, all names in
+**                          xnames will be used.
+**
+**              xnames      string or Kx1 character vector containing names
+**                          to be associated with the columns of the matrix x.
+**
+**  Remarks:    If xnames = 0, the prefix X will be used to
+**              create names. Therefore, if there are 9 columns
+**              in x, the names will be X1-X9, if there are 10,
+**              they will be X01-X10, and so on.
+**
+**              if xnames or varnames is a string the individual names
+**              must be separated by spaces or commas.
+**
+**                  varnames = "age pay sex";
+**
+**              Since these new vectors are created at execution
+**              time the compiler will not know they exist until
+**              after makevars has executed once.  This means
+**              that you can't access them by name unless you
+**              previously clear them or otherwise add them to
+**              the symbol table.  See setvars for a quick
+**              interactive solution to this.
+**
+**              This function is the opposite of "mergevar".
+**
+**  Example:    let x[3,3] = 101 35 50000
+**                           102 29 13000
+**                           103 37 18000;
+**              let xnames = id age pay;
+**              let vnames = age pay;
+**              makevars(x,vnames,xnames);
+**
+**              Two global vectors, called "age" and "pay",
+**              are created from the columns of x.
+**
+**              let x[3,3] = 101 35 50000
+**                           102 29 13000
+**                           103 37 18000;
+**              xnames = "id age pay";
+**              vnames = "age pay";
+**              makevars(x,vnames,xnames);
+**
+**              This is the same as the example above except that
+**              strings are used for the variable names.
+**
+**  Globals:    None
+**
+**  See Also:   mergevar, setvars
+*/
+
+proc (0) = makevars(x,varnames,xnames);
+    local str,vindx,e,nvindx,i,indxi,d,k,nvars;
+    k = cols(x);
+
+    if type(varnames) == 13;
+        varnames = stof(varnames);
+    endif;
+
+    if type(xnames) == 13;
+        xnames = stof(xnames);
+    endif;
+
+    if xnames $== 0;        /* xnames not specified */
+        xnames = 0 $+ "X" $+ ftocv(seqa(1,1,k),__vpad*(floor(log(k))+1),0);
+    endif;
+
+    if varnames $== 0;      /* varnames not specified */
+        varnames = xnames;
+    endif;
+
+    if rows(xnames) /= k;
+        errorlog "ERROR: The number of names specified is not the same as";
+        errorlog "       the number of columns in the data matrix.";
+        end;
+    endif;
+
+    vindx = indcv(varnames,xnames);
+
+    if ismiss(vindx);
+        e = missrv(vindx*0,1);
+        ndpclex;
+        nvindx = submat(packr(seqa(1,1,rows(e))~miss(e,0)),0,1);
+        nvars = varnames[nvindx,1];
+        print "\g";
+        errorlog "ERROR: The following names are not defined:";
+        i = 1;
+        do while i <= rows(nvars);
+            str = "        " $+ nvars[i];
+            errorlog str;
+            i = i+1;
+        endo;
+        end;
+    endif;
+
+    i = 1;
+    do until i > rows(vindx);
+        indxi = vindx[i,1];
+        d = varput(submat(x,0,indxi),varnames[i,1]);
+        if not d;
+            print "\g";
+            errorlog "ERROR: Symbol table full.";
+            end;
+        endif;
+        i = i+1;
+    endo;
+endp;
+
+/*
+**> mergevar
+**
+**  Purpose:    Accepts a list of names of global matrices, and
+**              concatenates the corresponding matrices
+**              horizontally to form a single matrix.
+**
+**  Format:     x = mergevar(varnames);
+**
+**  Input:      varnames    string or Kx1 column vector containing
+**                          the names of K global matrices.
+**
+**  Output:     x           NxM matrix that contains the concatenated
+**                          matrices, where M is the sum of the columns in
+**                          the K matrices specified in varnames.
+**
+**  Remarks:    The matrices specified in varnames must be globals and
+**              they must all have the same number of rows.
+**
+**              This function is the opposite of "makevars".
+**
+**  Example:    let varnames = age pay sex;
+**              x = mergevar(varnames);
+**
+**
+**              The matrices "age", "pay", and "sex", if they exist as
+**              matrices in memory, will be concatenated to create
+**              the data matrix, "x".
+**
+**  See Also:   makevars
+*/
+
+proc mergevar(varnames);
+    local i,vi,tvi,r,x,str;
+
+    if type(varnames) == 13;
+        varnames = stof(varnames);
+    endif;
+
+    varnames = reshape(varnames,rows(varnames)*cols(varnames),1);
+
+    i = 1;
+    do until i > rows(varnames);
+        vi = varnames[i,1];
+        tvi = typecv(vi);
+        str = "" $+ vi;
+        if ismiss(tvi);
+            errorlog "ERROR: Variable " $+ str $+ " does not exist.";
+            end;
+        elseif tvi $== 0;
+            errorlog "ERROR: Variable " $+ str $+ " is not initialized.";
+            end;
+        elseif tvi $/= 6;
+            errorlog "ERROR: Variable " $+ str $+ " is not a matrix.";
+            end;
+        endif;
+
+        if i == 1;
+            x = varget(vi);
+            r = rows(x);
+        else;
+            if rows(varget(vi)) /= r;
+                errorlog "ERROR: rows don't match: " $+ vi;
+                end;
+            endif;
+            x = x ~ varget(vi);
+        endif;
+
+        i = i+1;
+    endo;
+    retp(x);
+endp;
+
+/*
+**> setvars
+**
+**  Purpose:    To read the variable names from a data set header and
+**              create global matrices with the same name.
+**
+**  Format:     nvec = setvars(dataset);
+**
+**  Input:      dataset    string, the name of the GAUSS data set. Don't use
+**                         a file extension.
+**
+**  Output:     nvec       Nx1 character vector, containing the variable names
+**                         defined in the data set.
+**
+**  Remarks:    setvars is designed to be used interactively. Suppose
+**              you want to create a data set by doing some
+**              transformations on some data in one or more other data
+**              sets. You don't want to write a large general program
+**              for the transformations, you just want to get this
+**              particular job done.
+**
+**              Let's say you have two data sets named DATA1 and DATA2.
+**              The first thing you want to do is create your output
+**              data set:
+**
+**                  let outnames = pump temp visc pressure diameter
+**                      length velocity;
+**                  create fout = MODEL1 with ^outnames,0,8;
+**                  closeall fout;
+**
+**              You have just created a GAUSS data set with the 7
+**              variables listed above and closed it without writing
+**              any data to it yet.
+**
+**              Next you want to erase GAUSS.ERR, the error file, so you
+**              don't start with a bunch of junk in it, so you press
+**              Shift-F7.
+**
+**              Then you use setvars to clear some globals to facilitate
+**              writing your transformations:
+**
+**                  call setvars("DATA1");
+**                  call setvars("DATA2");
+**                  call setvars("MODEL1");
+**
+**              With setvar you have just cleared variable names for
+**              each variable in the three datasets.  A numbered list
+**              of the names was printed on the screen and was also
+**              dropped into GAUSS.ERR so you can refer to it as you
+**              write your transformations.  You just need to press F7
+**              to load GAUSS.ERR into the help system to review the
+**              variable names for each file.
+**
+**              Now you can proceed to write your transformation
+**              algorithm making use of makevars to make separate
+**              vectors out or some of the columns in the data set.
+**              Since all of the variables in the data sets are already
+**              "cleared", you won't have to list them in a clear
+**              statement as long as you don't execute a new.
+**
+**  Globals:    None
+**
+**  See Also:   makevars
+*/
+
+proc setvars(dataset);
+    local str,i,vnames;
+    format /rd 12,8;
+    vnames = getname(dataset);
+    errorlog "============================================================";
+    str = "Data set: " $+ dataset;
+    if strlen(str) < 56;
+        str = chrs(zeros(30-strlen(str)/2,1)+32) $+ str;
+    endif;
+    errorlog str;
+    errorlog "------------------------------------------------------------";
+    str = "";
+    i = 1;
+    do while i <= rows(vnames);
+        if not varput(0,vnames[i]);
+            errorlog "*** Symbol table full ***";
+            end;
+        endif;
+        str = str $+ ftos(i,"%*.*lf. ",4,0) $+ ftos(vnames[i],"%-*.*s ",8,8);
+        if not(i % 4);
+            errorlog str;
+            str = "";
+        endif;
+        i = i + 1;
+    endo;
+    if strlen(str);
+        errorlog str;
+    endif;
+    errorlog "============================================================";
+    retp(vnames);
+endp;

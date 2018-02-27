@@ -1,0 +1,350 @@
+/*
+** phist.src - Publication Quality Graphics procedures
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Format                            Purpose                          Line
+** =========================================================================
+** { c,m,freq } = HIST(x,v);     Histogram of frequencies              25
+** { c,m,freq } = HISTP(x,v);    Histogram of percentages             169
+**                HISTF(f,c);    Graph frequency vector               311
+**
+**
+**
+**> hist
+**
+**  Purpose:    Computes and graphs a frequency histogram for a vector.
+**              The actual frequencies are plotted for each category.
+**
+**  Format:     { c,m,freq } = hist(x,v);
+**
+**  Inputs:     x       Mx1 vector of data.
+**
+**              v       Nx1 vector, the breakpoints to be used to compute the
+**                      frequencies.
+**
+**                             or
+**
+**                      scalar, the number of categories.
+**
+**  Output:     b       Px1 vector, the breakpoints used for each category.
+**
+**              m       Px1 vector, the midpoints of each category.
+**
+**              freq    Px1 vector of computed frequency counts.
+**
+**  Remarks:    If a vector of breakpoints is specified, a final breakpoint
+**              equal to the maximum value of x will be added if the
+**              maximum breakpoint value is smaller.
+**
+**              If a number of categories is specified, the data
+**              will be divided into v evenly spaced categories.
+**
+**              Each time an element falls into one of the categories
+**              specified in b the corresponding element of freq will
+**              be incremented by one.  The categories are interpreted
+**              as follows:
+**
+**                  freq[1]    -->                  x  <= b[1]
+**                  freq[2]    -->        b[1]   <  x  <= b[2]
+**                  freq[3]    -->        b[2]   <  x  <= b[3]
+**                      .
+**                      .
+**                      .
+**                  freq[p]    -->        b[p-1] <  x  <= b[p]
+**
+**  See Also:   histp, histf, bar
+*/
+
+#include pgraph.ext
+
+proc 3 = hist(x,v);
+    local lo,hi,m,missct,min,max,inc,class,stitle,sylabel,sxlabel,oldcolor,
+        cat,freq,freqct,oldprec,oldworld,oldmsg,oldmctl;
+
+    x = vec(x);
+
+    if cols(v) /= 1;
+        errorlog "ERROR - V must be a column vector.";
+        end;
+    endif;
+
+    if ismiss(x);
+        missct = counts(x,error(0));
+        x = packr(x);
+        ndpclex;
+    else;
+        missct = 0;
+    endif;
+
+    min = minc(x);
+    max = maxc(x);
+
+    if rows(v) == 1;
+        cat = 0;
+        inc = (max-min)/(v);
+        lo = min+inc;
+        hi = max;
+        v = seqa(lo,inc,v);
+        v[rows(v)] = max;
+        m = v-((v-(min|trimr(v,0,1)))/2);
+    else;
+        cat = 1;
+        if max > v[rows(v)];
+            v = v|max;
+        endif;
+        m = v-((v-(min|trimr(v,0,1)))/2);
+    endif;
+
+    sylabel = _pylabel;
+    sxlabel = _pxlabel;
+    stitle = _ptitle;
+    oldprec = _pxpmax;
+    _pxpmax = 2;
+    if _pnum;
+        if _pylabel $== "";
+            _pylabel = "# Frequency";
+        endif;
+
+        if _pxlabel $== "";
+            if _pascx $== 0;
+                _pxlabel = "Midpoint";
+            else;
+                _pxlabel = "Category";
+            endif;
+        endif;
+
+    endif;
+
+    if missct;
+        oldmsg = _pmsgstr;
+        oldmctl = _pmsgctl;
+        _pmsgstr = ftos(missct,"Missing: %*.*lf",1,0) $+ "\000" $+ _pmsgstr;
+        if _pmsgctl $== 0;
+            _pmsgctl = (6.8~6.245~0.12~0~1~_pmcolor[1]);
+        else;
+            _pmsgctl = (6.8~6.245~0.12~0~1~_pmcolor[1])|_pmsgctl;
+        endif;
+    endif;
+
+    oldcolor = _pcolor;
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        _pcolor = _pcsel[1];
+    else;
+        _pcolor = _pcolor[1];
+    endif;
+    freqct = counts(x,v);
+    freq = freqct;
+    clear x;
+    oldworld = _pworld;
+    _pworld = reshape(error(0),6,1);
+    _pworld[3] = 0;
+
+    bar(m,freq);
+    _pcolor = oldcolor;
+    _pylabel = sylabel;
+    _pxlabel = sxlabel;
+    _ptitle = stitle;
+    _pworld = oldworld;
+    _pxpmax = oldprec;
+    if missct;
+        _pmsgstr = oldmsg;
+        _pmsgctl = oldmctl;
+    endif;
+    retp( v,m,freqct );
+endp;
+
+/*
+**> histp
+**
+**  Purpose:    Computes and graphs a percent frequency histogram
+**              of a vector.  The percentages in each category are plotted.
+**
+**  Format:     { c,m,freq } = histp(x,v);
+**
+**  Inputs:     x       Mx1 vector of data.
+**
+**              v       Nx1 vector, the breakpoints to be used to compute the
+**                      frequencies.
+**
+**                             or
+**
+**                      scalar, the number of categories.
+**
+**  Output:     b       Px1 vector, the breakpoints used for each category.
+**
+**              m       Px1 vector, the midpoints of each category.
+**
+**              freq    Px1 vector of computed frequency counts.  This
+**                      is the vector of counts, not percentages.
+**
+**  Remarks:    If a vector of breakpoints is specified, a final breakpoint
+**              equal to the maximum value of x will be added if the
+**              maximum breakpoint value is smaller.
+**
+**              If a number of categories is specified, the data
+**              will be divided into v evenly spaced categories.
+**
+**              Each time an element falls into one of the categories
+**              specified in b the corresponding element of freq will
+**              be incremented by one.  The categories are interpreted
+**              as follows:
+**
+**                  freq[1]    -->                  x  <= b[1]
+**                  freq[2]    -->        b[1]   <  x  <= b[2]
+**                  freq[3]    -->        b[2]   <  x  <= b[3]
+**                      .
+**                      .
+**                      .
+**                  freq[p]    -->        b[p-1] <  x  <= b[p]
+**
+**  See Also:   hist, histf, bar
+*/
+
+proc 3 = histp(x,v);
+    local lo,hi,m,missct,min,max,inc,class,stitle,sylabel,sxlabel,oldcolor,
+        cat,freq,freqct,oldprec,oldworld,oldmsg,oldmctl;
+
+    x = vec(x);
+    if cols(v) /= 1;
+        errorlog "ERROR - V must be a column vector.";
+        end;
+    endif;
+
+    if ismiss(x);
+        missct = counts(x,error(0));
+        x = packr(x);
+        ndpclex;
+    else;
+        missct = 0;
+    endif;
+
+    min = minc(x);
+    max = maxc(x);
+
+    if rows(v) == 1;
+        cat = 0;
+        inc = (max-min)/(v);
+        lo = min+inc;
+        hi = max;
+        v = seqa(lo,inc,v);
+        v[rows(v)] = max;
+        m = v-((v-(min|trimr(v,0,1)))/2);
+    else;
+        cat = 1;
+        if max > v[rows(v)];
+            v = v|max;
+        endif;
+        m = v-((v-(min|trimr(v,0,1)))/2);
+    endif;
+
+    sylabel = _pylabel;
+    sxlabel = _pxlabel;
+    stitle = _ptitle;
+    oldprec = _pxpmax;
+    _pxpmax = 2;
+    if _pnum;
+        if _pylabel $== "";
+            _pylabel = "% Frequency";
+        endif;
+
+        if _pxlabel $== "";
+            if cat;
+                _pxlabel = "Category";
+            elseif _pascx $== 0;
+                _pxlabel = "Midpoint";
+            else;
+                _pxlabel = "Category";
+            endif;
+        endif;
+    endif;
+
+    if missct;
+        oldmsg = _pmsgstr;
+        oldmctl = _pmsgctl;
+        _pmsgstr = ftos(missct,"Missing: %*.*lf",1,0) $+ "\000" $+ _pmsgstr;
+        if _pmsgctl $== 0;
+            _pmsgctl = (6.8~0.245~0.12~0~1~_pmcolor[1]);
+        else;
+            _pmsgctl = (6.8~0.245~0.12~0~1~_pmcolor[1])|_pmsgctl;
+        endif;
+    endif;
+
+    oldcolor = _pcolor;
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        _pcolor = _pcsel[1];
+    else;
+        _pcolor = _pcolor[1];
+    endif;
+    freqct = counts(x,v);
+    freq = 100*freqct/rows(x);
+    clear x;
+    oldworld = _pworld;
+    _pworld = reshape(error(0),6,1);
+    _pworld[3] = 0;
+    bar(m,freq);
+    _pcolor = oldcolor;
+    _pylabel = sylabel;
+    _pxlabel = sxlabel;
+    _ptitle = stitle;
+    _pworld = oldworld;
+    _pxpmax = oldprec;
+    if missct;
+        _pmsgstr = oldmsg;
+        _pmsgctl = oldmctl;
+    endif;
+    retp( v,m,freqct );
+endp;
+
+/*
+**> histf
+**
+**  Purpose:    To graph a histogram given a vector of frequency counts.
+**
+**  Format:     histf(f,c);
+**
+**  Input:      f    Nx1 vector, frequencies to be graphed.
+**
+**              c    Nx1 vector, numeric labels for categories.  If this is
+**                   a scalar 0 a sequence form 1 to rows(f) will be created.
+**
+**  Remarks:    The axes are not automatically labeled.  Use xlabel for the
+**              category axis and ylabel for the frequency axis.
+**
+**  See also:   hist, bar, xlabel, ylabel
+*/
+
+proc 0 = histf(f,c);
+    local oldcolor,oldworld;
+    if cols(f) > 1;
+        errorlog "ERROR: frequencies must be column vector";
+        end;
+    endif;
+
+    oldcolor = _pcolor;
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        _pcolor = _pcsel[1];
+    else;
+        _pcolor = _pcolor[1];
+    endif;
+    oldworld = _pworld;
+    _pworld = reshape(error(0),6,1);
+    _pworld[3] = 0;
+    if c == 0;
+        c = seqa(1,1,rows(f));
+    endif;
+    bar(c,f);
+    _pcolor = oldcolor;
+    _pworld = oldworld;
+endp;

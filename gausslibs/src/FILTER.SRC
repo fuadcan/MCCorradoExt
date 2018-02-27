@@ -1,0 +1,407 @@
+/*
+** filter.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                         Purpose                                Line
+** ============================================================================
+**  y = Linear_Filter(x,c,nL,nR);  Linear filtering                        22
+**
+**  y = Savitzky_Golay(x,M,nL,nR); Data smoothing polynomial
+**                                 Savitzky-Golay smoothing filters        39
+**
+**  e = arma_Filter(y,beta,p,q);   ARMA filtering                          58
+**
+**  h2 = garch_Filter(e,alpha,p,q); GARCH filtering                        89
+**
+**  e = fractional_Filter(y,d);    Fractional filtering                   113
+*/
+
+
+/*
+** Linear_Filter
+**
+** Purpose: Linear filtering
+**
+** Format:  y = Linear_Filter(x,c,nL,nR);
+**
+** Input:   x - Nobs*1 vector, data
+**          c - (nR-nL+1)*1 vector, the coefficients of the filter
+**         nL - scalar, nL parameter
+**         nR - scalar, nR parameter
+**
+** Output: y - Nobs*1 vector, filtered data
+**
+*/
+
+
+/*
+** Savitzky_Golay
+**
+** Purpose: Data smoothing polynomial
+**
+** Format:  y = Savitzky_Golay(x,M,nL,nR);
+**
+** Input:   x - Nobs*1 vector, data
+**          M - scalar, degree M of the polynomial
+**         nL - scalar, number of points used "to the left"
+**         nR - scalar, number of points used "to the right"
+**
+** Output: y - Nobs*1 vector, smoothed data
+**
+** Globals: _window - (nL+nR+1)*1 vector, the smoothed coefficients vector
+**
+*/
+
+
+/*
+** arma_Filter
+**
+** Purpose: ARMA filtering
+**
+** Format:  e = arma_Filter(y,beta,p,q);
+**
+** Input:   y - Nobs*K matrix, data y(t)
+**       beta - (p+q)*1 vector, the coefficients of the ARMA filter
+**          p - scalar, the autoregressive order
+**          q - scalar, the moving average order
+**
+** Output:  e - Nobs*K vector, filtered data e(t)
+**
+** Remark: The ARMA model is
+**            y(t) - phi(1)*y(t-1) - ... - phi(p)*y(t-p)
+**          = e(t) - theta(1)*e(t-1) - ... - theta(q)*e(t-q)
+**
+**         The vector beta is
+**            (phi(1),...,phi(p),theta(1),...,theta(q))
+**
+**         The elements e(t) of the vector e are defined by
+**
+**         e(t) = y(t) - phi(1)*y(t-1) - ... - phi(p)*y(t-p)
+**                + theta(1)*e(t-1) + ... + theta(q)*e(t-q)
+**
+**         e(1), e(2), ... , e(p) are missing values.
+**
+*/
+
+
+/*
+** garch_Filter
+**
+** Purpose: GARCH filtering
+**
+** Format:  h2 = garch_Filter(e,alpha,p,q);
+**
+** Input:   e - Nobs*K matrix, data e(t)
+**      alpha - (1+p+q)*1 vector, the coefficients of the GARCH filter
+**          p - scalar, the ARCH order
+**          q - scalar, the GARCH order
+**
+** Output: h2 - Nobs*K vector, filtered data h(t)^2
+**
+** Remark: The GARCH component h(t)^2 is defined by
+**           h(t)^2 = alpha(0) + alpha(1)*e(t-1)^2 +  ... + alpha(p)*e(t-p)^2
+**                  + alpha(p+1)*h(t-1)^2 + ... + alpha(p+q)*h(t-q)^2
+**
+**         The vector alpha is
+**            (alpha(0),alpha(1),...,alpha(p),alpha(p+1),...,alpha(p+q))
+**
+*/
+
+
+/*
+** fractional_Filter
+**
+** Purpose: Fractional filtering (or fractional difference operator)
+**
+** Format:  e = fractional_Filter(y,d);
+**
+** Input:   y - Nobs*K matrix, data y(t)
+**          d - scalar, the
+**
+** Output:  e - Nobs*K vector, filtered data e(t) = (1-L)^d*y(t)
+**
+** Global: _window - (Nobs+1)*1 vector, the coefficients of the
+**                   fractional filter
+**
+** Remark: The definition of the fractional difference operator is given by
+**         Hosking, J.R.M. [1981], fractional differencing, Biometrika
+**         (equation 2.1, page 166).
+**
+*/
+
+
+/*
+** Linear_Filter
+*/
+
+proc (1) = Linear_Filter(x,c,nL,nR);
+  local Nc,Nx,Nobs,y,y_,t;
+
+  if nR < nL;
+    ERRORLOG "error: nL must be less than nR.";
+    retp(error(0));
+  endif;
+
+  if nR /= trunc(nR);
+    ERRORLOG "error: nR must be an integer.";
+    retp(error(0));
+  endif;
+
+  if nL /= trunc(nL);
+    ERRORLOG "error: nL must be an integer.";
+    retp(error(0));
+  endif;
+
+  Nc = rows(c);
+  Nx = rows(x);
+
+  if (nR-nL+1) /= Nc;
+    ERRORLOG "error: Wrong size format of the vector of coefficients.";
+    retp(error(0));
+  endif;
+
+  Nobs = Nx - nR*(nR>0) + nL*(nL<0);
+  y = zeros(Nx,1);
+  y = miss(y,0);
+
+  if Nobs <= 0;
+    retp(y);
+  endif;
+
+  y_ = conv(x,rev(c),0,0);
+  y_ = trimr(y_,Nc-1,Nc-1);
+
+  if nL < 0;
+    t = seqa(1-nL,1,Nobs);
+    y[t] = y_[1:Nobs];
+  else;
+    t = seqa(1+nL,1,Nobs);
+    y[1:Nobs] = y_[t];
+  endif;
+
+  retp(y);
+endp;
+
+
+/*
+** Savitzky_Golay
+*/
+
+proc (1) = Savitzky_Golay(x,M,nL,nR);
+  local np,i,j,A,B,cn;
+  local oldtrap,y;
+
+  if nL<0 or nL /= trunc(nL);
+      ERRORLOG "error: nL must be an integer greater than 0.";
+      retp(error(0));
+  endif;
+
+  if nR<0 or nR /= trunc(nR);
+      ERRORLOG "error: nR must be an integer greater than 0.";
+      retp(error(0));
+  endif;
+
+  np = nL+nR+1;
+  if M >= np-1 or M /= trunc(M);
+      ERRORLOG "error: M must be an integer less than nL+nR+1.";
+      retp(error(0));
+  endif;
+
+  i = seqa(-nL,1,np);
+  j = seqa(0,1,M+1); j = j';
+  A = i^j;
+  oldtrap = trapchk(1);
+  trap 1,1;
+  B = invpd(A'A);
+  trap oldtrap,1;
+
+  if scalerr(B);
+      ERRORLOG "error: A'A is a singular matrix.";
+      retp(error(0));
+  endif;
+
+  B = B*A';
+  cn = B[1,.]; cn = cn';
+  _window = cn;
+
+  if x == 0;
+    retp(0);
+  endif;
+
+  y = Linear_Filter(x,cn,-nL,nR);
+
+  retp(y);
+endp;
+
+
+/*
+** _ar_filter
+*/
+
+proc _ar_filter(y,phi);
+  local p,Nobs,K,i,e;
+
+  p = rows(phi);
+
+  Nobs = rows(y);
+  K = cols(y);
+  e = zeros(Nobs,K);
+
+  i = 1;
+  do until i > K;
+    e[.,i] = Linear_Filter(y[.,i],-rev(phi)|1,-p,0);
+    i = i + 1;
+  endo;
+
+  retp(e);
+endp;
+
+
+/*
+** _ma_filter
+*/
+
+proc _ma_filter(y,theta);
+  local q,Nobs,K,e0,e;
+
+  q = rows(theta);
+  Nobs = rows(y);
+  K = cols(y);
+
+  e0 = zeros(q,K);
+  e = trimr(recserar(e0|y,e0,theta.*ones(q,K)),q,0);
+
+  retp(e);
+endp;
+
+
+/*
+** arma_filter
+*/
+
+proc arma_filter(y,beta,p,q);
+  local K,Np,e,phi,theta;
+
+  K = cols(y);
+  Np = p + q;
+
+  if (cols(beta) /= 1) or (rows(beta) /= Np);
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    retp(error(0));
+  endif;
+
+  if p == 0;
+    e = _ma_filter(y,beta);
+  elseif q == 0;
+    e = _ar_filter(y,beta);
+  else;
+    phi = beta[1:p];
+    theta = beta[1+p:Np];
+    e = _ar_filter(y,phi);
+    e[1:p,1:K] = zeros(p,K);
+    e = _ma_filter(e,theta);
+    e[1:p,1:K] = miss(zeros(p,K),0);
+  endif;
+
+  retp(e);
+endp;
+
+
+/*
+** _arch_Filter
+*/
+
+proc _arch_Filter(e,alpha);
+  local Nobs,K,p,h2,e2,i;
+
+  Nobs = rows(e);
+  K = cols(e);
+
+  p = rows(alpha)-1;
+
+  if p == 0;
+    h2 = alpha*ones(Nobs,K);
+    retp(h2);
+  endif;
+
+  h2 = zeros(p+Nobs,K);
+  e = zeros(p,K)|e;
+  e2 = e^2;
+
+  i = 1;
+  do until i > K;
+    h2[.,i] = Linear_Filter(e2[.,i],rev(alpha[2:p+1]),-p,-1);
+    i = i + 1;
+  endo;
+
+  h2 = trimr(h2,p,0);
+  h2 = h2 + alpha[1];
+
+  retp(h2);
+endp;
+
+
+/*
+** garch_Filter
+*/
+
+proc garch_Filter(e,alpha,p,q);
+  local Nobs,K,h0,h0_,h2;
+
+  if ( rows(alpha) /= (p+q+1) ) or ( cols(alpha) /= 1 );
+    ERRORLOG "error: Wrong size format of the alpha vector.";
+    retp(error(0));
+  endif;
+
+  Nobs = rows(e);
+  K = cols(e);
+
+  h0 = _arch_Filter(e,alpha[1:p+1]);
+
+  if q /= 0;
+    h0_ = zeros(q,K);
+    h2 = trimr(recserar(h0_|h0,h0_,alpha[2+p:1+p+q].*ones(q,K)),q,0);
+  else;
+    h2 = h0;
+  endif;
+
+  retp(h2);
+endp;
+
+
+/*
+** fractional_Filter
+*/
+
+proc fractional_Filter(y,d);
+  local Nobs,K,e,j,c,y0,i;
+
+  /*
+
+  if abs(d) > 0.5;
+    ERRORLOG "error: d must take a value in the range [-0.5,0.5].";
+    retp(error(0));
+  endif;
+
+  */
+
+  Nobs = rows(y);
+  K = cols(y);
+  e = zeros(2*Nobs,K);
+
+  c = _d_ma(d,Nobs);
+  _window = c;
+
+  y0 = zeros(Nobs,1);
+
+  i = 1;
+  do until i > K;
+    e[.,i] = Linear_Filter(y0|y[.,i],rev(c),-Nobs,0);
+    i = i + 1;
+  endo;
+
+  e = trimr(e,Nobs,0);
+
+  retp(e);
+endp;

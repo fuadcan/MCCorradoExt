@@ -1,0 +1,21 @@
+/*
+** integral.ext - Integration of functions.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declarations for procedures INTGRATx, INTQUADx.
+*/
+
+external matrix _intord;   /* Order of integration */
+
+external matrix _intq2;
+external matrix _intq3;
+external matrix _intq4;
+external matrix _intq6;
+external matrix _intq8;
+external matrix _intq12;
+external matrix _intq16;
+external matrix _intq20;
+external matrix _intq24;
+external matrix _intq32;
+external matrix _intq40;

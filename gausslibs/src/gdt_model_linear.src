@@ -1,0 +1,302 @@
+/*
+** gdt_model_linear.src
+**
+**
+** (C) Copyright 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> _gdt_model_linear
+**
+**  Purpose:    generates simulated data based on reduced form regression model
+**
+**  Format:     { r,s } = _gdt_model_linear(args);
+**
+**  Input:      args    string array, keywords for simulation options
+**
+**                         file   output file name, default = "regres"
+**                      depname   names of dependent variables, default = "Y"
+**                       indvar   list of names of independent variables,
+**                                   default is no independent variables
+**                     constant   value of constants, default = 1
+**                         beta   list of values of coefficients, length must be
+**                                 rows(depname) * rows(indvar).  Default = .5, .5.
+**                                     is no coefficients
+**                          vcx   covariance matrix of exogenous variables, default = identity.
+**                       numobs   number of observations, default = 100
+**                       normal   covariances.  Normally distributed
+**                                  error terms with specified covariances
+**                                  matrix.  Default = 1.
+**                            t   df, covariances.  Student's t distributed
+**                                     error term with specified df parameter and
+**                                     specified covariances. Default is 5, 1.
+**                         seed   random number generator seed. Default = 345678
+**                         open   resulting dataset opened in Data Tool. Default
+**                                  is closed
+**
+**
+**  Output:     r           scalar, return code.  Normal return = 0.
+**
+**              s           string, return message.  Normal return = "".
+**
+**
+**  Example:
+**
+**         sa1 = "file test"         $|
+**               "depvar Y1 Y2"      $|
+**               "indvar XX1,XX3"    $|
+**               "constant -1,1"     $|
+**               "beta .5,.5,.2,.3"  $|
+**               "numobs 200"        $|
+**               "Normal 1.5,.3,1.2";
+**
+**               call _gdt_model_linear(sa1);
+**
+*/
+
+
+#include gdttools.ext
+
+
+proc(2) = _gdt_model_linear(args);
+
+    local fp,fname,depnames,indnames,b0,beta,s1,s2,s3,numx,df,vc,vcx,
+         lbl,y,x,distType,distPars,eps,sd,pr,z,nobs,openf,oldt;
+
+    fname = "linear";
+    depnames = "Y";
+    indnames = "";
+    b0 = 1;
+    beta = error(0);
+    distType = 1;
+    distPars = error(0);
+    nobs = 100;
+    sd = 345678;
+    openf = 0;
+    vcx = 1;
+    vc = 1;
+
+    for i(1,rows(args),1);
+
+        if args[1] $== "";
+
+            indnames = "X1"$|"X2";
+            beta = { .5, .5 };
+
+        else;
+
+            { s1,s2 } = token(args[i]);
+            if lower(s1) $== "file";
+                 fname = s2;
+            elseif lower(s1) $== "depvar";
+                 depnames = strsplit(s2)';
+            elseif lower(s1) $== "indvar";
+                 indnames = strsplit(s2)';
+            elseif lower(strsect(s1,1,5)) $== "const";
+                 b0 = strtof(strsplit(s2))';
+            elseif lower(s1) $== "beta";
+                 beta = strtof(strsplit(s2))';
+            elseif lower(s1) $== "numobs";
+                 nobs = stof(s2);
+            elseif lower(s1) $== "vcx";
+                 vcx = strtof(strsplit(s2))';
+            elseif lower(s1) $== "normal";
+                 distType = 1;
+                 if s2 $/= "";
+                     distPars = strtof(strsplit(s2))';
+                 endif;
+            elseif lower(s1) $== "t";
+                 distType = 2;
+                 if s2 $/= "";
+                     distPars = strtof(strsplit(s2))';
+                     df = distPars[1];
+                     if rows(distPars) > 1;
+                         distPars = distPars[2:rows(distPars)];
+                     endif;
+                 endif;
+            elseif lower(s1) $== "seed";
+                 sd = stof(s2);
+            elseif lower(s1) $== "open";
+                openf = 1;
+            endif;
+
+       endif;
+
+     endfor;
+
+     open fp = ^fname;
+     if fp /= -1;
+         errorlog "dataset already exists, choose a different name";
+         fp = close(fp);
+         retp(-1,"");
+     endif;
+     fp = close(fp);
+
+
+     if scalmiss(distPars);
+         vc = 1;
+     else;
+         if (rows(distPars) /= 0.5*rows(depnames)*(rows(depnames)+1));
+             errorlog "size of covariance matrix of residuals\n"\
+                      "inconsistent with number of endogenous variables";
+             retp(-1,"");
+         else;
+            vc = xpnd(distPars);
+            oldt = trapchk(1);
+            trap 1,1;
+            vc = chol(vc);
+            trap oldt,1;
+            if scalmiss(vc);
+                errorlog "covariance matrix of residuals is\n"\
+                         " singular, identity matrix will be used";
+                vc = 1;
+            endif;
+         endif;
+     endif;
+
+     if scalmiss(beta) and indnames[1] $/= "";
+         beta = .2 * ones(rows(indnames),rows(depnames));
+         numx = rows(indnames);
+     elseif not scalmiss(beta) and indnames[1] $== "";
+         numx = rows(beta)/rows(depnames);
+         if floor(numx) /= numx;
+             errorlog "incorrect number of coefficients";
+             retp(-1,"");
+         endif;
+         beta = reshape(beta,numx,rows(depnames));
+         indnames = ftostrC(seqa(1,1,numx),"X%1.0lf");
+     elseif not scalmiss(beta) and indnames[1] $/= "";
+         if rows(beta) /= rows(indnames)*rows(depnames);
+             errorlog "number of coefficients inconsistent with\n"\
+                      "list of names of independent variables";
+             retp(-1,"");
+         else;
+             beta = reshape(beta,rows(indnames),rows(depnames));
+             numx = rows(indnames);
+         endif;
+     else;
+         numx = 0;
+     endif;
+
+     if numx > 0;
+        if rows(vcx) > 1 and not (vcx == 1);
+            if rows(vcx) /= 0.5*numx*(numx+1);
+                errorlog "size of variance-covariance matrix inconsistent\n"\
+                         "with number of exogenous variables";
+                retp(-1,"");
+            endif;
+            vcx = xpnd(vcx);
+            oldt = trapchk(1);
+            trap 1,1;
+            vcx = chol(vcx);
+            trap oldt,1;
+            if scalmiss(vcx);
+                errorlog "covariance matrix of exogenous variables is\n"\
+                         " singular, identity matrix will be used";
+                vcx = 1;
+            endif;
+        endif;
+     endif;
+
+     if rows(b0) /= rows(depnames);
+         if rows(b0) == 1;
+             b0 = b0 * ones(rows(depnames),1);
+         else;
+             errorlog "number of constants is inconsistent with number\n"\
+                      "of endogenous variables";
+             retp(-1,"");
+         endif;
+     endif;
+
+     if numx > 0;
+         { x,sd } = rndKMn(nobs,rows(beta),sd);
+         x = x * vcx;
+     endif;
+
+     if distType == 1;
+         { eps,sd } = rndKMn(nobs,rows(depnames),sd);
+         eps = eps * vc;
+     elseif distType == 2;
+         { eps,sd } = rndKMu(nobs,rows(depnames),sd);
+         eps = cdftci(1-eps,df) * vc;
+     endif;
+
+     y = b0' + eps;
+     if numx > 0;
+         y = y + x * beta;
+     endif;
+
+     if numx == 0;
+         lbl = depnames;
+     else;
+         lbl = depnames $| indnames;
+     endif;
+
+     create fp = ^fname with ^lbl,0,8;
+     if numx == 0;
+         call writer(fp,y);
+     else;
+         call writer(fp,y~x);
+     endif;
+     fp = close(fp);
+
+     if openf;
+         retp(1,fname);
+     else;
+         retp(0,"");
+     endif;
+
+endp;
+
+
+
+
+    proc(0) = _gdt_model_linear_help;
+
+       local s1;
+
+       s1 = "
+Purpose: generates linear simulation
+
+Format:  model linear
+         [options]
+         
+Example: model linear
+         file linsim
+         depvar y
+         indvar x1,x2
+         constant 1.5
+         beta .5, .5
+         vcx 1, .4, 1
+
+Options: file     output file name, default = linear
+         depvar   name of endogenous variable(s), default = Y
+         indvar   list of names of exogenous variables, default is no independent variables
+         constant value of constant, default = 1
+         beta     list of values of coefficients, default is no coefficients
+         vcx      covariance matrix of exogenous variables, default = identity
+         numobs   number of observations, default = 100
+         normal   vc.  Normally distributed error term with
+                      specified covariance matrix.  Default is identity
+         t        df, vc matrix.  Student's t distributed error terms with
+                      specified df and covariance matrix.  Default is 5,identity
+         seed     random number generator seed. Default = 345678
+         open     resulting dataset opened in Data Tool. Default is closed";
+
+       print s1;
+
+    endp;

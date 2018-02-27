@@ -1,0 +1,821 @@
+/*
+** model.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {theta,stderr,Mcov,LogL} = sm_LL(y,sv);
+**                                Estimate the coefficients of the Local
+**                                Level structural model (or the random
+**                                walk plus noise model) by Maximum Likelihood
+**                                in the frequency domain                  49
+**
+**
+**  {theta,stderr,Mcov,LogL} = sm_LLT(y,sv);
+**                                Estimate the coefficients of the Local
+**                                Linear Trend Model by Maximum Likelihood
+**                                in the frequency domain                  87
+**
+**
+**  {theta,stderr,Mcov,LogL} = BSM(y,s,sv);
+**                                Estimate the coefficients of the Basic
+**                                Structural Model by Maximum Likelihood
+**                                in the frequency domain                 124
+**
+**  {theta,stderr,Mcov,LogL} = sm_cycle(y,sv);
+**                                Estimate the coefficients of the Cycle
+**                                Structural Model by Maximum Likelihood
+**                                in the frequency domain                 162
+**
+**  {beta,stderr,Mcov,LogL} = arfima(y,p,q,sv,cnt);
+**                                Estimate the coefficients of a univaria-
+**                                te fractional ARMA model by Maximum
+**                                Likelihood in the frequency domain      201
+**
+**  {phi,theta,retcode} = canonical_arfima(beta,p,q,M,N);
+**                                Infinite autoregressive and moving average
+**                                representations of a fractional
+**                                univariate ARMA process                 245
+**
+**  g = sgf_arfima(beta,p,q,sigma,lambda);
+**                                Compute the spectral generating function
+**                                of a univariate fractional ARMA process 266
+**
+*/
+
+
+/*
+** sm_LL
+**
+** Purpose: Estimate the coefficients of the Local Level
+**          structural model (or the random walk plus noise model)
+**          by Maximum Likelihood in the frequency domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = sm_LL(y,sv);
+**
+** Input:   y - Nobs*1 vector, data
+**         sv - 2*1 vector, starting values for the maximisation algorithm
+**
+** Output:  theta - 2*1 vector, estimated coefficients
+**         stderr - 2*1 vector, standard errors
+**           Mcov - 2*2 matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _print - scalar 1 (default), print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the scoring method
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the scoring method (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                   1 for the inverse of the negative hessian matrix
+**                   2 for the inverse of the OPG estimator
+**                   3 for the White Heteroskedasticity matrix
+**
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+** Remarks:
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** sm_LLT
+**
+** Purpose: Estimate the coefficients of the Local Linear Trend Model
+**          by Maximum Likelihood in the frequency domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = sm_LLT(y,sv);
+**
+** Input:   y - Nobs*1 vector, data
+**         sv - 3*1 vector, starting values for the maximisation algorithm
+**
+** Output:  theta - 3*1 vector, estimated coefficients
+**         stderr - 3*1 vector, standard errors
+**           Mcov - 3*3 matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _print - scalar 1 (dafault), print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the scoring method
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the scoring method (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                   1 for the inverse of the negative hessian matrix
+**                   2 for the inverse of the OPG estimator
+**                   3 for the White Heteroskedasticity matrix
+**
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+** Remarks:
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** BSM
+**
+** Purpose: Estimate the coefficients of the Basic Structural Model
+**          by Maximum Likelihood in the frequency domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = BSM(y,s,sv);
+**
+** Input:   y - Nobs*1 vector, data
+**          s - scalar, the seasonal order
+**         sv - 4*1 vector, starting values for the maximisation algorithm
+**
+** Output:  theta - 4*1 vector, estimated coefficients
+**         stderr - 4*1 vector, standard errors
+**           Mcov - 4*4 matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function at
+**                  the maximum
+**
+** Globals: _print - scalar 1, print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the scoring method
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the scoring method (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                   1 for the inverse of the negative hessian matrix
+**                   2 for the inverse of the OPG estimator
+**                   3 for the White Heteroskedasticity matrix
+**
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+** Remarks:
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** sm_cycle
+**
+** Purpose: Estimate the coefficients of the Cycle structural model by
+**          Maximum Likelihood in the frequency domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = sm_cycle(y,sv);
+**
+** Input:   y - Nobs*1 vector, data
+**         sv - 3*1 vector, starting values for the maximisation algorithm
+**
+** Output:  theta - 3*1 vector, estimated coefficients
+**         stderr - 3*1 vector, standard errors
+**           Mcov - 3*3 matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _cycle_prmt - scalar 1, reparametrization of the parameters
+**                        scalar 0, no reparametrization
+**          _print - scalar 1, print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the scoring method
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the scoring method (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                   1 for the inverse of the negative hessian matrix
+**                   2 for the inverse of the OPG estimator
+**                   3 for the White Heteroskedasticity matrix
+**
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+** Remarks:
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** arfima
+**
+** Purpose: Estimate the ceofficients of a univariate fractional ARMA
+**          model by Maximum Likelihood in the frequency domain
+**
+** Format:  {beta,stderr,Mcov,LogL} = arfima(y,p,q,sv,cnt);
+**
+** Input:   y - Nobs*1 vector, data
+**          p - scalar, the autoregressive order
+**          q - scalar, the moving average order
+**         sv - np*1 vector, starting values for the maximisation algorithm
+**        cnt - np*1 vector,
+**              indicates the coefficients to be estimated (cnt[i] = 0)
+**              and the fixed coefficients (cnt[i] = 1)
+**
+** Output:  beta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors of the
+**                                estimated coefficients
+**           Mcov - np*np matrix, covariance matrix of the
+**                                estimated coefficients
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _print - scalar 1, print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the scoring method
+**       _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the scoring method (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                   1 for the inverse of the negative hessian matrix
+**                   2 for the inverse of the OPG estimator
+**                   3 for the White Heteroskedasticity matrix
+**
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function evaluated at beta
+**
+** Remarks: The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** canonical_arfima
+**
+** Purpose: Infinite autoregressive and moving average
+**          representations of a fractional univariate ARMA process
+**
+** Format:  {phi,theta,retcode} = canonical_arfima(beta,p,q,M,N);
+**
+** Input:   beta - (p+q+1)*1 vector, the coefficients of ARFIMA process
+**          p - scalar, the autoregressive order
+**          q - scalar, the moving average order
+**          M - scalar, the order of the expansion of fractional polynomial
+**          N - scalar, the order of infinite representation
+**
+** Output:  phi - N*1 vector, the coefficients of the AR representation
+**        theta - N*1 vector, the coefficients of the MA representation
+**      retcode - 2*1 vector, the convergence criterion
+**
+*/
+
+
+/*
+** sgf_arfima
+**
+** Purpose: Compute the spectral generating function of a
+**          univariate fractional ARMA process
+**
+** Format:  g = sgf_arfima(beta,p,q,sigma,lambda);
+**
+** Input:   beta - np*1 vector, the coefficients of the ARFIMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         sigma - scalar, the standard error sigma
+**        lambda - Nstar*1 vector, the Fourier frequencies lambda_j
+**
+** Output:     g - Nstar*1 vector, the sgf values g(lambda_j)
+**
+*/
+
+
+/*
+** Local level / Random walk plus noise models
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 63
+*/
+
+proc (4) = sm_LL(y,sv);
+  local y_;
+  local theta,stderr,Mcov,Logl;
+
+  if (rows(sv) /=2) or (cols(sv) /= 1);
+
+    ERRORLOG "error: The dimension of vector sv is 2*1.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  y_ = y -shiftr(y',1,miss(0,0))';
+
+  _tsm_parnm = "sig_eta"|"sig_epsilon";
+  _sgf_Jacobian_proc = &_LL_sgf_Jacobian;
+
+  {theta,stderr,Mcov,Logl} = FD_ml(y_,&_LL_sgf,sv);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc _LL_sgf(theta,lambda);
+  local sigma1,sigma2,g;
+  sigma1  = theta[1]; sigma2 = theta[2];
+  g = (sigma1^2) + 2*(1-cos(lambda))*(sigma2^2);
+  retp(g);
+endp;
+
+proc _LL_sgf_Jacobian(theta,lambda);
+  local sigma1,sigma2,J1,J2,J;
+  sigma1  = theta[1]; sigma2 = theta[2];
+  J2 = 4*(1-cos(lambda))*sigma2;
+  J1 = 2*sigma1*ones(rows(J2),1);
+  J = J1~J2;
+  retp(J);
+endp;
+
+
+/*
+** Local Linear Trend model
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, page 63
+*/
+
+proc (4) = sm_LLT(y,sv);
+  local y_;
+  local theta,stderr,Mcov,Logl;
+
+  if (rows(sv) /=3) or (cols(sv) /= 1);
+
+    ERRORLOG "error: The dimension of vector sv is 3*1.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  y_ = y -shiftr(y',1,miss(0,0))';
+  y_ = y_ -shiftr(y_',1,miss(0,0))';
+
+  _tsm_parnm = "sig_eta"|"sig_zeta"|"sig_epsilon";
+  _sgf_Jacobian_proc = &_LLT_sgf_Jacobian;
+
+  {theta,stderr,Mcov,Logl} = FD_ml(y_,&_LLT_sgf,sv);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc _LLT_sgf(theta,lambda);
+  local sigma1,sigma2,sigma3,g,w;
+  sigma1  = theta[1]; sigma2 = theta[2]; sigma3 = theta[3];
+  w = 1-cos(lambda);
+  w = 2*w;
+  g = w*(sigma1^2) + (sigma2^2) + (w^2)*(sigma3^2);
+  retp(g);
+endp;
+
+proc _LLT_sgf_Jacobian(theta,lambda);
+  local sigma1,sigma2,sigma3,w,J1,J2,J3,J;
+  sigma1  = theta[1]; sigma2 = theta[2]; sigma3 = theta[3];
+  w = 1-cos(lambda);
+  w = 2*w;
+  J1 = 2*w*sigma1;
+  J2 = 2*sigma2*ones(rows(J1),1);
+  J3 = 2*(w^2)*sigma3;
+  J = J1~J2~J3;
+  retp(J);
+endp;
+
+
+/*
+** Basic structural model
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, page 63
+*/
+
+proc (4) = BSM(y,s,sv);
+  local y_;
+  local theta,stderr,Mcov,Logl;
+
+  if (rows(sv) /=4) or (cols(sv) /= 1);
+
+    ERRORLOG "error: The dimension of vector sv is 4*1.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  y_ = y - lagn(y,s);
+  y_ = y_ - lag1(y_);
+
+  _BSM_s = s;
+  _tsm_parnm = "sig_eta"|"sig_zeta"|"sig_omega"|"sig_epsilon";
+  _sgf_Jacobian_proc = &_BSM_sgf_Jacobian;
+
+  {theta,stderr,Mcov,Logl} = FD_ml(y_,&_BSM_sgf,sv);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc _BSM_sgf(theta,lambda);
+  local sigma1,sigma2,sigma3,sigma4,s,g;
+  local h,w0,w1,w2,w3,w4,w5,w6,w7,w8,w9;
+  sigma1  = theta[1]; sigma2 = theta[2]; sigma3 = theta[3];
+  sigma4 = theta[4];
+  s = _BSM_s;
+  w0 = cos(lambda);
+  w1 = cos(2*lambda);
+  w2 = 1-cos(lambda*s); w2 = 2*w2;
+  w3 = 1-w0; w3 = 2*w3;
+  w4 = w3.*w2;
+  w5 = (6-8*w0+2*w1);
+  h = seqa(1,1,s-1);
+  w6 = s-h;
+  w7 = cos(h.*lambda');
+  w8 = w6.*w7;
+  w9 = s + 2*sumc(w8);
+  g = w2*(sigma1^2) + w9*(sigma2^2)+ w5*(sigma3^2) + w4*(sigma4^2);
+  retp(g);
+endp;
+
+proc _BSM_sgf_Jacobian(theta,lambda);
+  local sigma1,sigma2,sigma3,sigma4,s,J1,J2,J3,J4,J;
+  local h,w0,w1,w2,w3,w4,w5,w6,w7,w8,w9;
+  sigma1  = theta[1]; sigma2 = theta[2]; sigma3 = theta[3];
+  sigma4 = theta[4];
+  s = _BSM_s;
+  w0 = cos(lambda);
+  w1 = cos(2*lambda);
+  w2 = 1-cos(lambda*s); w2 = 2*w2;
+  w3 = 1-w0; w3 = 2*w3;
+  w4 = w3.*w2;
+  w5 = (6-8*w0+2*w1);
+  h = seqa(1,1,s-1);
+  w6 = s-h;
+  w7 = cos(h.*lambda');
+  w8 = w6.*w7;
+  w9 = s + 2*sumc(w8);
+  J1 = 2*w2*sigma1;
+  J2 = 2*w9*sigma2;
+  J3 = 2*w5*sigma3;
+  J4 = 2*w4*sigma4;
+  J = J1~J2~J3~J4;
+  retp(J);
+endp;
+
+
+/*
+** Cycle Model
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, page 64
+*/
+
+proc (4) = sm_cycle(y,sv);
+  local y_;
+  local theta,stderr,Mcov,Logl;
+
+  if (rows(sv) /= 3) or (cols(sv) /= 1);
+
+    ERRORLOG "error: The dimension of vector sv is 3*1.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  y_ = y;
+
+  if _cycle_prmt /= 0;
+    _tsm_parnm = "rho_"|"lambda_"|"sigma";
+  else;
+    _tsm_parnm = "rho"|"lambda"|"sigma";
+  endif;
+
+  {theta,stderr,Mcov,Logl} = FD_ml(y_,&_cycle_sgf,sv);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc _cycle_sgf(theta,lambda);
+  local rho,lc,sigma;
+  local w0,w1,w2,w3,w4,w5,g;
+
+  rho = theta[1];
+  lc = theta[2];
+  sigma = theta[3];
+
+  if _cycle_prmt /= 0;
+
+    rho = exp(-rho)/(1+exp(-rho));
+    lc = pi*exp(-lc)/(1+exp(-lc));
+
+  endif;
+
+  w0 = cos(lc);
+  w1 = cos(lambda);
+  w2 = cos(2*lambda);
+  w3 = w0*w1;
+  w4 = 1 + (rho^2) - 2*rho*w3;
+  w5 = 1 + (rho^4) + 4*(rho^2)*(w0^2) - 4*rho*(1+rho^2)*w3 + 2*(rho^2)*w2;
+
+  g = w4./w5*(sigma^2);
+  retp(g);
+endp;
+
+
+/*
+** Spectral Estimation of a fractional ARMA model
+**
+** FOX and TAQQU [1986], Large-sample properties of parameter
+** estimates for strongly dependent stationary Gaussian time series,
+** The Annals of Statistics, 14, 517-532
+*/
+
+
+/*
+** arfima
+*/
+
+proc (4) = arfima(y,p,q,sv,cnt);
+  local np,m,err,sv_,beta_,beta,cnt_,idx;
+  local w,j,names,w0,w1,w2,RR,r;
+  local stderr,Mcov,Logl;
+
+  np = 0;
+  m = p+q+2;
+
+  if ( rows(sv) /= m ) or ( rows(cnt) /= m);
+
+    ERRORLOG "error: Wrong size format of the sv or cnt vectors.";
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  if p == 0;
+
+    p = 1;
+    sv_ = 0|sv;
+    cnt_ = 1|cnt;
+    np = np + 1;
+    m = m+1;
+
+  else;
+
+    sv_ = sv;
+    cnt_ = cnt;
+    np = np + p;
+
+  endif;
+
+
+  if q == 0;
+
+    q = 1;
+    sv_ = sv_[1:np]|0|sv_[np+1:m];
+    cnt_ = cnt_[1:np]|1|cnt_[np+1:m];
+    np = np + 1;
+    m = m+1;
+
+  else;
+
+    np = np + q;
+
+  endif;
+
+  cnt_ = ( cnt_.== 1);     /* Fixed parameters */
+
+  r = sv_.*cnt_;           /* r vector         */
+
+  idx = indexcat(cnt_,0);  /* Free parameters  */
+
+  if scalerr(idx);
+
+    ERRORLOG "error: No parameters to estimate.";
+    call pause(2);
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  w0 = 1-cnt_;
+  w1 = cumsumc(w0);
+  w2 = w1.*w0;
+
+  RR = design(w2);
+
+  _arfima_p = p;
+  _arfima_q = q;
+  sv = sv_[idx];
+
+  names = {};
+
+  j = 1;
+  do until j>p;
+    w = 0$+"phi"$+ftos(j,"%lf",1,0);
+    names = names|w;
+    j = j+1;
+  endo;
+
+  j=1;
+  do until j>q;
+    w = 0$+"theta"$+ftos(j,"%lf",1,0);
+    names = names|w;
+    j = j+1;
+  endo;
+
+  _tsm_parnm = names|"d"|"sigma";
+  _sgf_Jacobian_proc = &_arfima_sgf_Jacobian;
+
+  {beta,stderr,Mcov,Logl} = FD_cml(y,&_arfima_sgf,sv,RR,r);
+
+  retp(beta,stderr,Mcov,Logl);
+
+endp;
+
+proc _arfima_sgf(beta,lambda);
+  local p,q,Np,M,phi,theta,d,sigma;
+  local w1,w2,w3,w4,w5,w6,w7,w8,T,g;
+
+  p = _arfima_p;
+  q = _arfima_q;
+  Np = p+q+2;
+
+  phi = beta[1:p]; theta = beta[p+1:p+q]; d = beta[p+q+1]; sigma = beta[p+q+2];
+
+  M = maxc(p|q);
+
+  w1 = lambda.*seqa(1,1,M)';
+  w2 = cos(w1);
+  w3 = sin(w1);
+  w4 = (1 - w2[.,1:q]*theta)^2 + (w3[.,1:q]*theta)^2;
+  w5 = (1 - w2[.,1:p]*phi)^2 + (w3[.,1:p]*phi)^2;
+  w6 = w4./w5;
+  w7 = 2*sin(lambda/2); w7 = w7^2; T = rows(lambda);
+  w8 = w7[2:T];
+  w8 = w8^(-d); w8 = w8[1]|w8;
+  g = (sigma^2)*w8.*w6;
+
+  retp(g);
+endp;
+
+proc _arfima_sgf_Jacobian(beta,lambda);
+  local p,q,Np,M,phi,theta,d,sigma;
+  local w1,w2,w3,w4,w5,w6,w7,w8,T;
+  local z1,z2,z3,z4,z5,z6,z7,z8;
+  local J1,J2,J3,J4;
+
+  p = _arfima_p;
+  q = _arfima_q;
+  Np = p+q+2;
+
+  phi = beta[1:p]; theta = beta[p+1:p+q]; d = beta[p+q+1]; sigma = beta[p+q+2];
+
+  M = maxc(p|q);
+
+  w1 = lambda.*seqa(1,1,M)';
+  w2 = cos(w1);
+  w3 = sin(w1);
+
+  z1 = w2[.,1:q]*theta;
+  z2 = w3[.,1:q]*theta;
+  z3 = w2[.,1:p]*phi;
+  z4 = w3[.,1:p]*phi;
+
+  w4 = (1 - z1)^2 + z2^2;
+  w5 = (1 - z3)^2 + z4^2;
+  w6 = w4./w5;
+  w7 = 2*sin(lambda/2); w7 = w7^2; T = rows(lambda);
+  w8 = w7[2:T];
+  w8 = w8^(-d); w8 = w8[1]|w8;
+
+  z5 = w8.*w6;
+  z6 = ln(w7[2 2:T]);
+  z7 = 2*( z2.*w3[.,1:q] - (1 - z1).*w2[.,1:q] );
+  z8 = 2*( z4.*w3[.,1:p] - (1 - z3).*w2[.,1:p] );
+
+  J1 = -(sigma^2)*w8.*w4./(w5^2).*z8;
+  J2 = (sigma^2)*w8./w5.*z7;
+  J3 = -(sigma^2)*z5.*z6;
+  J4 = 2*sigma*z5;
+
+  retp(J1~J2~J3~J4);
+endp;
+
+
+/*
+** Canonical representation of a fractional ARMA process
+*/
+
+
+/*
+** canonical_arfima
+*/
+
+proc (3) =  canonical_arfima(beta,p,q,M,N);
+  local a,b,d,theta,phi,retcode;
+  local theta_,phi_,dar,dma;
+
+  if rows(beta) /= (p+q+1);
+
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp(error(0),error(0),error(0));
+
+  endif;
+
+  if N > M;
+    M = N;
+  endif;
+
+  if p /= 0;
+    a = beta[1:p];
+  else;
+    a = {};
+  endif;
+
+  if q /= 0;
+    b = beta[1+p:p+q];
+  else;
+    b = {};
+  endif;
+
+  d = beta[p+q+1];
+
+  a = 1|-a;
+  b = 1|-b;
+
+  dar = _d_ma(d,M);
+  dma = _d_ma(-d,M);
+
+  phi_ = _polymult(a,dar);
+  theta_ = _polymult(b,dma);
+
+  theta = _polydiv(theta_,a,N);
+  phi = _polydiv(phi_,b,N);
+  phi[2:N+1] = -phi[2:N+1];
+
+  retcode = dar[M]|dma[M];
+
+  retp(phi,theta,retcode);
+endp;
+
+proc (1) = _d_ma(d,M);
+  local j,phi;
+
+  j = seqa(1,1,M);
+  phi = (j-1-d)./j;
+  phi = recsercp(1|phi,zeros(M+1,1));
+
+  retp(phi);
+endp;
+
+
+/*
+** sgf_arfima
+*/
+
+proc sgf_arfima(beta,p,q,sigma,lambda);
+  local Np,phi,theta,d,M;
+  local w1,w2,w3,w4,w5,w6,w7,g;
+  local retcode;
+
+  Np = p+q+1;
+
+  if Np /= rows(beta);
+    ERRORLOG "error: beta must be a (p+q+1)*1 vector";
+    retp(error(0));
+  endif;
+
+  if p == 0;
+    phi = 0;
+    p = 1;
+  else;
+    phi = beta[1:p];
+    beta = trimr(beta,p,0);
+  endif;
+
+  if q == 0;
+    theta = 0;
+    q = 1;
+  else;
+    theta = beta[1:q];
+    beta = trimr(beta,q,0);
+  endif;
+
+  d = beta;
+
+  M = maxc(p|q);
+
+  w1 = lambda.*seqa(1,1,M)';
+  w2 = cos(w1);
+  w3 = sin(w1);
+  w4 = (1 - w2[.,1:q]*theta)^2 + (w3[.,1:q]*theta)^2;
+  w5 = (1 - w2[.,1:p]*phi)^2 + (w3[.,1:p]*phi)^2;
+  w6 = w4./miss(w5,0);
+
+  if d /= 0;
+    w7 = 2*sin(lambda/2);
+    w7 = w7^2;
+    {w7,retcode} = Missing(miss(w7,0),0);
+    w7 = w7^(-d);
+    {w7,retcode} = Missing(w7,retcode);
+  else;
+    w7 = 1;
+  endif;
+
+  g = (sigma^2)*w7.*w6;
+
+  retp(g);
+endp;
+
+

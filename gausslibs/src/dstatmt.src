@@ -1,0 +1,512 @@
+/*
+** dstatmt.src - descriptive statistics
+** (C) Copyright 2005-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**                  Format                                  Line
+** ========================================================================
+**
+**      dout = DSTATMT(dc0,dataset,vars);                   31
+**      dout = _DSTATMTD(dc0,dataset,vars);                 205
+**      dout = _DSTATMTX(dc0,x);                            354
+**/
+
+#include dstatmt.sdf
+
+/*
+**> dstatmt
+**
+**  Purpose:    Computes descriptive statistics.
+**
+**  Format:     dout = dstatmt(dc0,dataset,vars);
+**
+**  Input:      dc0        an instance of an dstatmtControl structure containing 
+**                         the following members:
+** 
+**                      dc0.altnames -- string array, default "".
+**
+**                              Kx1 string array, vector of alternate names
+**                              to be used if a matrix in memory is being 
+**                              analyzed. (i.e. dataset is a null string, or 0).
+**
+**                              By default, the variables names will be X1,X2,
+**                              ...Xm
+**
+**                      dc0.miss -- scalar, default 0. 
+**
+**                              Determines how missing values will be handled.
+**
+**                                 0   there are no missing values.
+**
+**                                 1   listwise deletion, drop an observation
+**                                     if any missings occur in it.
+**
+**                                 2   pairwise deletion.
+**
+**                      dc0.row -- scalar, default 0. 
+**
+**                              The number of rows of dataset to be read per 
+**                              iteration of the read loop.
+**
+**                              If 0, the number of rows to be read will be
+**                              calculated internally.
+**
+**                     dc0.output -- scalar, default 1. 
+**
+**                              Controls output.
+**
+**                                 1   print output table.
+**
+**                                 0   do not print output.
+**
+**                     dc0.vartype -- Kx1 vector or scalar, default 1. 
+**
+**                          If a matrix in memory is being analyzed, dc0.vtype
+**                          indicates whether the columns of the matrix are
+**                          character or numeric. 
+**
+**                          By default, all columns will be interpreted as
+**                          numeric. Otherwise, set dc0.vartype as follows: 
+**                          If dc0.vartype is a vector, each element should be 
+**                          set to 0 if the corresponding column in the data
+**                          matrix is character, and to 1 if the corresponding 
+**                          column is numeric. If dc0.vartype is a scalar, it 
+**                          is assumed that the data matrix is either all 
+**                          character (dc0.vartype = 0) or all numeric 
+**                          (dc0.vartype = 1).
+**
+**              dataset    string, name of data set.
+**
+**                         If dataset is a null string or 0, vars will
+**                         be assumed to be a matrix containing the data.
+**
+**              vars       Kx1 string array, names of the variables in
+**                         dataset to be analyzed
+**                                         OR
+**                         Kx1 numeric vector, the indices of the variables
+**                         in dataset to be analyzed.
+**
+**                         These can be any size subset of the variables in
+**                         the data set, and can be in any order.  If a
+**                         scalar 0 is passed, all columns of the data set
+**                         will be used.
+**
+**                         If dataset is a null string, or 0, then vars
+**                         will be interpreted as:
+**
+**                         NxK matrix, the data to be analyzed.
+**
+**
+**  Output:      dout      an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+**
+**                       dout.errcode -- scalar, error code, 0 if successful,
+**                               otherwise one of the following:
+**
+**                               2    Can't open file.
+**                               7    Too many missings - no data left 
+**                                    after packing.
+**                               9    altnames member of dstatmtControl 
+**                                    structure wrong size.
+**                              10    vartype member of dstatmtControl 
+**                                    structure wrong size.
+**
+**  Remarks:    If pairwise deletion is used, the minima and maxima will be
+**              the true values for the valid data.  The means and standard
+**              deviations will be computed using the correct number of
+**              valid observations for each variable.
+**
+**
+**  dstatmt
+**
+*/
+
+external proc indices;
+
+proc dstatmt(struct dstatmtControl dc0,dataset,vars);
+    local n,omat,fmt,ostr,vnamelen,spacelen;
+    struct dstatmtOut dout;
+
+    dataset = "" $+ dataset;
+
+    if dataset $== "";
+        /* check for complex input */
+        if iscplx(vars);
+            if hasimag(vars);
+                errorlog "ERROR: Matrix must be real.";
+                end;
+            else;
+                vars = real(vars);
+            endif;
+        endif;
+        dout = _dstatmtx(dc0,vars);
+    else;
+        dout = _dstatmtd(dc0,dataset,vars);
+    endif;
+    if (scalerr(dout.missing));
+        dout.vnames = "";
+        dout.mean = 0;
+        dout.var = 0;
+        dout.std = 0;
+        dout.min = 0;
+        dout.max = 0;
+        dout.valid = 0;
+        retp(dout);
+    endif;
+    msym "-----";
+    n = rows(dout.mean);
+    if rows(dout.missing) == 1;
+        dout.missing = dout.missing*ones(n,1);
+    endif;
+    if rows(dout.valid) == 1;
+        dout.valid = dout.valid*ones(n,1);
+    endif;
+    vnamelen = maxc(strlen(dout.vnames))+1;
+    if (vnamelen > 8);
+        spacelen = vnamelen-8;
+    else;
+        spacelen = 0;
+    endif;
+    if dc0.output;
+        print;
+        print chrs(45*ones(88+spacelen,1));
+        if (spacelen);
+            print "Variable"$+chrs(32*ones(spacelen,1))$+"        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        else;
+            print "Variable        Mean     Std Dev      Variance"\
+                    "     Minimum     Maximum     Valid Missing" ;
+        endif;
+        print chrs(45*ones(88+spacelen,1));
+        omat = dout.mean~dout.std~dout.var~dout.min~dout.max~dout.valid~dout.missing;
+        string fmt = { "%12.4f", "%12.4f", "%14.4f", "%12.4f", "%12.4f", "%10.0f", "%5.0f" };
+        ostr = satostrC(dout.vnames,"%-"$+ftocv(vnamelen,1,0)$+"."$+ftocv(vnamelen,1,0)$+"s");
+        ostr = ostr$~ftostrC(omat,fmt);
+        ostr = strcombine(ostr,"",0);
+        print ostr;
+    endif;
+    msym ".";
+    retp(dout);
+endp;
+
+/*
+**> _dstatmtd
+**
+**  Purpose:  This is used if the data is passed in a dataset.
+**
+**  Format:   dout =  _dstatmtd(dataset,vars);
+**
+**  Input:      dataset   string, the name of the dataset to be analyzed.
+**
+**              vars      Kx1 string array, names of the variables.
+**                                       OR
+**                        Kx1 numeric vector, indices of variables.
+**
+**  Output:     dout      an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+** 
+**                       dout.errcode -- scalar, error code. 
+*/
+
+proc _dstatmtd(struct dstatmtControl dc0,dataset,vars);
+    local i,fin,indx,kk,k,nr,tobs,sum,sumsq,z,fac,old,vtype,vlbl,vn;
+    struct dstatmtOut dout;
+
+    /* open file using name in variable DATASET */
+    dataset = "" $+ dataset;
+    open fin = ^dataset;
+    if fin == -1;
+        if not trapchk(1);
+            errorlog "Can't open file: " $+ dataset;
+            end;
+        else;
+            dout.errcode = 2; // Can't open file
+            retp(dout);
+        endif;
+    endif;
+    if iscplxf(fin);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    /* process variables */
+
+    if ((type(vars) == 13) or (type(vars) == 15));
+        { dout.vnames,indx } = indicesf(fin,vars,0);
+    else;
+        { dout.vnames,indx } = indicesf(fin,"",vars);
+    endif;
+
+    vtype = vartypef(fin);
+    vtype = vtype[indx];
+
+
+    /* Computation of max number of rows to read at one time */
+    if dc0.row;
+        nr = dc0.row;
+    else;
+        k = colsf(fin);
+        if dc0.miss == 2;
+            fac = 4;
+        else;
+            fac = 3;
+        endif;
+        nr = floor(minc(dc0.maxbytes/(k*8*fac)|maxvec/(k+1)));
+    endif;
+    tobs = rowsf(fin);
+    kk = rows(indx);
+    k = colsf(fin);
+    dout.min = reshape(__INFp,kk,1);       /* positive infinity */
+    dout.max = reshape(__INFn,kk,1);       /* negative infinity */
+    clear sum,sumsq;
+    dout.valid = 0;
+    do until eof(fin);
+        z = readr(fin,nr);
+        z = z[.,indx];
+        if dc0.miss == 1;     /* listwise deletion */
+            z = packr(z);
+            if scalmiss(z);
+                continue;
+            endif;
+            dout.min = minc(z|dout.min');
+            dout.max = maxc(z|dout.max');
+            dout.valid = dout.valid + rows(z);
+        elseif dc0.miss == 2;         /* pairwise deletion */
+            dout.missing = zeros(kk,1);
+            i = 1;
+            do until i > kk;
+                dout.missing[i] = dout.missing[i] + counts(z[.,i],error(0));
+                i = i+1;
+            endo;
+            dout.min = minc(missrv(z,__INFp)|dout.min');
+            dout.max = maxc(missrv(z,__INFn)|dout.max');
+            dout.valid = dout.valid + rows(z) - dout.missing;
+            z = missrv(z,0);
+        else;
+            dout.min = minc(z|dout.min');
+            dout.max = maxc(z|dout.max');
+            dout.valid = dout.valid + rows(z);
+        endif;
+        sum = sumc(z) + sum;
+        sumsq = sumc(z.*z) + sumsq;
+    endo;
+
+    fin = close(fin);
+    if dout.valid == 0;
+        if not trapchk(1);
+            errorlog "Too many missings - no data left after packing";
+        else;
+            dout.errcode = 7; // Too many missing - no data left after packing
+            retp(dout);
+        endif;
+    endif;
+    dout.mean = sum./dout.valid;
+    dout.var = (sumsq-dout.valid.*(dout.mean.*dout.mean))./( dout.valid + (dout.valid .== 1) - 1 );
+    dout.var = missex(dout.var,dout.valid.==1);
+    dout.var = maxc(dout.var'|zeros(1,rows(dout.var)));
+    dout.std = sqrt(dout.var);
+    dout.missing = tobs-dout.valid;
+
+    dout.mean = missex(dout.mean,(.not vtype));
+    dout.var = missex(dout.var,(.not vtype));
+    dout.var = missex(dout.var,dout.var .== 0);
+    dout.std = missex(dout.std,(.not vtype));
+    dout.std = missex(dout.std,dout.std .== 0);
+    dout.min = missex(dout.min,(.not vtype));
+    dout.max = missex(dout.max,(.not vtype));
+
+    retp(dout);
+endp;
+
+
+/*
+**> _dstatmtx
+**
+**  Purpose:  This is used if a matrix in memory is passed into dstatmt.
+**
+**  Format:  dout = _dstatmtx(x);
+**
+**  Input:      x         NxK matrix, the matrix in memory.
+**
+**  Output:     dout      an instance of a dstatmtOut structure 
+**                         containing the following members:
+**
+**                       dout.vnames -- Kx1 string array, the names of the 
+**                               variables used in the statistics.
+**
+**                       dout.mean -- Kx1 vector, means.
+**
+**                       dout.var -- Kx1 vector, variance.
+**
+**                       dout.std -- Kx1 vector, standard deviation.
+**
+**                       dout.min -- Kx1 vector, minima.
+**
+**                       dout.max -- Kx1 vector, maxima.
+**
+**                       dout.valid -- Kx1 vector, the number of valid cases.
+**
+**                       dout.missing -- Kx1 vector, the number of missing 
+**                               cases.
+*/
+
+proc _dstatmtx(struct dstatmtControl dc0,x);
+    local i,k,tobs,sum,sumsq,old,vtype;
+    struct dstatmtOut dout;
+
+    tobs = rows(x);
+    k = cols(x);
+    if dc0.altnames $/= "";
+        if rows(dc0.altnames) /= k;
+            errorlog "Invalid number of rows in altnames member of dstatmtControl structure";
+            dout.errcode = 9; // altnames member of dstatmtControl structure wrong size
+            retp(dout);
+        else;
+            dout.vnames = dc0.altnames;
+        endif;
+    else;
+        dout.vnames = 0 $+ "X" $+ ftocv(seqa(1,1,k),floor(log(k)),0);
+    endif;
+
+    if (rows(dc0.vartype) /= k) and (rows(dc0.vartype) /= 1);
+        errorlog "Invalid number of rows in vartype member of dstatmtControl structure";
+        dout.errcode = 10; // vartype member of dstatmtControl structure wrong size
+        retp(dout);
+    endif;
+
+    if (rows(dc0.vartype) == 1);
+        if (dc0.vartype == 0);
+            vtype = zeros(k,1);
+        else;
+            vtype = ones(k,1);
+        endif;
+    else;
+        vtype = dc0.vartype;
+    endif;
+
+    dout.missing = zeros(k,1);
+    if dc0.miss == 1;         /* listwise deletion */
+        x = packr(x);
+        if scalmiss(x);
+            if not trapchk(1);
+                errorlog "Too many missings - no data left after packing";
+            else;
+                dout.errcode = 7; // Too many missings - no data left after packing 
+                retp(dout);
+            endif;
+        endif;
+        dout.min = minc(x);
+        dout.max = maxc(x);
+        dout.valid = rows(x);
+    elseif dc0.miss == 2;     /* pairwise deletion */
+        i = 1;
+        do until i > k;
+            dout.missing[i] = dout.missing[i] + counts(x[.,i],error(0));
+            i = i+1;
+        endo;
+        dout.min = minc(missrv(x,__INFp));
+        dout.max = maxc(missrv(x,__INFn));
+        dout.valid = rows(x) - dout.missing;
+        x = missrv(x,0);
+    else;
+        dout.min = minc(x);
+        dout.max = maxc(x);
+        dout.valid = rows(x);
+    endif;
+    sum = sumc(x);
+    sumsq = sumc(x.*x);
+    dout.mean = sum./dout.valid;
+    dout.var = (sumsq-dout.valid.*(dout.mean.*dout.mean))./( dout.valid + (dout.valid .== 1) - 1);
+    dout.var = maxc(dout.var'|zeros(1,rows(dout.var)));
+    dout.std = sqrt(dout.var);
+    dout.missing = tobs - dout.valid;
+
+    dout.mean = missex(dout.mean,(.not vtype));
+    dout.var = missex(dout.var,dout.valid.==1);
+    dout.var = missex(dout.var,(.not vtype));
+    dout.var = missex(dout.var,dout.var .== 0);
+    dout.std = missex(dout.std,(.not vtype));
+    dout.std = missex(dout.std,dout.std .== 0);
+    dout.min = missex(dout.min,(.not vtype));
+    dout.max = missex(dout.max,(.not vtype));
+
+    retp(dout);
+endp;
+
+
+/*
+** dstatmtControlCreate
+**
+** Purpose: Sets the members of a dstatmtControl structure to default values.
+**
+** Format:  dc1 = dstatmtControlCreate;
+**
+** Input:      none
+**
+** Output:     oc1 -- an instance of a dstatmtControl structure with its
+**						members set to default values.  
+**
+** Remarks:  dstatmtControlCreate should be called before any call to dstatmt. 
+**
+*/
+
+proc dstatmtControlCreate;
+    struct dstatmtControl dc0;
+ 
+    dc0.altnames = "";
+    dc0.miss = 0;
+    dc0.row = 0;
+    dc0.output = 1;
+	dc0.vartype = 1;
+	dc0.maxbytes = 1e9;
+
+    retp(dc0);
+endp;
+

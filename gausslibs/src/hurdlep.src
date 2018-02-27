@@ -1,0 +1,212 @@
+/*
+** hurdlep.src - Hurdle Poisson Regression Model
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  FORMAT:     { bg,vc,llik } = hurdlep(dataset,dep,ind1,ind2);
+**
+**  INPUT:
+**      dataset = name of Gauss dataset or name of matrix in memory
+**      dep     = dependent variable name or column number
+**      ind1    = vector of independent variable names or column numbers
+**                for y=0 or 1
+**      ind2    = vector of independent variable names or column numbers
+**                for (y|y>0)
+**
+**  OUTPUT:
+**      bg    = vector of effect parameters that maximize the likelihood
+**             on top of parameter(s) corresponding to vind.
+**             PARAMETERIZATION: bg=b|g;
+**                 lambda0 = exp(ind1*b)  =>  Pr(y>0)=1-exp(-exp(ind1*b))
+**                 lambda1 = exp(ind2*g)
+**      vc   = variance-covariance matrix of b
+**      llik = value of the log-likelihood at the maximum
+**
+**  GLOBALS:
+**    _cn_Inference    = MAXLIK for maximum likelihood estimates
+**                    = BOOT for bootstrapped estimates
+**                    = PROFILE for likelihood profile and profile t traces
+**
+**      _cn_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = set to vector stored in _cn_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      __output    1  =  print output to screen (default),
+**                  0  =  do not print to screen
+**
+**  OTHER GLOBALS:
+**      see MAXLIK.
+**
+**  EXAMPLE 1:
+**      let dep=wars;
+**      let ind=age party unem;
+**      dataset="\\gauss\\prg\\sample";
+**      call hurdleP(dataset,dep,ind1,ind2);
+**
+**  REFERENCE:
+**      Gary King. 1989. "Event Count Models for International Relations:
+**      Generalizations and Applications," INTERNATIONAL STUDIES QUARTERLY.
+**      (forthcoming, June).
+*/
+#include count.ext
+#include gauss.ext
+#include maxlik.ext
+
+proc _cn_svhur(dataset,dep,ind1,ind2);
+    local b,b0,b1,pars;
+    pars = 2;
+    if ind1/=0;
+        pars = pars+rows(ind1);
+    endif;
+    if ind2/=0;
+        pars = pars+rows(ind2);
+    endif;
+    if _cn_Start==0;
+        if ind1==0;
+            b0 = 0;
+        else;
+            b0 = lols(dataset,dep,ind1);
+        endif;
+        if ind2==0;
+            b1 = 0;
+        else;
+            b1 = lols(dataset,dep,ind2);
+        endif;
+        b = b0|b1;
+    elseif _cn_Start==1;
+        b = _cn_StartValues;
+        if rows(b)/=pars;
+            "b is the wrong size for _cn_Start\g";
+            end;
+        endif;
+    elseif _cn_Start==2;
+        b = rndu(pars,1)-0.5;
+    elseif _cn_Start==3;
+        b = zeros(pars,1);
+    else;
+        b = _cn_Start;
+        if rows(b)/=pars;
+            errorlog "\nERROR:  Wrong number of rows in _cn_Start.\n";
+            end;
+        endif;
+    endif;
+    retp(b);
+endp;
+
+proc _cn_lihur(b,dta);
+    local l0,l1,t0,t1,res,xb1,b0,b1,y,x0,x1,n,cx0,cx1;
+    y = dta[.,1];
+    n = rows(y);
+    x0 = ones(n,1);
+    if _cn_c1/=0;
+        x0 = x0~dta[.,_cn_c1];
+    endif;
+    x1 = ones(n,1);
+    if _cn_c2/=0;
+        x1 = x1~dta[.,_cn_c2];
+    endif;
+    cx0 = cols(x0);
+    cx1 = cols(x1);
+
+    b0 = b[1:cx0,.];
+    b1 = b[cx0+1:cx0+cx1,.];
+    t0 = (y.==0);
+    t1 = (y.>0);
+    xb1 = x1*b1;
+    l0 = exp(x0*b0);
+    l1 = exp(xb1);
+    res = (-l0.*t0)+t1.*(ln(1-exp(-l0))+(y.*xb1)-ln(exp(l1)-1));
+    retp(res);
+endp;
+
+proc 3 = hurdleP(dataset,dep,ind1,ind2);
+    local b,logl,g,vc,vars,st,ret;
+    clearg _cn_c1,_cn_c2;
+    _max_CovPar = 3;
+    _cn_fn = dataset;
+    if dep$==0;
+        errorlog "\nERROR:  DEP must be a variable name or number.\n";
+        end;
+    endif;
+    if ((type(dataset)/=13) and ((maxc(ind1)>cols(dataset)) or (maxc(ind2)
+        >cols(dataset)) or (dep>cols(dataset))) );
+        errorlog "\nERROR:  If dataset is a matrix, DEP and IND "\
+                "must be column numbersof the input matrix.\n";
+        end;
+    endif;
+    vars = dep;
+    if ind1==0;
+        _cn_c1 = 0;
+    else;
+        _cn_c1 = seqa(2,1,rows(ind1));
+        vars = vars|ind1;
+    endif;
+    if ind2==0;
+        _cn_c2 = 0;
+    else;
+        _cn_c2 = seqa(rows(vars)+1,1,rows(ind2));
+        vars = vars|ind2;
+    endif;
+    st = _cn_svhur(dataset,dep,ind1,ind2);
+    if __title $== "";
+       __title = "Hurdle Poisson Regression Model";
+    endif;
+    local infm,inf0,lcInf;
+    infm = { MAXLIK, BOOT };
+    inf0 = { 1, 2 };
+    LcInf = _ml_check(_cn_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,g,vc,ret } = maxlik(dataset,vars,&_cn_lihur,st);
+    elseif LcInf == 2;
+        { b,logl,g,vc,ret } = maxboot(dataset,vars,&_cn_lihur,st);
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+    if type(dataset)==13;
+        vars = "beta0";
+        if ind1/=0;
+            vars = vars|ind1;
+        endif;
+        vars = vars|"gamma0";
+        if ind2/=0;
+            vars = vars|ind2;
+        endif;
+    else;
+        vars = "beta0";
+        if ind1/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind1),1))$+_cn_ftosm(ind1,2));
+        endif;
+        vars = vars|"gamma0";
+        if ind2/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind2),1))$+_cn_ftosm(ind2,2));
+        endif;
+    endif;
+    _cn_vr = vars;
+    _cn_dp = dep;
+    ndpclex;
+    retp(b,vc,logl*_max_NumObs);
+endp;
+
+

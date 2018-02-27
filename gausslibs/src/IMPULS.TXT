@@ -1,0 +1,43 @@
+/*
+Computing the standard errors of the Impulse Responses by
+Simulation Techniques
+
+LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+Springer-Verlag, Berlin-Heidelberg
+
+Section 3.7.4: Investigating the Distribution of the Impulse Responses
+by Simulation Techniques
+
+Let y be the data. Let M(y,theta) be the model. Let theta* and Mcov* be
+the estimated coefficients and the corresponding covariance matrix of
+the estimated coefficients.
+
+We can compute the standard errors by the two following methods:
+
+METHOD 1
+--------
+If we assume the following assumption theta~N(theta*,Mcov*), the algorithm is
+
+  step 1: We simulate Ns paths of the coefficients (for example, RND_theta
+          = rndn2(theta,Mcov,Ns);).
+  step 2: For each path of the simulated coefficients, we perform the
+          impulse analysis.
+  step 3: Then, we compute the standard errors of the simulated responses
+
+METHOD 2
+--------
+We suppose that the Model M(y,theta) can be put into the state space form.
+The algorithm is
+
+  step 1: We bootstrap Ns paths of the data according to the model M(y,theta)
+         with the procedure bootstrap_SSM.
+  step 2: For each path of the simulated data, we estimate the coefficients
+          of the model M and perform the impulse analysis.
+  step 3: Then, we compute the standard errors of the simulated responses
+
+
+*/
+
+
+
+

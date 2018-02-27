@@ -1,0 +1,874 @@
+/*
+** sortd.src
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                        Line
+** =========================================================================
+** intrleav(infile1,infile2,outfile,keyvar,keytyp);                26
+** y = intrleavsa(sa1,sa2,ikey);                                  338
+** mergeby(infile1,infile2,outfile,keytyp);                       368
+** y = mergebysa(sa1,sa2,ikey);                                   598
+** sortd(infile,outfile,keyvar,keytyp);                           684
+*/
+
+/*
+**> intrleav
+**
+**  Purpose:    To interleave the rows of two files that have been
+**              sorted on a common variable, to give a single
+**              file sorted on that variable.
+**
+**  Format:     intrleav(infile1,infile2,outfile,keyvar,keytyp);
+**
+**  Inputs:     infile1    string, name of input file 1.
+**
+**              infile2    string, name of input file 2.
+**
+**              outfile    string, name of output file.
+**
+**              keyvar     string, name of key variable, this is the column
+**                         the files are sorted on.
+**
+**              keytyp     scalar, data type of key variable.
+**
+**                          1   numeric key, ascending order
+**                          2   character key, ascending order
+**                         -1   numeric key, descending order
+**                         -2   character key, descending order
+**
+**  Remarks:    The two files MUST have exactly the same
+**              variables, that is, the same number of columns
+**              AND the same variable names. They must both
+**              already be sorted on the key column. This
+**              procedure will combine them into one large file,
+**              sorted by the key variable.
+**
+**              If the inputs are null ("" or 0) the procedure
+**              will ask for them.
+**
+**  Globals:    None
+*/
+
+proc 0 = intrleav(infile1,infile2,outfile,keyvar,keytyp);
+    local ord,fstate,f1,f2,fout,inx,ws,b1,b2,varnames,nr;
+
+    clear f1,f2,fout;
+
+get1:
+
+    if infile1 $== "";
+        Print "Name of input file 1: ";;
+        infile1 = cons;
+        print;
+    endif;
+get2:
+
+    if infile2 $== "";
+        Print "Name of input file 2: ";;
+        infile2 = cons;
+        print;
+    endif;
+
+    if outfile $== "";
+        Print "Name of output file: ";;
+        outfile = cons;
+        print;
+    endif;
+
+    open f1 = ^infile1;
+    if f1==-1;
+        print "Input file 1: " infile1 " not found";
+        infile1 = "";
+        goto get1;
+    endif;
+    if iscplxf(f1);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    open f2 = ^infile2;
+    if f2==-1;
+        print "Input file 2: " infile2 " not found";
+        infile2 = "";
+        goto get2;
+    endif;
+    if iscplxf(f2);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    varnames = getname(infile1);
+
+    if indcv(varnames,getname(infile2)) /= seqa(1,1,rows(varnames));
+        errorlog "Variables in each input file must be identical";
+        goto errout;
+    endif;
+
+    if keyvar $/= "";
+        goto havit;
+    endif;
+
+    format 8,8;
+retry1:
+
+    print "Variables are:";
+    print $varnames';
+    print "Name of key variable: ";;
+    keyvar = cons;
+    print;
+havit:
+
+    inx = indcv(keyvar,varnames);
+    if scalmiss(inx);
+        print "Variable " keyvar " not found";
+        goto retry1;
+    endif;
+
+    if not keytyp;
+        print "Sort order:";
+        print "     1   numeric key, ascending order";
+        print "     2   character key, ascending order";
+        print "    -1   numeric key, descending order";
+        print "    -2   character key, descending order";
+        print;
+        print "   ? ";;
+        keytyp = stof(cons);
+    print;
+    endif;
+    if keytyp < 0;
+        ord = 0;
+        keytyp = -keytyp;
+    else;
+        ord = 1;
+    endif;
+
+    create fout = ^outfile with ^varnames,0,typef(f1);
+    if keytyp==2 and (typef(f1) /= 8 or typef(f2) /= 8);
+        errorlog "WARNING - Sort is character type, data set not double preci"\
+            "sion.";
+    endif;
+    if fout==-1;
+        errorlog "Can't open output file: " $+ outfile;
+        goto errout;
+    endif;
+
+    nr = 3000/colsf(f1);    /* !!! Number of rows to read in finish loop  */
+
+    b1 = readr(f1,1);
+    b2 = readr(f2,1);
+
+    ws = 1;         /* is set to 1 by program if write is successful  */
+
+    if keytyp==2;
+        gosub chartyp;
+    else;
+        gosub numtyp;
+    endif;
+    if fstate==1;
+        goto finish1;
+    elseif fstate==2;
+        goto finish2;
+    else;
+        goto diskfull;
+    endif;
+
+finish1:
+
+    ws = writer(fout,b1);
+    do while ws;
+        if eof(f1);
+            goto out;
+        endif;
+        b1 = readr(f1,nr);
+        ws = writer(fout,b1)==rows(b1);
+    endo;
+    goto diskfull;
+
+finish2:
+
+    ws = writer(fout,b2);
+    do while ws;
+        if eof(f2);
+            goto out;
+        endif;
+        b2 = readr(f2,nr);
+        ws = writer(fout,b2)==rows(b2);
+    endo;
+
+diskfull:
+
+    errorlog "\nDisk Full - Output file incomplete";
+    goto errout;
+
+out:
+
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    retp;
+errout:
+
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    end;
+/* ======================================================================== */
+/* -------------------------- Subroutines Follow -------------------------- */
+/* ======================================================================== */
+
+/* =============================== */
+/* ====== Numeric Key Sort ======= */
+/* =============================== */
+
+numtyp:
+
+    /* ============== code for ascending order ================== */
+    if ord==1;
+        do while ws;        /* do while write successful */
+            if b1[1,inx] < b2[1,inx];
+                ws = writer(fout,b1);
+                if eof(f1);
+                    fstate = 2;
+                    return;
+                endif;
+                b1 = readr(f1,1);
+            else;
+                ws = writer(fout,b2);
+                if eof(f2);
+                    fstate = 1;
+                    return;
+                endif;
+                b2 = readr(f2,1);
+            endif;
+        endo;
+        fstate = -1;
+
+    /* ============ code for descending order ============= */
+    else;
+
+        do while ws;        /* do while write successful */
+            if b1[1,inx] > b2[1,inx];
+                ws = writer(fout,b1);
+                if eof(f1);
+                    fstate = 2;
+                    return;
+                endif;
+                b1 = readr(f1,1);
+            else;
+                ws = writer(fout,b2);
+                if eof(f2);
+                    fstate = 1;
+                    return;
+                endif;
+                b2 = readr(f2,1);
+            endif;
+        endo;
+        fstate = -1;
+    endif;
+
+    return;
+
+/* =============================== */
+/* ===== Character Key Sort ====== */
+/* =============================== */
+
+chartyp:
+
+    /* =========== code for ascending order =============== */
+    if ord==1;
+        do while ws;        /* do while write successful */
+            if b1[1,inx] $< b2[1,inx];
+                ws = writer(fout,b1);
+                if eof(f1);
+                    fstate = 2;
+                    return;
+                endif;
+                b1 = readr(f1,1);
+            else;
+                ws = writer(fout,b2);
+                if eof(f2);
+                    fstate = 1;
+                    return;
+                endif;
+                b2 = readr(f2,1);
+            endif;
+        endo;
+        fstate = -1;
+
+    /* ============ code for descending order ============= */
+    else;
+
+        do while ws;        /* do while write successful */
+            if b1[1,inx] $> b2[1,inx];
+                ws = writer(fout,b1);
+                if eof(f1);
+                    fstate = 2;
+                    return;
+                endif;
+                b1 = readr(f1,1);
+            else;
+                ws = writer(fout,b2);
+                if eof(f2);
+                    fstate = 1;
+                    return;
+                endif;
+                b2 = readr(f2,1);
+            endif;
+        endo;
+        fstate = -1;
+    endif;
+
+    return;
+/* ====================== End of Subroutines ==================== */
+
+endp;
+
+/*
+**> intrleavsa
+**
+**  Purpose:    To interleave the rows of two string arrays that have been
+**              sorted on a common column.
+**
+**  Format:     y = intrleavsa(sa1,sa2,ikey);
+**
+**  Inputs:     sa1        NxK string array 1.
+**
+**              sa2        MxK string array 2.
+**
+**              ikey       integer, index of the key column the string
+**                         arrays are sorted on.
+**
+**  Returns:    LxK Interleaved (combined) string array.
+**
+**  Remarks:    The two files MUST have exactly the same number of columns
+**              AND have been already sorted on a key column.
+**
+**              This procedure will combine them into one large string
+**              array, sorted by the key column.
+**
+**  Globals:    None
+*/
+
+proc (1) = intrleavsa(s1,s2,ikey);
+    retp( sortcc(s1 $|s2, ikey) );
+endp;
+
+/*
+**> mergeby
+**
+**  Purpose:    To merge two sorted files by a common variable.
+**
+**  Format:     mergeby(infile1,infile2,outfile,keytyp);
+**
+**  Inputs:     infile1    string, name of input file 1.
+**
+**              infile2    string, name of input file 2.
+**
+**              outfile    string, name of output file.
+**
+**              keytyp     scalar, data type of key variable.
+**
+**                          1 - numeric
+**                          2 - character
+**
+**  Remarks:    This will combine the variables in the two files
+**              to create a single large file.  The following
+**              assumptions hold:
+**
+**                   1. Both files have a single (key) variable in
+**                      common and it is the first variable.
+**
+**                   2. All of the values of the key variable are unique.
+**
+**                   3. Each file is already sorted on the key variable.
+**
+**              The output file will contain the key variable in
+**              its first column.
+**
+**              It is not necessary for the two files to have the
+**              same number of rows. For each row for which the
+**              key variables match, a row will be created in the
+**              output file. OUTFILE will contain the columns
+**              from INFILE1 followed by the columns of INFILE2
+**              minus the key column from the second file.
+**
+**              If the inputs are null ("" or 0) the procedure
+**              will ask for them.
+**
+**  Globals:    None
+*/
+
+proc 0 = mergeby(infile1,infile2,outfile,keytyp);
+    local err,f1,f2,fout,name1,name2,b1,b2,invar1,invar2,varnames,ws;
+    clear f1,f2,fout,err;
+get1:
+
+    if infile1 $== "";
+        Print "Name of input file 1: ";;
+        infile1 = cons;
+        print;
+    endif;
+get2:
+
+    if infile2 $== "";
+        Print "Name of input file 2: ";;
+        infile2 = cons;
+        print;
+    endif;
+
+    open f1 = ^infile1;
+    if f1==-1;
+        print "Input file 1: " infile1 " not found";
+        infile1 = "";
+        goto get1;
+    endif;
+    if iscplxf(f1);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    open f2 = ^infile2;
+    if f2==-1;
+        print "Input file 2: " infile2 " not found";
+        infile1 = "";
+        goto get2;
+    endif;
+    if iscplxf(f2);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    invar1 = seqa(1,1,colsf(f1));           /* File 1 variable indices  */
+    invar2 = seqa(1,1,colsf(f2));           /* File 2 variable indices  */
+
+    if outfile $== "";
+        Print "Name of output file: ";;
+        outfile = cons;
+        print;
+    endif;
+
+    name1 = getname(infile1);
+    name2 = getname(infile2);
+    name1 = name1[invar1,1];
+    name2 = name2[invar2,1];
+    if indcv(name1[1,1],name2[1,1]) /= 1;
+        errorlog "Key variables must have the same name";
+        goto errout;
+    endif;
+    varnames = name1|name2[2:rows(name2),1];
+
+        /* The assumption being made below is that all the variables from
+        :: both input files will be included in the output file and the type
+        :: of the data will follow the file with the largest type. The key
+        :: variable will be output from only one file.
+        */
+
+    if not keytyp;
+        print "Key variable type:";
+        print "     1   numeric key, ascending order";
+        print "     2   character key, ascending order";
+        print;
+        print "   ? ";;
+        keytyp = stof(cons);
+    print;
+    endif;
+
+    if keytyp==2 and (typef(f1) /= 8 or typef(f2) /= 8);
+        errorlog "WARNING - Sort is character type, dataset not double precis"\
+            "ion.";
+    endif;
+    create fout = ^outfile with ^varnames,0,maxc(typef(f1)|typef(f2));
+    if fout==-1;
+        "Can't open output file.";
+        goto errout;
+    endif;
+
+    b1 = submat(readr(f1,1),1,invar1);
+    b2 = submat(readr(f2,1),1,invar2);
+
+    ws = 1;         /* is set to 1 inside loop if write is successful  */
+
+    /* ------------------ merge loop ------------------ */
+
+    if keytyp==2;
+        gosub charkey;
+    else;
+        gosub numkey;
+    endif;
+
+finish:
+
+    if err;
+        goto writerr;
+    endif;
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    retp;
+
+writerr:
+
+    errorlog "Error writing output file";
+errout:
+
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    end;
+
+/* ======================================================================== */
+/* -------------------------- Subroutines Follow -------------------------- */
+/* ======================================================================== */
+
+/* =============================== */
+/* ===== Numeric Key Merge ======= */
+/* =============================== */
+
+numkey:
+
+    do while ws;    /* do while write successful */
+        if b1[1,1] == b2[1,1];
+                /* key column from file 2 is dropped here */
+            ws = writer(fout,b1~b2[1,2:cols(b2)]);
+            if eof(f1) or eof(f2);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+            b2 = submat(readr(f2,1),1,invar2);
+        elseif b1[1,1] > b2[1,1];
+            if eof(f2);
+                return;
+            endif;
+            b2 = submat(readr(f2,1),1,invar2);
+        else;
+            if eof(f1);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+        endif;
+    endo;
+    err = 1;
+    return;
+
+/* =============================== */
+/* ==== Character Key Merge ====== */
+/* =============================== */
+
+charkey:
+
+    do while ws;    /* do while write successful */
+        if b1[1,1] $== b2[1,1];
+                /* NOTE - key column from file 2 is dropped here */
+            ws = writer(fout,b1~b2[1,2:cols(b2)]);
+            if eof(f1) or eof(f2);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+            b2 = submat(readr(f2,1),1,invar2);
+        elseif b1[1,1] $> b2[1,1];
+            if eof(f2);
+                return;
+            endif;
+            b2 = submat(readr(f2,1),1,invar2);
+        else;
+            if eof(f1);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+        endif;
+    endo;
+    err = 1;
+    return;
+/* ======================= End of Subroutines =========================== */
+
+endp;
+
+/*
+**> mergebysa
+**
+**  Purpose:    Merge two sorted string arrays by a common key identifier.
+**
+**  Format:     y = mergebysa(sa1,sa2,ikey);
+**
+**  Inputs:     sa1    NxK string array.
+**
+**              sa2    MxL string array.
+**
+**              ikey   Index of the column containing the key identifiers.
+**
+**  Returns:    Merged string array.
+**
+**  Remarks:    This will combine the elements in two string arrays to
+**              return a single large array.  The following assumptions
+**              hold:
+**
+**                 1. Both files have key identifier strings in common and
+**                    share the same column index (ikey).
+**
+**                 2. All of the values of the identifiers are unique.
+**
+**                 3. Both string arrays are already sorted on the identifier.
+**
+**              It is not necessary for the two string arrays to have the
+**              same number of rows.  for each row in which the identifiers
+**              match, a row will be created in the returned array, and will
+**              contain the columns from sa1 followed by the columns of sa2,
+**              less its key column.
+**
+**  Globals:    None
+**
+**  Example:
+**
+**              sa1 = { "dog"  "bbb" "cat",
+**                      "low"  "eee" "high",
+**                      "in"   "lll" "out",
+**                      "slow" "zzz" "fast"};
+**
+**              sa2 = { "who"  "aaa" "why",
+**                      "east" "bbb" "west",
+**                      "hot"  "jjj" "cold",
+**                      "on"   "zzz" "off"};
+**
+**              y = mergebysa( sa1, sa2, 2 );
+**
+**              y = dog   bbb  cat  east west 
+**                  slow  zzz  fast   on  off
+*/
+
+proc (1) = mergebysa(sa1,sa2,ikey);
+    local sall,cols2,nrows1,nrows2,startrow;
+
+    sall = {};
+    cols2 = cols(sa2);
+    nrows1 = rows(sa1);
+    nrows2 = rows(sa2);
+    startrow = 1;
+
+    for i (1, nrows1, 1);
+        for j (startrow, nrows2, 1);
+            if sa1[i,ikey] .$== sa2[j,ikey];
+
+                if ikey == 1;
+                    sall = sall $| sa1[i,.] $~ sa2[i,2:cols2];
+                elseif ikey == cols2;
+                    sall = sall $| sa1[i,.] $~ sa2[i,1:cols2-1];
+                else;
+                    sall = sall $| sa1[i,.] $~ sa2[i,1:ikey-1] $~ sa2[i,ikey+1:cols2];
+                endif;
+
+                startrow = j+1;
+                break;
+            elseif sa1[i,ikey] .$< sa2[j,ikey];
+                break;
+            elseif j == nrows2;
+                startrow = j+1;
+            endif;
+        endfor;
+    endfor;
+
+    retp(sall);
+endp;
+
+/*
+**> sortd
+**
+**  Purpose:    To sort data file on disk with respect to a
+**              specified variable.
+**
+**  Format:     sortd(infile,outfile,keyvar,keytyp);
+**
+**  Inputs:     infile     string, name of input file.
+**
+**              outfile    string, name of output file, must be different.
+**
+**              keyvar     string, name of key variable.
+**
+**              keytyp     scalar, type of key variable.
+**
+**                          1   numeric key, ascending order
+**                          2   character key, ascending order
+**                         -1   numeric key, descending order
+**                         -2   character key, descending order
+**
+**  Remarks:    The data set INFILE will be sorted on the variable
+**              KEYVAR, and will be placed in OUTFILE.
+**
+**              INFILE can have up to 4095 rows, with up to about
+**              8100 variables. Putting this file on a ram disk
+**              can speed up the program considerably.
+**
+**              If the inputs are null ("" or 0) the procedure
+**              will ask for them.
+**
+**  Globals:    None
+*/
+
+proc 0 = sortd(infile,outfile,keyvar,keytyp);
+    local ord,fin,fout,inx,x,srtmat,inrow,off,nr,rs,r,mix,varnames;
+    clear fin,fout;
+
+get1:
+
+    if infile $== "";
+        Print "Name of input file: ";;
+        infile = cons;
+        print;
+    endif;
+
+    if outfile $== "";
+        Print "Name of output file: ";;
+        outfile = cons;
+        print;
+    endif;
+
+    open fin = ^infile;
+
+    if fin==-1;
+        print "Can't open " infile;
+        infile = "";
+        goto get1;
+    endif;
+#ifUNIX
+    if infile $== outfile;
+#else
+    if upper(infile) $== upper(outfile);
+#endif
+        errorlog "Names must be different";
+        goto errout;
+    endif;
+    varnames = getname(infile);
+
+    if keyvar $/= "";
+        goto havit;
+    endif;
+
+    format 8,8;
+retry1:
+
+    print "Variables are:";
+    print $varnames';
+    print "Name of key variable: ";;
+    keyvar = cons;
+    print;
+havit:
+
+    inx = indcv(keyvar,varnames);
+    if scalmiss(inx);
+        print "Variable " keyvar " not found";
+        goto retry1;
+    endif;
+    if not keytyp;
+        print "Sort order:";
+        print "     1   numeric key, ascending order";
+        print "     2   character key, ascending order";
+        print "    -1   numeric key, descending order";
+        print "    -2   character key, descending order";
+        print;
+        print "   ? ";;
+        keytyp = stof(cons);
+    print;
+    endif;
+    if keytyp < 0;
+        ord = 0;
+        keytyp = -keytyp;
+    else;
+        ord = 1;
+    endif;
+
+    if iscplxf( fin );
+        create complex fout = ^outfile with ^varnames,0,typef(fin);
+    else;
+        create fout = ^outfile with ^varnames,0,typef(fin);
+    endif;
+
+    if fout==-1;
+        errorlog "Can't open output file";
+        goto errout;
+    endif;
+
+   /* no. of rows to read per iter. change if there's memory constraints */
+    nr = 3000/colsf(fin);
+
+    inrow = rowsf(fin);
+
+#ifLIGHT
+
+    if inrow > floor(maxvec/2);
+        errorlog "Maximum rows " $+ ftos(floor(maxvec/2),"%lf",1,0) $+
+                 ", this file has " $+ ftos(rowsf(fin),"%lf",1,0);
+        goto errout;
+    endif;
+
+#endif
+
+    x = readr(fin,1);
+
+    srtmat = 1~x[1,inx];
+    off = 1;
+
+     /* reading input file and keeping only key variable */
+    do until eof(fin);
+        x = readr(fin,nr);
+        srtmat = srtmat|(seqa(off+1,1,rows(x))~x[.,inx]);
+        off = off+rows(x);
+    endo;
+    mix = seqa(1,1,rows(srtmat))~rndu(rows(srtmat),1);
+    mix = sortc(mix,2);
+
+    /* make sure its not already sorted, a quicksort would be real slow */
+    srtmat = srtmat[mix[.,1],.];
+
+    clear mix;
+    if keytyp==2;
+        srtmat = sortcc(srtmat,2);
+    else;
+        srtmat = sortc(srtmat,2);
+    endif;
+    if ord == 0;
+        srtmat = rev(srtmat);
+    endif;
+    r = 1;
+    rs = 1;
+    do while rs and r <= inrow;     /* now we write output using index  */
+        call seekr( fin, real(srtmat[r,1]) );
+        rs = writer(fout,readr(fin,1));
+        r = r+1;
+    endo;
+
+    if not rs;
+        errorlog "\nDisk Full - Sort Incomplete";
+        goto errout;
+    endif;
+
+out:
+
+    call close(fin);
+    call close(fout);
+    retp;
+errout:
+
+    call close(fin);
+    call close(fout);
+    end;
+endp;
+
+proc sortr(x,c);
+    retp( sortc(x', c)' );
+endp;
+
+proc sortrc(x,c);
+    retp( sortcc(x', c)' );
+endp;
+

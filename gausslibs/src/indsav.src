@@ -1,0 +1,81 @@
+/*
+** indsav.src   procedures for finding strings in string arrays
+**
+**
+** (C) Copyright 1997-2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                       Purpose                                 Line
+**  ---------------------------------------------------------------------------
+**  indx = indsav(what,where)    gets indices of first string array
+**                                   in second string array
+*/
+
+
+
+/*
+**
+**> indsav
+**
+**  Purpose:    Checks one string array against another and returns the indices
+**              of the first string array in the second string array
+**
+**  Format:     indx = indsav(what,where);
+**
+**  Input:      what    N x 1 string array which contains the values to be
+**                      found in vector where
+**
+**              where   M x 1 string array to be searched for the
+**                      corresponding elements of what in where.
+**
+**  Output      indx    N x 1 vector of indices, the values of what in where
+**
+**  Remarks:    If no matches are found, those elements in the returned
+**              vector are set to the GAUSS missing value code
+**
+**              If there are duplicate elements in where, the index of the
+**              first match will be returned
+**
+*/
+
+proc indsav(sa1,sa2);
+
+  local x,s0,ll;
+
+  x = {};
+  s0 = seqa(1,1,rows(sa2));
+  for i(1,rows(sa1),1);
+      ll = packr(miss((upper(sa2) .$== upper(sa1[i])) .* s0,0));
+      x = x | ll[1];
+  endfor;
+
+  retp(x);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,56 @@
+/*
+** arima.ext - ARIMA Time Series Models.
+**             External variable declarations for procedure ARIMA.
+**
+** (C) Copyright 1994-1999  Aptech Systems,Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+external matrix _vm_a;
+external matrix _vm_adforder;
+external matrix _vm_ar;
+external matrix _vm_b;
+external matrix _vm_bounds;
+external matrix _vm_c;
+external matrix _vm_d;
+external matrix _vm_dirtol;
+external matrix _vm_feasibletest;
+external matrix _vm_hessian;
+external matrix _vm_indequations;
+external matrix _vm_k;
+external matrix _vm_L;
+external matrix _vm_lagrange;
+external matrix _vm_lags;
+external matrix _vm_ma;
+external matrix _vm_maxiters;
+external matrix _vm_n;
+external matrix _vm_nodet;
+external matrix _vm_nwtrunc;
+external matrix _vm_output;
+external matrix _vm_printiters;
+external matrix _vm_randradius;
+external matrix _vm_scale;
+external matrix _vm_setconstraints;
+external matrix _vm_start;
+external matrix _vm_trustradius;
+external matrix _vm_ts;
+external matrix _vm_x;
+external matrix _vm_mx;
+external matrix _vm_my;
+external matrix _vmcritl;
+external matrix _vm_EqProc;
+external matrix _vm_IneqProc;

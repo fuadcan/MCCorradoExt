@@ -1,0 +1,843 @@
+/*
+** arma1.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {beta,stderr,Mcov,LogL} = arma_CML(y,p,q,sv,RR,r);
+**                                Estimate the coefficients of a multi-
+**                                variate ARMA time series model under
+**                                linear restrictions by Conditional
+**                                Maximum Likelihood                       23
+**
+**  {beta,stderr,Mcov,LogL} = arma_ML(y,p,q,sv);
+**                                Estimate the coefficients of a multi-
+**                                variate ARMA time series model by
+**                                Conditional Maximum Likelihood           68
+**
+*/
+
+
+/*
+** arma_CML
+**
+** Purpose: Estimate the coefficients of a multivariate ARMA time series model
+**          under linear restriction beta = RR*gamma+r by Conditional
+**          Maximum Likelihood
+**
+** Format:  {beta,stderr,Mcov,LogL} = arma_cml(y,p,q,sv,RR,r);
+**
+** Input:   y - Nobs*K matrix, data
+**          p - scalar, the autoregressive order
+**          q - scalar, the moving average order
+**         sv - g*1 vector, starting values
+**                 or
+**              scalar 0, arma_CML computes starting values
+**         RR - np*g matrix, the R matrix of the restricted equation
+**         r - np*1 vector, the r vector of the restricted equation
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at the maximum
+**
+** Globals: _print - scalar 1 (default), print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the Newton-Raphson algorihtm
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the NR algorithm (default = 0.001)
+**
+**   _arma_epsilon - Nobs*K matrix, residuals
+**     _arma_SIGMA - K*K matrix, estimated SIGMA matrix
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+**
+** Remarks: The Jacobian and information matrices are not available.
+**          Use the negative of Hessian in place of infomation matrix.
+**
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** arma_ML
+**
+** Purpose: Estimate the coefficients of a multivariate ARMA time series
+**          by Conditional Maximum Likelihood
+**
+** Format:  {beta,stderr,Mcov,LogL} = arma_cml(y,p,q,sv);
+**
+** Input:   y - Nobs*K matrix, data
+**          p - scalar, the autoregressive order
+**          q - scalar, the moving average order
+**         sv - Np*1 vector, starting values
+**                 or
+**              string "HR1" or "HR2", arma_ML computes starting values
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the Log-likelihood function at
+**                          the maximum
+**
+** Globals: _print - scalar 1 (default), print the statistics
+**                   scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                   scalar 0, use the Newton-Raphson algorihtm
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                   the NR algorithm (default = 0.001)
+**
+**   _arma_epsilon - Nobs*K matrix, residuals
+**     _arma_SIGMA - K*K matrix, estimated SIGMA matrix
+** _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                   matrices of the log-likelihood function
+**
+** Remarks: The Jacobian and information matrices are not available.
+**          Use the negative of hessian in place of infomation matrix.
+**
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** Conditional Maximum Likelihood Estimation of Vector ARMA Models
+**
+** REINSEL [1993], Elements of Multivariate Time Series Analysis,
+** New York: Springer-Verlag, pages 111-120
+*/
+
+
+/*
+** arma_ML
+*/
+
+proc (4) = arma_ML(y,p,q,sv);
+  local err,Np,beta,stderr,Mcov,Logl;
+  local RR,r,k;
+
+  if (p+q) == 0 or (p<0) or (q<0);
+
+    ERRORLOG "error: Invalid p and q parameters.";
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  k = cols(y);
+  Np = (p+q)*k^2;
+  RR = eye(Np); r = 0;
+
+  __title = "Conditional MLE of Vector ARMA Models";
+
+  if type(sv) == 13;
+
+    if lower(sv) $== "hr1" or lower(sv) $== "hr2";
+
+      sv = _arma_HR_sv(packr(y),p,q,sv);
+
+    else;
+
+      ERRORLOG "error: sv must be a \"HR1\" or \"HR2\" string.";
+      err = error(0);
+      retp(err,err,err,err);
+
+    endif;
+
+  endif;
+
+  if sv == miss(0,0);
+    sv = zeros(Np,1);
+  endif;
+
+  if rows(sv) /= Np;
+
+    ERRORLOG "error: Wrong size format of the sv vector.";
+    err = error(0);
+    call pause(2);
+    retp(err,err,err,err,err);
+
+  endif;
+
+  {beta,stderr,Mcov,LogL} = _arma_CML(y,p,q,sv,RR,r);
+
+  retp(beta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+** arma_CML
+*/
+
+proc (4) = arma_CML(y,p,q,sv,RR,r);
+  local err,Np,beta,stderr,Mcov,Logl;
+
+  Np = cols(RR);
+
+  if (p+q) == 0 or (p<0) or (q<0);
+
+    ERRORLOG "error: Invalid p and q parameters.";
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  if ( rows(RR) /= rows(r) ) or ( cols(r) /= 1 );
+
+    ERRORLOG "error: Wrong size format of the RR or r matrices.";
+    call pause(2);
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  __title = "Conditional MLE of Vector ARMA Models "\
+            "under Linear Restrictions";
+
+  if sv == 0;
+    sv = _arma_HL_sv(packr(y),p,q,RR,r);
+  endif;
+
+  if sv == miss(0,0);
+    sv = zeros(Np,1);
+  endif;
+
+  if  rows(sv) /= Np;
+
+    ERRORLOG "error: Wrong size format of the sv vector.";
+    call pause(2);
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  {beta,stderr,Mcov,LogL} = _arma_CML(y,p,q,sv,RR,r);
+
+  retp(beta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+================================================================================
+*/
+
+/*
+** Starting values for vector ARMA estimation
+**
+** HANNAN and RISSANEN [1982], Recursive estimation of mixed
+** autoregressive-moving average order, Biometrika, 69, pages 81-94
+*/
+
+proc (1) = _arma_HR_sv(y,p,q,mtd);
+
+  local K,Nobs,Z,i,y_i,YY,ZZ,ZZinv,B,beta,U,U_i;
+
+  K = cols(y); Nobs = rows(y);
+
+  if p == 0;
+
+    ERRORLOG "error: The autoregressive order must be greater than 0.";
+    call pause(2);
+    retp(error(0));
+
+  endif;
+
+  Z = {};
+
+  i = 1;
+  do until i>p;
+    y_i = shiftr(y',i,0);
+    Z = Z|y_i;
+    i=i+1;
+  endo;
+  YY = y[p+1:Nobs,.]';
+  ZZ = Z[.,p+1:Nobs];
+  ZZinv = invpd(ZZ*ZZ');
+  B = YY*ZZ'ZZinv;
+
+  if q == 0;
+
+    beta = vec(B);
+    U = YY-B*ZZ;
+    _arma_SIGMA = U*U'/(Nobs-p);
+
+    retp(beta);
+  endif;
+
+  if lower(mtd) $== "hr2";
+    beta = vec(B)|zeros(K^2*q,1);
+    U = YY-B*ZZ;
+    _arma_SIGMA = U*U'/(Nobs-p);
+
+    retp(beta);
+  endif;
+
+  U = YY-B*ZZ;
+  U = zeros(k,p)~U;
+  i=1;
+  do until i>q;
+    U_i = -shiftr(U,i,0);
+    Z = Z|U_i;
+    i=i+1;
+  endo;
+
+  YY = y[p+q+1:Nobs,.]';
+  ZZ = Z[.,p+q+1:Nobs];
+  ZZinv = invpd(ZZ*ZZ');
+  B = YY*ZZ'ZZinv;
+  beta = vec(B);
+
+  U = YY-B*ZZ;
+  _arma_SIGMA = U*U'/(Nobs-p-q);
+
+  retp(beta);
+endp;
+
+/*
+** Starting values for ML estimation of Vector ARMA models under
+** Linear Restrictions
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 265-268
+*/
+
+proc (1) = _arma_HL_sv(y,p,q,RR,r);
+
+  local k,N,Ik,Z,i,y_i,YY,ZZ,ZZinv,B,U,U_i;
+  local y_,z_,w1,w2,w3,gamma_;
+
+  k = cols(y); N = rows(y); Ik = eye(k);
+
+  if p == 0;
+
+    ERRORLOG "error: The autoregressive order must be greater than 0.";
+    call pause(2);
+    retp(error(0));
+
+  endif;
+
+  if ( rows(RR) /= rows(r) ) or ( cols(r) /= 1 );
+
+    ERRORLOG "error: Wrong size format of the RR and r matrices.";
+    call pause(2);
+    retp(error(0));
+
+  endif;
+
+
+  Z = {};
+
+  i = 1;
+  do until i>p;
+    y_i = shiftr(y',i,0);
+    Z = Z|y_i;
+    i=i+1;
+  endo;
+  YY = y[p+1:N,.]';
+  ZZ = Z[.,p+1:N];
+  ZZinv = invpd(ZZ*ZZ');
+  B = YY*ZZ'ZZinv;
+
+  if q /= 0;
+
+    U = YY-B*ZZ;
+    U = zeros(k,p)~U;
+    i=1;
+    do until i>q;
+      U_i = -shiftr(U,i,0);
+      Z = Z|U_i;
+      i=i+1;
+    endo;
+
+  endif;
+
+  YY = y[p+q+1:N,.]';
+  ZZ = Z[.,p+q+1:N];
+
+  y_ = vec(YY);
+  z_ = y_ - ((ZZ'.*.Ik)*r);
+  w1 = ZZ*ZZ';
+  w2 = w1.*.Ik;
+  w3 = ZZ.*.Ik;
+  gamma_ = invpd(RR'*w2*RR)*RR'*w3*z_;
+
+  retp(gamma_);
+endp;
+
+proc (4) = _arma_CML(y,p,q,sv,RR,r);
+  local old,N,s,k,Np,Np_,data,y_,s_,T,beta,fmax,gf,retcode,CVretcode;
+  local LogL,alpha,omat,fmt,Niter,j;
+  local Gradient,Hessian,Mcov,stderr,tstudent,pvalue;
+  local SIGMA,epsilon_,epsilon,oldtrap,H_inv,ddl,cn,parnm,w1,w2;
+  local cl,_gamma,_gamma0,databuf;
+
+  clear databuf;
+
+  output off;
+
+  old = csrtype(0);
+
+  N = rows(y);
+  s = seqa(1,1,N);
+  k = cols(y);
+  Np = cols(RR);  Np_ = rows(RR);
+  data = packr(y~s);
+  y_ = data[.,1:k]; s_ = data[.,k+1]; T = rows(data);
+
+  _arma_Y = y_; _arma_p = p; _arma_q = q;
+  _ml_RR = RR; _ml_r = r;
+
+  if _tsm_optmum == 0;
+
+    /* Modified Newton-Raphson Algorithm */
+
+    _gamma0 = sv;
+    LogL = - __arma_CML(_gamma0);
+    Gradient = _ml_gradient;
+    Hessian = _ml_hessian;
+
+    Gradient = RR'*Gradient;
+    Hessian = RR'*Hessian*RR;
+
+    cls;
+    Niter = 0;
+    alpha = miss(0,0);
+
+    do while 1;
+
+      if maxc(abs(Gradient)) < _tsm_gtol;
+        _gamma = _gamma0;
+        break;
+      endif;
+
+      cl = key;
+      if cl == 1030;
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      if __output /= 0;
+
+        locate 1,2; print chrs(45*ones(1,77));
+        locate 3,2; print chrs(45*ones(1,77));
+        locate 7,2; print chrs(45*ones(1,77));
+
+        locate 2,28; print "NEWTON-RAPHSON algorithm";
+        locate 4,23; print ftos(logL, "Log-likelihood          %lf",10,5);
+        locate 5,23; print ftos(alpha,"Line Search             %lf",10,3);
+        locate 6,23; print ftos(Niter,"Number of iterations    %lf",10,0);
+        locate 8,5; print "parameters/gradient";
+
+        if Np <= 26;
+
+          omat = _gamma0~Gradient;
+          if np%2 == 1;
+            omat = omat|miss(zeros(1,2),0);
+          endif;
+
+          omat = reshape(omat,rows(omat)/2,4);
+          let fmt[4,3] =  "*.*lf" 18 6  "*.*lf" 18 6
+                          "*.*lf" 18 6  "*.*lf" 18 6;
+          locate 10,1; call printfm(omat,1~1~1~1,fmt);
+
+
+          locate 9,2;  print chrs(45*ones(1,77));
+          j = 1;
+          do until j > rows(omat);
+            locate 9+j,40; print chrs(124);
+            j = j+1;
+          endo;
+          locate 9+j,2;  print chrs(45*ones(1,77));
+
+        else;
+
+          locate 15,2; print ftos(maxc(Gradient),"Max. Gradient:  %lf",10,6);
+
+        endif;
+
+      endif;
+
+      {_gamma,alpha,LogL} = _arma_Newton_Raphson(_gamma0,Gradient,Hessian,LogL);
+
+      if _gamma == error(0);
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      Niter = Niter +1;
+      _gamma0 = _gamma;
+
+      Gradient = _ml_gradient;
+      Hessian = _ml_hessian;
+
+      Gradient = RR'*Gradient;
+      Hessian = RR'*Hessian*RR;
+
+    endo;
+
+  endif;
+
+  if _tsm_optmum /= 0;
+
+    _opgdprc = &_arma_gradp;
+    _ophsprc = &_arma_hessp;
+    {_gamma,LogL,gf,retcode}= optmum(&__arma_CML,sv);
+    _tsm_retcode = retcode;
+    LogL = - LogL;
+    _opgdprc = 0;
+    _ophsprc = 0;
+
+  endif;
+
+  __title = "";  cls;
+  beta = RR*_gamma+r;
+
+  if p == 0;
+    epsilon_ = _arma_epsilon;
+  else;
+    epsilon_ = miss(zeros(p,k),0)|_arma_epsilon;
+  endif;
+  epsilon = miss(zeros(N,k),0);
+  epsilon[s_,.] = epsilon_;
+  _arma_epsilon = epsilon;
+
+  if _tsm_Mcov == 0;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    retp(beta,stderr,Mcov,Logl);
+
+  endif;
+
+  print "Computing the covariance matrix...";
+
+  Gradient = _ml_gradient;
+  Hessian = _ml_hessian;
+  SIGMA = _arma_SIGMA;
+
+  databuf = vput(databuf,miss(0,0),"J_matrix");
+  databuf = vput(databuf,Gradient,"G_matrix");
+  databuf = vput(databuf,Hessian,"H_matrix");
+  databuf = vput(databuf,miss(0,0),"I_matrix");
+  _ml_derivatives = databuf;
+
+  Gradient = RR'*Gradient;
+  Hessian = RR'*Hessian*RR;
+
+  CVretcode = 1;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  H_inv = inv(Hessian);
+  trap oldtrap,1;
+  if scalerr(H_inv);
+
+    ERRORLOG "error: The Hessian matrix is not invertible.";
+    call pause(2);
+    H_inv = miss(zeros(Np,Np),0);
+    CVretcode = 4;
+
+  endif;
+
+  Mcov = - RR*H_inv*RR';
+
+  if hasimag(Mcov) == 0;
+
+    Mcov = real(Mcov);
+
+  else;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    CVretcode = 4;
+
+  endif;
+
+  ddl = (T-p)-Np;
+  stderr = sqrt(diag(Mcov));
+
+  if iscplx(stderr);
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    CVretcode = 4;
+
+  endif;
+
+  tstudent = beta./miss(stderr,0);
+  pvalue = 2*cdftc(abs(tstudent),ddl);
+
+  output on;
+
+  if _print == 1;
+    cn = N|T|Np|ddl|LogL;
+    parnm = {};
+    w1 = seqa(10,10,k)+seqa(1,1,k)';
+    w1 = vec(w1);
+    j=1;
+    do until j>p;
+      w2 = 0$+"AR"$+ftos(j,"%lf_",1,0)$+ftocv(w1,2,0);
+      parnm = parnm|w2;
+      j = j+1;
+    endo;
+    j=1;
+    do until j>q;
+      w2 = 0$+"MA"$+ftos(j,"%lf_",1,0)$+ftocv(w1,2,0);
+      parnm = parnm|w2;
+      j = j+1;
+    endo;
+    cls;
+    call _ml_print(parnm,beta,stderr,tstudent,pvalue,cn,CVretcode);
+  endif;
+
+  call csrtype(old);
+
+  retp(beta,stderr,Mcov,LogL);
+endp;
+
+proc (1) = __arma_CML(_gamma);
+  local Y,k,N,T,p,q,RR,r;
+  local Id_k,Id_T,phi_,theta_,Bi_Y,Z,w,i,phi_i,theta_i,THETA;
+  local L,L_i,e,epsilon,SIGMA,THETA_inv;
+  local cn,beta,Z_bar,logl,oldtrap,SIGMA_inv;
+
+  Y = _arma_Y; k = cols(Y);
+  p = _arma_p; q = _arma_q;
+  RR = _ml_RR; r = _ml_r;
+
+  N = rows(Y); T = N-p;
+
+
+  beta = RR*_gamma+r;
+
+  Id_k = eye(k); Id_T = eye(T);
+  if p == 0;
+    phi_ =0;
+  else;
+    phi_ = beta[1:p*k^2];
+  endif;
+  if q == 0;
+    theta_ = 0;
+  else;
+    theta_ = beta[1+p*k^2:(p+q)*k^2];
+  endif;
+
+  /* w vector (Reinsel, page 113) */
+
+  w = vec(Y[1+p:N,.]');
+  Z = {};
+  i = 1;
+  do until i>p;
+    Bi_Y = Y[1+p-i:N-i,.];
+    phi_i = phi_[1+(i-1)*k^2:i*k^2];
+    cn = Bi_Y.*.Id_k;
+    Z = Z~cn;
+    w = w - cn*phi_i;
+    i = i+1;
+  endo;
+
+  /* THETA matrix (Reinsel, page 113) */
+
+  THETA = Id_T.*.Id_k;
+
+  L = Lag_matrix(T);
+  L_i = Id_T;
+  i = 1;
+  do until i>q;
+    L_i = L_i*L;
+    theta_i = theta_[1+(i-1)*k^2:i*k^2];
+    cn = reshape(theta_i,k,k)';
+    THETA = THETA - ( L_i.*.cn);
+    i = i+1;
+  endo;
+
+  /* Use of the inverse algorithm for a lower bloc persymmetric matrix */
+
+  /*  e = inv(THETA)*w; */
+
+  THETA_inv = inv_THETA(THETA,T,k,q);
+  e = THETA_inv*w;
+
+  epsilon = reshape(e,T,k);
+  _arma_epsilon = epsilon;
+
+  L_i = Id_T;
+  i = 1;
+  do until i>q;
+    L_i = L_i*L;
+    cn = -(L_i*epsilon).*.Id_k;
+    Z = Z~cn;
+    i = i+1;
+  endo;
+
+  SIGMA = (epsilon'epsilon)/T;
+  _arma_SIGMA = SIGMA;
+
+  /*
+     Gradient and Hessian matrices
+     (Reinsel, page 119, formulas 5.15 et 5.16)
+  */
+
+  Z_bar = Theta_inv*Z;
+  oldtrap = trapchk(1);
+  trap 1,1;
+  SIGMA_inv = inv(SIGMA);
+  trap oldtrap,1;
+  if scalerr(SIGMA_inv);
+
+    cls;
+    ERRORLOG "error: The SIGMA matrix is not invertible.";
+    end;
+
+  endif;
+
+  cn = Id_T.*.SIGMA_inv;
+  _ml_gradient = Z_bar'*cn*e;
+  _ml_hessian = - Z_bar'*cn*Z_bar;
+
+  /*
+     Concentrated log-likelihood function
+     (Davidson and MacKinnon, pages 267-269 and 315-319)
+
+     Using Reinsel's formula (page 113) increases the computation time:
+
+     logL = -0.5*T*ln(det(SIGMA)) -
+             0.5*(w'*THETA_inv'*(Id_T.*.inv(SIGMA))*THETA_inv*w);
+  */
+
+  logL = -0.5*T*ln(det(SIGMA)) - 0.5*T*K*(ln(2*pi)+1);
+
+  retp(-logl);
+endp;
+
+proc (3) = _arma_Newton_Raphson(_gamma0,Gradient,Hessian,logL);
+  local H_inv,alpha,_gamma,D,L;
+  local oldtrap;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  H_inv = inv(Hessian);
+  trap oldtrap,1;
+  if scalerr(H_inv);
+
+    ERRORLOG "error: The Hessian matrix is not invertible.";
+    call pause(2);
+    retp(error(0),error(0));
+
+  endif;
+
+  /* Line search */
+
+  alpha = 1;
+  D = H_inv*Gradient;
+
+  do while 1;
+    _gamma = _gamma0 - alpha*D;
+    L = - __arma_CML(_gamma);
+    if L > logL;
+      break;
+    else;
+      alpha = alpha/2;
+    endif;
+    if alpha < 0.5^5;
+
+      ERRORLOG "error: Line Search failed.";
+      call pause(2);
+      retp(error(0),error(0),error(0));
+
+    endif;
+  endo;
+
+  retp(_gamma,alpha,L);
+endp;
+
+proc (1) = inv_THETA(THETA,T,k,q);
+  local kq,Tk,M,Fj,F,H,j,THETA_inv;
+
+  if q == 0;
+    retp(THETA);
+  endif;
+
+  kq = k*q;
+  Tk = T*k;
+  M = zeros(k,kq);
+  H = zeros(kq,k); F = zeros(Tk,k);
+  Fj = eye(k);
+
+  j = 1;
+  do until j > q;
+    M[.,1+(j-1)*k:j*k] = theta[1+j*k:(j+1)*k,1:k];
+    j = j+1;
+  endo;
+
+  j = 1;
+  do until j > T;
+
+    F[1+(j-1)*k:j*k,.] = Fj;
+    if q == 1;
+      H = Fj;
+    else;
+      H = trimr(H,0,k);
+      H = Fj|H;
+    endif;
+    Fj = -M*H;
+    j=j+1;
+
+  endo;
+
+  /* If your computer has enough memory */
+
+  /*
+    F = ones(Tk,T)*~F;
+    F = shiftr(F',seqa(0,1,T).*.ones(k,1),0);
+    THETA_inv = F';
+  */
+
+  /* otherwise,... */
+
+  THETA_inv = zeros(Tk,Tk);
+  j = 1;
+  do until j > T;
+    THETA_inv[1+(j-1)*k:Tk,1+(j-1)*k:j*k] = trimr(F,0,(j-1)*k);
+    j = j+1;
+  endo;
+
+  retp(THETA_inv);
+endp;
+
+proc _arma_gradp(beta);
+  local RR,Gradient;
+
+  RR = _ml_RR;
+  Gradient = RR'*_ml_gradient;
+
+  retp(-Gradient');
+endp;
+
+proc _arma_hessp(beta);
+  local RR,Hessian;
+
+  RR = _ml_RR;
+  Hessian = RR'*_ml_hessian*RR;
+
+  retp(-Hessian);
+endp;
+
+proc Lag_matrix(T);
+  local L,i;
+  L = zeros(T,T);
+  i = 2;
+  do until i>T;
+    L[i,i-1] = 1;
+    i = i+1;
+  endo;
+  retp(L);
+endp;
+

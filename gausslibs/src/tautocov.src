@@ -1,0 +1,87 @@
+/*
+** tautocov.src - Theoretical autocovariances of ARMA(p,q) models
+** (C) Copyright 1994-1998 by Aptech Systems,Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> tautocov
+**
+**  Purpose: Compute theoretical autocovariances.
+**
+**  Format:  g = tautocov(b0,p,q);
+**
+**  Input: b0   (p+q)x1 vector of parameter values
+**          p   number of AR parameters
+**          q   number of MA parameters
+**
+**  Output: g   [Max(p,q)+1]x1 vector of autocovariances.
+**
+**  Remark:  The theoretical autocorrelations are found by dividing g
+**           by the first element of g.
+*/
+
+proc tautocov(b0,p,q);
+    local phi,theta,rmax,c,b,a,k,kmin,g,j,i,t1,t2;
+
+    if p gt 0;
+        phi = -1|b0[1:p];
+    endif;
+    if q == 0;
+        theta = -1;
+    else;
+        theta = -1|b0[p+1:p+q];
+    endif;
+    rmax = maxc(p|q);
+    c = zeros(q+1,1);
+    b = zeros(rmax+1,1);
+    a = zeros(rmax+1,rmax+1);
+    c[1] = 1;
+    k=1; j=1; do while k <= q;
+        kmin = minc(p|k);
+        if (p gt 0) and (k le p);
+            c[k+1] = -theta[k+1] + phi[2:kmin+1]'rev(c[1:kmin]);
+        elseif (p gt 0) and (k gt p);
+            c[k+1] = -theta[k+1] + phi[2:kmin+1]'rev(c[j+1:kmin+j]);
+            j=j+1;
+        elseif (p == 0);
+            c[k+1] = -theta[k+1];
+        endif;
+    k=k+1; endo;
+    k=1; do while k <= q+1;
+        b[k] = -theta[k:q+1]'c[1:q+2-k];
+    k=k+1; endo;
+    if p == 0;
+        g = b;
+    else;
+        a[1:p+1,1] = phi;
+        j=2; do while j <= rmax+1;
+            i=1; do while i <= rmax+1;
+                t1=i-j+1;
+                t2=i+j-1;
+                if t1 > 0 and t1 <= p+1;
+                    if t2 > 0 and t2 <= p+1;
+                        a[i,j] = phi[t1]+phi[t2];
+                    else;
+                        a[i,j] = phi[t1];
+                    endif;
+                else;
+                    if t2 > 0 and t2 <= p+1;
+                        a[i,j] = phi[t2];
+                    endif;
+                endif;
+            i=i+1; endo;
+        j=j+1; endo;
+        g = -b/a;
+    endif;
+retp(g);
+endp;

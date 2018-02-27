@@ -1,0 +1,18 @@
+#ifDLLCALL
+#else
+
+/*
+** flibuff.ext - Foreign language interface - used by 32-bit version only.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External code buffer declarations for 32-bit foreign language procedures.
+*/
+
+external matrix _countwt;   /* COUNTWTS.SRC  */
+external matrix _ixcat;     /* INDEXCAT.SRC  */
+external matrix _subsct;    /* SUBSCAT.SRC   */
+external matrix _uniqndx;   /* UNIQUINDX.SRC */
+external matrix _unique;    /* UNIQUE.SRC    */
+
+#endif

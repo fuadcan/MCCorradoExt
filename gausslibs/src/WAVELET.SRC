@@ -1,0 +1,830 @@
+/*
+** wavelet.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  bnd = extract(w,L);           Wavelet subband decomposition
+**                                coefficients extraction                  35
+**
+**  bnd2 = insert(w,bnd1,L);      Wavelet subband decomposition
+**                                coefficients insertion                   50
+**
+**  y = iwt(w,Htilde,Gtilde,L);   Inverse Wavelet Transform                66
+**
+**  Atilde = iwt_matrix(Htilde,Gtilde,N);
+**                                Matrix of the Inverse Wavelet Transform  85
+**
+**  E = scalogram(w);             Scalogram of the wavelet coefficients    103
+**
+**  bnd = select(w,L);            Wavelet subband decomposition
+**                                coefficients selection                   121
+**
+**  bnd = split(w,L);             Wavelet subband decomposition
+**                                coefficients split                       136
+**
+**  w = wt(x,H,G,L);              Wavelet transform                        151
+**
+**  A = wt_matrix(H,G,N);         matrix of the wavelet transform          170
+**
+*/
+
+
+/*
+** extract
+**
+** Purpose: Wavelet subband decomposition coefficients extraction
+**
+** Format:  bnd = extract(w,L);
+**
+** Input:    w - N*1 vector, the wavelet coefficients
+**           L - b*1 vector, the extracted levels
+**
+** Output: bnd - N*1 vector, the subband wavelet coefficients
+**
+*/
+
+
+/*
+** insert
+**
+** Purpose: Wavelet subband decomposition coefficients insertion
+**
+** Format:  bnd2 = insert(w,bnd1,L);
+**
+** Input:     w - N*1 vector, the wavelet coefficients
+**         bnd1 - K*1 vector, the subband to be inserted
+**            L - scalar, the level of the multiresolution analysis
+**
+** Output: bnd2 - N*1 vector, the wavelet coefficients with inserted subband
+**
+*/
+
+
+/*
+** iwt
+**
+** Purpose: Compute the Inverse Wavelet Transform
+**
+** Format:  y = iwt(w,Htilde,Gtilde,L);
+**
+** Input:      w - N*1 vector, the wavelet coefficients
+**        Htilde - p*1 vector, the low-pass filter conjugate
+**        Gtilde - p*1 vector, the high-pass filter conjugate
+**             L - scalar, level of the multiresolution analysis
+**
+** Output:     y - N*1 vector, the reconstructed series
+**
+** Globals: _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+/*
+** iwt_matrix
+**
+** Purpose: Compute the matrix Atilde of the Inverse Wavelet Transform
+**
+** Format:  Atilde = iwt_matrix(Htilde,Gtilde,N);
+**
+** Input:  Htilde - p*1 vector, the low-pass filter conjugate
+**         Gtilde - p*1 vector, the high-pass filter conjugate
+**              N - scalar
+**
+** Output: Atilde - N*N matrix, the inverse wavelet coefficient matrix Atilde
+**
+** Globals: _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+/*
+** scalogram
+**
+** Purpose: Compute the scalogram of the Wavelet coefficients
+**
+** Format:  E = Scalogram(w);
+**
+** Input:  w - N*1 vector, the wavelet coefficients
+**
+** Output: E - (M+1)*1 vector, the energy decomposition
+**
+** Globals:
+**         _print - scalar 1 (default), print the statistics
+**                  scalar 0, do not print the statistics
+**
+*/
+
+
+/*
+** select
+**
+** Purpose: Wavelet subband decomposition coefficients selection
+**
+** Format:  bnd = select(w,L);
+**
+** Input:    w - N*1 vector, the wavelet coefficients
+**           L - b*1 vector, the level of the multiresolution analysis
+**
+** Output: bnd - Nstar*1 vector, the selected subband wavelet coefficients
+**
+*/
+
+
+/*
+** split
+**
+** Purpose: Wavelet subband decomposition coefficients split
+**
+** Format:  bnd = split(w,L);
+**
+** Input:    w - N*1 vector, the wavelet coefficients
+**           L - b*1 vector, the levels of the multiresolution
+**
+** Output: bnd - N*(b+1) matrix, the subband wavelet coefficients
+**
+*/
+
+
+/*
+** wt
+**
+** Purpose: Compute the coefficients of the Wavelet Transform
+**
+** Format:  w = wt(x,H,G,L);
+**
+** Input:      x - N*1 vector, data
+**             H - p*1 vector, the low-pass filter
+**             G - p*1 vector, the high-pass filter
+**             L - scalar, level of the multiresolution analysis
+**
+** Output:     w - N*1 vector, the wavelet coefficients
+**
+** Globals: _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+/*
+** wt_matrix
+**
+** Purpose: Compute the matrix A of the Wavelet Transform
+**
+** Format:  A = wt_matrix(H,G,N);
+**
+** Input:  H - p*1 vector, the low-pass filter
+**         G - p*1 vector, the high-pass filter
+**         N - scalar
+**
+** Output: A - N*N matrix, the wavelet coefficients matrix A
+**
+** Globals: _wcenter - scalar (default = 0), the delay of the filters
+**
+*/
+
+
+
+/* ----------------------------------------------------------------------
+                         DISCRETE WAVELET TRANSFORM
+   ---------------------------------------------------------------------- */
+
+
+/*
+** wt_matrix
+*/
+
+proc (1) = wt_matrix(H,G,N);
+  local nH,nG,nFilter,str,A,w1,w2,w3,i;
+  local c;
+
+  c = _wcenter;
+
+  if ismiss(H) or ismiss(G);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(miss(0,0));
+  endif;
+
+  nH = rows(H);
+  nG = rows(G);
+
+  if (N /= trunc(N)) or (N%2 /= 0);
+    ERRORLOG "error: N must be an even integer.";
+    retp(error(0));
+  endif;
+
+  nFilter = maxc(nH|nG);
+  if (N < nFilter);
+    str = "error: N must be greater than " $+ ftos(nFilter,"%lf.",1,0);
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  w1 = H';
+  w2 = G';
+  if (N-nH) > 0;
+    w1 = w1~zeros(1,N-nH);
+  endif;
+  if (N-nG) > 0;
+    w2 = w2~zeros(1,N-nG);
+  endif;
+
+  if c == 0;
+    w3 = w1|w2;
+  else;
+    w3 = rotater(w1|w2,-c);
+  endif;
+
+  A = ones(N/2,1).*.w3;
+  i = seqa(0,2,N/2);
+  i = i.*.ones(2,1);
+  A = rotater(A,i);
+
+  retp(A);
+endp;
+
+
+/*
+** iwt_matrix
+*/
+
+proc (1) = iwt_matrix(Htilde,Gtilde,N);
+  local nH,nG,nFilter,str,Atilde,w1,w2,w3,i;
+  local c;
+
+  c = _wcenter;
+
+  if ismiss(Htilde) or ismiss(Gtilde);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(miss(0,0));
+  endif;
+
+  nH = rows(Htilde);
+  nG = rows(Gtilde);
+
+  if (N /= trunc(N)) or (N%2 /= 0);
+    ERRORLOG "error: N must be an even integer.";
+    retp(error(0));
+  endif;
+
+  nFilter = maxc(nH|nG);
+  if (N < nFilter);
+    str = "error: N must be greater than " $+ ftos(nFilter,"%lf.",1,0);
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  w1 = Htilde';
+  w2 = Gtilde';
+  if (N-nH) > 0;
+    w1 = zeros(1,N-nH)~w1;
+  endif;
+  if (N-nG) > 0;
+    w2 = zeros(1,N-nG)~w2;
+  endif;
+  w3 = w1|w2;
+
+  Atilde = ones(N/2,1).*.w3;
+  i = seqa(0,2,N/2);
+  i = i.*.ones(2,1);
+  Atilde = rotater(Atilde,-rev(i));
+
+  if c /= 0;
+
+    /* Atilde = Atilde[1+c:N,.]|Atilde[1:c,.]; */
+
+    Atilde = rotater(Atilde',-c)';
+  endif;
+
+  retp(Atilde);
+endp;
+
+
+/*
+** wt
+*/
+
+proc (1) = wt(x,H,G,L);
+  local N,nH,nG,M,y,i,Nw,indx,w_,w,s,d;
+  local str,Nstar,c;
+
+  c = _wcenter;
+
+  if ismiss(x);
+    ERRORLOG "error: The vector x contains missing values.";
+    retp(error(0));
+  endif;
+
+  if ismiss(H) or ismiss(G);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(miss(0,0));
+  endif;
+
+  N = rows(x);
+  nH = rows(H);
+  nG = rows(G);
+
+  if (ln(N)/ln(2)) /= floor(ln(N)/ln(2));
+    ERRORLOG "error: the number of rows of x must be an integer power of 2.";
+    retp(error(0));
+  endif;
+
+  if (trunc(L) /= L) or (L < 0);
+    ERRORLOG "error: The level L must be a positive integer.";
+    retp(error(0));
+  endif;
+
+  if N < 2;
+    str = "error: Not enough data.";
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M;
+    str = "error: The level L must be less or equal than "
+           $+ ftos(M,"%lf.",1,0);
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  if L == 0;
+    L = M;
+  endif;
+
+  y = {};
+  w = x;
+  H = rev(H);
+  G = rev(G);
+
+  i = 1;
+  do while i <= L;
+
+    Nw = rows(w);
+    if (Nw < nH) or (Nw < nG);
+      break;
+    endif;
+
+    if c /= 0;
+      w = rotater(w',c)';
+    endif;
+
+    indx = seqa(1,2,Nw/2);
+
+    if nH == 2;
+      w_ = w;
+    else;
+      w_ = w|w[1:nH-2];
+    endif;
+
+    s = conv(w_,H,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w_,G,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    y = d|y;
+    w = s;
+    i = i+1;
+
+  endo;
+
+  Nstar = 2^ceil(ln(nH)/ln(2));
+
+  do while i <= L;
+
+    Nw = rows(w);
+    indx = seqa(1,2,Nw/2);
+
+    w_ = w;
+
+    do until rows(w_) >= Nstar;
+      w_ = w_|w;
+    endo;
+
+    if c /= 0;
+      w_ = rotater(w_',c)';
+    endif;
+
+    if nH == 2;
+      w_ = w_;
+    else;
+      w_ = w_|w_[1:nH-2];
+    endif;
+
+    s = conv(w_,H,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w_,G,0,0);
+    d = trimr(d,nG-1,0);
+
+    s = s[indx];
+    d = d[indx];
+    y = d|y;
+    w = s;
+    i = i+1;
+
+  endo;
+
+  w = s|y;
+
+  retp(w);
+endp;
+
+
+/*
+** iwt
+*/
+
+proc (1) = iwt(w,Htilde,Gtilde,L);
+  local y,N,nH,nG,M,x,i,Nw,indx,w_,s,d;
+  local str,Nstar,c;
+
+  y = w;
+
+  c = _wcenter;
+
+  if ismiss(y);
+    ERRORLOG "error: the vector w contains missing values.";
+    retp(error(0));
+  endif;
+
+  if ismiss(Htilde) or ismiss(Gtilde);
+    ERRORLOG "error: The filters contain missing values.";
+    retp(miss(0,0));
+  endif;
+
+  N = rows(y);
+  nH = rows(Htilde);
+  nG = rows(Gtilde);
+
+  if (ln(n)/ln(2)) /= floor(ln(n)/ln(2));
+    ERRORLOG "error: the number of rows of x must be an integer power of 2.";
+    retp(error(0));
+  endif;
+
+  if (trunc(L) /= L) or (L < 0);
+    ERRORLOG "error: L must be a positive integer.";
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M;
+    str = "error: L must be less or equal than " $+ ftos(M,"%lf.",1,0);
+    ERRORLOG str;
+    retp(error(0));
+  endif;
+
+  if L == 0;
+    L = M;
+  endif;
+
+  Nw = N/(2^(L-1));
+  w = y[1:Nw];
+
+  Htilde = rev(Htilde);
+  Gtilde = rev(Gtilde);
+  Nstar = 2^ceil(ln(nH)/ln(2));
+
+  i = 1;
+  do while i <= L;
+
+    if (Nw >= nH) and (Nw >= nG);
+      break;
+    endif;
+
+    indx = seqa(1,2,Nw/2);
+    w_ = zeros(Nw,1);
+    w_[indx] = w[1:Nw/2];
+    w_[indx+1] = w[Nw/2+1:Nw];
+
+    w = w_;
+    w_ = {};
+    do until rows(w_) >= Nstar;
+      w_ = w_|w;
+    endo;
+
+    if nH == 2;
+      w = w_;
+    else;
+      w = w_[Nstar-nH+3:Nstar]|w_;
+    endif;
+
+    s = conv(w,Htilde,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w,Gtilde,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    w = zeros(Nw,1);
+    w[indx] = s;
+    w[indx+1] = d;
+
+    if c /= 0;
+      w = rotater(w',-c)';
+    endif;
+
+    if (i-L) == 0;
+      break;
+    else;
+      w = w|y[Nw+1:2*Nw];
+      Nw = 2*Nw;
+    endif;
+    i = i+1;
+
+  endo;
+
+  do while i <= L;
+
+    indx = seqa(1,2,Nw/2);
+    w_ = zeros(Nw,1);
+    w_[indx] = w[1:Nw/2];
+    w_[indx+1] = w[Nw/2+1:Nw];
+    if nH == 2;
+      w = w_;
+    else;
+      w = w_[Nw-nH+3:Nw]|w_;
+    endif;
+
+    s = conv(w,Htilde,0,0);
+    s = trimr(s,nH-1,0);
+    d = conv(w,Gtilde,0,0);
+    d = trimr(d,nG-1,0);
+    s = s[indx];
+    d = d[indx];
+    w = zeros(Nw,1);
+    w[indx] = s;
+    w[indx+1] = d;
+
+    if c /= 0;
+      w = rotater(w',-c)';
+    endif;
+
+    if (i-L) == 0;
+      break;
+    else;
+      w = w|y[Nw+1:2*Nw];
+      Nw = 2*Nw;
+    endif;
+    i = i+1;
+
+  endo;
+
+  y = w;
+
+  retp(y);
+endp;
+
+
+/* ----------------------------------------------------------------------
+                               TOOLS
+   ---------------------------------------------------------------------- */
+
+
+/*
+** scalogram
+*/
+
+proc (1) = scalogram(w);
+  local err,N,M,LL,E,j,Ej,name,fmt;
+
+  if ismiss(w);
+    ERRORLOG "error: w contains missing values.";
+    retp(error(0));
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  N = rows(w);
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  LL = seqm(1,2,M+1);
+
+  E = w[1]^2;
+
+  j = 1;
+  do until j > M;
+
+    Ej = sumc(w[1+LL[j]:LL[j+1]]^2);
+    E = E|Ej;
+
+    j = j+1;
+  endo;
+
+  if _print == 1;
+    print "-------------------------------";
+    print "         Scalogram             ";
+    print "-------------------------------";
+    name = 0 $+ "E(" $+ ftocv(seqa(0,1,M),1,0) $+ ")";
+    name = "c(0)^2"|name;
+    let fmt[2,3] =  "   -*.*s" 12 8  "*.*lf" 12 5;
+    call printfm(name~E,0~1,fmt); print;
+  endif;
+
+  retp(E);
+endp;
+
+
+/*
+** split
+*/
+
+proc (1) = split(w,L);
+  local err,M,N,bnd,indx,j,n1,n2;
+
+  L = unique(L,1);
+
+  if (trunc(L) /= L) or (minc(L) < 0);
+    ERRORLOG "error: Incorrect values for the L levels.";
+    retp(error(0));
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  N = rows(w);
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if maxc(L) > M;
+    ERRORLOG "error: Incorrect values for the L levels.";
+    retp(error(0));
+  endif;
+
+
+  if L == 0;
+    L = seqa(1,1,M);
+  endif;
+
+  bnd = zeros(N,rows(L)+1);
+
+  indx = seqm(N/2,0.5,M);
+  indx = N|indx[L]|0;
+
+  j = 1;
+  do until j > rows(L)+1;
+
+    n1 = indx[1+j]+1;
+    n2 = indx[j];
+    bnd[n1:n2,j] = w[n1:n2];
+    j = j + 1;
+
+  endo;
+
+  retp(bnd);
+endp;
+
+
+/*
+** extract
+*/
+
+proc extract(w,L);
+  local err,M,N,bnd,indx,j,n1,n2;
+
+  L = unique(L,1);
+
+  N = rows(w);
+
+  if (trunc(L) /= L) or (minc(L) <= 0);
+    ERRORLOG "error: Incorrect values for the L levels.";
+    retp(error(0));
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if maxc(L) > M+1;
+    ERRORLOG "error: Incorrect values for the L levels.";
+    retp(error(0));
+  endif;
+
+  bnd = zeros(N,1);
+
+  indx = seqm(N,0.5,M+1);
+  indx = indx[L];
+
+  j = 1;
+  do until j > rows(L);
+
+    n2 = indx[j];
+    n1 = 1+n2/2;
+    bnd[n1:n2] = w[n1:n2];
+    j = j + 1;
+
+  endo;
+
+  retp(bnd);
+endp;
+
+
+/*
+** select
+*/
+
+proc select(w,L);
+  local err,M,N,bnd,indx,i1,i2;
+
+  N = rows(w);
+
+  if (rows(L) /= 1) or (cols(L) /= 1);
+    ERRORLOG "error: The level L must be a scalar.";
+    retp(error(0));
+  endif;
+
+  if (trunc(L) /= L) or (L <= 0);
+    ERRORLOG "error: Incorrect level L value.";
+    retp(error(0));
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M+1;
+    ERRORLOG "error: Incorrect level L value.";
+    retp(error(0));
+  endif;
+
+  indx = seqm(N,0.5,L);
+  i2 = indx[L];
+  if i2 == 1;
+    i1 = 1;
+  else;
+    i1 = 1 + 0.5*i2;
+  endif;
+  bnd = w[i1:i2];
+
+  retp(bnd);
+endp;
+
+
+/*
+** insert
+*/
+
+proc insert(w,bnd1,L);
+  local err,M,N,bnd2,indx,i1,i2;
+
+  N = rows(w);
+
+  if (rows(L) /= 1) or (cols(L) /= 1);
+    ERRORLOG "error: The level L must be a scalar.";
+    retp(error(0));
+  endif;
+
+  if (trunc(L) /= L) or (L <= 0);
+    ERRORLOG "error: Incorrect level L value.";
+    retp(error(0));
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp(error(0));
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M+1;
+    ERRORLOG "error: Incorrect level L value.";
+    retp(error(0));
+  endif;
+
+  indx = seqm(N,0.5,L);
+  i2 = indx[L];
+  if i2 == 1;
+    i1 = 1;
+  else;
+    i1 = 1 + 0.5*i2;
+  endif;
+
+  if rows(bnd1) == (i2-i1+1) and cols(bnd1) == 1;
+    bnd2 = w;
+    bnd2[i1:i2] = bnd1;
+  else;
+    ERRORLOG "error: Wrong size format of the bnd1 vector.";
+    retp(error(0));
+  endif;
+
+  retp(bnd2);
+endp;
+

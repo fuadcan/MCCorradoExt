@@ -1,0 +1,51 @@
+
+
+          Series Name =  Test Data for a cointegrating regression
+          Sample size for this series =     150.0000
+    number of observations =     150.0000
+    number of variables    =       2.0000
+
+
+ OLS COINTEGRATING REGRESSION: (estimated coefficients + intercept )  
+
+Regression coefficients      =      0.4992      1.8795
+Standard errors              =      0.0621      0.0377
+ t-ratios                    =      8.0373     49.8729
+Standard error of regression =       1.0284
+
+  RESULTS FROM AN AR(1) & AN AR(K) WITH AN E-PRIOR 
+               k =         2.0000
+
+
+     Estimated AR coefficient and standard error 
+
+AR coeff., t-ratio(at 1), st.error  =      -0.0747    -13.1067      0.0820
+
+
+        Probabilities of stochastic nonstationarity  
+        based on Jeffreys' (_J) and flat (_F) priors 
+
+Prob_J( rho >= 1 )     =       0.0000
+Prob_F( rho >= 1)      =       0.0000
+
+Prob_J( rho >= 0.975 ) =       0.0000
+Prob_F( rho >= 0.975 ) =       0.0000
+
+        Estimated coefficients and standard errors: AR lag =       2.0000
+
+l_r AR coeff., t-ratio(at 1.0), st.error      =      -0.1028     -9.0971
+      0.1212
+intercept, t-ratio, st.error                  =      -0.0666     -0.3982
+      0.1672
+trend coeff., t-ratio, st.error               =       0.0009      0.4695
+      0.0019
+
+
+        Probabilities of stochastic nonstationarity  
+        based on Jeffreys' (_J) and flat (_F) priors 
+
+Prob_J( rho >= 1 )     =      -0.0000
+Prob_F( rho >= 1)      =      -0.0000
+
+Prob_J( rho >= 0.975 ) =      -0.0000
+Prob_F( rho >= 0.975 ) =      -0.0000

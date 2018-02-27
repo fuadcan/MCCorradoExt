@@ -1,0 +1,30 @@
+/*
+** Wornell and Oppenheim [1992], Estimation of fractal signals
+** from noisy measurements using wavelets,
+** IEEE transactions on Signals Processing, 40, 611-623
+*/
+
+declare external _wcoeff, _scale;
+
+proc ml(theta);
+  local sigma,d,w,j,logl,i,u,v;
+  sigma = theta[1];
+  d = theta[2];
+  w = _wcoeff;
+  logl = {};
+  j = 1;
+  do until j > rows(_scale);
+    i = _scale[j];
+    u = select(w,i);
+    v = (sigma^2)*2^(2*d*i);
+    logl = logl | (-0.5*ln(2*pi)-0.5*ln(v)-0.5*u^2/v);
+    j = j + 1;
+  endo;
+
+  retp(logl);
+endp;
+
+_tsm_optmum = 1;
+__title = "Fractional process estimation via vavelets";
+_tsm_parnm = "sigmaX"|"d";
+

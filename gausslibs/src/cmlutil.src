@@ -1,0 +1,4834 @@
+/*
+** cmlutil.src       CML procedures
+**
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+#include cml.ext
+
+proc(11) = _cml( dataset,var,lfct,start, Lcmlalgr, Lcmlcovp, Lcmldelta,
+    Lcmlextrp, Lcmlgdmd, Lcmlgdprc, Lcmlgtol, Lcmlhsprc, Lcmlintrp,
+    Lcmlkey, Lcmllag, Lcmlmiter, Lcmlmtime, Lcmlmxtry, Lcmlnobs, Lcmlparnm,
+    lcmlswch, LcmlGS, Lcmlgsradius, lcmltrust, LcmltrustRadius, Lcmlstep,
+    Lcmloption, Lcmlusrsch, Lcmlusrgd, Lcmlusrhs, LcmlActive, Lcmlgrdh,
+    Lcmlgrdord, Lcmlgdchk, LLaltnam, LLoutput, LLrow, LLtitle, LLweight );
+
+    local Lcmlfhess, Lcmlhsvcp, LcmlCpvcp, Lcmlitdta, Lcmldiag;
+    local oldfmt,x,g,s,h,iter,ky,old,vof,x0,fhandle,parnms,bksteps,dx,z,
+        algrm,stepm,covpm,gradm,outm,algr0,step0,covp0,grad0,out0,stout,
+        smallval,pg,k0,k1,k2,lr,lf,ll,np,tme,f0,tstart,w0,w1,w2,w3,w4,w5,
+        w6,w7,w8,w9,w10,h1,ttime,isctu,mask,fmt,omat,row,oldt,dfct,ib,dd,
+        wgts,dum,cpmeth,y,htype,q1,q2,vnames,vindx,ret,zeta,gdmd,gcoefs,
+        tmpop,TToutput,ok,numRows,isconstraints,jsw,isw,ksw,msw,_eps,nobs;
+
+    local numeq,qp_e,qp_t,qp_xl,qp_xu,qp_ret,qp_maxit,lagr1,lagr2,
+        _c,_lg,ia,qp_a,qp_b,qp_d,qp_lql,lg_b,lg_xl,lg_xu;
+    local Lcmllagr,scalarfct;
+    local numNlinEqC,numNlinIneqC,numLinEqC;
+    local eqproc,ineqproc,eqjacob,ineqjacob;
+
+    clear Lcmllagr,lagr1,lagr2,qp_ret,qp_e,ib,nobs,row,numrows,wgts,vindx;
+    clear bksteps,s,dfct,fhandle,h,iter,zeta,TToutput,scalarfct;
+    clear numeq,numLinEqC,numNlinEqC,numNlinIneqC;
+    cpmeth = "";
+
+    start = vec(start);
+    Lcmlfhess = { . };
+    Lcmlitdta = { . , . , . };
+    Lcmlcpvcp = { . };
+    Lcmlhsvcp = { . };
+    isw = 1;
+    ksw = 1;
+    msw = 1;
+    dx = 1;
+    isctu = 1;
+    pg = 1;
+    smallval = 1e-15;
+    let w1 = 2 1 2 80 0 7;
+    let w2 = 5 1 24 80 0 7;
+    let w3 = 1 1 1 80 0 112;
+    let w4 = 3 1 4 80 0 112;
+    let w5 = 6 1 25 80 0 7;
+    let w9 = 1 1 4 80 0 7;
+    let w10 = 3 1 25 80 0 7;
+    w0 = 196*ones(1,24);
+    w6 = chrs(218~w0~194~w0~194~w0~191);
+    w7 = chrs(179~(32*ones(1,24))~179~(32*ones(1,24))~179~(32*ones(1,24))~179);
+    w8 = chrs(192~w0~193~w0~193~w0~217);
+    if strlen(LLtitle) > 80;
+        LLtitle = strsect(LLtitle,1,78);
+    endif;
+    w0 = "" $+ chrs(32*ones(40-floor(strlen(LLtitle)/2),1)) $+ LLtitle;
+
+    algrm = { BFGS, DFP, NEWTON, BHHH, BFGS-SC, DFP-SC, NR };
+    algr0 = { 1, 2, 3, 4, 5, 6, 3 };
+    stepm = { 1.0, STEPBT, HALF, BRENT, BHHHSTEP, 1, ONE, GOLDEN };
+    step0 = { 1, 2, 3, 4, 5, 1, 1, 4 };
+    covpm = { NOCOVP, INFO, XPROD, HETCON, NOCOV, HESS, QML };
+    covp0 = { 0, 1, 2, 3, 0, 1, 3 };
+    gradm = { CENTRAL, FORWARD, BACKWARD };
+    grad0 = { 0, 1, 2 };
+    outm = { NOOUT, FILE, SCREEN, NOOUTPUT, NO_OUTPUT, NONE };
+    out0 = { 0, 1, 2, 0, 0, 0 };
+
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+#ifUNIX
+    if LLoutput == 2;
+        LLoutput = 1;
+    endif;
+#endif
+
+    stout = 1;
+    if LLoutput >= 5;
+        stout = LLoutput;
+        LLoutput = 1;
+    endif;
+
+    if dataset $== 0;
+        dataset = error(0);
+    endif;
+
+    Lcmlalgr = _cml_check(Lcmloption,Lcmlalgr,algrm,algr0,3);
+    Lcmlstep = _cml_check(Lcmloption,Lcmlstep,stepm,step0,2);
+    Lcmlcovp = _cml_check(Lcmloption,Lcmlcovp,covpm,covp0,1);
+    Lcmlgdmd = _cml_check(Lcmloption,Lcmlgdmd,gradm,grad0,1);
+    LLoutput = _cml_check(Lcmloption,LLoutput,outm,out0,2);
+
+    if not scalmiss(Lcmlswch);
+        if rows(Lcmlswch) < 4;
+            if cols(Lcmlswch) == 1;
+                Lcmlswch = Lcmlswch[1,1] | .001 | 10 | .001;
+            else;
+                Lcmlswch = Lcmlswch[1,.] | (.001~.001) | (10~10) | (.001~.001);
+            endif;
+        endif;
+    endif;
+
+    gdmd = zeros(3,1);
+    gcoefs = 0;
+    if Lcmlusrgd /= 0;
+        Lcmlgdmd = 0;
+    else;
+        if Lcmlgrdord == 0;
+            if Lcmlgdmd == 0;
+                gdmd[1] = &_cml_grdcd;
+                gdmd[2] = &_cml_grdc1;
+            elseif Lcmlgdmd == 1;
+                gdmd[1] = &_cml_grdfd;
+                gdmd[2] = &_cml_grdf1;
+            else;
+                gdmd[1] = &_cml_grdbd;
+                gdmd[2] = &_cml_grdb1;
+            endif;
+            gdmd[3] = &_cml_hssp;
+        else;
+            if Lcmlgdmd == 0;
+                gdmd[1] = &_cml_mpgrdcd;
+                gdmd[2] = &_cml_mpgrdc1;
+            elseif Lcmlgdmd == 1;
+                gdmd[1] = &_cml_mpgrdfd;
+                gdmd[2] = &_cml_mpgrdf1;
+            else;
+                gdmd[1] = &_cml_mpgrdbd;
+                gdmd[2] = &_cml_mpgrdb1;
+            endif;
+            gdmd[3] = &_cml_mphssp;
+
+           if Lcmlgrdord > 0;
+               gCoefs = _cml_GetGradCoefs(Lcmlgrdord);
+           else;
+               gCoefs = _cml_GetGradCoefs(1);
+           endif;
+
+        endif;
+    endif;
+
+    _eps = zeros(2,1);
+    if _cml_GradMethod == 0;
+        _eps[1] = __macheps^(1/3);
+    else;
+        _eps[1] = __macheps^(1/2);
+    endif;
+    _eps[2] = __macheps^(1/3);
+
+
+    if scalmiss(_cml_Diagnostic);
+        Lcmldiag = 0;
+    else;
+        Lcmldiag = _cml_Diagnostic;
+        _cml_Diagnostic = 0;
+        LLoutput = 1;
+    endif;
+
+    if LLoutput == 2;
+        call csrtype(0);
+        cls;
+        scroll w3;
+        scroll w4;
+        printdos "\27[7m";
+        printdos w0;
+        printdos "\27[0m";
+    endif;
+
+    if not(LcmlActive == 1) and (rows(LcmlActive) /= rows(start));
+        if not trapchk(4);
+            errorlog "ERROR:  _cml_Active not conformable to start vector";
+        endif;
+        goto OUT(start,error(0),error(0),10);
+    endif;
+
+    qp_maxit = 1000;
+    qp_e = eye(rows(start))|-eye(rows(start));
+    qp_t = 1e+256*ones(rows(start),1);
+
+    Lcmllagr = vput(Lcmllagr,error(0),"lineq");
+    Lcmllagr = vput(Lcmllagr,error(0),"linineq");
+    Lcmllagr = vput(Lcmllagr,error(0),"nlineq");
+    Lcmllagr = vput(Lcmllagr,error(0),"nlinineq");
+    Lcmllagr = vput(Lcmllagr,error(0),"bounds");
+    Lcmllagr = vput(Lcmllagr,error(0),"eqcov");
+    Lcmllagr = vput(Lcmllagr,error(0),"ineqcov");
+
+    if not(LcmlActive /= 0);
+        ib = packr(miss(seqa(1,1,rows(LcmlActive)).*(LcmlActive .== 0),0));
+        dd = trimr(design(ib|rows(LcmlActive)),0,1);
+        ib = packr(miss(seqa(1,1,rows(LcmlActive)).*(LcmlActive ./= 0),0));
+        numEq = rows(dd);
+        numLinEqC = numEq;
+    endif;
+
+    if not scalmiss(_cml_A);
+        numEq = numEq + rows(_cml_A);
+        numLinEqC = numEq;
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        eqproc = _cml_EqProc;
+        local eqproc:proc;
+        numNlinEqC = rows(EqProc(start));
+        numEq = numEq + numNlinEqC;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        ineqproc = _cml_IneqProc;
+        local ineqproc:proc;
+        numNlinIneqC = rows(IneqProc(start));
+    endif;
+
+    if not scalmiss(_cml_EqJacobian);
+        eqjacob = _cml_EqJacobian;
+        local eqjacob:proc;
+        if Lcmlgdchk;
+            h1 = eqjacob(start);
+            g = gradp(&eqproc,start);
+            if rows(g) /= rows(h1) or cols(g) /= cols(h1);
+                if not trapchk(4);
+                    errorlog "ERROR: size of equality Jacobian not consistent";
+                endif;
+                goto OUT(start,error(0),error(0),14);
+            elseif not(abs(h1-g) < Lcmlgdchk);
+                if not trapchk(4);
+                    errorlog "analytical and numerical equality Jacobian no"\
+                        "t consistent";
+                    if LLoutput;
+                        print "numerical";
+                        call printfmt(g,1);
+                        print;
+                        print "analytical";
+                        call printfmt(h1,1);
+                    endif;
+                    goto OUT(start,error(0),error(0),14);
+                endif;
+            endif;
+        endif;
+    endif;
+
+    if not scalmiss(_cml_IneqJacobian);
+        ineqjacob = _cml_IneqJacobian;
+        local ineqjacob:proc;
+        if Lcmlgdchk;
+            h1 = ineqjacob(start);
+            g = gradp(&IneqProc,start);
+            if rows(g) /= rows(h1) or cols(g) /= cols(h1);
+                if not trapchk(4);
+                    errorlog "ERROR:  size of inequality Jacobian not consi"\
+                        "stent";
+                endif;
+                goto OUT(start,error(0),error(0),15);
+            elseif not(abs(h1-g) < Lcmlgdchk);
+                if not trapchk(4);
+                    errorlog "analytical and numerical inequality Jacobian "\
+                        "not consistent";
+                    if LLoutput;
+                        print "numerical";
+                        call printfmt(g,1);
+                        print;
+                        print "analytical";
+                        call printfmt(h1,1);
+                    endif;
+                endif;
+            endif;
+        endif;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        if cols(_cml_Bounds) /= 2 or (rows(_cml_Bounds) /= rows(start) and
+            rows(_cml_Bounds) /= 1);
+            if not trapchk(4);
+                errorlog "ERROR:  _cml_Bounds is not correctly defined";
+            endif;
+            goto OUT(start,error(0),error(0),error(0),9);
+        endif;
+        if not(_cml_Bounds[.,1] < _cml_Bounds[.,2]);
+            if not trapchk(4);
+                errorlog "ERROR:  an upper bound is less than a lower bound";
+            endif;
+            goto OUT(start,error(0),error(0),error(0),9);
+        endif;
+    endif;
+
+    if type(var) == 13;
+        var = stof(var);
+    endif;
+
+    if type(LLweight) == 13;
+        LLweight = stof(LLweight);
+    endif;
+
+    if type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        open fhandle = ^dataset;
+        _cml_dsn = dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            if LLoutput == 2;
+                cls;
+            endif;
+            goto OUT(start,error(0),error(0),error(0),34);
+        endif;
+        if var $== 0;
+            vindx = 0;
+        else;
+            { vnames,vindx } = indices(dataset,var);
+        endif;
+        if not(LLweight $== 0);
+            numRows = rowsf(fhandle);
+            if rows(LLweight) == 1;
+                { dum, wgts } = indices(dataset,LLweight);
+                if scalmiss(wgts);
+                    if not trapchk(4);
+                        errorlog "weights could not be found in "$+dataset;
+                    endif;
+                    goto OUT(start,error(0),error(0),error(0),12);
+                endif;
+                nobs = 0;
+            else;
+                wgts = LLweight;
+                if rows(wgts) /= rowsf(fhandle);
+                    if not trapchk(4);
+                        errorlog "weight vector not conformable";
+                    endif;
+                    goto OUT(start,error(0),error(0),error(0),12);
+                endif;
+                nobs = sumc(wgts);
+            endif;
+        else;
+            wgts = 0;
+            nobs = rowsf(fhandle);
+            numRows = rowsf(fhandle);
+        endif;
+        k1 = getnr(6,rows(var));
+
+        if k1 >= rowsf(fhandle);
+            if LLoutput == 2;
+                scroll w4;
+                locate 3,1;
+                printdos "\27[7m";
+                printdos " Reading data into memory.......";
+                printdos "\27[0m";
+                locate 2,1;
+                printdos " Reading case";
+            endif;
+            call seekr(fhandle,1);
+            dataset = { };
+
+            k1 = getnr(6,colsf(fhandle));
+            do until eof(fhandle);
+                y = readr(fhandle,k1);
+                dataset = dataset|y[.,vindx];
+                if not(LLweight $== 0) and rows(LLweight) == 1;
+                    nobs = nobs + sumc(y[.,wgts]);
+                endif;
+            endo;
+            clear y;
+            if LLweight $== 0 or rows(LLweight) /= 1;
+                nobs = rows(dataset);
+            endif;
+            if LLoutput == 2;
+                scroll w1;
+                scroll w4;
+            endif;
+            if fhandle > 0;
+                fhandle = close(fhandle);
+            endif;
+            if LLrow > 0;
+                row = LLrow;
+            else;
+                row = 0;
+            endif;
+        else;
+            if not(LLweight $== 0) and rows(LLweight) == 1;
+                nobs = 0;
+                call seekr(fhandle,1);
+                do until eof(fhandle);
+                    y = readr(fhandle,k1);
+                    nobs = nobs + sumc(y[.,wgts]);
+                endo;
+                clear y;
+            else;
+                nobs = rowsf(fhandle);
+            endif;
+
+            if LLrow <= 0;
+                if vindx[1] == 0;
+                    k0 = maxc(colsf(fhandle)|rows(start));
+                else;
+                    k0 = maxc(rows(vnames)|rows(start));
+                endif;
+                row = getnr(6,k0);
+            else;
+                row = LLrow;
+            endif;
+            dataset = fhandle;
+        endif;
+    elseif not scalmiss(dataset);
+        numRows = rows(dataset);
+        if LLaltnam[1] $/= "" and var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,indcv(var,LLweight)];
+                nobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,indcv(var,LLaltnam)];
+        elseif var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,LLweight];
+                nobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,var];
+        endif;
+        if not(LLweight == 0) and rows(LLweight) > 1;
+            wgts = LLweight;
+            nobs = sumc(wgts);
+        else;
+            wgts = 0;
+            nobs = rows(dataset);
+        endif;
+
+        vindx = 0;
+        if LLrow > 0;
+            row = LLrow;
+        else;
+            row = 0;
+        endif;
+    endif;
+    clear LLweight;
+
+    if scalmiss(lcmlnobs) or lcmlnobs <= 1;
+        if nobs < 1;
+            nobs = test_rdd(lfct,x0,Lcmllag,dataset,vindx,row,numRows);
+            if scalmiss(nobs);
+                if not trapchk(4);
+                    errorlog "ERROR:  Number of observations not set";
+                endif;
+                retp(start,error(0),error(0),error(0),35,Lcmlfhess,Lcmlitdta,
+                      Lcmlcpvcp,Lcmlhsvcp,Lcmlnobs,Lcmllagr);
+            else;
+                Lcmlnobs = nobs;
+                scalarfct = 1;
+                wgts = 0;
+                Lcmlcovp = 1;
+                if lcmlalgr == 2;
+                    lcmlalgr = 1;
+                endif;
+            endif;
+        else;
+            Lcmlnobs = nobs;
+        endif;
+    endif;
+
+    if Lcmllag /= 0 and row /= 1;
+        if not trapchk(4);
+            errorlog "WARNING: if Lcmllag is nonzero LLROW must equal 1";
+        endif;
+        row = 1;
+    endif;
+
+    x0 = start;
+
+/*****************************************************************/
+/*****************************************************************/
+
+    if Lcmlparnm $/= 0 and rows(Lcmlparnm) /= rows(x0);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "vector of parameter labels does not conform to ve"\
+                    "ctor of starting values";
+            endif;
+        endif;
+        parnms = 0;
+    else;
+        parnms = Lcmlparnm;
+    endif;
+    if parnms $== 0;
+        let mask[1,3] = 1 1 1;
+        let fmt[3,3] = "lf " 8 0 "lf" 18 4 "lf" 18 4;
+    else;
+        let mask[1,3] = 0 1 1;
+        let fmt[3,3] = "s " 8 8 "lf" 18 4 "lf" 18 4;
+    endif;
+
+/****************************************************************************/
+/*                     BEGIN OPTIMIZATION                                   */
+/****************************************************************************/
+    tstart = date;
+    vof = _cml_rdd(lfct,0,x0,0,0,0,LLoutput,Lcmllag,dataset,vindx,row,
+        Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+    if scalInfNanMiss(vof);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "ERROR:  function cannot be computed at initial pa"\
+                    "rameter values";
+            endif;
+        endif;
+        goto OUT(start,vof,error(0),error(0),7);
+    endif;
+
+    np = rows(x0);          /* Number of parameters to estimate */
+    g = _cml_deriv(x0,1,lfct,gdmd,Lcmlgdprc,Lcmlhsprc,LLoutput,Lcmllag,
+        dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+        Lcmlusrgd,Lcmlusrhs,wgts);
+
+    if Lcmlgdprc /= 0 and Lcmlgdchk;
+        h1 = _cml_deriv(x0,1,lfct,gdmd,0,Lcmlhsprc,LLoutput,Lcmllag,
+            dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+            Lcmlusrgd,Lcmlusrhs,wgts);
+        if rows(h1) /= rows(g);
+            errorlog "ERROR:  length of gradient inconsistent";
+        elseif not(abs(h1-g) < Lcmlgdchk);
+            errorlog "analytical and numerical gradients differ";
+            if LLoutput;
+                print " numerical    analytical";
+                call printfmt(g~h1,1);
+            endif;
+            goto OUT(start,vof,g,error(0),7);
+        endif;
+    endif;
+    if scalmiss(g);
+        if not trapchk(4);
+            errorlog "gradient function failed at initial values";
+        endif;
+        goto OUT(start,vof,g,error(0),7);
+    endif;
+    if not(rows(x0) == 1 and rows(x0) == 1);
+        if rows(g) == 1 and cols(g) == rows(x0);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,1;
+                endif;
+                if not trapchk(4);
+                    errorlog "The gradient function has returned a column v"\
+                        "ector rather than the required row vector";
+                endif;
+            endif;
+            goto OUT(start,vof,g,error(0),8);
+        endif;
+    endif;
+    if rows(g) /= rows(x0);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "The number of elements in the gradient function";
+                errorlog "is inconsistent with the number of starting values";
+            endif;
+        endif;
+        goto OUT(start,vof,g,error(0),8);
+    endif;
+
+
+    if Lcmlhsprc and Lcmlgdchk;
+        h = _cml_deriv(x0,3,lfct,gdmd,Lcmlgdprc,0,LLoutput,
+            Lcmllag,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+            Lcmlusrgd,0,wgts);
+
+        gosub hssn(3);
+        pop h1;
+
+        if rows(h1) /= rows(h);
+            errorlog "ERROR:  size of Hessian inconsistent";
+        elseif not(abs(h1-h) < Lcmlgdchk);
+            errorlog "analytical and numerical gradients differ";
+            if LLoutput;
+                print "numerical";
+                call printfmt(h,1);
+                print "analytical";
+                call printfmt(h1,1);
+            endif;
+            goto OUT(start,vof,g,error(0),5);
+        endif;
+    endif;
+
+    if Lcmlalgr == 3;
+        gosub hssn(3);
+        pop h;
+
+    elseif Lcmlalgr == 4;
+        gosub hssn(2);
+        pop h;
+
+    endif;
+    if scalmiss(h) or (Lcmlalgr /= 3 and Lcmlalgr /= 4);
+        h = eye(np)*maxc(sqrt(abs(vof))|1);
+    endif;
+
+    if LLoutput == 2;
+        gosub BAR;
+    endif;
+
+    if np gt 48 and LLoutput == 2;
+        locate 25,15;
+        printdos "\27[7m";
+        print "  <PgDn>, <PgUp>  page parameters and directions ";
+        printdos "\27[0m";
+    endif;
+
+    if Lcmltrust > 0;
+        q1 = abs(g);
+        qp_d = (q1./(g+(g .== 0))).*minc(q1'|.99*Lcmltrustradius.*ones(1,np));
+    else;
+        qp_d = .1*abs(g);
+    endif;
+
+    ttime = date;
+A0:
+
+/* ********* Start of iteration loop ********** */
+    iter = iter + 1;
+    f0 = vof;
+
+    if LLoutput == 2;
+        scroll w1;
+        gosub BAR;
+        gosub PARBOX;
+        printdos "\27[7m";
+        locate 3,29;
+        printdos ftos(vof,"%-*.*lf",10,5);
+        locate 4,13;
+        printdos ftos(ethsec(tstart,date)/100,"%-*.*lf",4,2);
+        locate 3,52;
+        printdos "       ";
+        locate 3,52;
+        printdos algrm[Lcmlalgr];
+        locate 3,66;
+        printdos "       ";
+        locate 3,66;
+        printdos stepm[Lcmlstep];
+        locate 4,70;
+        printdos ftos(s,"%-*.*lf",5,3);
+        if iter > 1;
+            locate 4,27;
+            printdos ftos(dfct,"%*.*lE",10,2);
+        endif;
+        locate 4,52;
+        printdos ftos(bksteps,"%-*.*lf",1,0);
+        locate 3,7;
+        printdos ftos(iter,"%-*.*lf",1,0);
+        printdos "\27[0m";
+
+        k0 = lf;
+        k2 = 0;
+        do until k2 == lr;
+            k2 = k2+1;
+            k1 = 0;
+            do until k1 == 3;
+                k1 = k1+1;
+                locate 7+k2,(k1-1)*25+2;
+                if parnms == 0;
+                    printdos ftos(k0,"%*.*lf",3,0);
+                    printdos ftos(x0[k0],"%*.*lf",9,4);
+                    printdos ftos(qp_d[k0],"%*.*lf",9,5);
+                else;
+                    printdos parnms[k0];
+                    printdos " ";
+                    printdos ftos(x0[k0],"%*.*lf",6,3);
+                    printdos ftos(qp_d[k0],"%*.*lf",7,4);
+                endif;
+                k0 = k0+1;
+                if k0 gt rows(x0);
+                    goto A1;
+                endif;
+            endo;
+        endo;
+    elseif LLoutput == 1 and iter%stout == 0;
+        print;
+        print "============================================================"\
+            "====================";
+        print w0;
+        print;
+        oldfmt = sysstate(19,0);
+        format /ld 4,0;
+        print "   iteration: " iter;
+        format 6,6;
+        print "   algorithm: " $algrm[Lcmlalgr];;
+        print "  search method: " $stepm[Lcmlstep];
+        format /ld 10,5;
+        print "   function: " vof;;
+        print "   step length: " s;;
+        format 3,0;
+        print "   backsteps: " bksteps;
+        print "------------------------------------------------------------"\
+            "--------------------";
+        print "   parameter     parameter value     direction";
+
+        call sysstate(19,oldfmt);
+
+        if parnms $== 0;
+            omat = seqa(1,1,np)~x0~qp_d;
+        else;
+            omat = parnms~x0~qp_d;
+        endif ;
+        call printfm(omat,mask,fmt);
+#ifDLLCALL
+        print /flush "";
+#else
+        print;
+#endif
+    endif;
+A1:
+
+    tstart = date;
+
+    if Lcmldiag == 1 or Lcmldiag == 3;
+        print;
+        print "parameters ";
+        call printfmt(x0',1);
+        print;
+        print "function ";
+        call printfmt(vof,1);
+        print;
+        print "gradient ";
+        call printfmt(g',1);
+        print;
+
+        if Lcmlalgr <= 2;
+            h1 = h'h;
+        elseif Lcmlalgr <= 4;
+            h1 = h;
+        elseif Lcmlalgr <= 6;
+            h1 = h*h';
+        endif;
+        print;
+        print "Hessian estimate ";
+        call printfmt(h1,1);
+        print;
+        print "Condition = ";;
+        call printfmt(cond(h1),1);
+        print;
+    endif;
+    if Lcmldiag == 2 or Lcmldiag == 3;
+        _cml_diagnostic = vput(_cml_diagnostic,x0,"params");
+        _cml_diagnostic = vput(_cml_diagnostic,vof,"function");
+        _cml_diagnostic = vput(_cml_diagnostic,g,"gradient");
+
+        if Lcmlalgr <= 2;
+            _cml_diagnostic = vput(_cml_diagnostic,h'h,"Hessian");
+        elseif Lcmlalgr <= 4;
+            _cml_diagnostic = vput(_cml_diagnostic,h,"Hessian");
+        elseif Lcmlalgr >= 6;
+            _cml_diagnostic = vput(_cml_diagnostic,h*h',"Hessian");
+        endif;
+    endif;
+
+    if Lcmlalgr <= 2;
+        qp_lql = 0;
+    elseif Lcmlalgr == 3 or Lcmlalgr == 4;
+        qp_lql = 1;
+        if Lcmldelta > 0;
+            { q1,q2 } = eigrs2(h);
+            if not (q1 >= 0);
+                if not trapchk(4);
+                    if LLoutput == 2;
+                        locate 2,15;
+                    endif;
+                    if Lcmlalgr == 3;
+                        errorlog "Newton iteration failed";
+                    elseif Lcmlalgr == 4;
+                        errorlog "BHHH iteration failed";
+                    endif;
+                endif;
+                q1 = q1 + Lcmldelta - minc(q1);
+                h = q2*diagrv(eye(rows(q1)),q1)*q2';
+            endif;
+        endif;
+    elseif Lcmlalgr >= 5;
+        h = qr(h');
+    endif;
+
+    if not(LcmlActive /= 0);
+        qp_a = dd;
+        qp_b = zeros(rows(dd),1);
+    else;
+        qp_a = { };
+        qp_b = { };
+    endif;
+
+    if not scalmiss(_cml_A);
+        qp_a = qp_a | _cml_A;
+        qp_b = qp_b | -_cml_A*x0 + _cml_B;
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        if not scalmiss(_cml_EqJacobian);
+            qp_a = qp_a | eqjacob(x0);
+        else;
+            qp_a = qp_a | gradp(&EqProc,x0);
+        endif;
+        qp_b = qp_b | -EqProc(x0);
+    endif;
+
+    if not scalmiss(_cml_C);
+        qp_a = qp_a | _cml_C;
+        qp_b = qp_b | -_cml_C*x0 + _cml_D;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        if not scalmiss(_cml_IneqJacobian);
+            qp_a = qp_a | ineqjacob(x0);
+        else;
+            qp_a = qp_a | gradp(&IneqProc,x0);
+        endif;
+        qp_b = qp_b | -IneqProc(x0);
+    endif;
+
+    if scalmiss(qp_a);
+        qp_a = zeros(1,rows(x0));
+        qp_b = -1e256;
+        isconstraints = 0;
+    else;
+        isconstraints = 1;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        qp_xl = _cml_Bounds[.,1] - x0;
+        qp_xu = _cml_Bounds[.,2] - x0;
+    else;
+        qp_xl = -qp_t;
+        qp_xu = qp_t;
+    endif;
+
+    if Lcmltrust > 0;
+        q1 = LcmlTrustradius.*ones(1,np);
+        qp_xl = maxc(qp_xl' | -q1);
+        qp_xu = minc(qp_xu' | q1);
+    endif;
+
+    { lg_b,lg_xl,lg_xu,qp_d,qp_ret } = _intqpsolvfcn01(h,-g,qp_a,qp_b,
+        qp_xl,qp_xu,qp_d,numeq,qp_maxit,qp_lql);
+
+    if qp_ret < 0 and LcmlDiag;
+        print;
+        print;
+        print "QP return code " -qp_ret;
+
+        ky = 1;
+        if not scalmiss(_cml_A);
+            print;
+            print "linear equality constraints";
+            print (seqa(ky,1,rows(_cml_A))~(qp_a[1:rows(_cml_A),.]*qp_d - qp_b[1:rows(_cml_A)]));
+            ky = ky + rows(_cml_A);
+        endif;
+
+        if not scalmiss(_cml_EqProc);
+            print;
+            print "nonlinear equality constraints";
+            print (seqa(ky,1,numNlinEqC)~(qp_a[ky:ky+numNlinEqC-1,.]*qp_d - qp_b[ky:ky+numNlinEqC-1]));
+            ky = ky + numNlinEqC;
+        endif;
+
+        if not scalmiss(_cml_C);
+            print;
+            print "linear inequality constraints";
+            print (seqa(ky,1,rows(_cml_C))~(qp_a[ky:ky+rows(_cml_C)-1]*qp_d - qp_b[ky:ky+rows(_cml_C)-1]));
+            ky = ky + rows(_cml_C);
+        endif;
+
+        if not scalmiss(_cml_IneqProc);
+            print;
+            print "nonlinear inequality constraints";
+            print (seqa(ky,1,numNlinIneqC)~(qp_a[ky:ky+numNlinIneqC-1,.]*qp_d - qp_b[ky:ky+numNlinIneqC-1]));
+            ky = ky + numNlinIneqC;
+        endif;
+
+        if Lcmltrust or cols(_cml_Bounds) == 2;
+            print;
+            print "lower bounds";
+            print (seqa(ky,1,rows(qp_d))~(qp_d - qp_xl));
+            print;
+            print "upper bounds";
+            print (seqa(ky+rows(qp_d),1,rows(qp_d))~(qp_xu - qp_d));
+        endif;
+
+    endif;
+
+
+    if Lcmldiag == 1 or Lcmldiag == 3;
+        print;
+        print "direction ";
+        call printfmt(qp_d',1);
+        print;
+    endif;
+    if Lcmldiag == 2 or Lcmldiag == 3;
+        _cml_diagnostic = vput(_cml_diagnostic,qp_d,"direct");
+    endif;
+
+    if qp_ret < 0;
+        x = x0;
+        if not trapchk(4) and qp_ret < 0;
+            errorlog "constraint no. "$+ftos(-qp_ret,"%*.*lf",1,0)$+" incon"\
+                "sistent";
+        endif;
+        ret = 9;
+        goto A98;
+    elseif qp_ret == 1;
+        if not trapchk(4);
+            if __output == 2;
+                locate 2,40;
+            endif;
+            errorlog "maximum iterations exceeded in QPSOLVE";
+        endif;
+    elseif qp_ret == 2;
+        if not trapchk(4);
+            if __output == 2;
+                locate 2,40;
+            endif;
+            errorlog "QPSOLVE iterations halted due to lack of precision";
+        endif;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        k1 = qp_d .< (_cml_Bounds[.,1] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (_cml_Bounds[.,1] - x0);
+        k1 = qp_d .> (_cml_Bounds[.,2] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (_cml_Bounds[.,2] - x0);
+    endif;
+
+    lagr2 = {};
+    if isconstraints;
+        if numeq >= 1;
+            if abs(lagr1) < 1e-8;
+                lagr1 = error(0);
+            else;
+                lagr1 = maxc(lg_b[1:numeq]);
+            endif;
+        else;
+            lagr1 = error(0);
+        endif;
+        if numeq < rows(lg_b);
+            lagr2 = maxc(lg_b[numeq+1:rows(lg_b)]);
+        endif;
+    else;
+        lagr1 = error(0);
+    endif;
+    if not scalmiss(_cml_Bounds);
+        lagr2 = maxc(lagr2|lg_xl|lg_xu);
+    endif;
+    if abs(lagr2) < 1e-8;
+        lagr2 = error(0);
+    endif;
+
+
+/*  test for convergence  */
+
+    if iter >= Lcmlmiter;
+        ret = 2;
+        x = x0 + qp_d;
+        x0 = x;
+        goto A98;
+    elseif ethsec(ttime,date)/6000 > Lcmlmtime;
+        ret = 11;
+        x = x0 + qp_d;
+        x0 = x;
+        goto A98;
+    endif;
+
+    if (abs(lagr1) < 1e-8 and abs(lagr2) < 1e-8);
+        if (abs(g).*maxc(abs(x0)'|ones(1,rows(x0))))/ maxc(abs(vof)|1) <
+            Lcmlgtol or abs(g) < smallval;
+            x = x0 + qp_d;
+            x0 = x;
+            ret = 0;
+            goto A98;
+        endif;
+    else;
+        if (abs(qp_d) < Lcmlgtol);
+            x = x0 + qp_d;
+            x0 = x;
+            ret = 0;
+            goto A98;
+        endif;
+    endif;
+
+    { s,bksteps } = _cml_stepl(g,x0,qp_d,lfct,Lcmlstep,Lcmlusrsch,
+        Lcmlintrp,Lcmlextrp,LLoutput,Lcmllag,lagr1,lagr2,dataset,
+        vindx,row,Lcmlnobs,numRows,Lcmlmxtry,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,
+        Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+
+    if scalmiss(s) and Lcmlgs;
+
+        { x,vof } = _cml_GSearch(lfct,x0,f0,Lcmlgsradius,LLoutput,Lcmllag,dataset,
+                            vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        s = error(0);
+        dx = x - x0;
+        qp_d = dx;
+        x0 = x;
+
+        if scalInfNanMiss(vof);
+            ret = 3;
+            goto A98;
+        endif;
+
+    else;
+
+        if scalmiss(s);
+            if not trapchk(4);
+                if scalerr(s) == 6;
+                    errorlog "step length calculation failed";
+                elseif scalerr(s) == 3;
+                    errorlog "function calculation failed";
+                endif;
+            endif;
+            ret = s;
+            goto A98;
+        endif;
+
+        dx = s * qp_d;
+        x = x0 + dx;
+        x0 = x;
+
+    endif;
+
+
+    if Lcmldiag == 1 or Lcmldiag == 3;
+            print;
+        print "line search step length = ";;
+        call printfmt(s,1);
+        print;
+    endif;
+
+    if Lcmldiag == 2 or Lcmldiag == 3;
+        _cml_diagnostic = vput(_cml_diagnostic,s,"step");
+    endif;
+
+    if not scalmiss(s);
+        if LLoutput == 2;
+            locate 2,1;
+            printdos " Function";
+        endif;
+        vof = _cml_rdd(lfct,0,x0,0,0,0,LLoutput,Lcmllag,dataset,vindx, row,
+            Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+        if scalInfNanMiss(vof);
+            ret = 3;
+            goto A98;
+        endif;
+    endif;
+
+    if isctu;
+        { g,h,zeta } = _cml_sctu(x0,vof,smallval,g,h,dx,qp_d,s,lfct,
+            gdmd,Lcmlgdprc,Lcmlhsprc,LLoutput,Lcmllag,dataset,vindx,
+            row,Lcmlnobs,numRows,Lcmlalgr,Lcmlgrdh,_eps,gcoefs,
+            Lcmlusrgd,Lcmlusrhs,wgts,zeta);
+
+        Lcmlfhess = h;
+        if scalmiss(g);
+            ret = 4;
+            goto A98;
+        elseif scalmiss(h);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        endif;
+    else;
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "gradient";
+        endif;
+        g = _cml_deriv(x0,1,lfct,gdmd,Lcmlgdprc,Lcmlhsprc,LLoutput,
+            Lcmllag, dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+            Lcmlusrgd,Lcmlusrhs, wgts);
+        if scalmiss(g);
+            if not trapchk(4);
+                if LLoutput == 2;
+                    locate 2,40;
+                endif;
+                errorlog "gradient calculation failed";
+            endif;
+            ret = 4;
+            goto A98;
+        endif;
+        isctu = 1;
+    endif;
+
+    dfct = f0 - vof;
+    if not scalmiss(_cml_DFTol);
+        if abs(dfct) <= _cml_DFTol;
+             ret = 0;
+             goto A98;
+        endif;
+    endif;
+
+
+    if not scalmiss(Lcmlswch);
+        jsw = 0;
+        if ksw >= Lcmlswch[3,isw];
+            jsw = 1;
+        elseif dfct < Lcmlswch[2,isw] or s < Lcmlswch[4,isw];
+            msw = msw + 1;
+            if msw > 5;
+                jsw = 1;
+                msw = 1;
+            else;
+                jsw = 0;
+            endif;
+        endif;
+
+        if jsw;
+            if cols(Lcmlswch) == 2;
+                if isw == 1;
+                    isw = 2;
+                else;
+                    isw = 1;
+                endif;
+            endif;
+
+            if lcmlalgr == 2;
+                h = h'h;
+            elseif lcmlalgr == 3;
+                oldt = trapchk(1);
+                trap 1,1;
+                h = invpd(h'h);
+                trap oldt,1;
+                if scalmiss(h);
+                    h = eye(np)*maxc(sqrt(abs(vof))|1);
+                endif;
+            elseif lcmlalgr == 7 or lcmlalgr == 8;
+                h = h*h';
+            endif;
+
+            lcmlalgr = Lcmlswch[1,isw];
+
+            oldt = trapchk(1);
+            trap 1,1;
+            if lcmlalgr == 1;
+                h = chol(h);
+            elseif lcmlalgr == 2;
+                h = chol(invpd(h));
+            elseif lcmlalgr >= 5;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            trap oldt,1;
+            if scalmiss(h);
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+
+            jsw = 0;
+            ksw = 1;
+        else;
+            ksw = ksw + 1;
+        endif;
+    endif;
+
+    if Lcmlkey;
+        gosub help;
+    endif;
+
+    if LLoutput == 2;
+        scroll w1;
+    endif;
+
+    goto A0;
+
+A98:
+
+    tme = ethsec(ttime,date)/6000;
+
+    ky = 1;
+    if numLinEqC;
+        Lcmllagr = vput(Lcmllagr,lg_b[ky:numLinEqC],"lineq");
+        ky = ky + numLinEqC;
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        Lcmllagr = vput(Lcmllagr,lg_b[ky:ky+numNlinEqC-1],"nlineq");
+        ky = ky + numNlinEqC;
+    endif;
+
+    if not scalmiss(_cml_C);
+        Lcmllagr = vput(Lcmllagr,lg_b[ky:ky+rows(_cml_C)-1],"linineq");
+        ky = ky + rows(_cml_C);
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        Lcmllagr = vput(Lcmllagr,lg_b[ky:ky+numNlinIneqC-1],"nlinineq");
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        Lcmllagr = vput(Lcmllagr,lg_xl~lg_xu,"bounds");
+    endif;
+
+
+    /* ******************** End of iteration loop ****************** */
+    if LLoutput == 2;
+        scroll w10;
+        scroll w4;
+    endif;
+    if Lcmlcovp == 1;
+        cpmeth = "HESS";
+    elseif Lcmlcovp == 2;
+        cpmeth = "XPROD";
+    else;
+        cpmeth = "QML";
+    endif;
+    ok = scalerr(ret) <= 2 or scalerr(ret) == 11;
+    if Lcmlcovp == 0;
+        h = error(0);
+        cpmeth = "NOCOVP";
+    elseif ok;
+        if Lcmlcovp == 2;
+            if LLoutput == 2;
+                printdos "\27[7m";
+                locate 3,1;
+                printdos " computing covariance matrix of parameters from c"\
+                    "ross-product matrix.......";
+                printdos "\27[0m";
+            endif;
+            gosub hssn(2);
+            pop h;
+        else;
+            if LLoutput == 2;
+                printdos "\27[7m";
+                locate 3,1;
+                printdos " computing covariance matrix of parameters from H"\
+                    "essian.......";
+                printdos "\27[0m";
+            endif;
+            gosub hssn(3);
+            pop h;
+        endif;
+        if scalmiss(h);
+            cpmeth = "NOTPD";
+            h = error(0);
+            if Lcmlcovp == 1;
+                Lcmlhsvcp = error(0);
+            else;
+                Lcmlcpvcp = error(0);
+            endif;
+        else;
+            _c = { };
+            _lg = { };
+            if not scalmiss(_cml_Bounds);
+                _c = qp_e | _c;
+                if not scalmiss(vread(Lcmllagr,"bounds"));
+                    _lg = vec(vread(Lcmllagr,"bounds"));
+                endif;
+            endif;
+            if not scalmiss(_cml_IneqProc);
+                _c = gradp(&IneqProc,x) | _c;
+                if not scalmiss(vread(Lcmllagr,"nlinineq"));
+                    _lg = vread(Lcmllagr,"nlinineq") | _lg;
+                endif;
+            endif;
+            if not scalmiss(_cml_C);
+                _c = _cml_C | _c;
+                if not scalmiss(vread(Lcmllagr,"linineq"));
+                    _lg = vread(Lcmllagr,"linineq") | _lg;
+                endif;
+            endif;
+            if not scalmiss(_lg);
+                ia = packr(miss(seqa(1,1,rows(_lg)).*(_lg ./= 0),0));
+                if not scalmiss(ia);
+                    _c = _c[ia,.];
+                    oldt = trapchk(1);
+                    trap 1,1;
+                    h1 = invswp(_c*h*_c');
+                    trap oldt,1;
+                    if not scalmiss(h1);
+                        Lcmllagr = vput(Lcmllagr,h1,"ineqcov");
+                    endif;
+                else;
+                    _c = {};
+                endif;
+            endif;
+
+            if not scalmiss(_cml_A);
+                _c = _cml_A | _c;
+            endif;
+            if not scalmiss(_cml_EqProc);
+                _c = gradp(&EqProc,x) | _c;
+            endif;
+            if not scalmiss(_c);
+                Lcmllagr = vput(Lcmllagr,invswp(_c*h*_c'),"eqcov");
+            endif;
+            if not scalmiss(_c);
+                oldt = trapchk(1);
+                trap 1,1;
+                z = null(_c);
+                trap oldt,1;
+                if not scalmiss(z);
+                    oldt = trapchk(1);
+                    trap 1,1;
+                    h1 = solpd(eye(cols(z)),z'*h*z)/Lcmlnobs;
+                    trap oldt,1;
+                else;
+                    h1 = error(0);
+                endif;
+                if scalmiss(h1);
+                    oldt = trapchk(1);
+                    trap 1,1;
+                    h1 = pinv( (h~_c') | (_c~zeros(rows(_c),rows(_c))) );
+                    trap oldt,1;
+                    h1 = h1[1:rows(h),1:rows(h)]/Lcmlnobs;
+                else;
+                    h1 = z*h1*z';
+                endif;
+                h = h1;
+            else;
+                oldt = trapchk(1);
+                trap 1,1;
+                h1 = solpd(eye(rows(h)),h)/Lcmlnobs;
+                trap oldt,1;
+                h = h1;
+            endif;
+
+            if Lcmlcovp == 2;
+                Lcmlcpvcp = h;
+            else;
+                Lcmlhsvcp = h;
+            endif;
+        endif;
+    endif;
+    if Lcmlcovp == 3 and ok and not scalmiss(Lcmlhsvcp);
+        if LLoutput == 2;
+            locate 3,1;
+            printdos "\27[7m";
+            printdos " computing quasi-maximum likelihood covariance matr"\
+                "ix of the parameters......";
+            printdos "\27[0m";
+        endif;
+        gosub hssn(2);
+        pop h1;
+
+/*  presently don't compute inverse of cross-product
+        oldt = trapchk(1);
+        trap 1,1;
+        h = solpd(eye(rows(h1)),h1)/Lcmlnobs;
+        trap oldt,1;
+        if scalmiss(h);
+           if not trapchk(4);
+              if LLoutput == 2;
+                  locate 2,40;
+              endif;
+              if not trapchk(4);
+                  errorlog "Cross-Product calculation failed";
+              endif;
+           endif;
+           h = error(0);
+        endif;
+        Lcmlcpvcp = h;
+*/
+
+        Lcmlcpvcp = h1;
+
+        if scalmiss(Lcmlcpvcp) and scalmiss(Lcmlhsvcp);
+            cpmeth = "NOTPD";
+            h = error(0);
+        elseif scalmiss(Lcmlcpvcp) and not scalmiss(Lcmlhsvcp);
+            cpmeth = "HESS";
+            h = Lcmlhsvcp;
+/*
+        elseif not scalmiss(Lcmlcpvcp) and scalmiss(Lcmlhsvcp);
+            cpmeth = "XPROD";
+            h = Lcmlcpvcp;
+*/
+        else;
+            cpmeth = "QML";
+            h = Lcmlnobs*Lcmlhsvcp*h1*Lcmlhsvcp;
+        endif;
+    endif;
+
+    x = x0;
+
+    h = _cml_fix0(h);
+    Lcmlhsvcp = _cml_fix0(Lcmlhsvcp);
+    Lcmlcpvcp = _cml_fix0(Lcmlcpvcp);
+
+    Lcmlitdta = iter|tme|cpmeth;
+    goto OUT(x,vof,g,h,ret);
+
+HSSN:
+
+    pop htype;
+    if LLoutput == 2;
+        locate 2,15;
+        if htype == 2;
+            printdos "Cross-Product";
+        else;
+            printdos "Hessian";
+        endif;
+    endif;
+    h1 = _cml_deriv(x0,htype,lfct,gdmd,Lcmlgdprc,Lcmlhsprc,LLoutput,
+        Lcmllag,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+        Lcmlusrgd,Lcmlusrhs,wgts);
+    Lcmlfhess = h1;
+    return(h1);
+
+HELP:
+
+    ky = key;
+    do while ky;
+    A5:
+
+        if ky == 1030 or ky == 65 or ky == 97;      /* ALT A,A,a */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Lcmlalgr = ";
+                locate 8,14;
+                printdos ftos(Lcmlalgr,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 1, BFGS  ";
+                locate 11,4;
+                printdos " = 2, DFP   ";
+                locate 12,4;
+                printdos " = 3, NEWTON";
+                locate 13,4;
+                printdos " = 4, BHHH  ";
+                locate 14,4;
+                printdos " = 5, scaled BFGS";
+                locate 15,4;
+                printdos " = 6, scaled DFP";
+                locate 19,4;
+                k1 = Lcmlalgr;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Lcmlalgr = " ;;
+                print ftos(Lcmlalgr,"%*.*lf",1,0);
+                print;
+                print "    = 1, BFGS";
+                print "    = 2, DFP";
+                print "    = 3, Newton-Raphson";
+                print "    = 4, BHHH";
+                print "    = 5, Scaled BFGS";
+                print "    = 6, Scaled DFP";
+                print;
+                k1 = Lcmlalgr;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            endif;
+            if LLoutput == 2;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlalgr = stof(k0);
+            endif;
+            if (Lcmlalgr == 8);
+                h = 1;
+            else;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            if scalarfct and Lcmlalgr == 2;
+                Lcmlalgr = 1;
+            endif;
+
+            gosub rebox;
+        elseif ky == 1120 or ky == 49;      /* ALT 1 */
+            Lcmlalgr = 1;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1121 or ky == 50 and not scalarfct;  /* ALT 2 */
+            Lcmlalgr = 2;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1122 or ky == 51;      /* ALT 3 */
+            Lcmlalgr = 3;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1123 or ky == 52;      /* ALT 4 */
+            Lcmlalgr = 4;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1124 or ky == 53;      /* ALT 5 */
+            Lcmlalgr = 5;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1125 or ky == 54;      /* ALT 6 */
+            Lcmlalgr = 6;
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        elseif ky == 1046 or upper(chrs(ky)) $== "C";       /* ALT C  */
+            ret = 1;
+            goto A98;       /* force convergence */
+        elseif ky == 1018 or upper(chrs(ky)) $== "E";       /* ALT E  */
+            k1 = 1;
+            if LLoutput == 2;
+                scroll w5;
+                locate 5,2;
+                printdos "EDIT PARAMETER VECTOR";
+                locate 5,28;
+                printdos "<> <> to move   <ENTER> to select   <Q> to quit";
+            A3_1:
+
+                locate 6,4;
+                printdos "par. no. ";
+                printdos ftos(k1,"%*.*lf",3,0);
+                printdos "  old value ";
+                printdos ftos(x0[k1],"%*.*lf",10,6);
+                ky = 0;
+                do until ky == 81 or ky == 113;     /* Q or q */
+                    ky = key;
+                    if ky == 1072;
+                        k1 = maxc(1|k1-1);
+                        goto A3_1;
+                    elseif ky == 1080;
+                        k1 = minc(rows(x0)|k1+1);
+                        goto A3_1;
+                    elseif ky == 13;
+                        locate 6,40;
+                        printdos "new value ";
+                        if LLoutput == 2;
+                            call csrtype(1);
+                        endif;
+                        x0[k1] = stof(cons);
+                        print;
+                        if LLoutput == 2;
+                            call csrtype(0);
+                            scroll 6|37|6|80|0|7;
+                        endif;
+                        goto A3_1;
+                    endif;
+                endo;
+            else;
+            A3_2:
+
+                output off;
+                print;
+                print " EDIT PARAMETER VECTOR    ";;
+                print "<Bksp><Sp> to move   <ENTER> to select   <Q> to quit";
+                print;
+            A3_3:
+
+                print "par. no. ";;
+                print ftos(k1,"%*.*lf",3,0);;
+                print "  old value ";;
+                print ftos(x0[k1],"%*.*lf",10,6);;
+                ky = 0;
+                do until ky == 81 or ky == 113;     /* Q or q */
+                    ky = key;
+                    if ky == 8;     /* Bksp */
+                        k1 = maxc(1|k1-1);
+                        print;
+                        goto A3_3;
+                    elseif ky == 32;        /* Space */
+                        k1 = minc(rows(x0)|k1+1);
+                        print;
+                        goto A3_3;
+                    elseif ky == 13;        /* Enter */
+                        print "  new value ";;
+                        if LLoutput == 2;
+                            call csrtype(1);
+                        endif;
+                        x0[k1] = stof(cons);
+                        if LLoutput /= 2;
+                            print;
+                        else;
+                            call csrtype(0);
+                        endif;
+                        goto A3_2;
+                    endif;
+                endo;
+                print;
+                print;
+                output on;
+            endif;
+            x = x0;
+            gosub rebox;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+            if LLoutput == 2;
+                locate 2,1;
+                printdos "H set to identity matrix";
+            else;
+                output off;
+                print;
+                print "H set to identity matrix";
+                print;
+                output on;
+            endif;
+            if Lcmlalgr <= 4;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            elseif Lcmlalgr == 5;
+                gosub hssn(2);
+                pop h;
+            elseif Lcmlalgr == 6;
+                gosub hssn(3);
+                pop h;
+            endif;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+
+        elseif ky == 1034 or upper(chrs(ky)) $== "G";       /* ALT G  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_GradMethod = ";
+                printdos ftos(Lcmlgdmd,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 0, central difference method";
+                locate 11,4;
+                printdos " = 1, forward difference method";
+                locate 13,4;
+                printdos " = 2, forward difference method";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   _cml_GradMethod = ";;
+                print ftos(Lcmlgdmd,"%*.*lf",1,0);
+                print;
+                print "    = 0, central difference method";
+                print "    = 1, forward difference method";
+                print "    = 2, backward difference method";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                 call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlgdmd = stof(k0);
+            endif;
+
+            if Lcmlgdmd < 0;
+                Lcmlgdmd = 0;
+            elseif Lcmlgdmd > 2;
+                Lcmlgdmd = 1;
+            endif;
+
+            if Lcmlgrdord == 0;
+                if Lcmlgdmd == 0;
+                    gdmd[1] = &_cml_grdcd;
+                    gdmd[2] = &_cml_grdc1;
+                elseif Lcmlgdmd == 1;
+                    gdmd[1] = &_cml_grdfd;
+                    gdmd[2] = &_cml_grdf1;
+                else;
+                    gdmd[1] = &_cml_grdbd;
+                    gdmd[2] = &_cml_grdb1;
+                endif;
+            else;
+                if Lcmlgdmd == 0;
+                    gdmd[1] = &_cml_mpgrdcd;
+                    gdmd[2] = &_cml_mpgrdc1;
+                elseif Lcmlgdmd == 1;
+                    gdmd[1] = &_cml_mpgrdfd;
+                    gdmd[2] = &_cml_mpgrdf1;
+                else;
+                    gdmd[1] = &_cml_mpgrdbd;
+                    gdmd[2] = &_cml_mpgrdb1;
+                endif;
+            endif;
+
+            gosub rebox;
+        elseif ky == 1023 or upper(chrs(ky)) $== "I";       /* ALT I  */
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+            if Lcmlalgr >= 1 and Lcmlalgr <= 4;
+                gosub hssn(3);
+                pop h;
+            elseif Lcmlalgr == 6;
+                gosub hssn(2);
+                pop h;
+            endif;
+
+        elseif upper(chrs(ky)) $== "K";       /* ALT K  */
+
+            LcmlGS = 1 - LcmlGS;
+
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                if LcmlGS;
+                    printdos "_cml_GridSearch ON  ";
+                else;
+                    printdos "_cml_GridSearch OFF ";
+                endif;
+            else;
+                output off;
+                print;
+                if LcmlGS;
+                    print "   _cml_GridSearch ON  ";;
+                else;
+                    print "   _cml_GridSearch OFF ";;
+                endif;
+                output on;
+            endif;
+            gosub rebox;
+
+        elseif upper(chrs(ky)) $== "L";       /* ALT L  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_GridRadius = ";
+                printdos ftos(LcmlGSRadius,"%*.*lf",10,6);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "_cml_GridRadius = ";
+                print ftos(LcmlGSRadius,"%*.*lf",10,6);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                LcmlgsRadius = stof(k0);
+            endif;
+            gosub rebox;
+
+        elseif ky == 1050 or upper(chrs(ky)) $== "M";       /* ALT M  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Maximum number of tries = ";
+                printdos ftos(Lcmlmxtry,"%*.*lf",1,0);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Maximum number of tries = ";;
+                print ftos(Lcmlmxtry,"%*.*lf",1,0);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlmxtry = stof(k0);
+            endif;
+            gosub rebox;
+
+
+        elseif ky == 1049 or upper(chrs(ky)) $== "N";       /* ALT N  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "Number of Points for Gradient";
+                printdos ftos(Lcmlgrdord,"%*.*lf",1,0);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   Maximum number of tries = ";;
+                print ftos(Lcmlgrdord,"%*.*lf",1,0);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlgrdord = stof(k0);
+            endif;
+            gdmd[3] = Lcmlgrdord;
+            gosub rebox;
+
+        elseif ky == 1024 or upper(chrs(ky)) $== "O";       /* ALT O  */
+        RETRY:
+
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "current setting, __output = ";
+                printdos ftos(LLoutput,"%*.*lf",3,0);
+                locate 10,4;
+                printdos "__output = 0   no output";
+                locate 11,4;
+                printdos "__output = 1   output suitable for file or printer";
+                locate 12,4;
+                printdos "__output = 2   output suitable for screen only (A"\
+                    "NSI.SYS required)";
+                locate 13,4;
+                printdos "__output >= 5  output printed every __output-th i"\
+                    "teration";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "   current setting, __output = ";;
+                if stout >= 5;
+                    print ftos(stout,"%*.*lf",3,0);
+                else;
+                    print ftos(LLoutput,"%*.*lf",3,0);
+                endif;
+                print;
+                print "__output = 0   no output";
+                print "__output = 1   output suitable for file or printer";
+                print "__output = 2   output suitable for screen only (ANSI"\
+                    ".SYS required)";
+                print "__output >= 5  output printed every __output-th iter"\
+                    "ation";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                tmpop = stof(k0);
+                if tmpop < 0 or tmpop == 4 or tmpop == 3 or
+                    rows(tmpop) /= 1 or cols(tmpop) /= 1 or iscplx(tmpop);
+                    if LLoutput == 2;
+                        print "\007";
+                    else;
+                        print "Input error!";
+                    endif;
+                    goto retry;
+                endif;
+#ifUNIX
+                if tmpop == 2;
+                    print "2 not supported on SPARC yet, resetting to 1";
+                    tmpop = 1;
+                endif;
+#endif
+                if tmpop >= 5;
+                   stout = tmpop;
+                   LLoutput = 1;
+                elseif tmpop > 2;
+                   LLoutput = 1;
+                   stout = 1;
+                else;
+                   LLoutput = tmpop;
+                   stout = 1;
+                endif;
+            endif;
+            gosub rebox;
+            if LLoutput == 0;
+                print "Output turned off.  Press Alt-O to reinstate.";
+            endif;
+            goto A9;
+#ifUNIX
+        elseif upper(chrs(ky)) $== "P";     /* P */
+            if LLoutput;
+                TToutput = LLoutput;
+                LLoutput = 0;
+            else;
+                LLoutput = TToutput;
+            endif;
+#endif
+        elseif ky == 1019 or upper(chrs(ky)) $== "R";       /* ALT R  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_CovPar = ";
+                printdos ftos(Lcmlcovp,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 0, information matrix from final iteration";
+                locate 11,4;
+                printdos " = 1, inverse of hessian";
+                locate 12,4;
+                printdos " = 2, inverse of cross-product of first derivatives";
+                locate 13,4;
+                printdos " = 3, quasi-maximum likelihood covariance matri"\
+                    "x of parameters";
+                locate 15,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print " _cml_CovPar = ";;
+                print ftos(Lcmlcovp,"%*.*lf",1,0);
+                print;
+                print "    = 0, information matrix from final iteration";
+                print "    = 1, inverse of hessian";
+                print "    = 2, inverse of cross-product of first derivatives";
+                print "    = 3, quasi-maximum likelihood covariance matri"\
+                    "x of parameters";
+                print;
+                print "Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlcovp = stof(k0);
+            endif;
+            if scalarfct and Lcmlcovp > 1;
+                print "Log-likelihood function returns a scalar value -- "\
+                      "_cml_CovPar cannot be set to " Lcmlcovp;
+                Lcmlcovp = 1;
+            endif;
+            gosub rebox;
+
+        elseif ky == 1031 or upper(chrs(ky)) $== "S";       /* ALT S  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_LineSearch = ";
+                printdos ftos(Lcmlstep,"%*.*lf",1,0);
+                locate 10,4;
+                printdos " = 1, Step Length = 1";
+                locate 11,4;
+                printdos " = 2, STEPBT (Cubic, Quadratic)";
+                locate 12,4;
+                printdos " = 3, HALF    ";
+                locate 13,4;
+                printdos " = 4, BRENT   ";
+                locate 14,4;
+                printdos " = 5, BHHHSTEP";
+                locate 16,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "  _cml_LineSearch = ";;
+                print ftos(Lcmlstep,"%*.*lf",1,0);
+                print;
+                print "    = 1, Step Length = 1";
+                print "    = 2, STEPBT (Cubic, Quadratic)";
+                print "    = 3, HALF    ";
+                print "    = 4, BRENT   ";
+                print "    = 5, BHHHSTEP";
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlstep = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 33;    /* SHIFT 1 */
+            Lcmlstep = 1;
+        elseif ky == 64;    /* SHIFT 2 */
+            Lcmlstep = 2;
+        elseif ky == 35;    /* SHIFT 3 */
+            Lcmlstep = 3;
+        elseif ky == 36;    /* SHIFT 4 */
+            Lcmlstep = 4;
+        elseif ky == 37;    /* SHIFT 5 */
+            Lcmlstep = 5;
+
+        elseif upper(chrs(ky)) $== "T";       /* ALT T  */
+
+            LcmlTrust = 1 - LcmlTrust;
+
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                if LcmlTrust;
+                    printdos "_cml_TrustRegion ON  ";
+                else;
+                    printdos "_cml_TrustRegion OFF ";
+                endif;
+            else;
+                output off;
+                print;
+                if LcmlTrust;
+                    print "   _cml_TrustRegion ON  ";;
+                else;
+                    print "   _cml_TrustRegion OFF ";;
+                endif;
+                output on;
+            endif;
+
+            gosub rebox;
+
+        elseif upper(chrs(ky)) $== "U";       /* ALT U  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_TrustRadius = ";
+                printdos ftos(LcmlTrustRadius,"%*.*lf",10,6);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print "_cml_TrustRadius = ";
+                print ftos(LcmlTrustRadius,"%*.*lf",10,6);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                LcmlTrustRadius = stof(k0);
+            endif;
+            gosub rebox;
+
+        elseif ky == 1047 or upper(chrs(ky)) $== "V";       /* ALT V  */
+            if LLoutput == 2;
+                scroll w2;
+                locate 8,4;
+                printdos "_cml_DirTol, direction convergence criterion = ";
+                printdos ftos(Lcmlgtol,"%*.*lf",10,6);
+                locate 10,4;
+                printdos "Enter new value: ";
+            else;
+                output off;
+                print;
+                print " _cml_DirTol, direction convergence criterion = ";;
+                print ftos(Lcmlgtol,"%*.*lf",10,6);
+                print;
+                print "   Enter new value: ";;
+                output on;
+            endif;
+            if LLoutput == 2;
+                call csrtype(1);
+            endif;
+            k0 = cons;
+            if LLoutput /= 2;
+                print;
+            else;
+                call csrtype(0);
+            endif;
+            if k0 $/= "";
+                Lcmlgtol = stof(k0);
+            endif;
+            gosub rebox;
+        elseif ky == 1035 or upper(chrs(ky)) $== "H";       /* ALT H  */
+            if LLoutput == 2;
+                call csrtype(0);
+                scroll w5;
+                locate 7,4;
+                printdos "OPTIMIZATION SWITCHES";
+                k0 = 196*ones(1,30);
+                locate 8,4;
+                printdos chrs(218~k0~194~k0~191);
+                k1 = 0;
+                do until k1 == 7;
+                    k1 = k1+1;
+                    locate 8+k1,4;
+                    printdos chrs(179~(32*ones(1,30))~179~(32*ones(1,30))~179);
+                endo;
+                locate 9+k1,4;
+                printdos chrs(192~k0~193~k0~217);
+                locate 9,6;
+                printdos "G  Gradient Method       ";
+                locate 10,6;
+                printdos "V  _cml_DirTol          ";
+                locate 11,6;
+                printdos "R  _cml_CovPar           ";
+                locate 12,6;
+                printdos "O  __OUTPUT              ";
+                locate 13,6;
+                printdos "I  Compute Hessian       ";
+                locate 14,6;
+                printdos "N  # Points for Gradient ";
+                locate 15,6;
+                printdos "K  toggle Gridsearch     ";
+                locate 16,6;
+                printdos "L  set Grid Radius       ";
+                locate 9,37;
+                printdos "M  Maximum Backstep      ";
+                locate 10,37;
+                printdos "E  Edit Parameter Vector ";
+                locate 11,37;
+                printdos "C  Force Convergence     ";
+                locate 12,37;
+                printdos "A  Algorithm             ";
+                locate 13,37;
+                printdos "S  Step Length Method    ";
+                locate 14,37;
+                printdos "T  toggle Trust Region   ";
+                locate 15,37;
+                printdos "U  set Trust Radius      ";
+
+            else;
+                output off;
+                print;
+                print "OPTIMIZATION SWITCHES";
+                print "---------------------";
+                print "     G  Gradient Method       | ";;
+                print "M  Maximum Backstep      ";
+
+                print "     V  _cml_GradTol          | ";;
+                print "I  Compute Hessian       ";
+
+                print "     R  _cml_CovPar           | ";;
+                print "E  Edit Parameter Vector ";
+
+                print "     A  Algorithm             | ";;
+                print "C  Force Convergence     ";
+
+                print "     O  __OUTPUT              | ";;
+                print "S  Step Length Method    ";
+
+                print "     K  toggle Grid Search    | ";;
+                print "T  toggle Trust Region   ";
+
+                print "     L  set Grid Radius       | ";;
+                print "U  set Trust Radius      ";
+                print;
+                output on;
+            endif;
+            ky = key;
+            do until ky;
+                ky = key;
+            endo;
+            if LLoutput == 2 and ky /= 1019 and (not upper(chrs(ky)) $== "R"\
+                "") and ky /= 1047 and (not upper(chrs(ky)) $== "V") and
+                ky /= 1050 and (not upper(chrs(ky)) $== "M") and ky /=
+                1020 and (not upper(chrs(ky)) $== "T") and ky /= 1034
+                and (not upper(chrs(ky)) $== "G") and ky /= 1025 and
+                (not upper(chrs(ky)) $== "P") and ky /= 1033 and (not
+                upper(chrs(ky)) $== "F");
+                gosub parbox;
+            endif;
+            goto A5;
+        elseif ky == 1073 or ky == 1081;    /* PgUp PgDn */
+            if ky == 1081 and (np-pg*48) gt 0;
+                pg = pg+1;
+            elseif ky == 1073 and pg gt 1;
+                pg = pg-1;
+            else;
+                goto A9;
+            endif;
+        endif;
+    A9:
+
+        ky = key;
+
+    endo;
+
+    return;
+
+BAR:
+
+    scroll w3;
+    scroll w4;
+    printdos "\27[7m";
+    locate 1,1;
+    printdos w0;
+    locate 3,2;
+    printdos "ITER      ";
+    locate 3,19;
+    printdos "FUNCTION: ";
+    locate 4,2;
+    printdos "TIME/ITER: ";
+    locate 3,41;
+    printdos "ALGORITHM: ";
+    locate 3,60;
+    printdos "STEP: ";
+    locate 4,60;
+    printdos "STEPSIZE: ";
+    locate 3,52;
+    printdos algrm[Lcmlalgr];
+    locate 3,66;
+    printdos stepm[Lcmlstep];
+    locate 4,19;
+    printdos "DF/ITER: ";
+    locate 4,41;
+    printdos "BACKSTEPS: ";
+    locate 25,1;
+    printdos "  ALT-H HELP  ";
+    printdos "\27[0m";
+    return;
+
+PARBOX:
+
+    scroll w5;
+    locate 6,6;
+    printdos "parameters/direction";
+    lf = (pg-1)*48+1;
+    ll = minc(48|(rows(x0)-(pg-1)*48));
+    lr = ceil(ll/3);
+    locate 7,1;
+    printdos w6;
+    k1 = 1;
+    do until k1 gt lr;
+        locate 7+k1,1;
+        printdos w7;
+        k1 = k1+1;
+    endo;
+    locate 7+k1,1;
+    printdos w8;
+    return;
+
+REBOX:
+
+    if LLoutput == 2;
+        scroll w2;
+        gosub parbox;
+        locate 6,6;
+        printdos "parameters/direction";
+    endif;
+    return;
+
+OUT:
+
+    pop ret;
+    pop h;
+    pop g;
+    pop vof;
+    pop x;
+
+    if scalmiss(ret);
+        ret = scalerr(ret);
+    endif;
+
+    if fhandle > 0;
+        fhandle = close(fhandle);
+    endif;
+    if LLoutput == 2;
+        scroll w9;
+    endif;
+    ndpclex;
+    call ndpcntrl(old,0xffff);
+    retp(x,-vof,g,h,ret,Lcmlfhess,Lcmlitdta,Lcmlcpvcp,Lcmlhsvcp,Lcmlnobs,
+        Lcmllagr);
+endp;
+
+/*-----------------------------------------------------*/
+/*   PROC SCTU                                         */
+/* This computes VOF, G & updates to inverse Hessian   */
+
+proc(3) = _cml_sctu(x,vof,smallval,g,h,dx,d,s,lfct,gdmd,gdprc,hsprc,
+    LLoutput,Lcmllag,dataset,vindx,row,Lcmlnobs,numRows,Lcmlalgr,
+    Lcmlgrdh,_eps,gcoefs,Lcmlusrgd,Lcmlusrhs,wgts,zeta);
+
+    local v1, v2, g0, h1, w1, w2, z, oldt;
+    h1 = h;
+    /* --- Gradient at x --- */
+
+    g0 = g;
+    g = _cml_deriv(x,1,lfct,gdmd,gdprc,hsprc,LLoutput,Lcmllag, dataset,
+        vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,Lcmlusrgd,Lcmlusrhs,
+        wgts);
+
+    if scalmiss(g);
+        if LLoutput == 2;
+            locate 2,40;
+        endif;
+        if not trapchk(4);
+            errorlog "gradient calculation failed";
+        endif;
+        retp(g,h,0);
+    endif;
+
+    if abs(g) < smallval;
+        retp(g,h1,0);
+    endif;
+
+    /* -- Secant Update for Inverse Hessian --- */
+
+    if Lcmlalgr == 1;       /* BFGS update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = error(0);
+        else;
+            v1 = sqrt(v1);
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,g/v1-g0/v1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+            z = -g0'd;
+            if z < 0;
+                retp(g,error(0),zeta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0/sqrt(z));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+        endif;
+
+    elseif Lcmlalgr == 2;           /* DFP update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = error(0);
+        else;
+            w1 = sqrt(v1);
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,g/w1 - g0/w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+            z = -g0'd;
+            if z < 0;
+                retp(g,error(0),zeta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0/sqrt(z));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+            v2 = dx'*h*dx;
+            w2 = g'/v1 - g0'/v1 - (dx'h)/v2;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h1,w2/w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+        endif;
+
+    elseif Lcmlalgr == 3;           /* NEWTON-RAPHSON */
+
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "Hessian";
+        endif;
+
+        h1 = _cml_deriv(x,3,lfct,gdmd,gdprc,hsprc,LLoutput,Lcmllag,
+            dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+            Lcmlusrgd,Lcmlusrhs,wgts);
+        if scalmiss(h1);
+            h1 = error(0);
+        endif;
+
+    elseif Lcmlalgr == 4;           /* BHHH */
+
+        if LLoutput == 2;
+            locate 2,15;
+            printdos "Cross-Product";
+        endif;
+        h1 = _cml_deriv(x,2,lfct,gdmd,gdprc,hsprc,LLoutput,Lcmllag,dataset,
+            vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,Lcmlusrgd,
+            Lcmlusrhs,wgts);
+
+        if scalmiss(h1);
+            if LLoutput == 2;
+                locate 3,52;
+                printdos ("\27[7m" $+ "BFGS" $+ "\27[0m");
+                locate 2,1;
+            endif;
+            if not trapchk(4);
+                errorlog "Cross-Product matrix failed to invert - set to id"\
+                    "entity";
+            endif;
+            h1 = error(0);
+        endif;
+
+    elseif Lcmlalgr == 5;           /* scaled BFGS */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = error(0);
+        else;
+            z = -v1/(g0'd);
+            if z < 0;
+                retp(g,error(0),zeta);
+            endif;
+            w1 = sqrt(z)/s;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(w1*h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0*w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+        endif;
+
+    elseif Lcmlalgr == 6;           /* scaled DFP */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = error(0);
+        else;
+            z = -v1/(g0'd);
+            if z < 0;
+                retp(g,error(0),zeta);
+            endif;
+            w1 = sqrt(z)/s;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(w1*h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0*w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),zeta);
+            endif;
+        endif;
+
+    endif;
+    retp(g,h1,zeta);
+endp;
+
+proc(2) = _cml_stepl(g,x0,d,lfct,step,usrsch,intrp,extrp, LLoutput,
+    Lcmllag,lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,
+    mxtry,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc,
+    Lcmlusrgd,Lcmlusrhs);
+
+    local s, rs, ret, bksteps, vof;
+    clear ret;
+    bksteps = -1;
+    vof = _cml_meritFunct(lfct,x0,LLoutput,Lcmllag,dataset,vindx,lagr1,
+          lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+
+    if step == 2;
+        s = _cml_feasible(x0,1,d);
+        rs = _cml_meritFunct(lfct,x0+s*d,LLoutput,Lcmllag,dataset,vindx,lagr1,
+            lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+        { s,ret,bksteps } = _cml_stepbt(s,rs,g,vof,x0,d,mxtry,lfct,
+            LLoutput,lagr1,lagr2,Lcmllag,dataset,vindx,row,Lcmlnobs,
+            numRows,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,
+            Lcmlusrhs);
+    elseif step == 3;
+        { s,ret,bksteps } = _cml_half(vof,x0,d,mxtry,lfct,LLoutput,Lcmllag,
+            lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts,
+            gdmd,Lcmlgdprc,Lcmlhsprc, Lcmlusrgd,Lcmlusrhs);
+    elseif step == 4;
+        { s,ret,bksteps } = _cml_brent(vof,x0,d,1e-5,mxtry,lfct,LLoutput,
+            Lcmllag, lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,
+            wgts,gdmd,Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs) ;
+    elseif step == 5;
+        { s,ret,bksteps } = _cml_bhhhstp(vof,x0,d,g,mxtry,intrp,extrp,lfct,
+            LLoutput,Lcmllag,lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,
+            Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,
+            Lcmlusrhs);
+    else;
+        s = _cml_feasible(x0,1,d);
+        rs = _cml_meritFunct(lfct,x0+s*d,LLoutput,Lcmllag,dataset,vindx,lagr1,
+            lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+
+        if rs > vof;
+            ret = 1;
+        endif;
+    endif;
+
+    if ret == 1;    /* not successful */
+        if LLoutput == 2;
+            locate 3,66;
+            printdos ("\27[7m" $+ "BRENT   " $+ "\27[0m");
+        endif;
+        { s,ret,bksteps } = _cml_brent(vof,x0,d,1e-5,mxtry,lfct, LLoutput,
+            Lcmllag,lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,
+            Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+    endif;
+
+    if ret == 1;    /* still not successful */
+        if LLoutput == 2;
+            locate 3,66;
+            printdos ("\27[7m" $+ "HALF    " $+ "\27[0m");
+        endif;
+        { s,ret,bksteps } = _cml_half(vof,x0,d,mxtry,lfct,LLoutput,Lcmllag,
+            lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,
+            _eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc, Lcmlusrgd,Lcmlusrhs);
+    endif;
+
+    if ret == 1 and usrsch;
+        { s,ret } = _cml_usrsch1(s,x0,d,vof,lfct,LLoutput,Lcmllag,lagr1,
+            lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,
+            gcoefs,wgts);
+    endif;
+
+    if ret == 1;
+        s = error(6);
+    endif;
+    retp(real(s),bksteps);
+endp;
+
+proc(3) = _cml_bhhhstp(vof0,x0,d,g,mxtry,intrp,extrp,lfct,LLoutput,Lcmllag,
+    lagr1,lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,
+    wgts,gdmd,Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+
+    local lambda,delta,dg,up,down,upfact,downfact,vof,vofmin,lambmin,
+        ll,factor,iter,converge,itermax,w;
+/* ---------- INITIALIZATIONS --------------------------------------------*/
+    let w = 2 1 2 9 0 7;
+
+    itermax = mxtry;
+    delta = intrp;
+    factor = extrp;
+    clear converge,iter,up,down;
+    dg = d'g;
+    downfact = dg*delta;
+    upfact = dg*(1-delta);
+    lambda = 1;
+    vofmin = vof0;
+    lambmin = 0;
+/* ----------------- Iteration Loop ----------------------------------------*/
+    do until converge or iter>itermax;
+        iter = iter+1;
+        lambda = _cml_feasible(x0,lambda,d);
+        vof = _cml_meritFunct(lfct,x0+lambda*d,LLoutput,Lcmllag,dataset,vindx,
+            lagr1,lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        if LLoutput == 2;
+            scroll w;
+        endif;
+        if scalmiss(vof);
+            retp(error(3),1,iter);
+        endif;
+        if vof < vofmin;
+            lambmin = lambda;
+            vofmin = vof;
+        endif;
+
+        if (vof-vof0) > downfact*lambda;
+            down = 1;
+            if up;
+                factor = factor^0.618;
+                up = 0;
+            endif;
+            ll = lambda/factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        elseif (vof-vof0) < upfact*lambda;
+            up = 1;
+            if down;
+                factor = factor^0.618;
+                down = 0;
+            endif;
+            ll = lambda*factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        else;
+            converge = 1;
+        endif;
+    endo;
+    retp(lambda,1-converge,iter);
+endp;
+
+proc(3) = _cml_stepbt(s,r1,g,vof,x0,d,mxtry,lfct,LLoutput, lagr1,lagr2,
+    Lcmllag,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts, gdmd,
+    Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+
+    local delta,ub,lb, ret, i, cdelta, dg, g1, r2, rs, sprev, s2prev, tt, vv0,
+        rprev, r2prev, sprev2, s2prev2, sp2, dsprev, vv, zz, ab, a, b, qv;
+
+    local x,y,w;
+    let w = 2 1 2 9 0 7;
+
+/* --------------------- Initializations -------------------------  */
+    delta = 1e-4;           /* This can be changed, and doing so may help  */
+            /* speed convergence -- it must remain within the interval  */
+            /* (0,1/2) */
+    ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+    lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+
+    ret = 1;        /* If 0, then satisfactory value found; else 1.  */
+    i = 0;          /* This counts # of backsteps taken. */
+
+    cdelta = 1-delta;
+
+    dg = d'*g;
+
+        /* ------------------- Try s=1 -------------------------- */
+    tt = s*dg;
+    g1 = r1/tt-vof/tt;
+    if g1>=delta;
+        if r1 > vof;
+            retp(s,1,0);
+        else;
+            retp(s,0,0);
+        endif;
+    endif;
+    i = 1;
+    s = -dg/(2*(r1-vof-dg));
+    s = _cml_feasible(x0,maxc(s|lb),d);
+    gosub fct(x0+s*d);
+    pop r2;
+    tt = s*dg;
+    g1 = r2/tt-vof/tt;
+
+    if g1>=delta and g1<=cdelta;
+        if r2 > vof;
+            retp(s,1,1);
+        else;
+            retp(s,0,1);
+        endif;
+    endif;
+    sprev = s;
+    s2prev = 1;
+    rprev = r2;
+    r2prev = r1;
+    rs = r2;
+    vv0 = zeros(2,2);
+    vv0[1,1] = 1;
+    vv0[1,2] = -1;
+    zz = zeros(2,1);
+
+    for i(1,mxtry,1);
+
+        sprev2 = sprev*sprev;
+        s2prev2 = s2prev*s2prev;
+        sp2 = sprev2~s2prev2;
+        dsprev = sprev-s2prev;
+        vv0[2,1] = -s2prev;
+        vv0[2,2] = sprev;
+        vv = vv0./sp2;
+
+        zz[1] = rprev-vof-dg*sprev;
+        zz[2] = r2prev-vof-dg*s2prev;
+
+        ab = (1/dsprev)*vv*zz;
+        a = ab[1,1];
+        b = ab[2,1];
+
+        if a == 0;          /* Cubic is actually a Quadratic in this case. */
+            s = -dg/(2*b);
+        else;
+            qv = b*b - 3*a*dg;
+            if qv < 0;
+                if rs > vof;
+                    retp(s,1,i);
+                else;
+                    retp(s,ret,i);
+                endif;
+            endif;          /* terminate if not real root */
+            tt = 3*a;
+            s = -b/tt + sqrt(qv)/tt;
+        endif;
+
+        if s > ub*sprev;
+            s = _cml_feasible(x0,ub*sprev,d);
+        elseif s < lb*sprev;
+            s = _cml_feasible(x0,lb*sprev,d);
+        endif;
+        gosub fct(x0+s*d);
+        pop rs;
+        tt = s*dg;
+        g1 = rs/tt-vof/tt;
+
+        if g1>=delta and g1<=cdelta;
+            if rs > vof;
+                retp(s,1,i);
+            else;
+                retp(s,0,i);
+            endif;
+        endif;
+
+        s2prev = sprev;
+        sprev = s;
+        r2prev = rprev;
+        rprev = rs;
+
+    endfor;
+
+    if rs > vof;
+        retp(s,1,i);
+    else;
+        retp(s,ret,i);
+    endif;
+
+FCT:
+
+    pop x;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+
+    y = _cml_meritFunct(lfct,x,LLoutput,Lcmllag,dataset,vindx,lagr1,lagr2,
+        row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,i);
+    endif;
+    return(y);
+
+endp;
+
+proc(2) = _cml_usrsch1(s,x0,d,vof,lfct,LLoutput,Lcmllag, lagr1,lagr2,
+    dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts, gdmd,Lcmlgdprc,
+    Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+    local rs,w,w1,w2,eps,ky;
+    let w = 2 30 2 80 0 7;
+    let w1 = 5 1 24 80 0 7;
+    let w2 = 2 1 2 9 0 7;
+    if LLoutput == 2;
+        scroll w1;
+        locate 2,30;
+        printdos "entering user search";
+        locate 6,4;
+        printdos "initial function value ";
+        printdos ftos(vof,"%*.*lf",16,8);
+    else;
+        print;
+        print "entering user search";
+        print;
+        print "initial function value ";;
+        print ftos(vof,"%*.*lf",16,8);
+        print;
+    endif;
+    eps = .1*s;
+    clear ky;
+A0:
+
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    else;
+        print " Function";
+        print;
+    endif;
+    s = _cml_feasible(x0,s,d);
+    rs = _cml_meritFunct(lfct,x0+s*d,LLoutput,Lcmllag,dataset,vindx,lagr1,
+        lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+    if LLoutput == 2;
+        scroll w2;
+    endif;
+    if scalmiss(rs);
+        retp(error(3),1);
+    endif;
+    if LLoutput == 2;
+        locate 8,4;
+        printdos "stepsize ";
+        printdos ftos(s,"%*.*lf",16,8);
+        printdos "    eps = ";
+        printdos ftos(eps,"%*.*lf",16,8);
+        locate 10,4;
+        printdos "function ";
+        printdos ftos(rs,"%*.*lf",16,8);
+    else;
+        print "   stepsize ";;
+        print ftos(s,"%*.*lf",16,8);;
+        print "    eps = ";;
+        print ftos(eps,"%*.*lf",16,8);
+        print;
+        print "   function ";;
+        print ftos(rs,"%*.*lf",16,8);
+        print;
+    endif;
+    ky = key;
+    do until ky;
+        ky = key;
+    endo;
+    if ky == 27;
+        if LLoutput == 2;
+            scroll w;
+            scroll w1;
+        endif;
+        retp(s,0);
+    elseif ky == 1072;
+        s = s+eps;
+    elseif ky == 1080;
+        s = s-eps;
+    elseif ky == 56;
+        eps = eps*10;
+    elseif ky == 50;
+        eps = eps/10;
+    endif;
+    goto A0;
+endp;
+
+proc(2) = _cml_bracket(f0,x,d,lfct,LLoutput,Lcmllag,dataset,vindx,lagr1,
+    lagr2,row,Lcmlnobs,numRows,mxtry,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,
+    Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+
+    local g,r,l0,l1,f1,l2,f2;
+    local t,y,w,w1;
+    let w = 2 1 2 9 0 7;
+    let w1 = 2 15 2 25 0 7;
+    if LLoutput == 2;
+        locate 2,15;
+        printdos "bracketing";
+    endif;
+    g = 0.5*sqrt(5) - 0.5;
+    r = 1 - g;
+    l0 = 0;
+    l1 = _cml_feasible(x,g,d);
+    gosub fct(x+l1*d);
+    pop f1;
+
+    for try(1,mxtry,1);
+        if (f1 < f0);
+            l2 = _cml_feasible(x,l1+r*(l1-l0),d);
+            gosub fct(x+l2*d);
+            pop f2;
+            if (f2 < f1);
+                l0 = l1;
+                f0 = f1;
+                l1 = l2;
+                f1 = f2;
+            else;
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l2);
+            endif;
+        else;
+            l2 = _cml_feasible(x,l0+g*(l1-l0),d);
+            gosub fct(x+l2*d);
+            pop f2;
+            if (f2 > f0);
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l2);
+            else;
+                if LLoutput == 2;
+                    scroll w1;
+                endif;
+                retp(l0,l1);
+            endif;
+        endif;
+    endfor;
+    retp(error(0),error(0));
+
+FCT:
+
+    pop t;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _cml_meritFunct(lfct,t,LLoutput,Lcmllag,dataset,vindx,lagr1,lagr2,
+        row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(0),error(0));
+    endif;
+    return(y);
+endp;
+
+proc _cml_feasible(x,l,d);
+    local m0, t, ineqproc;
+
+    if _cml_FeasibleTest == 0;
+        retp(l);
+    endif;
+    m0 = 0;
+    do until m0 > 200;
+        m0 = m0 + 1;
+        t = x + l * d;
+        if not scalmiss(_cml_C);
+            if not((_cml_C*t - _cml_D) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if not scalmiss(_cml_IneqProc);
+            IneqProc = _cml_IneqProc;
+            local ineqproc:proc;
+
+            if not(IneqProc(t) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+
+        if not scalmiss(_cml_Bounds);
+            if not((t - _cml_Bounds[.,1]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+            if not((-t + _cml_Bounds[.,2]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        retp(l);
+    endo;
+    if not trapchk(4);
+        errorlog "feasible step length could not be found";
+    endif;
+    retp(error(0));
+endp;
+
+
+
+
+
+proc _cml_isFeasible(x);
+    local ineqproc;
+
+    if _cml_FeasibleTest == 0;
+        retp(1);
+    endif;
+
+    if not scalmiss(_cml_C);
+        if not((_cml_C*x - _cml_D) >= 0);
+            retp(0);
+        endif;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        IneqProc = _cml_IneqProc;
+        local ineqproc:proc;
+        if not(IneqProc(x) >= 0);
+            retp(0);
+        endif;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        if not((x - _cml_Bounds[.,1]) >= 0);
+           retp(0);
+        endif;
+        if not((-x + _cml_Bounds[.,2]) >= 0);
+           retp(0);
+        endif;
+    endif;
+    retp(1);
+endp;
+
+
+proc(3) = _cml_brent(vof,x0,d0,tol,mxtry,lfct,LLoutput,Lcmllag,lagr1,
+    lagr2,dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,
+    Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+
+    local ax,bx;
+    local a,b,c,d,e,xm,p,q,r,tol1,t2,u,v,w,fu,fv,fw,fx,x,tol3;
+    local f,y,w1,it0;
+    let w1 = 2 1 2 9 0 7;
+    c = 0.5*(3 - sqrt(5));
+
+    { ax,bx } = _cml_bracket(vof,x0,d0,lfct,LLoutput,Lcmllag,dataset,vindx,
+        lagr1,lagr2,row,Lcmlnobs,numRows,mxtry,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,
+        Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+    if scalmiss(ax);
+        retp(ax,1,0);
+    endif;
+    a = ax;
+    b = bx;
+    v = a + c*(b - a);
+    w = v;
+    x = v;
+    e = 0;
+    fx = vof;
+    fv = fx;
+    fw = fx;
+    tol3 = tol/3;
+
+    for iter(1,mxtry,1);
+
+        xm = 0.5*(a + b);
+        tol1 = _cml_eps2*abs(x) + tol3;
+        t2 = 2*tol1;
+        if (abs(x - xm) <= (t2 - .5*(b - a)));
+            retp(x,0,iter);
+        endif;
+        clear p,q,r;
+        if abs(e) <= tol1;
+            goto A40;
+        endif;
+        r = (x-w)*(fx-fv);
+        q = (x-v)*(fx-fw);
+        p = (x-v)*q - (x-w)*r;
+        q = 2*(q-r);
+        if q <= 0;
+            q = -q;
+        else;
+            p = -p;
+        endif;
+        r = e;
+        e = d;
+        if (abs(p) >= abs(.5*q*r));
+            goto A40;
+        endif;
+        if (p <= q*(a-x));
+            goto A40;
+        endif;
+        if (p >= q*(b-x));
+            goto A40;
+        endif;
+        d = p/q;
+        u = x + d;
+        if ((u-a) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        if ((b-u) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        goto A50;
+    A40:
+
+        if x < xm;
+            e = b-x;
+        else;
+            e = a-x;
+        endif;
+        d = c*e;
+    A50:
+
+        if abs(d) >= tol1;
+            u = x + d;
+        elseif d >= 0;
+            u = x + tol1;
+        else;
+            u = x - tol1;
+        endif;
+        u = _cml_feasible(x0,u,d0);
+        gosub fct(iter,x0+u*d0);
+        pop fu;
+        if fu <= fx;
+            if u >= x;
+                a = x;
+            else;
+                b = x;
+            endif;
+            v = w;
+            fv = fw;
+            w = x;
+            fw = fx;
+            x = u;
+            fx = fu;
+        else;
+            if u >= x;
+                b = u;
+            else;
+                a = u;
+            endif;
+            if (fu <= fw) or (w == x);
+                v = w;
+                fv = fw;
+                w = u;
+                fw = fu;
+            elseif (fu <= fv) or (v == x) or (v == w);
+                v = u;
+                fv = fu;
+            endif;
+        endif;
+    endfor;
+    retp(error(6),1,mxtry);
+
+FCT:
+
+    pop f;
+    pop it0;
+
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _cml_meritFunct(lfct,f,LLoutput,Lcmllag,dataset,vindx,lagr1,
+          lagr2,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+    if LLoutput == 2;
+        scroll w1;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,it0);
+    endif;
+    return(y);
+
+endp;
+
+proc(3) = _cml_half(f,x,d,mxtry,lfct,LLoutput,Lcmllag, lagr1,lagr2,dataset,
+    vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,Lcmlgdprc,Lcmlhsprc,
+    Lcmlusrgd,Lcmlusrhs);
+    local ax,cx,dx,bksteps,f1,t,y,w;
+    let w = 2 1 2 8 0 7;
+
+    { ax,cx } = _cml_bracket(f,x,d,lfct,LLoutput,Lcmllag,dataset,vindx,
+        lagr1,lagr2,row,Lcmlnobs,numRows,mxtry,Lcmlgrdh,_eps,gcoefs,wgts,gdmd,
+        Lcmlgdprc,Lcmlhsprc,Lcmlusrgd,Lcmlusrhs);
+    if scalmiss(cx);
+       retp(error(0),1,0);
+    endif;
+
+    for bksteps(1,mxtry,1);
+        dx = cx - ax;
+        cx = _cml_feasible(x,ax+.5*dx,d);
+        gosub fct(x+cx*d);
+        pop f1;
+        if f1 < f or dx < 1e-16;
+            retp(cx,0,bksteps);
+        endif;
+    endfor;
+    retp(error(0),1,mxtry);
+
+FCT:
+
+    pop t;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    y = _cml_meritFunct(lfct,t,LLoutput,Lcmllag,dataset,vindx,lagr1,lagr2,
+            row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(y);
+        retp(error(3),1,-1);
+    endif;
+    return(y);
+endp;
+
+
+
+proc test_rdd(ll,x,Lcmllag,dataset,vindx,row,numRows);
+    local i,r,s,z,y,a,a0,a1,ws;
+    local ll:proc;
+
+    a = 0;
+    if rows(dataset) == 1;
+
+        if not scalmiss(dataset);
+            call seekr(dataset,1);
+            i = Lcmllag;
+            do until eof(dataset);
+                i = i + 1;
+                if Lcmllag > 0;
+                    call seekr(dataset,i-Lcmllag);
+                    y = readr(dataset,Lcmllag+1);
+                else;
+                    y = readr(dataset,row);
+                endif;
+                a = a + ll(x,y[.,vindx]);
+            endo;
+
+        else;
+            a = ll(x,dataset);
+        endif;
+
+    else;
+        if row > 1;
+            s = floor(numRows/row);
+            r = numRows%row;
+            i = 0;
+            do until i == s;
+                i = i + 1;
+                a = a + ll(x,dataset[(i-1)*row+1:i*row,.]);
+            endo;
+            if r > 0;
+                a = a + ll(x,dataset[numRows-r+1:numRows,.]);
+            endif;
+        elseif row == 1;
+            i = Lcmllag;
+            do until i == numRows;
+                i = i + 1;
+                a = a + ll(x,dataset[i-Lcmllag:i,.]);
+            endo;
+        else;
+            a = ll(x,dataset);
+        endif;
+    endif;
+    if rows(a) > 1;
+        retp(rows(a));
+    else;
+        retp(error(0));
+    endif;
+
+endp;
+
+
+
+
+proc _cml_rdd(ll,ff,x,ind1,ind2,ind3,LLoutput,Lcmllag,dataset,vindx,row,
+    Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+    local i,r,s,w0,w1,w2,w3,z,y,a,a0,a1,ws;
+    local ll:proc;
+    let w0 = 2 1 2 80 0 7;
+    let w1 = 2 34 2 80 0 7;
+    let w2 = 2 1 2 9 0 7;
+    let w3 = 2 15 2 28 0 7;
+    if LLoutput == 2;
+        scroll w0;
+        if ind1 == 0;
+            locate 2,1;
+            printdos " Function";
+        elseif ind1 == 1;
+            locate 2,15;
+            printdos " Gradient";
+        elseif ind1 == 2;
+            locate 2,15;
+            printdos " Cross-Product";
+        elseif ind1 == 3;
+            locate 2,15;
+            printdos " Hessian ";
+        endif;
+    endif;
+
+    a = 0;
+
+    if rows(dataset) == 1;
+
+        if not scalmiss(dataset);
+            call seekr(dataset,1);
+            if LLoutput == 2;
+                locate 2,34;
+                printdos " reading case           ";
+            endif;
+            i = Lcmllag;
+            do until eof(dataset);
+                i = i+1;
+                if LLoutput == 2;
+                    locate 2,48;
+                    printdos ftos(minc(i*row|numRows),"%-*.*lf",1,0);
+                endif;
+                if Lcmllag > 0;
+                    call seekr(dataset,i-Lcmllag);
+                    y = readr(dataset,Lcmllag+1);
+                else;
+                    y = readr(dataset,row);
+                endif;
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(y[.,vindx],y[.,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(y[.,vindx],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(y[.,vindx],0);
+                    pop a1;
+                endif;
+                if ind2 == 2;
+                    a = a + moment(a1,0);
+                else;
+                    a = a + a1;
+                endif;
+            endo;
+            if LLoutput == 2;
+                scroll w1;
+            endif;
+
+        else;
+
+            if not(wgts == 0);
+                gosub comp(dataset,wgts);
+                pop a1;
+            else;
+                gosub comp(dataset,0);
+                pop a1;
+            endif;
+            if ind2 == 2;
+                a = moment(a1,0);
+            else;
+                a = a1;
+            endif;
+        endif;
+
+    else;
+        if row > 1;
+            s = floor(numRows/row);
+            r = numRows%row;
+            i = 0;
+            do until i == s;
+                i = i + 1;
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[(i-1)*row+1:i*row,.],
+                            dataset[(i-1)*row+1:i*row,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[(i-1)*row+1:i*row,.],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[(i-1)*row+1:i*row,.],0);
+                    pop a1;
+                endif;
+
+                if ind2 == 2;
+                    a = a + moment(a1,0);
+                else;
+                    a = a + a1;
+                endif;
+            endo;
+            if r > 0;
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[numRows-r+1:numRows,.],
+                            dataset[numRows-r+1:numRows,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[numRows-r+1:numRows,.],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[numRows-r+1:numRows,.],0);
+                    pop a1;
+                endif;
+                if ind2 == 2;
+                    a = a + moment(a1,0);
+                else;
+                    a = a + a1;
+                endif;
+            endif;
+        elseif row == 1;
+            i = Lcmllag;
+            do until i == numRows;
+                i = i + 1;
+                if not(wgts == 0);
+                    if rows(wgts) == 1;
+                        gosub comp(dataset[i-Lcmllag:i,.],
+                            dataset[i-Lcmllag:i,wgts]);
+                        pop a1;
+                    else;
+                        gosub comp(dataset[i-Lcmllag:i,.],wgts);
+                        pop a1;
+                    endif;
+                else;
+                    gosub comp(dataset[i-Lcmllag:i,.],0);
+                    pop a1;
+                endif;
+                if ind2 == 2;
+                    a = a + moment(a1,0);
+                else;
+                    a = a + a1;
+                endif;
+            endo;
+        else;
+            if not(wgts == 0);
+                if rows(wgts) == 1;
+                    gosub comp(dataset,dataset[.,wgts]);
+                    pop a1;
+                else;
+                    gosub comp(dataset,wgts);
+                    pop a1;
+                endif;
+            else;
+                gosub comp(dataset,0);
+                pop a1;
+            endif;
+            if ind2 == 2;
+                a = moment(a1,0);
+            else;
+                a = a1;
+            endif;
+        endif;
+    endif;
+
+    if LLoutput == 2;
+        if ind1;
+            scroll w3;
+        else;
+            scroll w2;
+        endif;
+    endif;
+    retp(a/Lcmlnobs);
+
+COMP:
+
+    pop ws;
+    pop z;
+
+    if ind2;
+        if ind3;
+            if ff;
+                a0 = -ll(ff,x,z,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+            else;
+                a0 = -ll(x,z,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+            endif;
+        else;
+            if ff;
+                a0 = -ll(ff,x,z);
+            else;
+                a0 = -ll(x,z);
+            endif;
+        endif;
+    else;
+        if ind3;
+            if ff;
+                a0 = sumc(-ll(ff,x,z,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts));
+            else;
+                a0 = sumc(-ll(x,z,LLoutput),Lcmlgrdh,_eps,gcoefs,wgts);
+            endif;
+        else;
+            if ff;
+                a0 = ll(ff,x,z);
+            else;
+                a0 = ll(x,z);
+            endif;
+            if ws $== 0;
+                a0 = sumc(-a0);
+            else;
+                a0 = sumc(-a0.*ws);
+            endif;
+        endif;
+    endif;
+    return(a0);
+endp;
+
+
+proc _cml_deriv(x,ind,lfct,gdmd,gdproc,hsproc,LLoutput,Lcmllag,dataset,
+    vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,usrgd,usrhs,wgts);
+
+    local a;
+
+    if ind == 1;
+        if gdproc /= 0;
+            a = _cml_rdd(gdproc,0,x,1,0,0,LLoutput,Lcmllag,dataset,vindx,
+                row, Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        else;
+            if gdmd[1] == 0;
+                a = _cml_rdd(usrgd,lfct,x,1,0,0,LLoutput,Lcmllag,dataset,
+                    vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+            else;
+                a = _cml_rdd(gdmd[1],lfct,x,1,0,1,LLoutput,Lcmllag,
+                    dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+            endif;
+        endif;
+    elseif ind == 2;
+        if gdproc /= 0;
+            a = _cml_rdd(gdproc,0,x,2,2,0,LLoutput,Lcmllag,dataset,vindx,
+                row, Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        else;
+            if gdmd[1] == 0;
+                a = _cml_rdd(usrgd,lfct,x,2,2,0,LLoutput,Lcmllag,dataset,
+                    vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+            else;
+                a = _cml_rdd(gdmd[1],lfct,x,2,2,1,LLoutput,Lcmllag,
+                    dataset, vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+            endif;
+        endif;
+    elseif ind == 3;
+        if hsproc /= 0;
+            a = _cml_rdd(hsproc,0,x,3,1,0,LLoutput,Lcmllag,dataset,vindx,
+                row, Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+        else;
+            if gdproc /= 0;
+                if gdmd[1] == 0;
+                    a = _cml_rdd(usrgd,gdproc,x,3,1,0,LLoutput,Lcmllag,
+                        dataset,vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+                else;
+                    a = _cml_rdd(gdmd[2],gdproc,x,3,1,1,LLoutput,
+                        Lcmllag, dataset,vindx,row,Lcmlnobs,numRows,
+                        Lcmlgrdh,_eps,gcoefs,wgts);
+                endif;
+            else;
+                if usrhs /= 0;
+                    a = _cml_rdd(usrhs,lfct,x,3,1,0,LLoutput,Lcmllag,
+                        dataset, vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+                else;
+                    a = _cml_rdd(gdmd[3],lfct,x,3,1,1,LLoutput,Lcmllag,
+                        dataset, vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+                endif;
+            endif;
+        endif;
+    endif;
+    if scalmiss(a);
+        if not trapchk(4);
+            if LLoutput == 2;
+                locate 2,1;
+            endif;
+            if ind == 1;
+                if not trapchk(4);
+                    errorlog "Calculation of first derivatives failed";
+                endif;
+            elseif ind == 2;
+                if not trapchk(4);
+                    errorlog "Calculation of cross-product derivatives failed";
+                endif;
+            elseif ind == 3;
+                if not trapchk(4);
+                    errorlog "Calculation of second derivatives failed";
+                endif;
+            endif;
+        endif;
+        if ind == 1;
+            retp(error(4));
+        else;
+            retp(error(5));
+        endif;
+    endif;
+    retp(a);
+endp;
+
+proc 1 = _cml_mpgrdfd(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, dax0, f0, r, r1, ee, x1, f1,m,x;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    r = 0.5*rows(gcoefs);
+    r1 = r + 1;
+
+    gosub fct(x0,y);
+    pop f1;
+
+    m = rows(f1);
+    k = rows(x0);
+    grdd = zeros(m,k);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    f0 = zeros(m,r1);
+    f0[.,1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+
+            gosub fct(x0 + j * ee[.,i],y);
+            pop f1;
+
+            f0[.,j+1] = f1;
+        endfor;
+        grdd[.,i] = f0 * gcoefs[1:r1,2];
+    endfor;
+
+    retp(grdd./dh');
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc 1 = _cml_mpgrdbd(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local m, k, grdd, dh, ax0, xdh, arg, dax0, f0, r, r1, ee, f1, x;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    r = 0.5*rows(gcoefs);
+    r1 = r + 1;
+
+    gosub fct(x0,y);
+    pop f1;
+
+    m = rows(f1);
+    k = rows(x0);
+    grdd = zeros(m,k);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x0+dh;
+    ee = eye(k).*(xdh - x0);
+    f0 = zeros(m,r1);
+    f0[.,1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+
+            gosub fct(x0 - j * ee[.,i],y);
+            pop f1;
+
+            f0[.,j+1] = f1;
+        endfor;
+        grdd[.,i] = -f0 * gcoefs[1:r1,2];
+    endfor;
+
+    retp(grdd./dh');
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc _cml_mpgrdcd(f,x,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k;
+    local f:proc;
+    local z,f0,f1,f2,w,ax0,dax0,dh,xdh,x1,t2,t1,grdd,r,ee,m;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+    r = 0.5*rows(gcoefs);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+
+    xdh = x+dh;
+    ee = eye(k).*(xdh - x);
+    gosub fct(x + ee[.,1],y);
+    pop f1;
+
+    m = rows(f1);
+    grdd = zeros(m,k);
+    f0 = zeros(m,2*r);
+    f0[.,r+1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+
+            if i /= 1 or j /= 1;
+
+                gosub fct(x + j*ee[.,i],y);
+                pop f1;
+
+                f0[.,r+j] = f1;
+            endif;
+
+            gosub fct(x - j*ee[.,i],y);
+            pop f2;
+
+            f0[.,r-j+1] = f2;
+        endfor;
+        grdd[.,i] = f0 * gcoefs[.,1];
+    endfor;
+
+    retp(grdd./dh');
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc 1 = _cml_mpgrdf1(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0, r, r1, ee, f1;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+    r = 0.5*rows(gcoefs);
+    r1 = r + 1;
+
+    gosub fct(x0,y);
+    pop f1;
+    n = rows(f1);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    f0 = zeros(n,r1);
+    f0[.,1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+            gosub fct(x0 + j * ee[.,i],y);
+            pop f1;
+
+            f0[.,j+1] = f1;
+        endfor;
+        grdd[.,i] = f0 * gcoefs[1:r1,2];
+    endfor;
+
+    retp(grdd./dh');
+
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc 1 = _cml_mpgrdb1(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0, r, r1, ee, f1;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+    r = 0.5*rows(gcoefs);
+    r1 = r + 1;
+
+    gosub fct(x0,y);
+    pop f1;
+    n = rows(f1);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    f0 = zeros(n,r1);
+    f0[.,1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+            gosub fct(x0 - j * ee[.,i],y);
+            pop f1;
+
+            f0[.,j+1] = f1;
+        endfor;
+        grdd[.,i] = -f0 * gcoefs[1:r1,2];
+    endfor;
+
+    retp(grdd./dh');
+
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc _cml_mpgrdc1(f,x,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k,ax0,dax0,dh,xdh,grdd,r,ee,f1,x1,m,f0,f2;
+    local f:proc;
+    local w,t1,t2,z,v,v1,v2;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+    r = 0.5*rows(gcoefs);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x + dh;
+    ee = eye(k).*(xdh - x);
+
+    gosub fct(x+ee[.,1],y);
+    pop f1;
+
+    m = rows(f1);
+    grdd = zeros(m,k);
+    f0 = zeros(m,2*r);
+    f0[.,r+1] = f1;
+
+    for i (1,k,1);
+        for j (1,r,1);
+
+            if i /= 1 or j /= 1;
+
+                gosub fct(x + j*ee[.,i],y);
+                pop f1;
+
+                f0[.,r+j] = f1;
+            endif;
+
+            gosub fct(x - j*ee[.,i],y);
+            pop f2;
+
+            f0[.,r-j+1] = f2;
+        endfor;
+        grdd[.,i] = f0 * gcoefs[.,1];
+    endfor;
+
+    retp(grdd./dh');
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+proc 1 = _cml_grdfd(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    grdd = (grdd-f0)./(dh');
+    retp(grdd);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+
+proc 1 = _cml_grdbd(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0 - dh;
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    retp(-(grdd-f0)./(dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+proc _cml_grdcd(f,x,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k;
+    local f:proc;
+    local z,v,v1,v2,w,ax0,dax0,dh,xdh,argplus,argminus,t2,t1,grdd;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x + dh;
+    dh = xdh - x;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x,k,k)',xdh);
+    argminus = diagrv(reshape(x,k,k)',x-dh);
+
+    for i(1,k,1);
+
+        gosub fct(argplus[.,i],y);
+        pop v1;
+        gosub fct(argminus[.,i],y);
+        pop v2;
+        v = v1 - v2;
+        if i == 1;
+            grdd = v;
+        else;
+            grdd = grdd~v;
+        endif;
+    endfor;
+    retp(grdd./(2*dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+proc 1 = _cml_grdf1(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    grdd = (grdd-f0)./(dh');
+    retp(grdd);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+proc _cml_grdc1(f,x,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k,ax0,dax0,dh,xdh,argplus,argminus,grdd;
+    local f:proc;
+    local w,t1,t2,z,v,v1,v2;
+    let w = 2 1 2 9 0 7;
+
+    k = rows(x);
+    ax0 = abs(x);
+
+    if x /= 0;
+        dax0 = x./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x+dh;
+    dh = xdh-x;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x,k,k)',xdh);
+    argminus = diagrv(reshape(x,k,k)',x-dh);
+
+    for i(1,k,1);
+
+        gosub fct(argplus[.,i],y);
+        pop v1;
+        gosub fct(argminus[.,i],y);
+        pop v2;
+        v = v1 - v2;
+        if i == 1;
+            grdd = v;
+        else;
+            grdd = grdd~v;
+        endif;
+    endfor;
+    retp(grdd./(2*dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+
+
+
+
+
+proc 1 = _cml_grdb1(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local n, k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+    gosub fct(x0,y);
+    pop f0;
+    n = rows(f0);
+    k = rows(x0);
+    grdd = zeros(n,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1];
+        elseif Lcmlgrdh[.,1] /= 0;
+            dh = Lcmlgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0 - dh;
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+        gosub fct(submat(arg,0,i),y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    retp(-(grdd-f0)./(dh'));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+
+proc _cml_mphssp(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k, hessian, grdd, ax0, dax0, dh, xdh, ee, f0, r, u,v,m,n,x1,f1;
+    local f:proc;
+    local w,t1,t2,z;
+    let w = 2 1 2 9 0 7;
+
+/* initializations */
+    k = rows(x0);
+    r = 0.5*rows(gcoefs);
+
+        /* Computation of stepsize (dh) */
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,2] /= 0;
+            dh = Lcmlgrdh[.,2];
+        elseif Lcmlgrdh[.,2] /= 0;
+            dh = Lcmlgrdh[.,2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+    dh = dh / (2*r);
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    grdd = zeros(2*r,2*r);
+    hessian = zeros(k,k);
+
+    for i (1,k,1);
+        for j (1,i,1);
+
+            u = 1;
+            for m(-r,r,1);
+
+                v = 1;
+                if m /= 0;
+
+                    for n(-r,r,1);
+                        if n /= 0;
+
+                            gosub fct(x0 + m*ee[.,i]+n*ee[.,j],y);
+                            pop f1;
+
+                            grdd[u,v] = f1;
+
+                            v = v + 1;
+                        endif;
+                    endfor;
+                    u = u + 1;
+
+                endif;
+
+            endfor;
+
+            hessian[i,j] = gcoefs[.,1]'*grdd*gcoefs[.,1];
+            if i /= j;
+                hessian[j,i] = hessian[i,j];
+            endif;
+
+        endfor;
+    endfor;
+
+    retp( hessian ./ (dh.*dh') );
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = sumc(wgts.*f(t1,t2));
+    else;
+        z = sumc(f(t1,t2));
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+proc _cml_hssp(f,x0,y,LLoutput,Lcmlgrdh,_eps,gcoefs,wgts);
+    local k, hss, grdd, ax0, dax0, dh, xdh, ee, f0;
+    local f:proc;
+    local w,t1,t2,z,v;
+    let w = 2 1 2 9 0 7;
+
+/* initializations */
+    k = rows(x0);
+
+        /* Computation of stepsize (dh) */
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lcmlgrdh) and cols(Lcmlgrdh) > 1;
+        if rows(Lcmlgrdh) == rows(x0) and Lcmlgrdh[.,2] /= 0;
+            dh = Lcmlgrdh[.,2];
+        elseif Lcmlgrdh[.,2] /= 0;
+            dh = Lcmlgrdh[.,2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _eps[2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _eps[2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    ee = eye(k).*dh;
+
+    /* Computation of f0=f(x0) */
+    gosub fct(x0,y);
+    pop f0;
+
+    /* Compute forward step */
+    grdd = zeros(rows(f0),k);
+    for i(1,k,1);
+        gosub fct(x0+ee[.,i],y);
+        pop v;
+        grdd[.,i] = v;
+    endfor;
+
+    /* Compute "double" forward step */
+    hss = zeros(k,k);
+    for i(1,k,1);
+        for j(i,k,1);
+            gosub fct(x0+(ee[.,i]+ee[.,j]),y);
+            pop v;
+            hss[i,j] = sumc((v - grdd[.,i]-grdd[.,j] + f0) ./ (dh[i] * dh[j]));
+            if i /= j;
+                hss[j,i] = hss[i,j];
+            endif;
+        endfor;
+    endfor;
+
+    retp(hss);
+
+FCT:
+
+    pop t2;
+    pop t1;
+    if LLoutput == 2;
+        locate 2,1;
+        printdos " Function";
+    endif;
+    if not(wgts == 0);
+        z = wgts.*f(t1,t2);
+    else;
+        z = f(t1,t2);
+    endif;
+    if LLoutput == 2;
+        scroll w;
+    endif;
+    if scalInfNanMiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+
+
+
+
+proc _cml_meritFunct(ll,x,LLoutput,Lcmllag,dataset,vindx,lagr1,lagr2,
+    row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+    local f0, c1, c2, eqproc, ineqproc;
+
+    f0 = _cml_rdd(ll,0,x,0,0,0,LLoutput,Lcmllag,dataset,vindx,row,
+        Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+    if not scalmiss(lagr1);
+        c1 = {};
+        if not scalmiss(_cml_A);
+            c1 = c1 | abs(_cml_A*x - _cml_B);
+        endif;
+        if not scalmiss(_cml_EqProc);
+            EqProc = _cml_EqProc;
+            local eqproc:proc;
+            c1 = c1 | abs(EqProc(x));
+        endif;
+        if not scalmiss(c1);
+            f0 = f0 + lagr1*sumc(abs(c1));
+        endif;
+    endif;
+
+    if not scalmiss(lagr2);
+        c2 = {};
+
+        if not scalmiss(_cml_C);
+            c2 = c2 | _cml_C*x - _cml_D;
+        endif;
+
+        if not scalmiss(_cml_IneqProc);
+            ineqproc = _cml_IneqProc;
+            local ineqproc:proc;
+            c2 = c2 | IneqProc(x);
+        endif;
+
+        if not scalmiss(_cml_Bounds);
+            c2 = c2 | x - _cml_Bounds[.,1];
+            c2 = c2 | -x + _cml_Bounds[.,2];
+        endif;
+        if not scalmiss(c2);
+            f0 = f0 - lagr2*sumc(minc(zeros(1,rows(c2))|c2'));
+        endif;
+    endif;
+
+    retp(f0);
+endp;
+
+
+proc _cml_fix0(h);
+    local h1,k1;
+    if not scalmiss(h);
+        h1 = abs(diag(h)) .< 1e-8;
+        if sumc(h1);
+            h1 = packr(miss(h1.*seqa(1,1,rows(h1)),0));
+            for k1(1,rows(h1),1);
+                h[h1[k1],.] = miss(zeros(1,rows(h)),0);
+                h[.,h1[k1]] = miss(zeros(rows(h),1),0);
+            endfor;
+        endif;
+    endif;
+    retp(h);
+endp;
+
+
+
+
+
+proc(2) = _cml_GSearch(&ll,x,f0,delta0,LLoutput,Lcmllag,dataset,
+               vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+
+    local x0,f,f1,x1,ff,xx,k,i1,delta;
+    local ll:proc;
+    f1 = 1e256;
+    x1 = x;
+    delta = 1 + delta0;
+
+    for m(1,50,1);
+
+        k = 1;
+        ff = miss(zeros(rows(x)*(rows(x)+1),1),0);
+        xx = miss(zeros(rows(x)*(rows(x)+1),rows(x)),0);
+        for i(1,rows(x),1);
+            for j(0,rows(x),1);
+
+                x0 = x;
+                x0[i,1] = delta * x0[i,1];
+                if j > 0;
+                    x0[j,1] = delta * x0[j,1];
+                endif;
+
+                if _cml_isFeasible(x0);
+                    xx[k,.] = x0[.,1]';
+                    ff[k] = _cml_rdd(&ll,0,x0,0,0,0,LLoutput,Lcmllag,dataset,
+                            vindx,row,Lcmlnobs,numRows,Lcmlgrdh,_eps,gcoefs,wgts);
+                endif;
+
+                k = k + 1;
+            endfor;
+        endfor;
+
+        i1 = minindc(ff);
+
+        if ff[i1] < f0;
+            retp(xx[i1,.]',ff[i1]);
+        else;
+            if ff[i1] < f1;
+                f1 = ff[i1];
+                x1[.,1] = xx[i1,.]';
+            endif;
+
+        endif;
+        delta = 1 + m*delta0;
+
+    endfor;
+
+    if f1 < 1e256;
+        retp(x1,f1);
+    else;
+        retp(error(0),error(0));
+    endif;
+endp;
+
+
+
+
+
+
+
+
+
+proc _cml_GetGradCoefs(n);
+    local gcoefs,k;
+
+    n = ceil(abs(n));
+    gcoefs = zeros(2*n,2);
+
+/*
+** Central
+*/
+    gcoefs[n+1,1] = n / (n + 1);
+    gcoefs[n,1] = -gcoefs[n+1,1];
+    k = 2;
+    do until k > n;
+        gcoefs[n+k,1] = -gcoefs[n+k-1,1] *
+            (((k - 1)*(n-k+1))/(k*(n+k)));
+        gcoefs[n-k+1,1] = -gcoefs[n+k,1];
+        k = k + 1;
+    endo;
+
+/*
+** Forward and Backward
+*/
+
+    gcoefs[1,2] = -sumc(1./seqa(1,1,n));
+    gcoefs[2,2] = n;
+
+    k = 2;
+    do until k > n;
+        gcoefs[k+1,2] = -gcoefs[k,2]*(k-1)*(n-k+1)/(k*k);
+        k = k + 1;
+    endo;
+
+    retp(gcoefs);
+endp;
+
+
+

@@ -1,0 +1,97 @@
+/*
+** dfft.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> dfft
+**
+**  Purpose:    Computes a complex discrete Fourier transform.
+**
+**      ( GAUSS-386i complex version )
+**
+**  Format:     y = dfft(x);
+**
+**  Input:      x    Nx1 complex vector.
+**
+**  Output:     y    Nx1 complex vector.
+**
+**      ( GAUSS-386 real version )
+**
+**  Format:     { yr,yi } = DFFT(xr,xi);
+**
+**  Input:      xr    Nx1 vector, real part.
+**
+**              xi    Nx1 vector, imaginary part.
+**
+**  Output:     yr    Nx1 vector, real part.
+**
+**              yi    Nx1 vector, imaginary part.
+**
+**  Remarks:    The transform is divided by N.
+**
+**               This uses a second-order Goertzel algorithm. It is
+**               considerably slower than either fft or rfft, but
+**               it may have some advantages in some
+**               circumstances. For one thing, N does not have to
+**               be an even power of 2.
+**
+**  Globals:    None
+**
+**  See Also:   fft, rfft, dffti, ffti, rffti
+*/
+
+#ifcplx
+
+proc (1) = dfft(x);
+    local N,zk,xy,q,ab,k,s,c,cc1,z2,qk,e2,mm,z;
+    z = real(x) ~ imag(x);
+
+#else
+
+proc (2) = dfft(xr,xi);
+    local N,zk,xy,q,ab,k,s,c,cc1,z2,qk,e2,mm,z;
+    z = xr~xi;
+
+#endif
+
+    N = rows(z);
+    zk = cols(z);
+    q = 2*pi/N;
+    ab = zeros(N,2);
+    z2 = reshape(zeros(2,1),2,zk);
+    e2 = -eye(2);
+    xy = z2|z;
+    k = 1;
+    do until k > N;
+        qk = q*(k-1);
+        s = sin(qk);
+        c = cos(qk);
+        cc1 = reshape( ( (2*c)|-1 ), zk, 2)';
+        mm = trimr( recserar(xy,z2,cc1), n, 0);
+        ab[k,.] = reshape(mm,4,1)'(e2|c~s|-s~c);
+        k = k + 1;
+    endo;
+    ab = ab/N;
+
+#ifcplx
+
+    retp( complex(ab[.,1],ab[.,2]) );
+
+#else
+
+    retp(ab[.,1],ab[.,2]);
+
+#endif
+
+endp;

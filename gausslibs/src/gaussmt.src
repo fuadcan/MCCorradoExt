@@ -1,0 +1,302 @@
+/*
+** gaussmt.src
+**
+**
+** (C) Copyright 2004-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                                  Purpose                            Line
+**  --------------------------------------------------------------------------------
+**  _cntrlin(s,n,c);                        center output for header             29
+**  headermt(prcnm,dsn,ver,header,title);   print header for analysis            82
+**
+*/
+
+proc _cntrlin(s,n,c);
+    local str;
+    c = vals(strsect(c,1,1));
+    if s $== "";
+        str = chrs(c+zeros(floor((n-strlen(s))/2),1));
+        str = str $+ s $+ str;
+    elseif strlen(s) < n-3;  
+        str = chrs(c+zeros(floor((n-(strlen(s)+2))/2),1));
+        str = str $+ " " $+ s $+ " " $+ str;
+    elseif strlen(s) < n-1; 
+        str = " " $+ s $+ " "; 
+    else;
+        str = s;
+    endif;
+    if strlen(str) < n;
+        str = str $+ chrs(c);
+    endif;
+    retp(str);
+endp;
+
+
+/*
+**> headermt
+**
+**  Purpose:    Print header for application programs.
+**
+**  Format:     headermt(prcnm,dsn,ver,header,title);
+**
+**  Input:      prcnm     string, title of procedure that calls header.
+**
+**              dsn       string, name of data set.
+**
+**              ver       3x1 vector, the first element is the major version
+**                        number of the module, the second element is the
+**                        minor version number and the third element is the
+**                        revision number.  Normally this argument will be
+**                        the version/revision global (__??_ver) associated
+**                        with the module within which header is called.
+**                        This argument will be ignored if set to 0.
+**
+**                     A 2x1 vector is supported for backward compatibility.
+**
+**              header, string which contains the letters:
+**
+**                   't'  title
+**                   'l'  lines bracket header
+**                   'd'  date and time
+**                   'v'  procedure name and version number
+**                   'f'  data set name
+**
+**              title -- string, title for header.
+*/
+
+proc (0) = headermt(prcnm,dsn,ver,header,title);
+    local xll,xdd,xvv,xff,xtt,opt,sl,i,sel,b,dts,nm,hr,hrs,ap,l1;
+
+    clear xll,xdd,xvv,xff,xtt;
+    opt = { d, f, l, t, v };
+    sl = strlen(header);
+    if sl == 0;
+        retp;
+    endif;
+    i = 1;
+    sel = { . };
+    do until i gt sl;
+        sel = sel|strsect(header,i,1);
+        i = i+1;
+    endo;
+    sel = sortc(packr(indcv(sel,opt)),1);
+    if not ismiss(sel);
+        i = zeros(5,1);
+        i[sel] = ones(rows(sel),1);
+        if i[1];
+            xdd = 1;
+        endif;
+        if i[2];
+            xff = 1;
+        endif;
+        if i[3];
+            xll = 1;
+        endif;
+        if i[4];
+            xtt = 1;
+        endif;
+        if i[5];
+            xvv = 1;
+        endif;
+        hr = time;
+        ap = " am";         /* add am or pm designation */
+        if hr[1] eq 0;
+            hr[1] = 12;
+        elseif hr[1] eq 12;
+            ap = " pm";
+        elseif hr[1] gt 12;
+            hr[1] = hr[1]-12;
+            ap = " pm";
+        endif;
+        hrs = ( ftos(hr[1],"%*.*lf",2,0) $+ ":" $+ ftos(hr[2],"%0*.*lf",2,0))
+            $+ ap;
+        dts = datestring(DATE);
+        b = _cntrlin("",79,"=");
+        if xtt and title $/= "";
+            title = "  " $+ title $+ "  ";
+            if xll;
+                print b;
+            endif;
+            if strlen(title) < 80;
+                print _cntrlin(title,79," "); 
+            else;
+                print title;
+            endif;
+        endif;
+
+        nm = " ";
+        if xvv and prcnm $/= "";
+            nm = nm $+ prcnm;
+        endif;
+        if xvv and ver[1] /= 0 and (rows(ver) == 3 or rows(ver) == 2);
+            if prcnm $/= "";
+               nm = nm $+ " ";
+            endif;
+            if rows(ver) == 3;
+                nm = nm $+ "Version " $+ ftos(ver[1],"%*.*lf",1,0);
+                nm = nm $+ "." $+ ftos(ver[2],"%*.*lf",1,0);
+                nm = nm $+ "." $+ ftos(ver[3],"%*.*lf",1,0);
+            elseif rows(ver) == 2;
+                nm = nm $+ " Version "$+ftos(ver[1],"%-*.*lf",3,2);
+                nm = nm $+ " (R"$+ftos(ver[2],"%-*.*lf",1,0) $+ ")";
+            endif;
+        endif;
+        if xdd;
+            nm = nm $+ chrs(ones(79-strlen(nm)-21,1)*32) $+
+                        dts $+ "  " $+ hrs;
+        else;
+            nm = nm $+ chrs(ones(79-strlen(nm),1)*32);
+        endif;
+        if xll;
+            print b;
+        endif;
+        if xvv or xdd;
+            print nm;
+        endif;
+        if xll and (xvv or xdd);
+            print b;
+        endif;
+        if xff and dsn $/= "";
+            print _cntrlin("Data Set:  "$+dsn,79," ");
+            print _cntrlin("",79,"-");
+            print;
+        endif;
+    endif;
+endp;
+
+
+/*
+**> searchsourcepath
+**
+**  Purpose:    Searches the source path and (if specified) the .src 
+**              subdirectory of the location of the .exe file for a specified 
+**              file. 
+**
+**  Format:     fpath = searchsourcepath(fname,exepath);
+**
+**  Input:      fname     string, name of file to search for.
+**
+**              exepath   scalar, if 0, do not search in the .src subdirectory
+**                        of the location of the .exe file. If 1, search it 
+**                        first. If 2, search it last. 
+**
+**  Output:     fpath     string, the path of fname, or null string if fname
+**                        is not found. 
+**
+*/
+
+proc searchsourcepath(fname,exepath);
+	local srcpath,spaths,fpath,ind,str,i;
+	
+	fpath = "";
+	spaths = {};
+	srcpath = sysstate(22,0);
+
+	do while srcpath $/= "";
+		ind = strindx(srcpath,";",1);
+	
+		if ind /= 0;
+			spaths = spaths $| strsect(srcpath,1,ind-1);
+			srcpath = strsect(srcpath,ind+1,strlen(srcpath)-ind);
+		else;
+			spaths = spaths $| srcpath;
+			srcpath = "";
+		endif;
+	endo;
+
+	if exepath == 1;
+		spaths = (sysstate(2,0)$+"src") $| spaths;
+	elseif exepath == 2;
+		spaths = spaths $| (sysstate(2,0)$+"src");
+	endif;
+
+#ifUNIX
+        fname = "/"$+fname;
+#else
+        fname = "\\"$+fname;
+#endif
+
+	for i (1,rows(spaths),1);
+        str = spaths[i]$+fname;
+
+		if filesa(str) $/= "";	
+			fpath = str;
+			break;
+		endif;
+	endfor;
+	
+	retp(fpath);
+endp;
+
+
+/*
+**> getnrmt
+**
+**  Purpose:    Compute number of rows to read.
+**
+**  Format:     nr = getnrmt(nsets,ncols,row,rowfac,maxv);
+**
+**  Input:      nsets    scalar, number of 'copies' of the data read by
+**                       readr to be kept in memory.
+**
+**              ncols    scalar, columns in the data file.
+**
+**              row       if row is greater than 0, nr will be set to row.
+**
+**              rowfac    if insufficient memory error is encounted, change
+**                        this to a number less than one (e.g., 0.9).  Then
+**                        nr will be reduced in size by this factor.
+**
+**              maxv    the largest number of elements allowed in any
+**                        one matrix.
+**
+**  Output:     nr       scalar, number of rows reader should read.
+**
+*/
+
+proc getnrmt(nsets,ncols,row,rowfac,maxelem);
+    local nr,mbytes;
+
+    mbytes = 1e9;
+    /* check for complex input */
+    if iscplx(nsets);
+        if hasimag(nsets);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            nsets = real(nsets);
+        endif;
+    endif;
+
+    if iscplx(ncols);
+        if hasimag(ncols);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            ncols = real(ncols);
+        endif;
+    endif;
+
+    if row > 0;           /* if row is set, it determines nr */
+        nr = row;
+    else;
+        nr = ceil(rowfac*minc(mbytes/(ncols*nsets*8)|maxelem/(ncols+1)));
+    endif;
+    retp(nr);
+endp;
+

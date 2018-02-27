@@ -1,0 +1,262 @@
+/*
+** finutils.src   Utility procedures for finance.src
+**
+**
+** (C) Copyright 2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                          Purpose                              Line
+**  ---------------------------------------------------------------------------
+**  n = elapsedTradingDays(a,b)     trading days between dates
+**  n = annualTradingDays(a)        number of annual trading days
+**  d = getNextTradingDay(a)        next trading day
+**  d = getPreviousTradingDay(a)    previous trading day
+**  d = getNextWeekDay(a)           next week day
+**  d = getPreviousWeekDay(a)       previous week day
+**
+*/
+
+
+#include finprocs.ext;
+
+
+
+/*
+**> elapsedTradingDays
+**
+**  Purpose:   Compute number of trading days between two dates inclusively
+**
+**  Format:    n = elapsedTradingDays(a,b);
+**
+**  Input:     a   scalar, date in scalar yyyymmddhhmmss format
+**
+**             b   scalar, date in scalar yyyymmddhhmmss format
+**
+**  Output:    n   number of trading days between dates inclusively, that
+**                  is, elapsed time includes the dates a and b.
+**
+**  Remarks:  A trading day is a weekday that is not a holiday as defined
+**            by the New York Stock Exchange from 1888 through 2004.
+**            Holidays are defined in holidays.asc.  You may edit that file
+**            to modify or add holidays.
+*/
+
+
+
+
+proc elapsedTradingDays(a,b);
+
+    local num,a1,b1,a0;
+    if a > b;
+        a0 = b;
+        b = a;
+        a = a0;
+    endif;
+
+    num = 0;
+    do until a > b;
+        a = getNextTradingDay(a);
+        num = num + 1;
+    endo;
+    retp(num);
+
+endp;
+
+
+
+
+
+/*
+**> annualTradingDays
+**
+**  Purpose:   Compute number of trading days in a given year
+**
+**  Format:    n = annualTradingDays(a);
+**
+**  Input:     a    scalar, year
+**
+**  Output:    n    number of trading days in year
+**
+**  Remarks:  A trading day is a weekday that is not a holiday as defined
+**            by the New York Stock Exchange from 1888 through 2004.
+*/
+
+
+
+
+proc annualTradingDays(a);
+
+    if a > 2004 or a < 1888;
+        retp(250);
+    else;
+        retp(_fin_annualTradingDays[a-1887]);
+    endif;
+
+endp;
+
+
+
+
+
+/*
+**> getNextTradingDay
+**
+**  Purpose:   Returns the next trading day
+**
+**  Format:    n = getNextTradingDay(a)
+**
+**  Input:     a   scalar, date in scalar yyyymmddhhmmss format
+**
+**  Output:    n   scalar, next trading day in yyyymmddhhmmss format
+**
+**  Remarks:  A trading day is a weekday that is not a holiday as defined
+**            by the New York Stock Exchange from 1888 through 2004.
+**            Holidays are defined in holidays.src.  You may edit that file
+**            to modify or add holidays
+*/
+
+
+
+proc getNextTradingDay(a);
+
+    local s0;
+
+    if scalmiss(_fin_holidays);
+#ifUNIX
+        s0 = sysstate(2,0)$+"src/holidays.asc";
+#else
+        s0 = sysstate(2,0)$+"src\\holidays.asc";
+#endif
+        load _fin_holidays[] = ^s0;
+    endif;
+
+    a = getNextWeekDay(a);
+    do while not(a /= _fin_holidays);
+       a = getnextWeekDay(a);
+    endo;
+    retp(a);
+
+endp;
+
+
+
+
+
+/*
+**> getPreviousTradingDay
+**
+**  Purpose:   Returns the previous trading day
+**
+**  Format:    n = getPreviousTradingDay(a)
+**
+**  Input:     a   scalar, date in scalar yyyymmddhhmmss format
+**
+**  Output:    n   Previous trading day in yyyymmddhhmmss format
+**
+**  Remarks:  A trading day is a weekday that is not a holiday as defined
+**            by the New York Stock Exchange from 1888 through 2004.
+**            Holidays are defined in holidays.asc.  You may edit that file
+**            to modify or add holidays
+*/
+
+
+proc getPreviousTradingDay(a);
+
+    local s0;
+
+    if scalmiss(_fin_holidays);
+#ifUNIX
+        s0 = sysstate(2,0)$+"src/holidays.asc";
+#else
+        s0 = sysstate(2,0)$+"src\\holidays.asc";
+#endif
+        load _fin_holidays[] = ^s0;
+    endif;
+
+    a = getPreviousWeekDay(a);
+    do while not(a /= _fin_holidays);
+       a = getPreviousWeekDay(a);
+    endo;
+    retp(a);
+
+endp;
+
+
+
+
+
+/*
+**> getNextWeekDay
+**
+**  Purpose:   Returns the next day that is not on a weekend.
+**
+**  Format:    n = getNextWeekDay(a)
+**
+**  Input:     a   scalar, date in scalar yyyymmddhhmmss format
+**
+**  Output:    n   next week day in yyyymmddhhmmss format
+**
+*/
+
+proc getNextWeekDay(a);
+
+    a = dttodtv(a);
+    a[3] = a[3] + 1;
+    a = dtvnormal(a);
+    do until a[7] >= 1 and a[7] <= 5;
+        a[3] = a[3] + 1;
+        a = dtvnormal(a);
+    endo;
+    retp(dtvtodt(a));
+
+endp;
+
+
+
+
+
+
+/*
+**> getPreviousWeekDay
+**
+**  Purpose:   Returns the previous day that is not on a weekend.
+**
+**  Format:    n = getPreviousWeekDay(a)
+**
+**  Input:     a   scalar, date in scalar yyyymmddhhmmss format
+**
+**  Output:    n   previous week day in yyyymmddhhmmss format
+**
+*/
+
+proc getPreviousWeekDay(a);
+
+    a = dttodtv(a);
+    a[3] = a[3] - 1;
+    a = dtvnormal(a);
+    do until a[7] >= 1 and a[7] <= 5;
+        a[3] = a[3] - 1;
+        a = dtvnormal(a);
+    endo;
+    retp(dtvtodt(a));
+
+endp;
+
+
+
+
+

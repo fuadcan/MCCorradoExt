@@ -1,0 +1,394 @@
+/*
+** kalman2.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  K = KF_Gain;                  Compute the Kalman gain matrices         15
+**
+**  {y,a} = bootstrap_SSM(a0);    Bootstrap for state space models         30
+*/
+
+
+/*
+** KF_Gain
+**
+** Purpose: Compute the Kalman gain matrices
+**
+** Format:  K = KF_gain;
+**
+** Output:  K - Nobs*(N*m) matrix, the Kalman gain matrices K(t).
+**
+** Remarks: To read the matrices K(t), use the reshape command
+**                       K(t) = reshape(K[t,.]',N,m)';
+**
+** Note: The gain matrix K(t) is defined by
+**
+**                       K(t) = T(t+1)*P(t|t-1)*Z(t)'*inv[F(t)]
+**
+**       Related to the gain matrices, the innovation form representation
+**       of a state space model is given by the following system
+**
+**                       y(t) = Z(t)*a(t|t-1) + d(t) + v(t)
+**                   a(t+1|t) = T(t+1)*a(t|t-1) + c(t+1) + K(t)*v(t)
+**
+*/
+
+
+/*
+** bootstrap_SSM
+**
+** Purpose: Bootstrap for state space models
+**
+** Format:  {y,a} = bootstrap_SSM(a0);
+**
+** Input:   a0 - m*1 vector, the initial state vector
+**
+** Output:  y - Nobs*N matrix, the bootstrap data set of y(t)
+**          a - Nobs*m matrix, the bootstrap data set of a(t+1|t)
+**
+*/
+
+
+/*
+** KF_Gain
+*/
+
+proc (1) = KF_Gain;
+  local K;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[5] /= 1;
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 1;
+    K = _KF_gain1;
+  elseif _SSM_parameters[1] == 2;
+    K = _KF_gain2;
+  endif;
+
+  retp(K);
+endp;
+
+proc (1) = _KF_Gain1;
+  local N,m,Z,T,Pt_1,Ft_inv,Nobs;
+  local i,Kt,K;
+
+  N = _SSM_parameters[2];
+  m = _SSM_parameters[3];
+
+  Z = _SSM_Z; T = _SSM_T;
+
+  Pt_1 = KF_matrix(6);
+  Ft_inv = KF_matrix(8);
+
+  Nobs = rows(Pt_1);
+
+  K = miss(zeros(Nobs,m*N),0);
+
+  Z = Z';
+
+  i = 1;
+  do until i > Nobs;
+
+    if ismiss(Pt_1[i,.]);
+      i = i + 1;
+      continue;
+    else;
+      Kt = T*xpnd(Pt_1[i,.]')*Z*xpnd(Ft_inv[i,.]');
+      K[i,.] = vec(Kt)';
+      i = i + 1;
+    endif;
+
+  endo;
+
+  retp(K);
+endp;
+
+proc (1) = _KF_Gain2;
+  local N,m,Z,T,Pt_1,Ft_inv,Nobs;
+  local i,Zt,Tt,Kt,K;
+
+  N = _SSM_parameters[2];
+  m = _SSM_parameters[3];
+
+  Z = _SSM_Z; T = _SSM_T;
+  local Z:proc,T:proc;
+
+  Pt_1 = KF_matrix(6);
+  Ft_inv = KF_matrix(8);
+
+  Nobs = rows(Pt_1);
+
+  K = miss(zeros(Nobs,m*N),0);
+
+  i = 1;
+  do until i > Nobs-1;
+
+    if ismiss(Pt_1[i,.]);
+      i = i + 1;
+      continue;
+    else;
+      Zt = Z(i); Tt = T(i+1);
+      Kt = Tt*xpnd(Pt_1[i,.]')*Zt'*xpnd(Ft_inv[i,.]');
+      if ismiss(Kt);
+        i = i + 1;
+        continue;
+      endif;
+      K[i,.] = vec(Kt)';
+      i = i + 1;
+    endif;
+
+  endo;
+
+  retp(K);
+endp;
+
+
+/*
+** bootstrap_SSM
+*/
+
+proc (2) = bootstrap_SSM(a0);
+  local y,a;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[5] /= 1;
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 1;
+
+    {y,a} = _bootstrap_SSM1(a0);
+
+  else;
+
+    {y,a} = _bootstrap_SSM2(a0);
+
+  endif;
+
+  retp(y,a);
+endp;
+
+
+
+proc (2) = _bootstrap_SSM1(a0);
+  local K,retcode,Nobs,Ft,vt,N,m;
+  local e,P,y,a,i,Pchol,et,oldtrap;
+  local Z,T,c,d,asimul,Tstar,Rstar,cstar,Kt,retcode2;
+
+  K = KF_Gain;
+  {K,retcode} = MISSING(K,0);
+  Nobs = rows(K);
+
+  N = _SSM_parameters[2];
+  m = _SSM_parameters[3];
+
+  if ( rows(a0) /= m ) or ( cols(a0) /= 1 );
+    ERRORLOG "error: Vector a0 is not conformable.";
+    end;
+  endif;
+
+  Ft = KF_matrix(7);
+  vt = KF_matrix(2);
+
+  {Ft,retcode} = MISSING(Ft,0);
+  {vt,retcode} = MISSING(vt,0);
+
+  e = zeros(Nobs,N);
+  P = zeros(Nobs,N^2);
+
+  y = zeros(Nobs,N);
+  a = zeros(Nobs,m);
+
+  /* step 1: standardized innovations */
+
+  i = 1;
+  do until i > Nobs;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Pchol = chol(xpnd(Ft[i,.]'))';
+    trap oldtrap,1;
+    if scalerr(Pchol);
+      ERRORLOG "error: Can't compute the cholesky decomposition of F(t).";
+      call pause(2);
+      retp(error(0),error(0));
+    endif;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    et = inv(Pchol)*vt[i,.]';
+    trap oldtrap,1;
+    if scalerr(et);
+      ERRORLOG "error: Can't inverse the cholesky decomposition of F(t).";
+      call pause(2);
+      retp(error(0),error(0));
+    endif;
+
+    P[i,.] = vec(Pchol)';
+    e[i,.] = et';
+
+    i = i + 1;
+  endo;
+
+  /* step 2: bootstrap sample of standardized innovations */
+
+  e = bootstrap(e);
+
+  /* step 3: bootstrap data set of y(t) and a(t+1|t) */
+
+  Z = _SSM_Z; T = _SSM_T; c = _SSM_c; d = _SSM_d;
+
+  Tstar = (zeros(N,N)~Z)|(zeros(m,N)~T);
+  cstar = d|c;
+
+  asimul = zeros(N,1)|a0;
+
+  i = 1;
+  do until i > Nobs;
+
+    Kt = reshape(K[i,.]',N,m)';
+    Pchol = xpnd2(P,i);
+    Rstar = Pchol|(Kt*Pchol);
+    et = e[i,.]';
+
+    asimul = Tstar*asimul + cstar + Rstar*et;
+    y[i,.] = asimul[1:N]';
+    a[i,.] = asimul[N+1:N+m]';
+
+    i = i + 1;
+  endo;
+
+  {y,retcode2} = Missing(y,retcode);
+  {a,retcode2} = Missing(a,retcode);
+
+  retp(y,a);
+endp;
+
+
+proc (2) = _bootstrap_SSM2(a0);
+  local K,retcode,Nobs,Ft,vt,N,m,retcode1;
+  local e,P,y,a,i,Pchol,et,oldtrap;
+  local Z,Zt,T,Tt,c,ct,d,dt,asimul,Tstar,Rstar,cstar,Kt,retcode2;
+
+  K = KF_Gain;
+  Nobs = rows(K);
+  {K,retcode} = MISSING(K,0);
+  retcode[Nobs] = 1;
+  Nobs = rows(K)+1;
+
+  N = _SSM_parameters[2];
+  m = _SSM_parameters[3];
+
+  if ( rows(a0) /= m ) or ( cols(a0) /= 1 );
+    ERRORLOG "error: Vector a0 is not conformable.";
+    end;
+  endif;
+
+  Ft = KF_matrix(7);
+  vt = KF_matrix(2);
+
+  {Ft,retcode1} = MISSING(Ft,0);
+  {vt,retcode1} = MISSING(vt,0);
+
+  e = zeros(Nobs,N);
+  P = zeros(Nobs,N^2);
+
+  y = zeros(Nobs,N);
+  a = zeros(Nobs,m);
+
+  /* step 1: standardized innovations */
+
+  i = 1;
+  do until i > Nobs;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Pchol = chol(xpnd(Ft[i,.]'))';
+    trap oldtrap,1;
+    if scalerr(Pchol);
+      ERRORLOG "error: Can't compute the cholesky decomposition of F(t).";
+      call pause(2);
+      retp(error(0),error(0));
+    endif;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    et = inv(Pchol)*vt[i,.]';
+    trap oldtrap,1;
+    if scalerr(et);
+      ERRORLOG "error: Can't inverse the cholesky decomposition of F(t).";
+      call pause(2);
+      retp(error(0),error(0));
+    endif;
+
+    P[i,.] = vec(Pchol)';
+    e[i,.] = et';
+
+    i = i + 1;
+  endo;
+
+  /* step 2: bootstrap sample of standardized innovations */
+
+  e = bootstrap(e);
+
+  /* step 3: bootstrap data set of y(t) and a(t+1|t) */
+
+  Z = _SSM_Z; T = _SSM_T; c = _SSM_c; d = _SSM_d;
+  local Z:proc,T:proc,c:proc,d:proc;
+
+  asimul = zeros(N,1)|a0;
+
+  i = 1;
+  do until i > Nobs-1;
+
+    Zt = Z(i);
+    Tt = T(i+1);
+    dt = d(i);
+    ct = c(i+1);
+
+    Tstar = (zeros(N,N)~Zt)|(zeros(m,N)~Tt);
+    cstar = dt|ct;
+
+    Kt = reshape(K[i,.]',N,m)';
+    Pchol = xpnd2(P,i);
+    Rstar = Pchol|(Kt*Pchol);
+    et = e[i,.]';
+
+    asimul = Tstar*asimul + cstar + Rstar*et;
+    y[i,.] = asimul[1:N]';
+    a[i,.] = asimul[N+1:N+m]';
+
+    i = i + 1;
+  endo;
+
+  Zt = Z(Nobs);
+  dt = d(Nobs);
+
+  Pchol = xpnd2(P,Nobs);
+  et = e[Nobs,.]';
+  asimul = asimul[N+1:N+m];
+
+  asimul = Zt*asimul + dt + Pchol*et;
+  y[Nobs,.] = asimul';
+  a[Nobs,.] = miss(zeros(1,m),0);
+
+  {y,retcode2} = Missing(y,retcode);
+  {a,retcode2} = Missing(a,retcode);
+
+  retp(y,a);
+endp;
+

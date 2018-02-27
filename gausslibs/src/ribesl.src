@@ -1,0 +1,277 @@
+/*
+**   ribesl.src  -  modified bessel function
+**
+** (C) Copyright 1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                        Purpose                      line
+** ----------------------------------------------------------------------
+**  y = mbesseli(x,n,alpha)   modified Bessel of order n         37
+**
+**  y = mbesseli0(x)          modified Bessel of zero order      89
+**
+**  y = mbesseli1(x)          modified Bessel of first order    126
+**
+**  y = mbesselei(x,n,alpha)  exponentially scaled modified     161
+**                            Bessel of order n
+**
+**  y = mbesselei0(x)         exponentially scaled modified     211
+**                            Bessel of zero order
+**
+**  y = mbesselei1(x)         exponentially scaled modified     248
+**                            Bessel of first order
+*/
+
+/*
+**> mbesseli
+**
+**  Purpose:  Sequence of modified Bessels of the first kind.
+**
+**  Format:    y = mbesseli(x,n,alpha)
+**
+**  Input:     x       Kx1 vector, abscissae
+**
+**             n       scalar, highest order
+**
+**         alpha       scalar,  0 >= alpha < 1.
+**
+**
+**  Output:    y       Kxn matrix,  evaluations of the modified Bessel of the
+**                     first kind
+**
+**
+**  Remarks:
+**
+**   For each value in x, a sequence of modified Bessel values are
+**   computed of different orders:
+**
+**     x[i] -->  I_(alpha)(x), I_(alpha + 1)(x),...,I_(alpha+nb-1)(x)
+**
+**   For modified Bessels if orders zero and one, therefore,
+**   set alpha = 0, and n = 2:
+**
+**      x = rndn(4,1);
+**      y = mbesseli(x,2,0);
+*/
+
+
+
+proc mbesseli(x,n,alpha);
+
+    local y, ize,rx;
+
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,n);
+    ize = 1;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(y);
+endp;
+
+
+
+
+
+/*
+**> mbesseli0
+**
+**  Purpose:  Modified Bessel of the first kind of zero order.
+**
+**  Format:     y = mbesseli0(x)
+**
+**  Input:      x      Kx1 vector, abscissae
+**
+**
+**  Output:     y      Kxn matrix, evaluations of the modified
+**                     Bessel of the zero-th order
+**
+*/
+
+proc mbesseli0(x);
+
+    local y, alpha,ize,rx,rx0,cx0,n;
+
+    rx0 = rows(x);
+    cx0 = cols(x);
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,1);
+    n = 1;
+    alpha = 0;
+    ize = 1;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(reshape(y,cx0,rx0)');
+endp;
+
+
+
+
+
+/*
+**> mbesseli1
+**
+**  Purpose:  Modified Bessel of the first kind of the first order.
+**
+**  Format:     y = mbesseli1(x)
+**
+**  Input:      x       Kx1 vector, abscissae
+**
+**
+**  Output:     y       Kxn matrix, evaluations of the modified Bessel
+**                      of the first order
+**
+*/
+
+proc mbesseli1(x);
+
+    local y, alpha,ize,rx,rx0,cx0,n;
+
+    rx0 = rows(x);
+    cx0 = cols(x);
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,2);
+    n = 2;
+    alpha = 0;
+    ize = 1;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(reshape(y[.,2],cx0,rx0)');
+endp;
+
+
+
+/*
+**> mbesselei
+**
+**  Purpose:  Sequence of modified exponentially scaled Bessels of the
+**            first kind.
+**
+**  Format:    y = mbesselei(x,n,alpha)
+**
+**  Input:     x     Kx1 vector, abscissae
+**
+**             n     scalar, highest order
+**
+**         alpha     scalar,  0 >= alpha < 1.
+**
+**
+**  Output:    y     Kxn matrix, modified exponentially scaled evaluations
+**                   of the Bessel function of the first kind
+**
+**  Remarks:
+**
+**   For each value in x, a sequence of modified Bessel
+**   values are computed of different orders:
+**
+**     x[i] -->  I_(alpha)(x), I_(alpha + 1)(x),...,I_(alpha+nb-1)(x)
+**
+**   For modified Bessels if orders zero and one, therefore,
+**   set alpha = 0, and n = 2:
+**
+**      x = rndn(4,1);
+**      y = mbesselei(x,2,0);
+*/
+
+proc mbesselei(x,n,alpha);
+
+    local y, ize,rx;
+
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,n);
+    ize = 2;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(y);
+endp;
+
+
+
+
+
+/*
+**> mbesselei0
+**
+**  Purpose:  Modified exponentially scaled Bessels of the first kind of
+**            zero order.
+**
+**  Format:      y = mbesselei0(x)
+**
+**  Input:       x      Kx1 vector, abscissae
+**
+**  Output:      y      Kxn matrix, modified exponentially scaled
+**                      Bessels of the zero-th order
+**
+*/
+
+proc mbesselei0(x);
+
+    local y, alpha,ize,rx,rx0,cx0,n;
+
+    rx0 = rows(x);
+    cx0 = cols(x);
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,1);
+    n = 1;
+    alpha = 0;
+    ize = 2;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(reshape(y,cx0,rx0)');
+endp;
+
+
+
+
+
+/*
+**> mbesselei1
+**
+**  Purpose:  Modified exponentially scaled Bessels of the first kind of
+**            the first order.
+**
+**  Format:      y = mbesselei1(x)
+**
+**  Input:       x      Kx1 vector, abscissae
+**
+**  Output:      y      Kxn matrix, modified exponentially scaled
+**                      Bessels of the first order
+*/
+
+proc mbesselei1(x);
+
+    local y, alpha,ize,rx,rx0,cx0,n;
+
+    rx0 = rows(x);
+    cx0 = cols(x);
+    x = vec(x);
+    rx = rows(x);
+    y = zeros(rx,2);
+    n = 2;
+    alpha = 0;
+    ize = 2;
+
+    dllcall ribesldll(x,rx,y,n,alpha,ize);
+
+    retp(reshape(y[.,2],cx0,rx0)');
+endp;

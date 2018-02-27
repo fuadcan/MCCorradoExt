@@ -1,0 +1,863 @@
+/*
+** time.src
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Format                 Purpose
+** ==========================================================================
+** d = datestr(d);        formats date as a string: mo/dy/yr
+** d = datestring(d);     formats date as a string: mo/dy/yyyy
+** d = datestrymd(d);     formats date as a string: yyyymmdd
+** t = timestr(t);        formats time as a string: hr:mn:sc
+** s = etstr(tothsecs);   converts time in 1/100 sec to a string of the
+**                        form: # days  # hours  # minutes  #.## seconds
+** etdy = etdays(ds,de);  elapsed time between dates in days
+** eths = ethsec(ds,de);  elapsed time between dates in 100's of seconds
+** daynum = dayinyr(dt);  day number in year of a date
+** dt = dtvtodt(dtv);     Converts DTV vector format to DT scalar format
+** dtv = dttodtv(dt);     Converts DT scalar format to DTV vector format
+** utc = dttoutc(dt);     Converts DT scalar format to UTC scalar format
+** dt = utctodt(utc);     Converts UTC scalar format to DT scalar format
+** dt = dtday(year, month, day);   Creates a DT scalar format date, midnight.
+** dt = dttime(hour, minute, second);    Creates a DT scalar time, no date.
+** dt = dtdate(year, month, day, hour, minute, second);
+** dt = todaydt;           Returns system date in DT scalar format, midnight.
+** dt = timedt;            Returns system time and date in DT scalar format.
+** d = dayofweek(a);      Returns day of week from dates in DT scalar format.
+*/
+
+/*
+**> datestr
+**
+**  Purpose:    Formats a date in a vector to a string.
+**
+**  Format:     d = datestr(d);
+**
+**  Input:      t    4x1 vector from the DATE function or a zero.  If
+**                   the input is 0 the DATE function will be called
+**                   to return the current system date.
+**
+**  Output:     d    8 character string containing a date in the format:
+**
+**                           mo/dy/yr
+**
+**  Globals:    None
+**
+**  See Also:  date, datestring, datestrymd, time, timestr, ethsec, etstr
+*/
+
+proc datestr(dt);
+    if dt == 0;
+        dt = DATE;
+    endif;
+    retp( ftos(dt[2],"%*.*lf",2,0) $+ "/" $+ ftos(dt[3],"%0*.*lf",2,0) $+ "/"
+        $+ ftos(dt[1]%100,"%0*.*lf",2,0) );
+endp;
+
+/*
+**> datestring
+**
+**  Purpose:    Formats a date in a vector to a Yr2000-compliant string.
+**
+**  Format:     d = datestring(d);
+**
+**  Input:      t    4x1 vector from the DATE function or a zero.  If
+**                   the input is 0 the DATE function will be called
+**                   to return the current system date.
+**
+**  Output:     d    10 character string containing a date in the format:
+**
+**                           mo/dy/yyyy
+**
+**  Globals:    None
+**
+**  See Also:  date, datestr, datestrymd, time, timestr, ethsec, etstr
+*/
+
+proc datestring(dt);
+    if dt == 0;
+        dt = DATE;
+    endif;
+    retp( ftos(dt[2],"%*.*lf",2,0) $+ "/" $+ ftos(dt[3],"%0*.*lf",2,0) $+ "/"
+        $+ ftos(dt[1],"%0*.*lf",4,0) );
+endp;
+
+/*
+**> datestrymd
+**
+**  Purpose:    Formats a date in a vector to a string.
+**
+**  Format:     d = datestrymd(d);
+**
+**  Input:      t    4x1 vector from the DATE function or a zero.  If
+**                   the input is 0 the DATE function will be called
+**                   to return the current system date.
+**
+**  Output:     d    8 character string containing a date in the format:
+**
+**                           yyyymmdd
+**
+**  Globals:    None
+**
+**  See Also:  date, datestr, datestring, time, timestr, ethsec, etstr
+*/
+
+proc datestrymd(dt);
+    if dt == 0;
+        dt = DATE;
+    endif;
+    retp( ftos(dt[1],"%0*.*lf",4,0) $+ ftos(dt[2],"%0*.*lf",2,0) $+
+        ftos(dt[3],"%0*.*lf",2,0) );
+endp;
+
+/*
+**> timestr
+**
+**  Purpose:    Formats a time in a vector to a string.
+**
+**  Format:     ts = timestr(t);
+**
+**  Input:      t     4x1 vector from the time function, or a zero.  If
+**                    the input is 0 the time function will be called
+**                    to return the current system time.
+**
+**  Output:     ts    8 character string containing current time in
+**                    the format:
+**
+**                           hr:mn:sc
+**
+**  Globals:    None
+**
+**  See Also:   time, date, datestr, datestring, dateymd, ethsec, etstr
+*/
+
+proc timestr(t);
+    if t == 0;
+        t = time;
+    endif;
+    retp( ftos(t[1],"%*.*lf",2,0) $+ ":" $+ ftos(t[2],"%0*.*lf",2,0) $+ ":" $+
+        ftos(t[3],"%0*.*lf",2,0) );
+endp;
+
+/*
+**> etstr
+**
+**  Purpose:    Formats an elapsed time measured in hundredths of a
+**              second to a string.
+**
+**  Format:     str = etstr(tothsecs);
+**
+**  Input:      tothsecs    scalar, an elapsed time measured in hundredths
+**                          of a second, as given, for instance, by the
+**                          ethsec function.
+**
+**  Output:     str         string containing the elapsed time in the form:
+**
+**                          # days  # hours # minutes #.## seconds
+**
+**  Globals:    None
+*/
+
+proc etstr(tothsecs);
+    local str,totdays,days,tothrs,hrs,totmins,mins,secs;
+
+    totdays = tothsecs/100/60/60/24;
+    days = floor(totdays);
+    tothrs = (totdays-days)*24;
+    hrs = floor(tothrs);
+    totmins = (tothrs-hrs)*60;
+    mins = floor(totmins);
+    secs = (totmins-mins)*60;
+
+    if days > 1;
+        str = ftos(days,"%*.*lf",1,0) $+ " days  ";
+    elseif days == 1;
+        str = ftos(days,"%*.*lf",1,0) $+ " day  ";
+    else;
+        str = "";
+    endif;
+    if hrs;
+        str = str $+ ftos(hrs,"%*.*lf",1,0) $+ " hours  ";
+    endif;
+    if mins;
+        str = str $+ ftos(mins,"%*.*lf",1,0) $+ " minutes  ";
+    endif;
+    str = str $+ ftos(secs,"%*.*lf",1,2) $+ " seconds";
+    retp(str);
+endp;
+
+/*
+**> etdays
+**
+**  Purpose:    Computes the difference between two times, as generated by
+**              the date command, in days.
+**
+**  Format:     etdy = etdays(tstart,tend);
+**
+**  Input:      tstart    3x1 or 4x1 vector, starting date, in the order:
+**                        yr, mo, day. (Only first 3 elements are used.)
+**
+**              tend      3x1 or 4x1 vector, ending date, in the order:
+**                        yr, mo, day. (Only first 3 elements are used.)
+**                        MUST be later than tstart.
+**
+**  Output:     etdy      scalar, elapsed time measured in days.
+**
+**  Remarks:    This will work correctly across leap years and centuries.
+**              The assumption is a Gregorian calendar, with leap years
+**              on the non-centenary years evenly divisible by 4 and the
+**              centenary years evenly divisible by 400.
+**
+**  Example:    let date1 = 1986 1 2;
+**              let date2 = 1987 10 25;
+**              d = etdays(date1,date2);
+**
+**              d = 661
+**
+**  Globals:    _isleap(), _daypryr(), dayinyr()
+*/
+
+proc etdays(tstart,tend);
+    local totdays,yr1,yr2,mo1,mo2,day1,day2;
+
+    if not(tstart >= 0) and not(tend >= 0);
+        errorlog "ERROR: Illegal dates.";
+        end;
+    endif;
+
+    yr1 = tstart[1];        /* beginning year */
+    yr2 = tend[1];          /* ending year */
+    mo1 = tstart[2];        /* beginning month */
+    mo2 = tend[2];          /* ending month */
+    day1 = tstart[3];       /* beginning day */
+    day2 = tend[3];         /* ending day */
+
+    if yr1 == yr2;
+        if mo1 == mo2;
+            totdays = day2-day1;
+        elseif mo1 < mo2;
+            totdays = dayinyr(tend) - dayinyr(tstart);
+        else;
+            goto errout;
+        endif;
+    elseif yr1 < yr2;
+        totdays = _daypryr(yr1) - dayinyr(tstart) + dayinyr(tend);
+        if (yr2-yr1 > 1);
+            totdays = totdays + sumc(_daypryr(seqa(yr1+1,1,yr2-yr1-1)));
+        endif;
+    else;
+        goto errout;
+    endif;
+    if totdays < 0;
+        goto errout;
+    endif;
+    retp( totdays );
+errout:
+
+    errorlog "ERROR Dates need to be reversed";
+endp;
+
+/*
+**> ethsec
+**
+**  Purpose:    Computes the difference between two times, as generated by
+**              the date command, in hundredths of a second.
+**
+**  Format:     eths = ethsec(tstart,tend);
+**
+**  Input:      tstart    4x1 vector, starting date, in the order:
+**                        yr, mo, day, hundredths of a second.
+**
+**              tend      4x1 vector, ending date, in the order:
+**                        yr, mo, day, hundredths of a second.
+**                        MUST be later date than tstart.
+**
+**  Output:     eths      scalar, elapsed time measured in hundredths of
+**                        a second.
+**
+**  Remarks:    This will work correctly across leap years and centuries.
+**              The assumption is a Gregorian calendar, with leap years
+**              on the non-centenary years evenly divisible by 4 and the
+**              centenary years evenly divisible by 400.
+**
+**  Example:    let date1 = 1986 1 2 0;
+**              let date2 = 1987 10 25 0;
+**              t = ethsec(date1,date2);
+**
+**              t = 5711040000
+**
+**  Globals:    _isleap(), _daypryr(), dayinyr()
+*/
+
+proc ethsec(tstart,tend);
+    local toths,totdays,yr1,yr2,mo1,mo2,day1,day2,hs1,hs2;
+
+    if not(tstart >= 0) and not(tend >= 0);
+        errorlog "ERROR: Illegal dates.";
+        end;
+    endif;
+
+    yr1 = tstart[1];        /* beginning year */
+    yr2 = tend[1];          /* ending year */
+    mo1 = tstart[2];        /* beginning month */
+    mo2 = tend[2];          /* ending month */
+    day1 = tstart[3];       /* beginning day */
+    day2 = tend[3];         /* ending day */
+    hs1 = tstart[4];        /* starting hundredths of a second */
+    hs2 = tend[4];          /* ending hundredths of a second */
+
+    if yr1 == yr2;
+        if mo1 == mo2;
+            totdays = day2-day1;
+        elseif mo1 < mo2;
+            totdays = dayinyr(tend) - dayinyr(tstart);
+        else;
+            goto errout;
+        endif;
+    elseif yr1 < yr2;
+        totdays = _daypryr(yr1) - dayinyr(tstart) + dayinyr(tend);
+        if (yr2-yr1 > 1);
+            totdays = totdays + sumc(_daypryr(seqa(yr1+1,1,yr2-yr1-1)));
+        endif;
+    else;
+        goto errout;
+    endif;
+    toths = totdays*8640000+(hs2-hs1);
+    if toths < 0;
+        goto errout;
+    endif;
+    retp(toths);
+errout:
+    errorlog "ERROR Dates need to be reversed";
+    retp(0);
+endp;
+
+/*
+**> dayinyr
+**
+**  Purpose:    Returns day number in the year of a given date.
+**
+**  Format:     daynum = dayinyr(dt);
+**
+**  Input:      dt        3x1 or 4x1 vector, date to check.
+**
+**  Output:     daynum    scalar, the day number of that date in that year.
+**
+**  Globals:    _isleap()
+*/
+
+proc dayinyr(dt);
+    local daymo;
+    let daymo = 31 28 31 30 31 30 31 31 30 31 30 31;
+    if _isleap(dt[1]);
+        daymo[2] = 29;
+    endif;
+    if dt[2] > 1;
+        retp(sumc(daymo[1:dt[2]-1]) + dt[3]);
+    else;
+        retp(dt[3]);
+    endif;
+endp;
+
+/*
+**> _isleap
+**
+**  Input:      Nx1 vector of years.
+**
+**  Output:     Nx1 vector of 1's and 0's, 1 if leap year, 0 if not.
+*/
+
+proc _isleap(year);
+    retp( .not(year%4) .and (year%100 .or year.<1800) .or .not(year%400) );
+endp;
+
+/*
+**> _daypryr
+**
+**  Input:      Nx1 vector of years.
+**
+**  Output:     Nx1 vector of 365's and 366's.
+*/
+
+proc _daypryr(year);
+    retp(_isleap(year)+365);
+endp;
+
+
+
+/*
+**> dtvtodt
+**
+**  Purpose:       Converts DT vector format to DT scalar format
+**
+**  Format:        dt = dtvtodt(dtv);
+**
+**  Input:                       dtv         Nx8 matrix, DTV vector format
+**
+**  Output:                      dt          Nx1 vector, DT scalar format
+**
+**  Remarks:       Each row of dtv, in DTV vector format, contains:
+**
+**                          [N,1]       Year
+**                          [N,2]       Month in Year, 1-12
+**                          [N,3]       Day of month, 1-31
+**                          [N,4]       Hours since midnight, 0-23
+**                          [N,5]       Minutes, 0-59
+**                          [N,6]       Seconds, 0-59
+**                          [N,7]       Day of week, 0-6, 0 = Sunday
+**                          [N,8]       Days since Jan 1 of current year, 0-365
+**
+**                 In DT scalar format, 11:06:47 on March 15, 2001 is
+**                    20010315110647.
+**
+**
+**  Example:
+**
+**      let dtv = { 2001 3 26 11 7 22 1 84 };
+**      print "dtv = " dtv;
+**      dt = dtvtodt(dtv);
+**      print "dt = " dt;
+**
+**      dtv =  2001 3 26 11 7 22 1 84;
+**      dt  = 20010326110722
+**
+**
+**  See:  dtvnormal, timeutc, utctodtv, dttodtv, dtvtodt, dttoutc, dtvtodt,
+**        strtodt, dttostr
+**
+**
+*/
+
+proc dtvtodt(dtv);
+    dtv = dtvnormal(dtv);
+    retp(dtv[.,1] .* 1e+10 +
+         dtv[.,2] .* 1e+8 +
+         dtv[.,3] .* 1e+6 +
+         dtv[.,4] .* 1e+4 +
+         dtv[.,5] .* 1e+2 +
+         dtv[.,6]
+        );
+endp;
+
+
+/*
+**> dttodtv
+**
+**  Purpose:       Converts DT scalar format to DTV vector format.
+**
+**  Format:        dtv = dttodtv(dt);
+**
+**  Input:         dt          Nx1 vector, DT scalar format
+**
+**  Output:        dtv          Nx8 matrix, DTV vector format
+**
+**  Remarks:       In DT scalar format, 11:06:47 on March 15, 2001 is
+**                    20010315110647.
+**
+**                 Each row of dtv, in DTV vector format, contains:
+**
+**                    [N,1]       Year
+**                           [N,2]       Month in Year, 1-12
+**                           [N,3]       Day of month, 1-31
+**                           [N,4]       Hours since midnight, 0-23
+**                           [N,5]       Minutes, 0-59
+**                           [N,6]       Seconds, 0-59
+**                           [N,7]       Day of week, 0-6, 0 = Sunday
+**                           [N,8]       Days since Jan 1 of current year, 0-365
+**
+**
+**  Example:
+**
+**      dt  = 20010326110722;
+**      print "dt = " dt;
+**      dtv = dttodtv(dt);
+**      print "dtv = " dtv;
+**
+**      dt  = 20010326110722
+**      dtv = 2001 3 26 11 7 22 1 84
+**
+**
+**  See: dtvnormal, timeutc, utctodtv, dtvtodt, dttoutc, dtvtodt, strtodt,
+**       dttostr
+**
+*/
+
+proc dttodtv(dt);
+    retp(dtvnormal(trunc(dt/1e10) ~
+                   trunc( fmod( dt, 1e10 ) / 1e8 ) ~
+                   trunc( fmod( dt, 1e8 ) / 1e6 ) ~
+                   trunc( fmod( dt, 1e6 ) / 1e4 ) ~
+                   trunc( fmod( dt, 1e4 ) / 1e2 ) ~
+                   fmod( dt, 1e2 ) ~
+                   zeros(rows(dt),2)
+                  )
+        );
+endp;
+
+/*
+**> dttoutc
+**
+**   Purpose:      Converts DT scalar format to UTC scalar format
+**
+**  Format:        utc = dttoutc(dt);
+**
+**  Input:         dt          Nx1 vector, DT scalar format
+**
+**  Output:        utc          Nx1 vector, UTC scalar format.
+**
+**  Remarks:       In DT scalar format, 11:06:47 on March 15, 2001 is
+**                    20010315110647.
+**
+**                 A UTC scalar gives the number of seconds since or before
+**                 January 1, 1970 Greenwich Mean Time.
+**
+**  Example:
+**
+**      dt =  20010326085118;
+**      tc = dttoutc(dt);
+**      print "utc = " utc;
+**
+**      tc =  985633642;
+**
+**  See: dtvnormal, timeutc, utctodtv, dttodtv, dtvtodt, dtvtoutc, dtvtodt,
+**       strtodt, dttostr
+**
+*/
+
+proc dttoutc(dt);
+    retp(dtvtoutc(dttodtv(dt)));
+endp;
+
+
+
+/*
+**> utctodt
+**
+**
+**  Purpose:     Converts UTC scalar format to DT scalar format.
+**
+**  Format:      dt = utctodt(utc);
+**
+**  Input:       utc          Nx1 vector, UTC scalar format.
+**
+**  Output:      dt           Nx1 matrix, DT scalar format
+**
+**  Remarks:     A UTC scalar gives the number of seconds since or before
+**               January 1, 1970 Greenwich Mean Time.
+**
+**               In DT scalar format, 11:06:47 on March 15, 2001 is 20010315110647.
+**
+**  Example:
+**
+**      tc =  985633642;
+**      print "tc = " tc;
+**      dt = utctodt(tc);
+**      print "dt = " dt;
+**
+**      tc = 985633642
+**      dt = 20010326110722
+**
+**
+**  See: dtvnormal, timeutc, utctodtv, dttodtv, dtvtodt, dttoutc, dtvtodt, strtodt, dttostr
+**
+*/
+
+proc utctodt(utc);
+    retp(dtvtodt(utctodtv(utc)));
+endp;
+
+
+/*
+**> dtday
+**
+**  Purpose:
+**
+**     Creates a matrix in DT scalar format containing only
+**     the year, month and day. Time of day information is
+**     zeroed out.
+**
+**
+**  Format:
+**
+**     dt = dtday(year, month, day);
+**
+**
+**  Input:
+**
+**     year     NxK matrix of years.
+**
+**     month    NxK matrix of months, 1-12.
+**
+**     day      NxK matrix of days, 1-31.
+**
+**
+**  Output:
+**
+**              NxK matrix of DT scalar format dates.
+**
+**
+**  Remarks:
+**              This amounts to 00:00:00 or midnight on the
+**              given day.
+**
+**              The arguments must be ExE conformable.
+**
+**
+**  See also:
+**
+**      dttime, dtdate, utctodt, dttostr
+**
+*/
+
+proc dtday(year, month, day);
+    retp(year  * 10000000000 +
+         month * 100000000 +
+         day   * 1000000);
+endp;
+
+
+/*
+**> dttime
+**
+**  Purpose:
+**
+**     Creates a matrix in DT scalar format containing only
+**     the hour, minute and second. The date information is
+**     zeroed out.
+**
+**
+**  Format:
+**
+**     dt = dttime(hour, minute, second);
+**
+**
+**  Input:
+**
+**     hour     NxK matrix of hours, 0-23.
+**
+**     minute   NxK matrix of minutes, 0-59.
+**
+**     second   NxK matrix of seconds, 0-59.
+**
+**
+**  Output:
+**
+**              NxK matrix of DT scalar format times.
+**
+**
+**  Remarks:
+**              The arguments must be ExE conformable.
+**
+**
+**  See also:
+**
+**      dtday, dtdate, utctodt, dttostr
+**
+*/
+
+proc dttime(hour, minute, second);
+    retp(hour   * 10000 +
+         minute * 100 +
+         second);
+endp;
+
+/*
+**> dtdate
+**
+**  Purpose:
+**
+**     Creates a matrix in DT scalar format.
+**
+**
+**  Format:
+**
+**     dt = dtdate(year, month, day, hour, minute, second);
+**
+**
+**  Input:
+**
+**     year     NxK matrix of years.
+**
+**     month    NxK matrix of months, 1-12.
+**
+**     day      NxK matrix of days, 1-31.
+**
+**     hour     NxK matrix of hours, 0-23.
+**
+**     minute   NxK matrix of minutes, 0-59.
+**
+**     second   NxK matrix of seconds, 0-59.
+**
+**
+**  Output:
+**
+**              NxK matrix of DT scalar format dates.
+**
+**
+**  Remarks:
+**              The arguments must be ExE conformable.
+**
+**
+**  See also:
+**
+**      dtday, dttime, utctodt, dttostr
+**
+*/
+
+proc dtdate(year, month, day, hour, minute, second);
+    retp(dtday(year, month, day) +
+         dttime(hour, minute, second));
+endp;
+
+/*
+**> todaydt
+**
+**  Purpose:
+**
+**      Returns system date in DT scalar format. The time
+**      returned is always midnight (00:00:00), the
+**      beginning of the returned day.
+**
+**
+**  Format:
+**
+**      dt = todaydt;
+**
+**
+**  Output:
+**
+**      dt   scalar, system date in DT scalar format.
+**
+**
+**  Remarks:
+**
+**     The DT scalar format is a double precision representation of the date
+**     and time. In the DT scalar format, the number
+**
+**         20010421183207
+**
+**     represents 18:32:07 or 6:32:07 PM on April 21, 2001.
+**
+**
+**  See also:
+**
+**      timedt, timeutc, dtdate
+**
+*/
+
+proc todaydt;
+    retp(floor(utctodt(timeutc)/1000000)*1000000);
+endp;
+
+
+/*
+**> timedt
+**
+**  Purpose:
+**
+**      Returns system date and time in DT scalar format.
+**
+**
+**  Format:
+**
+**      dt = timedt;
+**
+**
+**  Output:
+**
+**      dt   scalar, system date and time in DT scalar format.
+**
+**
+**  Remarks:
+**
+**     The DT scalar format is a double precision representation of the date
+**     and time. In the DT scalar format, the number
+**
+**         20010421183207
+**
+**     represents 18:32:07 or 6:32:07 PM on April 21, 2001.
+**
+**
+**  See also:
+**
+**      todaydt, timeutc, dtdate
+**
+*/
+
+proc timedt;
+    retp(utctodt(timeutc));
+endp;
+
+
+
+
+
+
+
+/*
+**> dayofweek
+**
+**  Purpose:
+**
+**      Returns day of week
+**
+**
+**  Format:
+**
+**      d = dayofweek(a);
+**
+**
+**  Input:
+**
+**      a    NxK matrix, dates in DT format
+**
+**  Output:
+**
+**      d    NxK matrix, integers indicating day of week of date:
+**
+**                       1   Sunday
+**                       2   Monday
+**                       3   Tuesday
+**                       4   Wednesday
+**                       5   Thursday
+**                       6   Friday
+**                       7   Saturday
+**
+**
+**  Remarks:
+**
+**     The DT scalar format is a double precision representation of the date
+**     and time. In the DT scalar format, the number
+**
+**         20010421183207
+**
+**     represents 18:32:07 or 6:32:07 PM on April 21, 2001.
+**
+**
+*/
+
+
+
+
+proc dayOfWeek(a);
+
+    local b;
+    for i(1,cols(a),1);
+        b = dttodtv(a);
+        a[.,i] = b[.,7] + 1;
+    endfor;
+    retp(a);
+
+endp;
+

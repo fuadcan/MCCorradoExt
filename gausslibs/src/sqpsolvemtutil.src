@@ -1,0 +1,86 @@
+/*
+** sqpsolvemtutil.src
+**
+**
+** (C) Copyright 1997-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+
+
+/*
+**> sqpSolveMTlagrangeCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTlagrange set to
+**                  default values
+**
+**  Format:     s = sqpSolveMTlagrangeCreate;
+**
+**  Output:     s      instance of type sqpSolveMTlagrangeCreate
+**
+*/
+
+proc sqpSolveMTlagrangeCreate;
+    struct SQPsolveMTlagrange lagr1;
+    lagr1.lineq = error(0);
+    retp(lagr1);
+endp;
+
+
+
+
+/*
+**> sqpSolveMToutCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTout set to
+**                  default values
+**
+**  Format:     s = sqpSolveControlCreate;
+**
+**  Output:     s      instance of type sqpSolveControlCreate
+**
+*/
+
+proc sqpSolveMToutCreate;
+    struct SQPsolveMTout out1;
+    out1.par = pvCreate;
+    out1.lagr = sqpSolveMTLagrangeCreate;
+    retp(out1);
+endp;
+
+
+
+
+/*
+**> sqpSolveMTcontrolCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTcontrol set to
+**                  default values
+**
+**  Format:     s = sqpSolveMTcontrolCreate;
+**
+**  Output:     s      instance of type sqpSolveMTcontrolCreate
+**
+*/
+
+
+
+proc sqpSolveMTcontrolCreate;
+    struct SQPsolveMTcontrol c1;
+    c1.output = 0;
+    retp(c1);
+endp;
+
+
+

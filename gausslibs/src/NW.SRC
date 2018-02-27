@@ -1,0 +1,57 @@
+/*
+** nw.src - Time Series Modelling.
+** (C) Copyright 1996 by Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  sigma2 = _nw_sigma2(x,l)      Newey-West estimator of the variance     13
+*/
+
+
+/*
+** _nw_sigma2
+**
+** Purpose: Compute the Newey-West estimator of the variance of a process.
+**
+** Format:  sigma2 = _nw_sigma2(x,l);
+**
+** Input:         x - Nobs*1 vector, data.
+**                l - scalar, the lag.
+**
+** Output:   sigma2 - scalar, the NW estimate.
+**
+*/
+
+
+/*
+**  The Newey and West estimator
+*/
+
+
+proc _nw_sigma2(u,l);
+  local T,s,w,e0,e,sig2,ulag;
+
+  u = packr(u); u = u-meanc(u);
+  T = rows(u);
+  if l == 0;
+
+    e0 = u^2;
+    sig2 = sumc(e0)/T;
+
+  else;
+
+    s = seqa(1,1,l);
+    w = 1-s/(l+1);
+    e0 = u^2;
+    ulag = shiftr(u'.*ones(l,T),seqa(1,1,l),0)';
+    e = sumc(u.*ulag);
+    sig2 = sumc(e0)+2*sumc(w.*e); sig2 = sig2/T;
+
+  endif;
+
+  retp(sig2);
+endp;
+
+
+

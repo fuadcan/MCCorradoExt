@@ -1,0 +1,91 @@
+/*
+** kpss.src - Time Series Modelling.
+** (C) Copyright 1996 by Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {nu,tau} = kpss(x,order)      KPSS test                                13
+*/
+
+
+/*
+** kpss
+**
+** Purpose: Compute the KPSS nu and tau statistics
+**
+**          Kwiatkowski, Phillips, Schmidt and Shin [1992],
+**          Testing the null hypothesis of stationarity against
+**          the alternative of a unit root: how sure are we that
+**          economic series have a unit root,
+**          Journal of Econometrics, 54, 159-178
+**
+** Format:  {nu,tau} = kpss(x,order);
+**
+** Input:     x - Nobs*1 vector, data.
+**        order - scalar, maximum lag tested.
+**
+** Output:   nu - (order+1)*1 vector, the NU statistic values.
+**          tau - (order+1)*1 vector, the TAU statistic values.
+**
+*/
+
+
+#include c:\gauss32\tsm\nw.src;
+
+proc (2) = KPSS(x,order);
+  local T,const,trend,x1,x2,beta1,beta2,u1,u2;
+  local s1,s2,nw1,nw2,nu_test,tau_test,i,fmt;
+
+  x = packr(x); T = rows(x);
+  const = ones(T,1); trend = seqa(1,1,T);
+  x1 = const;          x2 = const~trend;
+  beta1 = x/x1;        beta2 = x/x2;
+
+  u1 = x-x1*beta1;     u2 = x-x2*beta2;
+  s1 = cumsumc(u1);    s2 = cumsumc(u2);
+  s1 = sumc(s1^2);     s2 = sumc(s2^2);
+
+  nw1 = zeros(order+1,1);
+  nw2 = zeros(order+1,1);
+
+  i = 0;
+  do until i>order;
+    nw1[i+1] = _nw_sigma2(u1,i);
+    nw2[i+1] = _nw_sigma2(u2,i);
+    i = i+1;
+  endo;
+
+  nu_test = s1./nw1; nu_test = nu_test/(T^2);
+  tau_test = s2./nw2; tau_test = tau_test/(T^2);
+  i = seqa(0,1,order+1);
+
+  if _print == 1;
+    print "Kwiatkowsky, Phillips, Schmidt and Shin Test";
+    print;
+    print "      LAGS      NU-TEST       TAU-TEST";
+    print "--------------------------------------------";
+    let fmt[3,3] =
+              "*.*lf" 8 0
+              "*.*lf" 15 6
+              "*.*lf" 15 6;
+    call printfm(i~nu_test~tau_test,1~1~1,fmt);
+    print;
+    print "--------------------------------------------";
+    print "             Critical values          ";
+    print "--------------------------------------------";
+    print "           10%     5%      1%         ";
+    print "--------------------------------------------";
+    print "NU_test   0.347   0.463   0.739       ";
+    print "TAU_test  0.119   0.146   0.216       ";
+    print "--------------------------------------------";
+  endif;
+
+  retp(nu_test,tau_test);
+endp;
+
+
+
+
+
+

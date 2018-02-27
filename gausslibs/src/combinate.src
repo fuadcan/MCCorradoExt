@@ -1,0 +1,235 @@
+/*
+** combinate.src - LAPACK eigendecomposition procedures
+**
+** (C) Copyright 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** if you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**
+**  Format                              Purpose                        Line
+** ------------------------------------------------------------------------
+**  y  = combinate(n,k);                combinations                    30
+**  y  = combinated(fname,vnames,n,k);  combinations written to disk    80
+**  y  = numCombinations(n,k);          number of combinations         134
+*/
+
+
+
+/*
+**> combinate
+**
+**  Purpose:    computes combinations of n things taken k at a time
+**
+**  Format:    y = combinate(N,K);
+**
+**  Input:     N     scalar
+**
+**             K     scalar
+**
+**  Output:    y     MxK matrix, where M is the number of combinations
+**                    of N things taken K at a time.
+**
+**  Remarks:   "Things" are represented by a sequence of integers from 1 to N,
+**              and the integers in each row of Y are the combinations of those
+**              integers taken K at a time.
+**
+**  Example:
+**
+**                n = 4;
+**                k = 2;
+**                y = combinate(n,k);
+**
+**                print y;
+**
+**                1.0000   2.0000
+**                1.0000   3.0000
+**                1.0000   4.0000
+**                2.0000   3.0000
+**                2.0000   4.0000
+**                3.0000   4.0000
+**
+** See Also:   combinated, numCombinations
+*/
+
+  proc combinate(n,k);
+      local x;
+      x = seqa(1,1,k)';
+      for i(2,numCombinations(n,k),1);
+          x = x | _tcomb_(x[rows(x),.],n);
+      endfor;
+      retp(x);
+  endp;
+
+
+
+
+
+
+/*
+**> combinated
+**
+**  Purpose:    writes combinations of n things taken k at a time to a GAUSS data set
+**
+**  Format:    ret = combinated(fname,vnames,N,K);
+**
+**  Input:     fname  string, file name
+**
+**             vnames 1x1 or Kx1 string array, names of columns in data set.
+**                    If 1x1 string, names will have column number appended.
+**                    If vnames is a null string, names will be X1, X2, ....
+**
+**             N      scalar
+**
+**             K      scalar
+**
+**  Output:    ret    scalar,  if data set was successfully written, ret = number
+**                     of rows written to data set.  Otherwise, if 0, the file
+**                     already exists,  if -1, the data set couldn't be created, 
+**                     if -n, the (n-1)-th write to the data set failed. 
+**
+**  Remarks:   The rows of the data set in fname contain sequences of the integers
+**             from 1 to N in combinations taken K at a time.
+**
+**  Example:
+**
+**                vnames = "Jim"$|"Harry"$|"Susan"$|"Wendy";
+**                k = 2;
+**
+**                m = combinated("couples",vnames,rows(vnames),k);
+**
+**                print m;
+**
+**                   6.0000
+**
+**                open f0 = "couples";
+**                y = readr(f0,m);
+**                names = getnamef(f0);
+**                f0=close(f0);
+**
+**                for i(1,rows(y),1);
+**                     print names[y[i,.]]';
+**                endfor;
+**
+**                   Jim        Harry
+**                   Jim        Susan
+**                   Jim        Wendy
+**                 Harry        Susan
+**                 Harry        Wendy
+**                 Susan        Wendy
+**
+**                print y;
+**
+**                1.0000   2.0000
+**                1.0000   3.0000
+**                1.0000   4.0000
+**                2.0000   3.0000
+**                2.0000   4.0000
+**                3.0000   4.0000
+**
+** See Also:   combinate, numCombinations
+*/
+
+
+  proc combinated(fname,vnames,n,k);
+      local x,fin,m,t,nrows;
+
+      if vnames $== "";
+         vnames = ftostrC(seqa(1,1,k),"X%1.0lf");
+      elseif k > 1 and rows(vnames) == 1;
+         vnames = ftostrC(seqa(1,1,k),vnames$+"%1.0lf");    
+      endif;
+      m = 2;
+      if k > 255 and k < 65535;
+          m = 4;
+      else;
+          m = 8;
+      endif;
+
+      if filesa(fname) $/= "";   
+          errorlog "Combinated: file already exists";
+          retp(0);
+      endif;
+      create fin = ^fname with ^vnames,k,m;
+      if fin == -1;
+          errorlog "Combinated: file creation failed";
+          fin = close(fin);
+          retp(-1);
+      endif;
+      x = seqa(1,1,k)';
+      t = writer(fin,x);
+      if t /= 1;
+          errorlog "Combinated: write failed";
+          fin = close(fin);
+          retp(-2);
+      endif;
+          
+      for i(2,numCombinations(n,k),1);
+           x = _tcomb_(x,n);
+           t = writer(fin,x);
+           if t /= rows(x);
+               errorlog "Combinated: write failed";
+               fin = close(fin);
+               retp(-i-1);
+           endif;
+      endfor;
+      nrows = rowsf(fin);
+      fin=close(fin);
+      retp(nrows);
+  endp;
+
+
+
+
+/*
+**> numCombinations
+**
+**  Purpose:    computes number of combinations of N things taken K at a time
+**
+**  Format:    y = numCombinations(N,K);
+**
+**  Input:     N      scalar
+**
+**             K      scalar
+**
+**  Output:    Y      scalar, number of combinations of N things take K at a time.
+**
+**
+**  Example:
+**
+**                y = numCombinations(25,5);
+**                print y;
+**
+**                53130.0000
+**
+** See Also:   combinate, combinated
+*/
+
+
+
+  proc numCombinations(n,k);
+       retp(floor(exp(lnfact(n)-lnfact(k)-lnfact(n-k))+.5));
+  endp;
+
+
+
+
+
+  proc _tcomb_(x,n);
+       local k,m;
+       k = cols(x);
+       m = k - sumc(x'.>=seqa(n-k+1,1,k));
+       x[m:k] = seqa(x[m]+1,1,k-m+1)';
+       retp(x);
+  endp;
+

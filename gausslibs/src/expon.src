@@ -1,0 +1,257 @@
+/*
+** expon.src - Exponential Regression Model
+** (For the analysis of duration data)
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  FORMAT:    { b,vc,llik } = EXPON(dataset,dep,ind);
+**
+**  INPUT:
+**      dataset = name of Gauss dataset on disk or matrix in memory
+**      dep     = dependent variable name, or column number of input matrix;
+**                elements should be durations in time so that 0<y<infinity.
+**      ind     = vector of independent variable names, or column numbers
+**                of input matrix
+**  OUTPUT:
+**      b    = vector of effect parameters that maximize the likelihood
+**      vc   = variance-covariance matrix of b
+**      llik = value of the log-likelihood at the maximum
+**
+**  GLOBALS:
+**    _cn_Inference    = MAXLIK for maximum likelihood estimates
+**                    = BOOT for bootstrapped estimates
+**                    = PROFILE for likelihood profile and profile t traces
+**
+**       _cn_Censor      0 = exponential gamma model, no censoring (default),
+**                symbol = use this variable from dataset to censor.
+**                         Code each row as 0 if censored or 1 if not.
+**               integer = use this column of input matrix to censor.
+**                        Code each row as 0 if censored or 1 if not.
+**
+**      _cn_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = set to vector stored in _cn_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      __output    1  =  print output to screen (default),
+**                  0  =  do not print to screen
+**
+**  OTHER GLOBALS:
+**      see MAXLIK.
+**
+**  EXAMPLE:
+**      dataset="\\gauss\\prg\\coal";
+**      let dep=months;
+**      let ind=nparties unemp polariz;
+**      let _cn_Censor=ciep;
+**      call expon(dataset,dep,ind);
+**
+**  REFERENCE:  Gary King, Jim Alt, Nancy Burns, and Michael Laver. "A
+**              Unified Model of Coalition Duration in Parlimentary
+**              Democracies," photocopy, Department of Government, Harvard U.
+*/
+
+#include gauss.ext
+#include count.ext
+#include maxlik.ext
+
+@ starting values @
+
+proc _cn_svexp(dataset,dep,ind);
+    local pars,b;
+    if ind==0;
+        pars = 1;
+    else;
+        pars = rows(ind)+1;
+    endif;
+    if _cn_Start==0;
+        if pars==1;
+            b = 0;
+        else;
+            b = -lols(dataset,dep,ind);
+        endif;
+    elseif _cn_Start==1;
+        b = _cn_StartValues;
+        if rows(b)/=pars;
+            errorlog "ERROR:  b is the wrong size for _cn_Start.";
+            end;
+        endif;
+    elseif _cn_Start==2;
+        b = rndu(pars,1)-0.5;
+    elseif _cn_Start==3;
+        b = zeros(pars,1);
+    else;
+        b = _cn_Start;
+        if rows(b)/=pars;
+            errorlog "ERROR:  ROWS(_cn_Start) is wrong.";
+            end;
+        endif;
+    endif;
+    retp(b);
+endp;
+
+
+@ likelihood function @
+
+proc _cn_liexp(b,dta);
+    local y,x,xb,n,res,c,dd;
+    y = dta[.,1];
+    n = rows(dta);
+    c = cols(dta)-(_cn_Censor/=0);
+    x = ones(n,1);
+    if c>1;
+        x = x~dta[.,2:c];
+    endif;
+
+    if _cn_Censor/=0;
+        dd = dta[.,cols(dta)];
+    else;
+        dd = 1;
+    endif;
+
+    xb = x*b;
+    res = -(dd.*xb)-exp(-xb).*y;
+    retp(res);
+endp;
+
+@ the main proc @
+proc 3 = expon(dataset,dep,ind);
+    local vars,b,logl,g,vc,st,ret;
+    _max_CovPar = 3;
+    _cn_fn = dataset;
+    if dep$==0;
+        errorlog "ERROR:  DEP must be a variable name or number.";
+        end;
+    endif;
+    if ((type(dataset)/=13) and (_cn_Censor>cols(dataset)));
+        errorlog "ERROR:  If dataset is a matrix in memory, "\
+             "_cn_Censor must be the number of a column in the "\
+             "matrix.";
+        end;
+    endif;
+    if ((type(dataset)/=13) and ((maxc(ind)>cols(dataset)) or
+        (dep>cols(dataset))) );
+        errorlog "\nERROR:  If dataset is a matrix, the DEP "\
+            "and IND must be column numbers.\n";
+        end;
+    endif;
+    if (type(dataset)==13) and (type(_cn_Censor)==13);
+        _cn_Censor = indcv(_cn_Censor,getname(dataset));
+    endif;
+    st = _cn_svexp(dataset,dep,ind);
+    if __title $== "";
+      if _cn_Censor/=0;
+          __title = "Censored ";
+      endif;
+          __title = __title $+ "Exponential Regression Model";
+    endif;
+    if ind == 0;
+        vars = dep;
+    else;
+        vars = dep|ind;
+    endif;
+    if _cn_Censor/=0;
+        vars = vars|_cn_Censor;
+    endif;
+    _max_GradProc=&_cn_der1exp;
+    _max_HessProc=&_cn_der2exp;
+    local infm,inf0,lcInf;
+    infm = { MAXLIK, BOOT };
+    inf0 = { 1, 2 };
+    LcInf = _ml_check(_cn_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,g,vc,ret } = maxlik(dataset,vars,&_cn_liexp,st);
+    elseif LcInf == 2;
+        { b,logl,g,vc,ret } = maxboot(dataset,vars,&_cn_liexp,st);
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+    if type(dataset)==13;
+        vars = "beta0";
+        if ind/=0;
+            vars = vars|ind;
+        endif;
+    else;
+        vars = "beta0";
+        if ind/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind),1))$+_cn_ftosm(ind,2));
+        endif;
+    endif;
+    _cn_vr = vars;
+    _cn_dp = dep;
+    ndpclex;
+    retp(b,vc,logl*_max_NumObs);
+endp;
+
+
+
+proc _cn_der1exp(b,dta);
+
+@ First derivatives @
+
+    local y,x,xb,n,res,c,dd;
+    y = dta[.,1];
+    n = rows(dta);
+    c = cols(dta)-(_cn_Censor/=0);
+    x = ones(n,1);
+    if c>1;
+        x = x~dta[.,2:c];
+    endif;
+
+    if _cn_Censor/=0;
+        dd = dta[.,cols(dta)];
+    else;
+        dd = 1;
+    endif;
+
+    xb = x*b;
+    res = (-dd+exp(-xb).*y).*x;
+    retp(res);
+endp;
+
+proc _cn_der2exp(b,dta);
+
+@ Second derivatives @
+
+    local y,x,xb,n,res,c,dd;
+    y = dta[.,1];
+    n = rows(dta);
+    c = cols(dta)-(_cn_Censor/=0);
+    x = ones(n,1);
+    if c>1;
+        x = x~dta[.,2:c];
+    endif;
+
+    if _cn_Censor/=0;
+        dd = dta[.,cols(dta)];
+    else;
+        dd = 1;
+    endif;
+
+    xb = x*b;
+    res = sqrt(exp(-xb).*y);
+    res = -moment(res.*x,0);
+    retp(res);
+endp;
+
+
+

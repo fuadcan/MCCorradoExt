@@ -1,0 +1,48 @@
+/*
+** optmum.dec - declarations for globals used in OPTMUM.
+** (C) Copyright 1988-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+declare matrix _op_ver = { 3, 1, 11 };
+declare matrix _opalgr = 2;      /* optimization algorithm */
+declare matrix _opcoef = 0;      /* stores current values of parameters */
+declare matrix _opdfct = 0.001;  /* % change in function */
+declare matrix _opditer = 20;    /* # iters to switch algorithms */
+declare matrix _opparnm = 0;     /* parameter names */
+declare matrix _opstep = 2;      /* selects type of step length  */
+declare matrix _opshess = 1;     /* selects starting Hessian */
+declare matrix _opfhess = 0;     /* contains final Hessian */
+declare matrix _opmbkst = 10;    /* # of backsteps in computing steplength */
+declare matrix _opgtol = 1e-5;   /* convergence tolerance for gradient  */
+declare matrix _ophsprc = 0;     /* procedure to compute hessian  */
+declare matrix _opgdprc = 0;     /* procedure to compute gradient  */
+declare matrix _opgdmd = 0;      /* numerical gradient method */
+declare matrix _opmiter = 1e+5;  /* maximum number of iterations  */
+declare matrix _opitdta = { 0,0,0 };/* elapsed time, # of iters, Hess method */
+declare matrix _oprteps = .01;   /* random line search */
+declare matrix _opusrch = 0;     /* interactive line search */
+declare matrix _opdelta = .1;
+declare matrix _opmxtry = 100;
+declare string _opstmth = "";
+declare string _opmdmth = "";
+declare matrix _opkey = 1;
+declare matrix _opmtime = 1e5;
+declare matrix _opgrdh = 0;      /* size of increment for computing gradient */
+declare matrix _opusrgd = 0;
+declare matrix _opusrhs = 0;
+

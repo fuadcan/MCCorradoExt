@@ -1,0 +1,9 @@
+/*
+** eig.dec - Eigenvalues and eigenvectors.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definition for procedures EIGxxx.
+*/
+
+declare matrix _eigerr;

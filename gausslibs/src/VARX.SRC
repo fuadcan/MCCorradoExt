@@ -1,0 +1,564 @@
+/*
+** varx.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {theta,stderr,Mcov,LogL} = varx_CLS(y,x,p,RR,r);
+**                                Estimate the coefficients of a VARX model
+**                                under linear restrictions by MLS         27
+**
+**  {theta,stderr,Mcov,LogL} = varx_CML(y,x,p,RR,r);
+**                                Estimate the coefficients of a VARX model
+**                                under linear restrictions by ML          35
+**
+**  {theta,stderr,Mcov,LogL} = varx_LS(y,x,p);
+**                                Estimate the coefficients of a VARX model
+**                                by MLS                                   71
+**
+**  {theta,stderr,Mcov,LogL} = varx_ML(y,x,p);
+**                                Estimate the coefficients of a VARX model
+**                                by ML                                    79
+*/
+
+
+/*
+** varx_CLS
+**
+** Purpose: Estimate the coefficients of a VARX model under the linear
+**          restriction b = R*gamma+r by Multivariate Least Squares
+**
+** Format:  {theta,stderr,Mcov,LogL} = varx_CLS(y,x,p,RR,r);
+**
+**
+** varx_CML
+**
+** Purpose: Estimate the coefficients of a VARX model under the linear
+**          restriction b = RR*gamma+r by Maximum Likelihood
+**
+** Format:  {theta,stderr,Mcov,LogL} = varx_CML(y,x,p,RR,r);
+**
+**
+**
+** Input: y - Nobs*K matrix, endegenous Y data
+**        x - Nobs*L matrix, exogenous X data
+**        p - scalar, the autoregressive order
+**       RR - np*g matrix, the R matrix of the restricted equation
+**        r - np*1 vector, the r vector of the restricted equation
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _print - scalar 1 (default), print the statistics
+**                   scalar 0, do not print the statistics
+**
+**   _varx_epsilon - Nobs*K matrix, residuals
+**     _varx_SIGMA - K*K matrix, estimated SIGMA matrix
+**
+** Remarks: For varx_CML, there is another global variable _varx_tol
+**          which controls the convergence criterion (default = 0.001).
+**
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+/*
+** varx_LS
+**
+** Purpose: Estimate the coefficients of a VARX model
+**          by Multivariate Least Squares
+**
+** Format:  {theta,stderr,Mcov,LogL} = varx_LS(y,x,p);
+**
+**
+** varx_ML
+**
+** Purpose: Estimate the coefficients of a VARX model
+**          by Maximum Likelihood
+**
+** Format:  {theta,stderr,Mcov,LogL} = varx_ML(y,x,p);
+**
+**
+**
+** Input: y - Nobs*K matrix, endegenous Y data
+**        x - Nobs*L matrix, exogenous X data
+**        p - scalar, the autoregressive order
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function
+**                          at its maximum
+**
+** Globals: _print - scalar 1 (default), print the statistics
+**                   scalar 0, do not print the statistics
+**
+**   _varx_epsilon - Nobs*K matrix, residuals
+**     _varx_SIGMA - K*K matrix, estimated SIGMA matrix
+**
+** Remarks:
+**          The CV matrix and the standard errors of the estimated coefficients
+**          are not computed if _tsm_Mcov = 0.
+**
+*/
+
+
+/*
+** VARX Processes
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 331-332
+*/
+
+
+/*
+** varx_LS
+*/
+
+proc (4) = varx_LS(y,x,p);
+  local K,SIGMA,L,np,RR,r;
+  local theta,stderr,Mcov,LogL;
+
+  K = cols(y);
+  SIGMA = eye(K);
+
+  if x == 0;
+    L = 0;
+  elseif x == 1;
+    L = 1;
+  else;
+    if rows(y) /= rows(x);
+
+      ERRORLOG "error: Wrong size format of the X and Y matrices.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+
+    endif;
+    L = cols(x);
+  endif;
+
+  np = K*(K*p+L);
+  RR = eye(np); r = zeros(np,1);
+
+  {theta,stderr,Mcov,LogL} = _varx_estimation(y,x,p,RR,r,SIGMA,0);
+
+  retp(theta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+** varx_ML
+*/
+
+proc (4) = varx_ML(y,x,p);
+  local K,SIGMA,L,np,RR,r;
+  local theta,stderr,Mcov,LogL;
+
+  K = cols(y);
+  SIGMA = eye(K);
+
+  if x == 0;
+    L = 0;
+  elseif x == 1;
+    L = 1;
+  else;
+    if rows(y) /= rows(x);
+
+      ERRORLOG "error: Wrong size format of the X and Y matrices.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+
+    endif;
+    L = cols(x);
+  endif;
+
+  np = K*(K*p+L);
+  RR = eye(np); r = zeros(np,1);
+
+  {theta,stderr,Mcov,LogL} = _varx_estimation(y,x,p,RR,r,SIGMA,1);
+
+  retp(theta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+** varx_CLS
+*/
+
+proc (4) = varx_CLS(y,x,p,RR,r);
+  local K,SIGMA,L,np;
+  local theta,stderr,Mcov,LogL;
+
+  K = cols(y);
+  if (_varx_sigma == 0) or (rows(_varx_sigma) /= K)
+                        or (cols(_varx_sigma) /= K);
+     SIGMA = eye(K);
+  else;
+     SIGMA = _varx_sigma;
+  endif;
+
+  if x == 0;
+    L = 0;
+  elseif x == 1;
+    L = 1;
+  else;
+    if rows(y) /= rows(x);
+
+      ERRORLOG "error: Wrong size format of the X and Y matrices.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+
+    endif;
+    L = cols(x);
+  endif;
+
+  np = K*(K*p+L);
+
+  if rows(RR) /= np;
+
+    ERRORLOG "error: Wrong size format of the RR matrix.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  if (rows(r) /= np) or (cols(r) /= 1);
+
+    ERRORLOG "error: Wrong size format of the r vector.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+
+  {theta,stderr,Mcov,LogL} = _varx_estimation(y,x,p,RR,r,SIGMA,0);
+
+  retp(theta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+** varx_CML
+*/
+
+proc (4) = varx_CML(y,x,p,RR,r);
+  local K,SIGMA,L,np,old,i,tol;
+  local theta,stderr,Mcov,LogL;
+
+  K = cols(y);
+  SIGMA = eye(K);
+
+  if x == 0;
+    L = 0;
+  elseif x == 1;
+    L = 1;
+  else;
+    if rows(y) /= rows(x);
+
+      ERRORLOG "error: Wrong size format of the X and Y matrices.";
+      call pause(2);
+      retp(error(0),error(0),error(0),error(0));
+
+    endif;
+    L = cols(x);
+  endif;
+
+  np = K*(K*p+L);
+
+  if rows(RR) /= np;
+
+    ERRORLOG "error: Wrong size format of the RR matrix.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  if (rows(r) /= np) or (cols(r) /= 1);
+
+    ERRORLOG "error: Wrong size format of the r vector.";
+    call pause(2);
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  old = _print;
+  _print = 0;
+
+  i = 1;
+  do while 1;
+    {theta,stderr,Mcov,LogL} = _varx_estimation(y,x,p,RR,r,SIGMA,0);
+    tol = det(SIGMA) - det(_varx_sigma);
+    if tol <= _varx_tol;
+      break;
+    endif;
+    SIGMA = _varx_sigma;
+    i = i+1;
+  endo;
+
+  _print = old;
+  {theta,stderr,Mcov,LogL} = _varx_estimation(y,x,p,RR,r,SIGMA,1);
+
+  retp(theta,stderr,Mcov,LogL);
+endp;
+
+
+/*
+================================================================================
+*/
+
+proc (4) =  _varx_estimation(y,x,p,RR,r,SIGMA,cn);
+  local Nobs,s,K,epsilon,data,N,T,L,Id,Z,i,W_,y_,z_,epsilon_;
+  local w1,w2,w3,w4,w5,oldtrap,ZZ,ZZinv,SIGMAinv;
+  local _gamma,theta,Mcov,stderr,tstudent,pvalue,ddl,np,parnm,BB,LOGL;
+  local Mcov1,Dk,Lk,Kkk,Pchol,Pstar,H,Dstar,Mcov2,w,np1,np2,g;
+  local CVretcode;
+
+  Nobs = rows(y); s = seqa(1,1,Nobs); K = cols(y);
+
+  if (p == 0) and (x == 0);
+
+    ERRORLOG "error: No regressors.";
+    call pause(2);
+    end;
+
+  endif;
+
+  if x == 0;
+    x = zeros(Nobs,1);
+    L = 0;
+  elseif x == 1;
+    x = ones(Nobs,1);
+    L = 1;
+  else;
+    L = cols(x);
+  endif;
+
+  if rows(x) /= Nobs;
+
+    ERRORLOG "error: Wrong size format of the X matrix.";
+    call pause(2);
+    end;
+
+  endif;
+
+  epsilon = miss(zeros(Nobs,k),0);
+  data = packr(s~y~x);
+  s = data[.,1]; y = data[.,2:K+1]; x = data[.,2+K:1+K+L];
+  N = rows(y); T = N-p;
+
+  Id = eye(K);
+
+  Z = {};
+  i = 1;
+  do until i>p;
+    W_ = lagn(y,i);
+    Z = Z|W_';
+    i = i+1;
+  endo;
+
+  if L /= 0;
+    W_ = x;
+    Z = Z|W_';
+  endif;
+
+  Y = y[1+p:N,.]';
+  Z = Z[.,1+p:N];
+  y_ = vec(Y);
+  z_ = (Z'.*.Id)*r; z_ = y_ -z_;
+
+  w1 = Z*Z';
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  ZZinv = invpd(w1);
+  trap oldtrap,1;
+  if scalerr(ZZinv);
+
+    ERRORLOG "error: Matrix Z'Z is not invertible.";
+    end;
+
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  SIGMAinv = invpd(SIGMA);
+  trap oldtrap,1;
+  if scalerr(SIGMAinv);
+
+    ERRORLOG "error: Matrix SIGMA is not invertible.";
+    end;
+
+  endif;
+
+  w2 = w1.*.SIGMAinv;
+  w3 = Z.*.SIGMAinv;
+  w4 = RR'*w2*RR;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  w5 = invpd(w4);
+  trap oldtrap,1;
+  if scalerr(w5);
+
+    ERRORLOG "error: Matrix R'(ZZ'.*.SIGMA^(-1))R is not invertible.";
+    end;
+
+  endif;
+
+  _gamma = w5*RR'*w3*z_;
+  theta = RR*_gamma + r;
+
+  BB = reshape(theta,k*p+L,k); BB = BB';
+  epsilon_ = Y-BB*Z;
+  if p == 0;
+    W_ = {};
+  else;
+    W_ = miss(zeros(p,K),0);
+  endif;
+  epsilon[s,.] = W_|epsilon_';
+  _varx_epsilon = epsilon;
+
+  SIGMA = epsilon_*epsilon_';
+
+  if cn == 1;                 /* MLE */
+    SIGMA = SIGMA/T;
+  else;
+    SIGMA = SIGMA/(T-k*p-L);
+  endif;
+  _varx_SIGMA = SIGMA;
+
+  if _tsm_Mcov == 0;
+
+    if cn == 1;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      Pchol = chol(SIGMA)';
+      trap oldtrap,1;
+      if scalerr(Pchol);
+
+        ERRORLOG "error: SIGMA is not a positive definite matrix.";
+        call pause(2);
+        Pchol = miss(zeros(k,k),0);
+
+      endif;
+
+      Pstar = vech_(Pchol);
+      theta = theta|Pstar;
+
+    endif;
+
+    LogL = -0.5*T*ln(det(SIGMA));
+
+    retp(theta,error(0),error(0),Logl);
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  SIGMAinv = invpd(SIGMA);
+  trap oldtrap,1;
+  if scalerr(SIGMAinv);
+
+    ERRORLOG "error: Matrix SIGMA is not invertible.";
+    end;
+
+  endif;
+
+  w2 = w1.*.SIGMAinv;
+  w4 = RR'*w2*RR;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  w5 = invpd(w4);
+  trap oldtrap,1;
+  if scalerr(w5);
+
+    ERRORLOG "error: Matrix R'(ZZ'.*.SIGMA^(-1))R is not invertible.";
+    end;
+
+  endif;
+
+  Mcov1 = RR*w5*RR';
+  np1 = rows(Mcov1);
+  CVretcode = 1;
+
+
+  if cn == 1;
+
+    Dk = Duplication_(K);
+    Lk = Elimination_(K);
+    Kkk = Commutation_(K,K);
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Pchol = chol(SIGMA)';
+    trap oldtrap,1;
+    if scalerr(Pchol);
+
+      ERRORLOG "error: SIGMA is not a positive definite matrix.";
+      call pause(2);
+      Pchol = miss(zeros(k,k),0);
+
+    endif;
+
+    Pstar = vech_(Pchol);
+    H = Lk*(eye(k^2)+Kkk)*(Pchol.*.eye(k))*Lk';
+
+    if ismiss(H);
+      H = H;
+    else;
+      H = inv(H);
+    endif;
+
+    Dstar = inv(Dk'Dk)*Dk';
+    Mcov2 = 2*Dstar*(SIGMA.*.SIGMA)*Dstar';
+    Mcov2 = Mcov2/T;
+    Mcov2 = H*Mcov2*H';
+    np2 = rows(Pstar);
+
+    theta = theta|Pstar;
+    w = zeros(np1,np2);
+    Mcov = Mcov1~w;
+    w = zeros(np2,np1);
+    Mcov = Mcov|(w~Mcov2);
+
+  else;
+
+    Mcov = Mcov1;
+
+  endif;
+
+  np = rows(theta);
+  g = cols(RR);
+
+  ddl = T - g;
+
+  stderr = sqrt(diag(Mcov));
+
+  if iscplx(stderr);
+
+    Mcov = miss(zeros(np,np),0);
+    stderr = diag(Mcov);
+    CVretcode = 4;
+
+  endif;
+
+  tstudent = theta./miss(stderr,0);
+  pvalue = 2*cdftc(abs(tstudent),ddl);
+  logL = -0.5*T*ln(det(SIGMA)) - 0.5*T*K*(ln(2*pi)+1);
+
+  if _print == 1;
+    cn = Nobs|T|g|ddl|LogL;
+    parnm = 0$+"P"$+ftocv(seqa(1,1,np),2,0);
+    call _ml_print(parnm,theta,stderr,tstudent,pvalue,cn,CVretcode);
+  endif;
+
+  retp(theta,stderr,Mcov,LogL);
+
+endp;
+

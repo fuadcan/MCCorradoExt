@@ -1,0 +1,398 @@
+/*
+** cmtools.src - Complex matrix tools.
+** (C) Copyright 1991-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** ========================================================================
+** ================ GAUSS-386 real version only ===========================
+** ========================================================================
+**
+**                  Format                                  Line
+** ========================================================================
+**          { zr,zi } = CMSPLIT(z);                           44
+**          { z1r,z1i,z2r,z2i } = CMSPLIT2(z1,z2);            48
+**            zr = CMREAL(xr,xi);                             67
+**            zi = CMIMAG(xr,xi);                             87
+**          { zr,zi } = CMCPLX(x);                           107
+**          { z1r,z1i,z2r,z2i } = CMCPLX2(x1,x2);            130
+**          { zr,zi } = CMADD(xr,xi,yr,yi);                  161
+**          { zr,zi } = CMSUB(xr,xi,yr,yi);                  188
+**          { zr,zi } = CMDIV(xr,xi,yr,yi);                  215
+**          { zr,zi } = CMEMULT(xr,xi,yr,yi);                251
+**          { zr,zi } = CMMULT(xr,xi,yr,yi);                 281
+**          { zr,zi } = CMINV(xr,xi);                        312
+**          { zr,zi } = CMSOLN(br,bi,Ar,Ai);                 339
+**          { zr,zi } = CMTRANS(xr,xi);                      376
+*/
+
+/*
+**     These procedures are set up so that they take GAUSS-386i-format
+**     complex matrices as arguments.
+*/
+
+proc ( 2 ) = cmsplit(x);
+    retp(real(x),imag(x));
+endp;
+
+proc ( 4 ) = cmsplit2(x,y);
+    retp(real(x),imag(x),real(y),imag(y));
+endp;
+
+#ifreal
+
+/*
+**     These procedures are set up so that they take the real and
+**     imaginary parts of matrices as separate arguments.
+**
+**     For instance:
+**
+**             { zr,zi } = cminv(xr,xi);
+**
+**     will return the real and imaginary parts of the inverse
+**     of xr,xi in the two matrices zr,zi.
+*/
+
+/*
+**> cmreal
+**
+**  Purpose:    returns real matrix of complex pair of matrices.
+**
+**  Format:     zr = cmreal(xr,xi);
+**
+**  Input:      xr    real part of complex pair.
+**
+**              xi    imaginary part of complex pair.
+**
+**  Output:     zr    real part of complex pair.
+**
+**  Globals:    None
+*/
+
+proc (1) = cmreal(xr,xi);
+    retp(xr);
+endp;
+
+/*
+**> cmimag
+**
+**  Purpose:    returns imaginary matrix of complex pair of matrices.
+**
+**  Format:     zi = cmimag(xr,xi);
+**
+**  Input:      xr    real part of complex pair.
+**
+**              xi    imaginary part of complex pair.
+**
+**  Output:     zi    imaginary part of complex pair.
+**
+**  Globals:    None
+*/
+
+proc (1) = cmimag(xr,xi);
+    retp(xi);
+endp;
+
+/*
+**> cmcplx
+**
+**  Purpose:    To convert a real matrix to a complex pair of matrices.
+**
+**  Format:     { zr,zi } = cmcplx(x);
+**
+**  Input:      x     real matrix.
+**
+**  Output:     zr    real part, same as x.
+**
+**              zi    imaginary part, matrix of zeros the same size as x.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmcplx(x);
+    local r,c;
+    r = rows(x);
+    c = cols(x);
+    retp(x,zeros(r,c));
+endp;
+
+/*
+**> cmcplx2
+**
+**  Purpose:    To convert 2 real matrices to 2 complex pairs of matrices.
+**
+**  Format:     { z1r,z1i,z2r,z2i } = cmcplx2(x1,x2);
+**
+**  Input:      x1     real matrix.
+**
+**  Input:      x2     real matrix.
+**
+**  Output:     z1r    real part, same as x1.
+**
+**              z1i    imaginary part, matrix of zeros the same size as x1.
+**
+**              z2r    real part, same as x2.
+**
+**              z2i    imaginary part, matrix of zeros the same size as x2.
+**
+**  Globals:    None
+*/
+
+proc (4) = cmcplx2(x1,x2);
+    local r1,c1,r2,c2;
+    r1 = rows(x1);
+    c1 = cols(x1);
+    r2 = rows(x2);
+    c2 = cols(x2);
+    retp(x1,zeros(r1,c1),x2,zeros(r2,c2));
+endp;
+
+/*
+**> cmadd
+**
+**  Purpose:    Does element-by-element addition of two complex
+**              matrices.
+**
+**  Format:     { zr,zi } = cmadd(xr,xi,yr,yi);
+**
+**  Input:      xr    real part of first matrix.
+**
+**              xi    imaginary part of first matrix.
+**
+**              yr    real part of second matrix.
+**
+**              yi    imaginary part of second matrix.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmadd(xr,xi,yr,yi);
+    retp(xr+yr,xi+yi);
+endp;
+
+/*
+**> cmsub
+**
+**  Purpose:    Does element-by-element subtraction of two complex
+**              matrices.
+**
+**  Format:     { zr,zi } = cmsub(xr,xi,yr,yi);
+**
+**  Input:      xr    real part of first matrix.
+**
+**              xi    imaginary part of first matrix.
+**
+**              yr    real part of second matrix.
+**
+**              yi    imaginary part of second matrix.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmsub(xr,xi,yr,yi);
+    retp(xr-yr,xi-yi);
+endp;
+
+/*
+**> cmdiv
+**
+**  Purpose:    Does element-by-element division of two complex
+**              matrices.
+**
+**  Format:     { zr,zi } = cmdiv(xr,xi,yr,yi);
+**
+**  Input:      xr    real part of first (numerator) matrix.
+**
+**              xi    imaginary part of first (numerator) matrix.
+**
+**              yr    real part of second (denominator) matrix.
+**
+**              yi    imaginary part of second (denominator) matrix.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmdiv(xr,xi,yr,yi);
+    local zr,zi,d;
+
+    d = yr.*yr + yi.*yi;
+    zr = xr.*yr + xi.*yi;
+    zr = zr./d;
+    zi = xi.*yr;
+    clear xi,yr;
+    zi = zi - (xr.*yi);
+    zi = zi./d;
+    retp(zr,zi);
+endp;
+
+/*
+**> cmemult
+**
+**  Purpose:    Dot product (element-by-element multiplication) of
+**              complex matrices.
+**
+**  Format:     { zr,zi } = cmemult(xr,xi,yr,yi);
+**
+**  Input:      xr    real part of first (left) matrix.
+**
+**              xi    imaginary part of first (left) matrix.
+**
+**              yr    real part of second (right) matrix.
+**
+**              yi    imaginary part of second (right) matrix.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmemult(xr,xi,yr,yi);
+    local zr,zi;
+    zr = xr.*yr-xi.*yi;
+    zi = xr.*yi+xi.*yr;
+    retp(zr,zi);
+endp;
+
+/*
+**> cmmult
+**
+**  Purpose:    Multiply complex matrices.
+**
+**  Format:     { zr,zi } = cmmult(xr,xi,yr,yi);
+**
+**  Input:      xr    real part of first (left) matrix.
+**
+**              xi    imaginary part of first (left) matrix.
+**
+**              yr    real part of second (right) matrix.
+**
+**              yi    imaginary part of second (right) matrix.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Remarks:    This gives the standard complex matrix multiply.
+**
+**  Globals:    None
+*/
+
+proc (2) = CMMULT(xr,xi,yr,yi);
+    local zr,zi;
+    zr = xr*yr-xi*yi;
+    zi = xr*yi+xi*yr;
+    retp(zr,zi);
+endp;
+
+/*
+**> cminv
+**
+**  Purpose:    Computes the inverse of a complex matrix.
+**
+**  Format:     { zr,zi } = cminv(xr,xi);
+**
+**  Input:      xr    real part of complex matrix to be inverted.
+**
+**              xi    imaginary part of complex matrix to be
+**                    inverted.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cminv(xr,xi);
+    local ixy, zr, zi;
+    ixy = inv(xr)*xi;
+    zr = inv(xr+xi*ixy);    /* real part of inverse. */
+    zi = -ixy*zr;           /* imaginary part of inverse. */
+    retp(zr,zi);
+endp;
+
+/*
+**> cmsoln
+**
+**  Purpose:    Solves a set of complex linear equations of the
+**              form: Ax=b.  The result of this proc corresponds to
+**              x=b/A for real matrices.
+**
+**  Format:     { zr,zi } = cmsoln(br,bi,Ar,Ai);
+**
+**  Input:      br    NxK real part of complex matrix in Ax=b.
+**
+**              bi    NxK imaginary part of complex matrix in Ax=b.
+**
+**              Ar    NxN real part of complex matrix in Ax=b.
+**
+**              Ai    NxN imaginary part of complex matrix in Ax=b.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmsoln(br,bi,Ar,Ai);
+    local n, x, xr, xi;
+
+    n = rows(br);
+
+    x = (br|bi)/((Ar~-Ai)|(Ai~Ar));
+    xr = trimr(x,0,n);
+    xi = trimr(x,n,0);
+    clear Ar,Ai,br,bi;
+
+    retp(xr,xi);
+endp;
+
+/*
+**> cmtrans
+**
+**  Purpose:    Computes the complex conjugate transpose.
+**
+**  Format:     { zr,zi } = cmtrans(xr,xi);
+**
+**  Input:      xr    real part of complex matrix to be transposed.
+**
+**              xi    imaginary part of complex matrix to be
+**                    transposed.
+**
+**  Output:     zr    real part of result.
+**
+**              zi    imaginary part of result.
+**
+**  Globals:    None
+*/
+
+proc (2) = cmtrans(xr,xi);
+    retp(xr',-xi');
+endp;
+
+#endif

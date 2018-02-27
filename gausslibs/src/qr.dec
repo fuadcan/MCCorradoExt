@@ -1,0 +1,11 @@
+/*
+** qr.dec - QR decomposition.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definitions for procedures QRx, ORTH, NULLx and OLSQRx.
+*/
+
+declare matrix _orthtol  =  1e-14;
+declare matrix _qrdc     =  0;
+declare matrix _qrsl     =  0;

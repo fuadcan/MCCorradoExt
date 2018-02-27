@@ -1,0 +1,99 @@
+/*
+** rref.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> rref
+**
+**  Purpose:    Computes the reduced row echelon form of a matrix.
+**
+**  Format:     y = rref(x);
+**
+**  Input:      x    MxN matrix.
+**
+**  Output:     y    MxN matrix containing reduced row echelon form of x.
+**
+**  Remarks:    The tolerance used for zeroing elements is
+**              computed inside the procedure using:
+**
+**                  tol = maxc(m|n) * eps * maxc(abs(sumc(x')));
+**
+**              where eps = 2.24e-16;
+**
+**              This procedure can be used to find the rank of a
+**              matrix. It is not as stable numerically as the
+**              singular value decomposition (which is used in
+**              the rank function), but it is faster for large
+**              matrices.
+**
+**              There is some speed advantage in having the
+**              number of rows be greater than the number of
+**              columns, so you may want to transpose if all you
+**              care about is the rank.
+**
+**              The following code can be used to compute the
+**              rank of a matrix, using rref:
+**
+**                  r = sumc( meanc(abs(y')) .> _rreftol );
+**
+**              where y is the output from rref, and _rreftol is
+**              the tolerance used.  This finds the number of
+**              rows with any non-zero elements, which gives the
+**              rank of the matrix, disregarding numeric
+**              problems.  This code could be placed at the end
+**              of rref to convert it into a procedure to compute
+**              rank.
+**
+**  Globals:    None
+**
+**  Example:    let x[3,3] = 1 2 3
+**                           4 5 6
+**                           7 8 9;
+**              y = rref(x);
+**
+**              y = 1   0  -1
+**                  0   1   2
+**                  0   0   0
+*/
+
+proc rref(x);
+    local n,m,eps,tol,j,i,pr,aj,k;
+    m = rows(x);
+    n = cols(x);
+    eps = 2.24e-16;
+    tol = maxc(m|n) * eps * maxc(abs(sumc(x')));
+    i = 1;
+    j = 1;
+    do while (i <= m) and (j <= n);
+    /* find largest element in the remainder of col j */
+        aj = abs(x[i:m,j]);
+        k = maxindc(aj) + i - 1;
+        if (maxc(aj) <= tol);       /* if this is very small */
+            x[i:m,j] = zeros(m-i+1,1);      /* zero out column */
+            j = j + 1;
+        else;
+            x[i k,j:n] = x[k i,j:n];        /* Swap i-th and k-th rows. */
+            pr = x[i,j:n]/x[i,j];           /* Divide pivot row by the pivot
+                                            :: element
+                                            */
+            x[.,j:n] = x[.,j:n] - x[.,j].*pr;       /* subtract multiples of
+                                                    :: pivot row
+                                                    */
+            x[i,j:n] = pr;          /* replace pivot row */
+            i = i + 1;
+            j = j + 1;
+        endif;
+    endo;
+    retp(real(x));
+endp;

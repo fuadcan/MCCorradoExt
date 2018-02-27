@@ -1,0 +1,159 @@
+/*
+** paxnum.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** _paxnum()
+** _popt()
+** _pfeq()
+*/
+
+#include pgraph.ext
+
+proc (9) = _paxnum(num,minx,maxx,pow,scales,maxprec);
+    local len,tol,tmp,qlab,prec,osig,logsig,mint,ori,ste,max,k,power,sig;
+    if scales == 0;
+        { ori,ste,max,mint } = _popt(minx,maxx);
+    else;
+        ori = scales[1];
+        max = scales[2];
+        ste = scales[3];
+        mint = scales[4];
+    endif;
+    if not num;
+        retp(0,0,0,0,ori,ste,max,mint,0);
+    endif;
+    power = 0;
+
+    sig = floor(log(maxc(abs(max|ori))))+1;
+    if abs(sig) <= pow;
+        goto nodo;
+    endif;
+redo:
+
+    sig = floor(log(maxc(abs(max|ori))))+1;
+    if sig > 1;
+        do while power < sig-1;
+            ori = ori * 0.1;
+            max = max * 0.1;
+            ste = ste * 0.1;
+            power = power+1;
+        endo;
+        goto redo;
+    elseif sig < 0;
+        do while power >= sig;
+            ori = ori * 10;
+            max = max * 10;
+            ste = ste * 10;
+            power = power-1;
+        endo;
+        goto redo;
+    endif;
+
+nodo:
+
+    qlab = ori;
+    k = ori;
+    do while qlab+ste <= max;
+        k = k+ste;
+        tmp = stof(ftos(k,"%*.*le",1,14));
+        if abs(tmp) < 1.0e-15;
+            tmp = 0;
+        endif;
+        qlab = qlab|tmp;
+    endo;
+    osig = trunc(log(maxc(abs(max|ori))))+1;
+    sig = osig;
+    logsig = 1;
+    tol = 10^(-(14-ceil(log(maxc(abs(ori|max))))));
+    do until _pfeq(round(qlab*logsig),qlab*logsig,tol);
+        if sig-osig == maxprec;
+            break;
+        endif;
+        sig = sig+1;
+        logsig = logsig*10;
+        tol = 10^(-(14-ceil(log(maxc(abs(ori*logsig|max*logsig))))));
+    endo;
+    prec = sig-osig;
+    if prec < 0;
+        prec = 0;
+    endif;
+    len = maxc(strlen(ftos(max,"%*.*lf",1,prec))| strlen(ftos(ori,"%*.*lf",1,
+        prec)));
+    retp(sig,len,prec,power,ori,ste,max,mint,qlab);
+endp;
+
+proc 4 = _popt(t_min,t_max);
+    local ori_est,max,mant,n,ste,min,imin,jmin,ori, i, j,
+        obj1,obj2,obj3,nint_opt,ntics,nint;
+
+    ori_est = t_min;
+
+    ste = (t_max - ori_est)/_pmtic;         /* estimate only */
+
+    { mant,n } = base10( ste );
+
+    ori = int( ori_est / 10^(n+1) )*(10^(n+1));
+    max = t_max;
+
+    /* Set up discrete objective function [min of obj's] */
+
+    min = 1e304;
+    imin = 1;
+    jmin = 1;
+    i = 1;
+                                    /* need to vectorize these loops  */
+    do until i > cols(_pmjr);
+        j = 1;
+        do until j > cols(_pmnr);
+            obj1 = abs( mant-_pmjr[i] )^2;
+            ste = _pmjr[i]*(10^n);
+
+            nint = 1;
+
+            do until nint*ste+ori >= max;
+                nint = nint+1;
+            endo;
+
+            obj2 = abs( nint*_pmnr[i,j] - _poptic )^2;
+            obj3 = abs( nint - _pmtic)^3;
+
+            if min > abs( obj1 + obj2 +obj3 );
+                min = abs( obj1 + obj2 + obj3 );
+                imin = i;
+                jmin = j;
+                nint_opt = nint;
+            endif;
+
+            j = j+1;
+        endo;
+        i = i+1;
+    endo;
+
+    ste = _pmjr[imin]*(10^n);
+    max = ste*nint_opt + ori;
+    ntics = _pmnr[imin,jmin];
+
+    do while ori+ste < t_min;
+        ori = ori + ste;
+    endo;
+    do while max-ste > t_max;
+        max = max - ste;
+    endo;
+    retp(ori,ste,max,ntics);
+endp;
+
+proc _pfeq(a,b,tol);
+    retp(abs(a-b) <= tol);
+endp;

@@ -1,0 +1,296 @@
+/*
+** tsm.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  TSMset;                       Reset the global control variables
+**                                declared in TSM.DEC                      20
+**
+**  {x_,retcode} = Missing(x,0);
+**  {x,0} = Missing(x_,retcode);  Procedure for missing values             51
+**
+**  y = padding(x,M);             Matrix padding                           62
+**
+*/
+
+
+/*
+** tsmset
+**
+** Purpose: Reset the global control variables declared in TSM.DEC
+**
+** Format:  TSMset;
+**
+** Remarks:
+**          The default global control variables are:
+**                   _bandwidth          0
+**                   _cycle_prmt         0
+**                   _fourier            1
+**                   _gmm_iter           20
+**                   _gmm_Jacobian_proc  0
+**                   _gmm_lags           0
+**                   _gmm_r              0
+**                   _gmm_RR             0
+**                   _gmm_tol            0.001
+**                   _Kernel             {.,.,.,1,.,.}
+**                   _LpNorm             1
+**                   _ml_Jacobian_Proc   0
+**                   _print              1
+**                   _sgf_Jacobian_Proc  0
+**                   _smoothing          {0,1,1,0.23}
+**                   _surrogate_random   1
+**                   _tsm_gtol           0.001
+**                   _tsm_Hessian        1
+**                   _tsm_Mcov           1
+**                   _tsm_optmum         1
+**                   _tsm_parnm          0
+**                   _varx_tol           0.001
+**                   _wcenter            0
+**                   _wcolor             0
+**                   _wgrid              1
+**                   _wline              0
+**
+*/
+
+
+/*
+** Missing
+**
+** Purpose: Procedure for missing values
+**
+** Format:  {x_,retcode} = Missing(x,0);
+**          {x,0} = Missing(x_,retcode);
+**
+*/
+
+
+/*
+** padding
+**
+** Purpose: Matrix padding
+**
+** Format:  y = padding(x,M);
+**
+** Input:   x - N*K matrix
+**          M - scalar, integer M parameter
+**
+** Output: y - Nstar*K matrix, matrix padding
+**
+*/
+
+
+/*
+** TSMset
+*/
+
+proc (0) = tsmset;
+
+  _bandwidth = 0;
+  _cycle_prmt = 0;
+  _fourier = 1;
+  _gmm_iter = 20;
+  _gmm_Jacobian_proc = 0;
+  _gmm_lags = 0;
+  _gmm_r = 0;
+  _gmm_RR = 0;
+  _gmm_tol = 0.001;
+  _Kernel = {.,.,.,1,.,.};
+  _LpNorm = 1;
+  _ml_Jacobian_Proc = 0;
+  _print = 1;
+  _sgf_Jacobian_Proc = 0;
+  _smoothing = {0,1,1,0.23};
+  _surrogate_random = 1;
+  _tsm_gtol = 0.001;
+  _tsm_Hessian = 1;
+  _tsm_Mcov = 1;
+  _tsm_optmum = 1;
+  _tsm_parnm = 0;
+  _varx_tol = 0.001;
+  _wcenter = 0;
+  _wcolor = 0;
+  _wgrid = 1;
+  _wline = 0;
+
+  retp;
+endp;
+
+
+/*
+** Missing
+*/
+
+proc (2) = Missing(x,retcode);
+  local y,retcode_;
+  local K,Nobs,Nmiss,w,s;
+
+  if retcode == 0;
+
+    y = packr(x);
+    retcode_ = sumc(x') ./= miss(0,0);
+    retcode_ = miss(retcode_,0);
+
+  else;
+
+    K = cols(x);
+    Nobs = rows(retcode);
+    y = miss(zeros(Nobs,K),0);
+    s = seqa(1,1,Nobs);
+
+    Nmiss = rows(packr(retcode));
+    w = ( retcode .== miss(0,0)) + (retcode .== 1);
+
+    if ( w == 1 ) and ( cols(retcode) == 1 ) and ( rows(x) == Nmiss );
+
+      s = packr(s.*retcode);
+      y[s,.] = x;
+      retp(y,0);
+
+    else;
+
+      retp(error(0),error(0));
+
+    endif;
+
+  endif;
+
+  retp(y,retcode_);
+endp;
+
+
+/*
+** padding
+*/
+
+proc (1) = padding(x,M);
+  local N,K,Nstar,y;
+
+  if (M /= trunc(M)) or (M <= 1);
+    ERRORLOG "error: M must be an integer greater than 1.";
+    retp(error(0));
+  endif;
+
+  N = rows(x);
+  K = cols(x);
+
+  Nstar = M^ceil(ln(N)/ln(M));
+  y = zeros(Nstar,K);
+  y[1:N,.] = x;
+
+  retp(y);
+endp;
+
+
+/*
+** _int_power2
+*/
+
+proc (1) = _int_power2(x);
+  local N;
+
+  N = rows(x);
+
+  if (ln(n)/ln(2)) /= floor(ln(n)/ln(2));
+
+    ERRORLOG "error: the rows number must be an integer power of 2.";
+    retp(1);
+
+  else;
+
+    retp(0);
+
+  endif;
+
+endp;
+
+
+/*
+** _polyinv
+**
+** Compute the polynomial inversion B(L) = 1/A(L)
+**
+**        A(L) = a(0) + a(1)*L + a(2)*L^2 + ... + a(p)*L^p
+**
+**        B(L) = b(0) + b(1)*L + b(2)*L^2 + ... + b(order)*L^order
+**
+*/
+
+proc (1) = _polyinv(a,order);
+  local b,a0,p,b0,i;
+
+  b = zeros(order+1,1);
+  a0 = a[1];
+
+  if a0 == 0;
+    retp(error(0));
+  endif;
+
+  p = rows(a) - 1;
+
+  if p == 0;
+    b = (1/a0)|zeros(order,1);
+    retp(b);
+  endif;
+
+  a = a[2:p+1];
+
+  if order > p;
+    a = a|zeros(order-p,1);
+  endif;
+
+  b0 = 1/a0;
+  b[1] = b0;
+
+  i = 1;
+  do until i > order;
+    b[i+1] = - a[1:i]'rev(b[1:i]);
+    b[i+1] = b[i+1]/a0;
+    i = i + 1;
+  endo;
+
+  retp(b);
+endp;
+
+
+/*
+** _polydiv
+**
+** Compute the polynomial division C(L) = A(L)/B(L)
+**
+**        A(L) = a(0) + a(1)*L + a(2)*L^2 + ... + a(p)*L^p
+**        B(L) = b(0) + b(1)*L + b(2)*L^2 + ... + b(q)*L^q
+**
+**        C(L) = c(0) + c(1)*L + c(2)*L^2 + ... + c(order)*L^(order)
+**
+*/
+
+proc _polydiv(a,b,order);
+  local bi,c;
+  bi = _polyinv(b,order);
+  c = _polymult(a,bi);
+  retp(c[1:order+1]);
+endp;
+
+
+/*
+** _polymult
+**
+** Compute the polynomial multiplication C(L) = A(L)*B(L)
+**
+**        A(L) = a(0) + a(1)*L + a(2)*L^2 + ... + a(p)*L^p
+**        B(L) = b(0) + b(1)*L + b(2)*L^2 + ... + b(q)*L^q
+**
+**        C(L) = c(0) + c(1)*L + c(2)*L^2 + ... + c(p+q)*L^(p+q)
+**
+*/
+
+proc _polymult(a,b);
+  local c;
+  c = conv(a,b,0,0);
+  retp(c);
+endp;
+
+
+

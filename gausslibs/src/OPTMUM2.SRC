@@ -1,0 +1,194 @@
+/*
+** optmum2.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+** {x,fmin,g,retcode} = optmum2(&fct,x0,CC,c);
+**                                General nonlinear optimization under
+**                                the explicit constraints CC*x = c        21
+**
+**                             --- or ---
+**
+** {x,fmin,g,retcode} = optmum2(&fct,gamma0,RR,r);
+**                                General nonlinear optimization under
+**                                the implicit constraints x = RR*gamma+r  48
+*/
+
+
+/*
+** optmum2
+**
+** Purpose: General nonlinear optimization under
+**          the explicit linear constraints CC*x = c
+**
+** Format:  {x,fmin,g,retcode} = optmum2(&fct,x0,CC,c);
+**
+** Input: &fct - pointer to a procedure that computes the function to
+**               be minimized.
+**          x0 - k*1 vector, starting values
+**          CC - g*k matrix, the CC matrix
+**           c - g*1 vector, the c vector
+**
+** Output:  x - k*1 vector, vector of parameters at minimum
+**       fmin - scalar, function evaluated at x
+**          g - scalar, gradient evaluated at x
+**    retcode - scalar, return code of optmum
+**
+** Globals:
+**     _op2gdprc - pointer to a procedure that computes the gradient
+**     _op2hsprc - pointer to a procedure that computes the Hessian
+**
+**
+*/
+
+
+/*
+** optmum2
+**
+** Purpose: General nonlinear optimization under
+**          the implcit linear constraints x = RR*gamma + r
+**
+** Format:  {x,fmin,g,retcode} = optmum2(&fct,gamma0,RR,r);
+**
+** Input: &fct - pointer to a procedure that computes the function to
+**               be minimized.
+**      gamma0 - g*1 vector, starting values
+**          RR - k*g matrix, the RR matrix
+**           r - k*1 vector, the r vector
+**
+** Output:  x - k*1 vector, vector of parameters at minimum
+**       fmin - scalar, function evaluated at x
+**          g - scalar, gradient evaluated at x
+**    retcode - scalar, return code of optmum
+**
+** Globals:
+**     _op2gdprc - pointer to a procedure that computes the gradient
+**     _op2hsprc - pointer to a procedure that computes the Hessian
+**
+**
+*/
+
+/*
+** optmum2
+*/
+
+proc (4) = optmum2(fct,x0,CC,c);
+  local fct:proc;
+  local g_,k,RR,r,gamma0;
+  local x,fmin,g,retcode;
+
+  if rows(CC) > cols(CC);
+    RR = CC;
+    r = c;
+    gamma0 = x0;
+  else;
+    g_ = rows(CC);
+    k = rows(x0);
+    if ( cols(CC) /= k ) or ( rows(c) /= g_ ) or ( cols(c) /= 1 );
+      ERRORLOG "error: Wrong size format of the x0, CC or c matrices.";
+      retp(error(0),error(0),error(0),error(0));
+    endif;
+
+    RR = null(CC);
+    r = pinv(CC'CC)*CC'*c;
+    gamma0 = pinv(RR'RR)*RR'*(x0-r);
+  endif;
+
+  {x,fmin,g,retcode} = _optmum2(&fct,gamma0,RR,r);
+
+  retp(x,fmin,g,retcode);
+endp;
+
+
+proc (4) = _optmum2(fct,gamma0,RR,r);
+  local fct:proc;
+  local g_,k,_gamma;
+  local x,fmin,g,retcode;
+
+  g_ = cols(RR);
+  k = rows(RR);
+  if ( rows(r) /= k ) or ( rows(gamma0) /= g_ ) or ( cols(r) /= 1 );
+    ERRORLOG "error: Wrong size format of the gamma0, RR or r matrices.";
+    retp(error(0),error(0),error(0),error(0));
+  endif;
+
+  _optmum2_fct = &fct;
+  _optmum2_RR = RR;
+  _optmum2_r = r;
+
+  if _op2gdprc /= 0;
+     _opgdprc = &_optmum2_gradp;
+  else;
+     _opgdprc = 0;
+  endif;
+
+  if _op2hsprc /= 0;
+     _ophsprc = &_optmum2_hessp;
+  else;
+     _ophsprc = 0;
+  endif;
+
+  {_gamma,fmin,g,retcode} = optmum(&__optmum2_fct,gamma0);
+
+  x = RR*_gamma + r;
+
+  if _op2gdprc /= 0;
+    local gproc;
+    gproc = _op2gdprc;
+    local gproc:proc;
+    g = gproc(x);
+  else;
+    g = gradp(&fct,x);
+  endif;
+
+  g = g';
+
+  retp(x,fmin,g,retcode);
+endp;
+
+
+proc __optmum2_fct(_gamma);
+  local f,RR,r,x;
+
+  f = _optmum2_fct;
+  local f:proc;
+
+  RR = _optmum2_RR;
+  r = _optmum2_r;
+
+  x = RR*_gamma + r;
+  retp( f(x) );
+endp;
+
+
+proc _optmum2_gradp(_gamma);
+  local g,RR,r,x;
+
+  g = _op2gdprc;
+  local g:proc;
+
+  RR = _optmum2_RR;
+  r = _optmum2_r;
+  x = RR*_gamma + r;
+
+  retp( g(x)*RR );
+endp;
+
+
+proc _optmum2_hessp(_gamma);
+  local h,RR,r,x;
+
+  h = _op2hsprc;
+  local h:proc;
+
+  RR = _optmum2_RR;
+  r = _optmum2_r;
+
+  x = RR*_gamma + r;
+
+  retp( RR'*h(x)*RR );
+endp;
+
+

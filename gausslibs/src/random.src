@@ -1,0 +1,673 @@
+/*
+** random.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  y = Bootstrap(x);             Bootstraping of a matrix                 29
+**
+**  y = surrogate(x);             Surrogate data technique                 43
+**
+**  {x,d,F,retcode} = Kernel(y);  Estimate the density with
+**                                the Kernel method                        64
+**
+**  {y,retcode} = RND_arfima(beta,p,q,sigma,N,Ns,Nr);
+**                                Simulate a univariate fractional
+**                                ARMA process                            100
+**
+**  y = RND_arma(beta,p,q,SIGMA,Y0,Ns);
+**                                Simulate a Vector ARMA process          121
+**
+**  {y,a} = RND_SSM(a_star,Ns);   Simulate a TIME-INVARIANT
+**                                state space model                       142
+**
+*/
+
+
+/*
+** Bootstrap
+**
+** Purpose: Bootstrapping a matrix
+**
+** Format:  y = Bootstrap(x);
+**
+** Input:   x - N*K matrix
+**
+** Output:  y - N*K matrix
+**
+*/
+
+
+/*
+** surrogate
+**
+** Purpose: Surrogate data technique
+**
+** Format:  y = surrogate(x);
+**
+** Input:   x - N*K vector, data
+**
+** Output:  y - N*K vector, the surrogate data
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+** _surrogate_random - scalar 1 for a uniform [0,2pi] randomization
+**                     of the phases
+**                     scalar 0 for a normal randomization
+**
+*/
+
+
+/*
+** Kernel
+**
+** Purpose: Estimate the density with the Kernel method
+**
+** Format:  {x,d,F,retcode} = Kernel(y);
+**
+** Input:   y - Nobs*1 vector, data
+**
+** Output:  x - T*1 vector, the vector of the points x(i)
+**          d - T*1 vector, the estimated density function
+**          F - T*1 vector, the estimated cumulative probability function
+**    retcode - scalar, convergence criterion
+**
+** Globals: _Kernel - 4*1 vector, controls the parameters of the
+**                                Kernel Estimation
+**                    _Kernel[1] - minimum value of vector x
+**                    _Kernel[2] - maximum value of vector x
+**                    _Kernel[3] - number of points T in vector x
+**                    _Kernel[4] - type of the kernel
+**                                 = 1, Gauss
+**                                 = 2, Epanechnikov
+**                                 = 3, quartic
+**                                 = 4, triangular
+**                                 = 5, uniform
+**                                 = 6, truncated
+**                    _Kernel[5] - left truncated point
+**                    _Kernel[6] - right truncated point
+**                     default = {.,.,.,1,.,.}
+**          _bandwidth - scalar, the bandwidth of the Kernel
+**                       - or -
+**                       scalar 0, computes the default bandwidth
+**
+*/
+
+
+/*
+** RND_arfima
+**
+** Purpose: Simulate a univariate fractional ARMA process
+**
+** Format:  {y,retcode} = RND_arfima(beta,p,q,sigma,N,Ns,Nr);
+**
+** Input:   beta - np*1 vector, the coefficients of the ARFIMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         sigma - scalar, the standard error sigma
+**             N - scalar, the order of the infinite MA representation
+**            Ns - scalar, the number of observations to be generated
+**            Nr - scalar, the number of replications to be generated
+**
+** Output:  y - Ns*Nr matrix, the simulated fractional ARMA process
+**    retcode - scalar, convergence criterion of the MA representation
+**
+*/
+
+
+/*
+** RND_arma
+**
+** Purpose: Simulate a Vector ARMA process
+**
+** Format:  y = RND_arma(beta,p,q,SIGMA,Y0,Ns);
+**
+** Input:   beta - np*1 vector, the coefficients of the Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         SIGMA - K*K matrix, the SIGMA matrix
+**            Y0 - K*p matrix, the starting position of the vector ARMA process
+**                  or
+**                 missing value, computes the starting position
+**            Ns - scalar, the number of observations to be generated
+**
+** Output:  y - Ns*K matrix, the simulated Vector ARMA process
+**
+*/
+
+
+/*
+** RND_SSM
+**
+** Purpose: Simulate a TIME-INVARIANT state space model
+**
+** Format:  {y,a} = RND_SSM(a_star,Ns);
+**
+** Input:   a_star - M*1 vector, the initial values of the state vector
+**                    or
+**                   missing value, computes the starting position
+**              Ns - scalar, the number of observations to be generated
+**
+** Output:  y - Ns*N matrix, the simulated measurement process
+**          a - Ns*M matrix, the simulated state process
+**
+*/
+
+
+/*
+** Matrix Bootstrapping
+*/
+
+
+/*
+** Bootstrap
+*/
+
+proc (1) = bootstrap(x);
+  local N,s,y;
+
+  N = rows(x);
+  s = rndu(N,1);
+  s = sortind(s);
+  y = x[s,.];
+
+  retp(y);
+endp;
+
+
+/*
+** surrogate
+*/
+
+proc surrogate(x);
+  local T,K,d,di,i;
+  local r,theta,theta_,y,yi;
+
+  if ismiss(x);
+    ERRORLOG "error: x contains missing values.";
+    retp(error(0));
+  endif;
+
+  K = cols(x);
+
+  d = {};
+  i = 1;
+  do until i>K;
+    di = fourier(x[.,i]);
+    d = d~di;
+    i = i + 1;
+  endo;
+  {r,theta} = topolar(d);
+  theta_ = trimr(theta,1,0);
+
+  T = rows(d);
+
+  if (T%2) == 0;
+
+    theta_ = trimr(theta_,0,T/2);
+
+    if _surrogate_random == 1;
+      theta_ = theta_ + 2*pi*rndu(rows(theta_),1);
+    else;
+      theta_ = theta_ + rndn(rows(theta_),1);
+    endif;
+
+    theta = theta[1,.]|theta_|theta[T/2+1,.]|(-rev(theta_));
+
+  else;
+
+    theta_ = trimr(theta_,0,(t-1)/2);
+
+    if _surrogate_random == 1;
+      theta_ = theta_ + 2*pi*rndu(rows(theta_),1);
+    else;
+      theta_ = theta_ + rndn(rows(theta_),1);
+    endif;
+
+    theta = theta[1,.]|theta_|(-rev(theta_));
+
+  endif;
+
+  d = tocart(r,theta);
+  y = {};
+  i = 1;
+  do until i>K;
+    yi = inverse_fourier(d[.,i]);
+    y = y~real(yi);
+    i = i + 1;
+  endo;
+
+  retp(y);
+endp;
+
+
+/*
+** Kernel estimation
+**
+** HARDLE [1990], Applied Nonparametric Regression,
+** Cambridge University Press, chapter 3
+**
+** HARDLE and LINTON [1994], Applied Nonparametric Methods,
+** in ENGLE and McFADDEN (eds), The Handbook of Econometrics, vol. IV,
+** Elsevier Science B.V., chapter 38
+*/
+
+
+/*
+** Kernel
+*/
+
+proc _Kernel_Gauss(u);
+  local k;
+  k = pdfn(u);
+  retp(k);
+endp;
+
+proc _Kernel_Epanechnikov(u);
+  local k,I;
+  I = abs(u).<=1;
+  k = (3/4)*(1-u^2);
+  k = k.*I;
+  retp(k);
+endp;
+
+proc _Kernel_Quartic(u);
+  local k,I;
+  I = abs(u).<=1;
+  k = (15/16)*((1-u^2)^2);
+  k = k.*I;
+  retp(k);
+endp;
+
+proc _Kernel_Triangular(u);
+  local k,I;
+  I = abs(u).<=1;
+  k = 1-abs(u);
+  k = k.*I;
+  retp(k);
+endp;
+
+proc _Kernel_Uniform(u);
+  local k,I;
+  I = abs(u).<=1;
+  k = 0.5;
+  k = k.*I;
+  retp(k);
+endp;
+
+proc _Kernel_Truncated(u);
+  local k;
+  k = pdfn(u).*_truncated_prmt;
+  retp(k);
+endp;
+
+
+proc (4) = Kernel(y);
+  local y_,N,s,x_min,x_max,Np,K,h;
+  local step,x,d,f,function,i,u,KK,retcode;
+  local xL,xR,cdf_L,cdf_R,cc;
+
+  y_ = packr(y); N = rows(y_);
+
+  if ( rows(_Kernel) /= 6 )  and ( cols(_Kernel) /= 1);
+    ERRORLOG "error: the dimension of vector _Kernel must be 6*1.";
+    retp(error(0),error(0),error(0),error(0));
+  endif;
+
+  x_min = _Kernel[1];
+  x_max = _Kernel[2];
+  Np = _Kernel[3];
+  K = _Kernel[4];      /* Type of kernel function */
+  xL = _Kernel[5]; xR = _Kernel[6];
+
+  if (xR-xL) <= 0;
+    ERRORLOG "error: xR must be greater than xL.";
+    retp(error(0),error(0),error(0),error(0));
+  endif;
+
+  s = stdc(y_);
+
+  if ismiss(x_min);
+    x_min = minc(y_);
+  endif;
+
+  if ismiss(x_max);
+    x_max = maxc(y_);
+  endif;
+
+  if ismiss(Np) or Np <= 0;
+    Np = 128;
+  endif;
+
+  if ismiss(_bandwidth) or _bandwidth == 0;
+    h = 1.364*s*(N^(-0.2));
+  else;
+    h = _bandwidth;
+  endif;
+
+  step = (x_max-x_min)/(Np-1);
+  x = seqa(x_min,step,Np);
+  d = zeros(Np,1); F = d;
+
+  if K == 6;
+    if xL == miss(0,0);
+      cdf_L = 0;
+    else;
+      cdf_L = cdfn((xL-y_)/h);
+    endif;
+    if xR == miss(0,0);
+      cdf_R = 1;
+    else;
+      cdf_R = cdfn((xR-y_)/h);
+    endif;
+    _truncated_prmt = 1./(cdf_R-cdf_L);
+    function = &_Kernel_Truncated;
+  elseif  K == 5;
+    function = &_Kernel_Uniform;
+  elseif K == 4;
+    function = &_Kernel_Triangular;
+  elseif K == 3;
+    function = &_Kernel_Quartic;
+  elseif K == 2;
+    function = &_Kernel_Epanechnikov;
+  else;
+    function = &_Kernel_Gauss;
+  endif;
+  local function : proc;
+
+
+  i=1;
+  do until i>Np;
+
+      u = (x[i]-y_)/h;
+      KK = function(u);
+
+      if K == 6;
+
+        if xL == miss(0,0);
+          cc = 1;
+        else;
+          cc = x[i] > xL;
+        endif;
+
+        if xR == miss(0,0);
+          cc = cc;
+        else;
+          cc = cc * ( x[i] < xR );
+        endif;
+
+        KK = KK.*cc;
+
+      endif;
+
+      d[i] = sumc(kK)/(n*h);
+
+      if i>1;
+        F[i] = F[i-1]+0.5*(d[i]+d[i-1])*step;
+      endif;
+
+      i=i+1;
+  endo;
+
+
+  retcode = 1 - F[Np];
+
+  retp(x,d,F,retcode);
+endp;
+
+
+/*
+** Simulation of a Vector ARMA process
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 495-497
+*/
+
+
+/*
+** RND_arma
+*/
+
+proc (1) = RND_arma(beta,p,q,SIGMA,Y0,Ns);
+  local Np,w,k,y,Pchol,i,u;
+  local w1,w2,w3,w3_inv,w4,A,J,H,oldtrap;
+  local SIGMA_Y,QQ,X,Y_;
+
+  Np = rows(beta);
+  w = p+q; k = sqrt(np/w);
+
+  if k /= trunc(k);
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp(error(0));
+  endif;
+
+  y = zeros(Ns,K);
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Pchol = chol(SIGMA)';
+  trap oldtrap,1;
+  if scalerr(Pchol);
+    ERRORLOG "error: SIGMA is not a positive definite matrix.";
+    retp(error(0));
+  endif;
+
+  if p == 0 and q == 0;
+
+    i = 1;
+    do until i>Ns;
+
+      u = Pchol*rndn(K,1);
+      y[i,.] = u';
+      i=i+1;
+
+    endo;
+
+    retp(y);
+
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+
+  w1 = rows(A);
+
+  if ismiss(Y0);
+
+    w2 = A.*.A;
+    w3 = eye(w1^2) - w2;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    w3_inv = inv(w3);
+    trap oldtrap,1;
+    if scalerr(w3_inv);
+      ERRORLOG "error: The ARMA process is not stable.";
+      retp(error(0));
+    endif;
+
+    w4 = w3_inv*vec(H*sigma*H');
+
+    SIGMA_Y = reshape(w4,w1,w1); SIGMA_Y = SIGMA_Y';
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    QQ = chol(SIGMA_Y);
+    trap oldtrap,1;
+    if scalerr(QQ);
+      ERRORLOG "error: Initial values cannot be computed.";
+      retp(error(0));
+    endif;
+
+    QQ = QQ';
+    X = rndn(w1,1);
+    Y0 = QQ*X;
+    Y_ = Y0;
+
+  else;
+
+    if p == 0;
+      p = 1;
+      Y0 = zeros(K,1);
+    endif;
+
+    if (rows(Y0) /= K) or (cols(Y0) /= p);
+
+      ERRORLOG "error: Wrong size format of the Y0 vector.";
+      retp(error(0));
+    endif;
+
+    Y0 = vec(Y0);
+
+    if q == 0;
+      Y_ = Y0|zeros(K,1);
+    else;
+      Y_ = Y0|zeros(K*q,1);
+    endif;
+
+  endif;
+
+  y[1,.] = (J*Y_)';
+
+  i = 2;
+  do until i > Ns;
+
+    u = rndn(k,1);
+    u = Pchol*u;
+    Y_ = A*Y_ + H*u;
+    y[i,.] = (J*Y_)';
+    i = i+1;
+
+  endo;
+
+  retp(y);
+endp;
+
+
+/*
+** Simulation of an ARFIMA process
+*/
+
+
+/*
+** RND_arfima
+*/
+
+proc (2) = RND_arfima(beta,p,q,sigma,N,Ns,Nr);
+  local d,y,phi,theta,retcode,u,u_,i,ys;
+
+  d = beta[p+q+1];
+  if abs(d) > 0.5;
+    ERRORLOG "error: d must take a value in the range [-0.5,0.5]. "\
+             "For d>0.5, you may use\Lthe method described in the "\
+             "TSM manual (see also the arfima5.prg example).";
+    end;
+  endif;
+
+  {phi,theta,retcode} = canonical_arfima(beta,p,q,N,N);
+  retcode = retcode[1];
+
+  theta = theta';
+  y = zeros(Ns,Nr);
+  u = rndn(N+1,Nr)*sigma;
+
+  i=1;
+  do until i > Ns;
+
+    ys = theta*u;
+    y[i,.] = ys;
+    u_ = rndn(1,Nr)*sigma;
+    u = u_|trimr(u,0,1);
+    i=i+1;
+
+  endo;
+
+  retp(y,retcode);
+
+endp;
+
+
+/*
+** Simulation of a state space model
+*/
+
+
+/*
+** RND_SSM
+*/
+
+proc (2) = RND_SSM(a_star,Ns);
+  local n,m,g,Z,d,H,T,c,R,Q;
+  local P1,P2,y,a,at,yt,i,u,a_0,P_0,SIG;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 2;
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+  endif;
+
+  n = _SSM_parameters[2];
+  m = _SSM_parameters[3];
+  g = _SSM_parameters[4];
+
+  Z = _SSM_Z; d = _SSM_d; H = _SSM_H;
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+
+  if H == zeros(n,n);
+    P1 = 0;
+  else;
+    P1 = chol(H)';
+  endif;
+
+  if Q == zeros(g,g);
+    P2 = 0;
+  else;
+    P2 = chol(Q)';
+  endif;
+
+  y = zeros(ns,n);
+  a = zeros(ns,m);
+
+  if ismiss(a_star);
+
+    {a_0,P_0} = SSM_ic;
+
+    if ismiss(a_0);
+      retp(error(0),error(0));
+    endif;
+
+    SIG = chol(P_0); SIG = SIG';
+
+    a_star = a_0 + SIG*rndn(m,1);
+
+  endif;
+
+  at = a_star;
+
+  i=1;
+  do until i>ns;
+
+    u =  P2*rndn(g,1);
+    at = T*at + c + R*u;
+
+    u =  P1*rndn(n,1);
+    yt = Z*at + d + u;
+
+    a[i,.] = at';
+    y[i,.] = yt';
+
+    i=i+1;
+  endo;
+
+  retp(y,a);
+endp;
+
+
+

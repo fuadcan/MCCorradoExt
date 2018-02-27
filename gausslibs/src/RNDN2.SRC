@@ -1,0 +1,56 @@
+/*
+** rndn2.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  u = rndn2(mu,SIGMA,Ns);       Normal random numbers N(mu,SIGMA)        13
+*/
+
+
+/*
+** rndn2
+**
+** Purpose: Normal random numbers N(mu,SIGMA)
+**
+** Format:  u = rndn2(mu,SIGMA,NS);
+**
+** Input:    mu - p*1 vector, the mean vector.
+**        SIGMA - p*p matrix, the variance-covariance matrix.
+**           Ns - scalar, number of simulations.
+**
+** Output:    u - Ns*p matrix, the random numbers.
+**
+*/
+
+
+proc rndn2(mu,SIGMA,Ns);
+  local p,y,u,Pchol,i;
+  local oldtrap;
+
+  p = rows(mu);
+  y = zeros(p,Ns);
+  u = rndn(p,Ns);
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Pchol = chol(SIGMA)';
+  trap oldtrap,1;
+  if scalerr(Pchol);
+    ERRORLOG "error: SIGMA is not a positive definite matrix.";
+    retp(error(0));
+  endif;
+
+  i = 1;
+  do until i > Ns;
+    y[.,i] = Pchol*u[.,i];
+    i = i + 1;
+  endo;
+
+  y = mu + y;  u = y';
+
+  retp(u);
+endp;
+
+

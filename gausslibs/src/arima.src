@@ -1,0 +1,761 @@
+/*
+** arima.src - ARIMA Time Series Models.
+**
+**
+** (C) Copyright 1994-1998  Aptech Systems,Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  { b,ll,e,covb,aic,sbc } =     Estimate autoregressive integrated        32
+**      arima(b0,y,p,d,q,const);     moving average models
+**  arimaset;                     Set global parameters                    750
+*/
+
+/*
+**> arima
+**
+**  Purpose: Estimate autoregressive integrated moving average models.
+**
+**  Format:  { b,ll,e,covb,aic,sbc } = arima(b0,y,p,d,q,const);
+**
+**  Input:  b0     vector of starting values in order of AR, MA, and Constant;
+**                 or 0, then ARIMA computes starting values.
+**          y      Nx1 vector, data.
+**          p      scalar, number of AR parameters to be estimated.
+**          d      scalar, order of differencing.
+**          q      scalar, number of MA parameters to be estimated.
+**          const  if fixed regressors: NxM matrix, N must be the same as y
+**                                      after it has been differenced.
+**                                else: scalar, if, 1 a constant is estimated,
+**                                      0 otherwise.
+**
+**  Output:  b      column vector of final estimates equal to the number of AR,
+**                  MA, and Constant (or fixed regressor) terms.
+**           ll     value of the maximized likelihood function.
+**           e      Nx1 matrix, residuals.
+**           covb   matrix, covariance matrix for the ARMA parameters and Constant.
+**           aic    scalar, AIC.
+**           sbc    scalar, SBC.
+**
+**  Globals: _am_itol   3x1 vector, controls stopping criterion
+**                      _am_itol[1]   maximum number of iterations,
+**                                    default = 100
+**                      _am_itol[2]   minimum percentage change in SSE,
+**                                    default = 1e-8
+**                      _am_itol[3]   mimimum percentage change in parameter
+**                                    estimates, default = 1e-6
+**
+**           _am_varn   1x(K+1) vector of parameter names. This is used for
+**                      models with fixed regressors.  The first element must
+**                      give the name of the dependent variable. If you don't
+**                      want to specify variable names, set _am_varn = 0 (this
+**                      is the default).
+**
+**           __output   scalar, if 0, nothing is printed
+**                                 1, final results are printed,
+**                                 2, final results and iteration information
+**
+**  Internal globals: _am_b, _am_y, _am_p, _am_d, _am_q, _amconst, _am_n, _am_e,
+**                 _am_k,_am_m,_aminter
+*/
+
+#include arima.ext
+
+proc (6) = arima(b0,y,p,d,q,const);
+    local h1,i,bflag,id,l,ki,bstor,modf,c,modt,fb,sse,crit,iter,z1,stdg,zz,oldt,
+        l1,g1,f1,sse1,fbf,ssef,f2,sse2,l3,f3,mz,rnk,ll,covb,aic,sbc,sig2,
+        b,label,ar,ma,stderr,tratio,pval,cma,fr,fim,tr,tim,m,j,rk;
+
+    oldt = trapchk(1);
+    trap 1,1;
+    h1 = hsec;
+    _am_y = y;
+    _am_p = p;
+    _am_d = d;
+    _am_q = q;
+    _am_n = rows(_am_y);
+    i = 1;
+    do while i <= _am_d;
+        _am_y = _am_y[2:_am_n] - _am_y[1:_am_n-1];
+        _am_n = rows(_am_y);
+        i = i+1;
+    endo;
+    bflag = 0;
+    if cols(_am_y) > 1;
+        errorlog "ERROR: the columns of the time series must equal one.";
+    endif;
+    if rows(const) == 1 and cols(const) == 1;
+        if const == 0 and _am_p+_am_q == 0;
+            errorlog "ERROR: there is nothing to estimate.";
+            end;
+        elseif const /= 0 and const /= 1;
+            errorlog "ERROR: 'const' must be either 0 or 1, or it must be a"\
+                " matrix of fixed regressors.";
+            end;
+        endif;
+        _amconst = const;
+        _aminter = 0;
+    elseif rows(const) == _am_n;
+        _amconst = const;
+        _aminter = 1;
+    else;
+        errorlog "ERROR: Rows of 'const' must equal rows of dependent varia"\
+            "ble (after desired";
+        errorlog "       order of differencing) or else 'const' must be a s"\
+            "calar = 0 or 1.";
+        end;
+    endif;
+    if rows(b0) == 1;
+        if b0 == 0;
+            _am_b = _am_startv;
+        endif;
+    else;
+        _am_b = b0;
+    endif;
+    _am_m = maxc(_am_p|_am_q);
+    _am_k = rows(_am_b);
+    Id = eye(_am_k);
+    l = .01;
+    ki = 1;
+    bstor = zeros(_am_k,1);
+    if _am_p >= 1;
+        modf = 1.1;
+        do until maxc(modf) < 1;
+            if _am_p == 1;
+                c = _am_b[1];
+            else;
+                c = eig(_am_b[1:_am_p]'|eye(_am_p-1)~zeros(_am_p-1,1));
+            endif;
+            modf = sqrt(real(c)^2+imag(c)^2);
+            if maxc(modf) >= 1;
+                _am_b[1:_am_p] = .8*_am_b[1:_am_p];
+            endif;
+        endo;
+    endif;
+    if _am_q >= 1;
+        modt = 1.1;
+        do until maxc(modt) <= 1;
+            if _am_q == 1;
+                c = _am_b[_am_p+1];
+            else;
+                c = eig( _am_b[_am_p+1:_am_p+_am_q]'|eye(_am_q-1)~
+                    zeros(_am_q-1,1));
+            endif;
+            modt = sqrt(real(c)^2+imag(c)^2);
+            if maxc(modt) > 1;
+                _am_b[_am_p+1:_am_p+_am_q] = .8*_am_b[_am_p+1:_am_p+_am_q];
+            endif;
+        endo;
+    endif;
+    _am_e = 0;
+    fb = _am_lfunc(_am_b);
+    fb = fb[.,1];
+    sse = moment(fb,0);
+    if __output > 0;
+        print ftos(_am_p,"Model:  ARIMA(%*.*lf,",1,0)$+ftos(_am_d,"%*.*lf,"
+            ,1, 0)$+ftos(_am_q,"%*.*lf)",1,0);
+        print;
+    endif;
+    if __output == 2;
+        print ftos(sse,"Initial Values:   Adj. SSE = %-*.*lf",13,9);
+        format /rd 10,6;
+        print "  b = " _am_b';
+    endif;
+    crit = 1;
+    iter = 1;
+    do until (crit < 1) or (iter > _am_itol[1]);    /* * Iteration control * */
+        _am_e = 1;
+        z1 = gradp(&_am_lfunc,_am_b);
+        _am_e = 0;
+        stdg = sqrt(sumc(z1^2));
+        zz = moment(z1,0)./moment(stdg',0);
+        z1 = (z1'fb)./stdg;
+        l1 = .1*l;
+        g1 = solpd(z1,zz+l1*Id)./stdg;
+        gosub boundary;
+        f1 = _am_lfunc(b);
+        sse1 = moment(f1[.,1],0);
+        if sse1 <= sse;
+            if l >= 1e-20;
+                l = l1;
+            endif;
+            fbf = f1;
+            ssef = sse1;
+        elseif sse1 > sse;
+            g1 = solpd(z1,zz+l*Id)./stdg;
+            gosub boundary;
+            f2 = _am_lfunc(b);
+            sse2 = moment(f2[.,1],0);
+            if sse2 <= sse;
+                fbf = f2;
+                ssef = sse2;
+            elseif sse2 > sse;
+                l3 = l;
+                do until sse2 <= sse;
+                    if l3 > 10^6;
+                        ki = .5*ki;
+                    endif;
+                    l3 = l3*10;
+                    g1 = solpd(ki*z1,zz+l3*Id)./stdg;
+                    gosub boundary;
+                    f3 = _am_lfunc(b);
+                    sse2 = moment(f3[.,1],0);
+                endo;
+                l = l3;
+                fbf = f3;
+                ssef = sse2;
+            endif;
+        endif;
+/** Check change in SSE and B0  **/
+        if (abs(1-ssef/sse)< _am_itol[2]) or (abs(_am_b-b) < _am_itol[3]);
+            crit = 0;
+        else;
+            crit = 1;
+        endif;
+        sse = ssef;
+        fb = fbf[.,1];
+        _am_b = b;
+        bstor = bstor~b;
+        if __output == 2;
+            print;
+            print ftos(iter,"Iteration: %-*.*lf ",5,0);;
+            print ftos(l,"Marquardt Constant = %-*.*lG",9,7);;
+            print ftos(sse,"Adj. SSE = %-*.*lf",13,9);
+            format /rd 10,6;
+            print "  b =" _am_b';
+        endif;
+        iter = iter+1;
+    endo;
+    _am_e = 1;
+    mz = moment(gradp(&_am_lfunc,_am_b),0);
+    rnk = rank(mz);
+    if rnk < _am_k;
+        i = 2;
+        do until rnk == _am_k;
+            mz = moment(gradp(&_am_lfunc,bstor[.,iter-i+1]),0);
+            rnk = rank(mz);
+            i = i+1;
+            if i >= iter;
+                errorlog "ERROR: Likelihood surface is too flat to find sta"\
+                    "ndard errors.  Only b, ll, e, AIC and SBC are returned"\
+                    ".";
+                ll = -(_am_n/2)*ln(sse/_am_n)-(_am_n/2)*ln(2*PI)-(_am_n/2);
+                covb = miss(0,0);
+                aic = -2*ll+2*_am_k;
+                sbc = -2*ll+(_am_k*ln(_am_n));
+                goto errretp;
+            endif;
+        endo;
+        _am_b = bstor[.,iter-i+1];
+        _am_e = 0;
+        fbf = _am_lfunc(_am_b);
+        sse = moment(fbf[.,1],0);
+    endif;
+    sse1 = fbf[.,2]'fbf[.,2];
+    sig2 = sse1/(_am_n - _am_k);
+    covb = sig2*invpd(mz);
+    ll = -(_am_n/2)*ln(sse/_am_n)-(_am_n/2)*ln(2*PI)-(_am_n/2);
+    aic = -2*ll+2*_am_k;
+    sbc = -2*ll+(_am_k*ln(_am_n));
+    if __output > 0;
+        gosub finres;       /* * Print Final results * */
+        gosub roots;        /* * Compute the AR & MA Roots * */
+    endif;
+    if __output == 2;
+        gosub portman;      /* * Compute & Print Portmaneau Stat. *  */
+        gosub covm;         /* * Print Covariance Matrix * */
+        gosub corrm;        /* * Print Correlation Matrix * */
+    endif;
+errretp:
+    trap oldt,1;
+
+    retp(_am_b,ll,fbf[.,2],covb,aic,sbc);
+
+/** ----------------------------- Subroutines ----------------------------- **/
+
+boundary:
+
+    /* Keep AR & MA parameter estimates inside invertibility region * */
+    b = _am_b+g1;
+    if _am_p >= 1;
+        modf = 1.1;
+        do until modf < 1;
+            if _am_p == 1;
+                c = b[1];
+            else;
+                c = eig(b[1:_am_p]'|eye(_am_p-1)~zeros(_am_p-1,1));
+            endif;
+            modf = maxc(sqrt(real(c)^2+imag(c)^2));
+            if modf >= 1;
+                g1 = .8*g1;
+                b = _am_b+g1;
+            endif;
+        endo;
+    endif;
+    if _am_q >= 1;
+        modt = 1.1;
+        do until modt <= 1;
+            if _am_q == 1;
+                c = b[_am_p+1];
+            else;
+                c = eig(b[_am_p+1:_am_p+_am_q]'|eye(_am_q-1)~zeros(_am_q-1,1));
+            endif;
+            modt = maxc(sqrt(real(c)^2+imag(c)^2));
+            if modt > 1;
+                g1 = .9*g1;
+                b = _am_b+g1;
+            endif;
+        endo;
+    endif;
+    return;
+
+finres:
+
+    print;
+    print "Final Results:";
+    print;
+    print ftos(iter-1,"Iterations Until Convergence:%*.*lf",4,0);
+    print;
+    print ftos(ll,"Log Likelihood:  %*.*lf",12,6);;
+    print ftos(_am_n,"         Number of Residuals: %-*.*lf",6,0);
+    print ftos(aic,"AIC           :  %*.*lf",12,6);;
+    print ftos(sig2,"         Error Variance     : %-*.*lf",17,9);
+    print ftos(sbc,"SBC           :  %*.*lf",12,6);;
+    print ftos(sqrt(sig2),"         Standard Error     : %-*.*lf",17,9);
+    print;
+    print ftos(_am_n-_am_k,"DF: %-*.*lf",5,0)$+ftos(sse,"   Adj. SSE: %-*.*"\
+        "lf", 17,9)$+ftos(sse1,"    SSE: %-*.*lf",17,9);
+    print;
+    if _am_varn[1] /= 0;
+        print "Dependent Variable: " $_am_varn[1];
+        print;
+    endif;
+    label = ones(1,_am_k);
+    if _am_p >= 1;
+        ar = seqa(1,1,_am_p);
+        label[1:_am_p] = 0$+"AR"$+ftocv(ar',1,0);
+    endif;
+    if _am_q >= 1;
+        ma = seqa(1,1,_am_q);
+        label[_am_p+1:_am_p+_am_q] = 0$+"MA"$+ftocv(ma',1,0);
+    endif;
+    if _aminter;
+        if _am_varn[1] /= 0;
+            label[_am_p+_am_q+1:_am_k] = _am_varn[2:cols(_am_varn)];
+        else;
+            label[_am_p+_am_q+1:_am_k] = 0$+"X"$+ftocv(seqa(0,1,
+                cols(_amconst))',1,0);
+        endif;
+    else;
+        if _amconst;
+            label[_am_k] = "Mean";
+        endif;
+    endif;
+    stderr = sqrt(diag(covb));
+    tratio = _am_b./stderr;
+    pval = 2*cdftc(abs(tratio),_am_n-_am_k);
+    if _am_q > 0;
+        if _am_q == 1;
+            cma = 1/_am_b[_am_p+1];
+        elseif _am_q > 1;
+            cma = eig((rev(-1|_am_b[_am_p+1:_am_p+_am_q-1])'
+                /-_am_b[_am_p+_am_q])| eye(_am_q-1)~zeros(_am_q-1,1));
+        endif;
+        modt = minc(sqrt(real(cma)^2+imag(cma)^2));
+        if modt >= .9999 and modt <= 1.001;
+            stderr[_am_p+1:_am_p+_am_q] = miss(zeros(_am_q,1),0);
+            tratio[_am_p+1:_am_p+_am_q] = miss(zeros(_am_q,1),0);
+            pval[_am_p+1:_am_p+_am_q] = miss(zeros(_am_q,1),0);
+            bflag = 1;
+        endif;
+    endif;
+    print "            Coefficients     Std. Errors      T-Ratio    Approx."\
+        " Prob.";
+    c = (label')~_am_b~stderr~tratio~pval;
+    let i[5,3] = "-*.*s" 10 8, "*.*lf" 14 8, "*.*lf" 16 8, "*.*lf" 13 5, "*"\
+        ".*lf" 17 5;
+    call printfm(c,0~1~1~1~1,i);
+    print;
+    format /rd 12,8;
+    if _aminter == 0;
+        if (_amconst == 1) and (_am_p > 0);
+            print "Constant: ";;
+            sumc(1|-_am_b[1:_am_p])*_am_b[_am_p+_am_q+1];
+            print;
+        elseif (_amconst == 1) and (_am_p == 0);
+            print "Constant: ";;
+            _am_b[_am_p+_am_q+1];
+            print;
+        else;
+            print;
+        endif;
+    endif;
+    print ftos((hsec-h1)/100,"Total Computation Time: %*.*lf (seconds)",4,2);
+    print;
+    return;
+
+roots:
+
+    format /rd 9,5;
+    if _am_p == 1;
+        print "AR Root: ";;
+        print 1/_am_b[1];
+        print;
+    elseif _am_p > 1;
+        c = eig((rev(-1|_am_b[1:_am_p-1])'/-_am_b[_am_p])|eye(_am_p-1)~
+            zeros(_am_p-1,1));
+        fr = real(c);
+        fim = imag(c);
+        print "AR Roots and Moduli:";
+        print;
+        iter = 1;
+        do while iter <= _am_p;
+            c = minc((iter+5)|_am_p);
+            print "Real :  " fr[iter:c]';
+            print "Imag.:  " fim[iter:c]';
+            print "Mod. :  " sqrt(fr[iter:c]^2+fim[iter:c]^2)';
+            print;
+            iter = iter+6;
+        endo;
+    endif;
+    if _am_q == 1;
+        print "MA Root: ";;
+        cma;
+        print;
+    elseif _am_q > 1;
+        tr = real(cma);
+        tim = imag(cma);
+        print "MA Roots and Moduli:";
+        print;
+        iter = 1;
+        do while iter <= _am_q;
+            c = minc((iter+5)|_am_q);
+            print "Real :  " tr[iter:c]';
+            print "Imag.:  " tim[iter:c]';
+            print "Mod. :  " sqrt(tr[iter:c]^2+tim[iter:c]^2)';
+            print;
+            iter = iter+6;
+        endo;
+    endif;
+    if bflag == 1;
+        print "Warning: The standard errors for the MA parameters are not r"\
+            "eported because";
+        print "  there is a MA root on the boundary.  The parameter estimat"\
+            "es remain valid.";
+        print;
+    endif;
+    return;
+
+covm:
+
+    print "Covariance Matrix: ";
+    print;
+    if _am_k <= 7;
+        let i[1,3] = "*.*lf" 9 4;
+        m = ones(_am_k+1,_am_k+1);
+        m[.,1] = zeros(_am_k+1,1);
+        m[1,.] = zeros(1,_am_k+1);
+        c = label'~covb;
+        c = 0~label|c;
+        call printfm(c,m,i);
+        print;
+    else;
+        format /rd 8,4;
+        print covb;
+        print;
+    endif;
+    return;
+
+portman:
+
+    if (_am_p+_am_q) < 10 and _am_n >= 30;
+        j = 10;
+        m = 20;
+    else;
+        j = _am_k;
+        m = j+10;
+    endif;
+    rk = rev(conv(fbf[.,2],rev(fbf[.,2]),_am_n-m,_am_n));
+    rk = rk[2:m+1]./rk[1];
+    print "Residual Autocorrelations:";
+    print;
+    format /rd 8,0;
+    print seqa(1,1,8)';
+    format /rd 8,4;
+    print "  " rk[1:8]';
+    print;
+    format /rd 8,0;
+    print seqa(9,1,8)';
+    format /rd 8,4;
+    print "  " rk[9:16]';
+    print;
+    rk = ((_am_n)*(_am_n+2)./seqa(_am_n-1,-1,m)).*rk^2;
+    q = sumc(rk[1:j]);
+    j = j+1;
+    do while j <= m;
+        q = q|sumc(rk[1:j]);
+        j = j+1;
+    endo;
+    let i[3,3] = "*.*lf" 24 0, "*.*lf" 14 6, "*.*lf" 14 6;
+    c = seqa(j-11,1,11)~q~cdfchic(q,seqa(j-_am_p-_am_q-11,1,11));
+    print "Box-Ljung Statistic:   m          Q          P-value";
+    call printfm(c,ones(1,3),i);
+    print;
+    return;
+
+corrm:
+
+    print "Correlation Matrix: ";
+    print;
+    if _am_k <= 7;
+        let i[1,3] = "*.*lf" 9 4;
+        m = ones(_am_k+1,_am_k+1);
+        m[.,1] = zeros(_am_k+1,1);
+        m[1,.] = zeros(1,_am_k+1);
+        c = label'~covb./moment(sqrt(diag(covb))',0);
+        c = 0~label|c;
+        call printfm(c,m,i);
+        print;
+    else;
+        format /rd 8,4;
+        print covb./moment(sqrt(diag(covb))',0);
+        print;
+    endif;
+    return;
+
+endp;
+
+/** -------------------- Procedures used by ARIMA.SRC ----------------------
+**/
+
+/**     The Likelihood function for a general ARMA(p,q) model   **/
+proc _am_lfunc(_am_b);
+    local w,e,dl,z,theta,phi,c,b1,k,j,kmin,a,i,t1,t2,g,gtoe;
+
+    if _aminter == 1 or _amconst == 1;
+        w = _am_y - _amconst*_am_b[_am_p+_am_q+1:_am_k];
+    else;
+        w = _am_y;
+    endif;
+    if _am_p == 0 and _am_q == 0;
+        e = w;
+        dl = 1;
+        goto fproc;
+    elseif _am_p > 0;
+        z = w[1:_am_m]|conv(1|-_am_b[1:_am_p],w,_am_m+1,_am_n);
+    else;
+        z = w;
+    endif;
+/** Compute autocovariances  **/
+    if _am_q == 0;
+        theta = -1;
+    else;
+        theta = -1|_am_b[_am_p+1:_am_p+_am_q];
+    endif;
+    if _am_p > 0;
+        phi = -1|_am_b[1:_am_p];
+        c = zeros(_am_q+1,1);
+        b1 = zeros(_am_m+1,1);
+        c[1] = 1;
+        k = 1;
+        j = 1;
+        do while k <= _am_q;
+            kmin = minc(_am_p|k);
+            if (_am_p > 0) and (k <= _am_p);
+                c[k+1] = -theta[k+1] + phi[2:kmin+1]'rev(c[1:kmin]);
+            elseif (_am_p > 0) and (k > _am_p);
+                c[k+1] = -theta[k+1] + phi[2:kmin+1]'rev(c[j+1:kmin+j]);
+                j = j+1;
+            else;
+                c[k+1] = -theta[k+1];
+            endif;
+            k = k+1;
+        endo;
+        k = 1;
+        do while k <= _am_q+1;
+            b1[k] = -theta[k:_am_q+1]'c[1:_am_q+2-k];
+            k = k+1;
+        endo;
+        a = zeros(_am_m+1,_am_m+1);
+        a[1:_am_p+1,1] = phi;
+        j = 2;
+        do while j <= _am_m+1;
+            i = 1;
+            do while i <= _am_m+1;
+                t1 = i-j+1;
+                t2 = i+j-1;
+                if t1 > 0 and t1 <= _am_p+1;
+                    if t2 > 0 and t2 <= _am_p+1;
+                        a[i,j] = phi[t1]+phi[t2];
+                    else;
+                        a[i,j] = phi[t1];
+                    endif;
+                else;
+                    if t2 > 0 and t2 <= _am_p+1;
+                        a[i,j] = phi[t2];
+                    endif;
+                endif;
+                i = i+1;
+            endo;
+            j = j+1;
+        endo;
+        g = -b1/a;
+    endif;
+/** Create lower bands of covariance matrix and compute e. **/
+    if _am_q == 0;
+        e = ltrisol(z[1:_am_p],chol(shiftr(g[1:_am_m]',seqa(0,1,_am_m),0))'
+            ) |z[_am_p+1:_am_n];
+    elseif (_am_p >= _am_q) and (_am_q > 0);
+        phi = -phi;
+        c = zeros(_am_m+1,1);
+        c[1:_am_q+1] = rev(trimr(conv(-theta,rev(-theta),0,0),0,_am_q));
+        a = zeros(_am_n,_am_m+1);
+        gtoe = toeplitz(g);
+        i = _am_m+1;
+        j = 0;
+        k = 1;
+        do while i >= 1;
+            if j == 0;
+                a[.,i] = g[k]*ones(_am_p,1)|ones(_am_n-_am_p,1)*c[k];
+            elseif (j >= 1) and (j < _am_m);
+                a[k:_am_n,i] = (g[k]*ones(_am_p-j,1))| (gtoe[.,k]'
+                    phi*ones(j,1))|(c[k]*ones(_am_n-_am_p-j,1));
+            elseif (j >= 1) and (j == _am_m);
+                a[k:_am_n,i] = (phi'gtoe[.,k]*ones(j,1))| (c[k]
+                    *ones(_am_n-_am_p-j,1));
+            endif;
+            i = i-1;
+            j = j+1;
+            k = k+1;
+        endo;
+        e = bandltsol(z,bandchol(a));
+    elseif (_am_q > _am_p) and (_am_p == 0);
+        e = bandltsol(z,bandchol(trimr(conv(-theta,rev(-theta),0,0), 0,
+            _am_q)'.*ones(_am_n,_am_m+1)));
+    elseif (_am_q > _am_p) and (_am_p > 0);
+        phi = -phi;
+        c = rev(trimr(conv(-theta,rev(-theta),0,0),0,_am_q));
+        a = zeros(_am_n,_am_m+1);
+        gtoe = toeplitz(g);
+        i = _am_m+1;
+        j = 0;
+        k = 1;
+        do while i >= 1;
+            if j == 0;
+                a[.,i] = g[k]*ones(_am_q,1)|ones(_am_n-_am_q,1)*c[k];
+            elseif (j > 0) and (j < _am_m);
+                a[k:_am_n,i] = (g[k]*ones(_am_q-j,1))| (gtoe[1:_am_p+1,k]'
+                    phi*ones(j,1))|(c[k]*ones(_am_n-_am_q-j,1));
+            elseif (j >= 1) and (j == _am_m);
+                a[k:_am_n,i] = (phi'gtoe[1:_am_p+1,k]*ones(j,1))| (c[k]
+                    *ones(_am_n-_am_q-j,1));
+            endif;
+            i = i-1;
+            j = j+1;
+            k = k+1;
+        endo;
+        e = bandltsol(z,bandchol(a));
+    endif;
+    dl = sqrt(detl)^(1/_am_n);
+fproc:
+
+    if _am_e == 0;
+        retp( (e*dl)~e );           /* * Return: e-tilda and e * */
+    elseif _am_e == 1;
+        retp( _am_y-e*dl );         /* * Return: The function f(y,beta)
+                                    :: *
+                                    */
+    endif;
+endp;
+
+/** Compute Starting Values **/
+proc _am_startv;
+    local arp,x,ab,y1,x2,sv,w,ybar,w1;
+
+    if _am_q == 0;
+        arp = _am_p;
+    else;
+        arp = maxc(minc(round(sqrt(_am_n))|25)|_am_p);
+    endif;
+    if _aminter;
+        ybar = _am_y/_amconst;
+        w = _am_y - _amconst*ybar;
+        if _am_p == 0 and _am_q == 0;
+            sv = ybar;
+            goto est;
+        endif;
+    else;
+        if _amconst;
+            ybar = meanc(_am_y);
+            w = _am_y - ybar;
+            if _am_p == 0 and _am_q == 0;
+                sv = ybar;
+                goto est;
+            endif;
+        else;
+            w = _am_y;
+        endif;
+    endif;
+    x = trimr(shiftr(w',seqa(1,1,arp),0)',arp,0);
+    ab = w[arp+1:_am_n]/x;
+    if _aminter and _am_q == 0;
+        sv = ab[1:_am_p]|ybar;
+        goto est;
+    else;
+        if _am_q == 0 and _amconst == 1;
+            sv = ab[1:_am_p]|ybar;
+            goto est;
+        elseif _am_q == 0 and _amconst == 0;
+            sv = ab[1:_am_p];
+            goto est;
+        endif;
+    endif;
+    w1 = x*ab;
+    y1 = trimr(w1,_am_q,0);
+    x2 = -trimr(shiftr((w[arp+1:_am_n]-w1)',seqa(1,1,_am_q),0)',_am_q,0);
+    if _am_p > 0;
+        sv = y1/(trimr(x[.,1:_am_p],_am_q,0)~x2);
+    else;
+        sv = y1/x2;
+    endif;
+    if _aminter == 1 or _amconst == 1;
+        sv = sv|ybar;
+    endif;
+est:
+
+    retp(sv);
+endp;
+
+proc(0) = arimaset;
+    gausset;
+    _am_y = 0;
+    _am_n = 0;
+    _am_p = 0;
+    _am_d = 0;
+    _am_q = 0;
+    _amconst = 0;
+    _am_m = 0;
+    _am_k = 0;
+    _am_b = 0;
+    _aminter = 0;
+    _am_e = 0;
+    _am_varn = 0;
+    _am_itol = 100|1e-8|1e-6;
+    _amcritl = .95;
+endp;
+

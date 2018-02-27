@@ -1,0 +1,861 @@
+/**************************************************************************
+**************                COINT 2.0                 *******************
+**************     TEST DRIVER PROGRAMS FOR LRVAR.ARC   *******************
+**************                              ARMA.SRC    *******************
+**************                              BAYES.SRC   *******************
+**************************************************************************/
+
+
+
+/*
+/**************************************************************************
+**************                LRVAR.DRV                 *******************
+**************     TEST DRIVER PROGRAMS FOR LRVAR.ARC   *******************
+**************************************************************************/
+
+
+/**************************************************************************
+********************          tspcarma.prg           **********************
+********************  test program for proc specarma **********************
+**************************************************************************/
+output file = tspcarma.out reset;
+seed=155;
+n=40;
+nn=104;
+wx=seqa(0,pi/n,n+1)';
+alpha= 0.80;
+theta=-0.60;
+a=1~(-alpha);
+b=1~theta;
+" true AR and MA coefficients: alpha~theta = " alpha~theta;
+sig2=1;
+spectrum = specarma(a,b,sig2,wx);
+graphset;
+_pdate = "";
+_pltype = {6,3,5,2,1,4};
+_psilent = 1;
+title( " ARMA(1,1) spectrum" );
+xy(wx',spectrum);
+
+output off;
+
+
+/**************************************************************************
+********************          tarmagrf.prg           **********************
+********************  test program for proc sarmagrf **********************
+**************************************************************************/
+
+output file = tarmagrf.out reset;
+seed=155;
+n=40;
+nn=104;
+wx=seqa(0,pi/n,n+1)';
+alpha= 0.80;
+theta=-0.60;
+a=1~(-alpha);
+b=1~theta;
+" true AR and MA coefficients: alpha~theta = " alpha~theta;
+sig2=1;
+spectrum = sarmagrf(a,b,sig2,wx);
+
+output off;
+
+/**************************************************************************
+********************          tspecwx.prg           **********************
+********************  test program for proc specwx **********************
+**************************************************************************/
+
+
+output file = tspecwx.out  reset;
+print;
+"    RESULTS OF LR-VAR & SPECTRUM ESTIMATION FROM AR & ARMA MODEL SELECTION
+                       AND PREFILTERING" ;
+n=40;
+nn=200;
+seed = 123;
+_kernel=1;
+wx=seqa(0,pi/n,n+1)';
+pmax=5;
+qmax=1;
+alpha=0.40;
+theta=-0.80;
+a=1~(-alpha);
+b=1~theta;
+" true coefficients: alpha~theta = " alpha~theta;
+eps = rndns(nn,1,seed);
+eps = trimr(eps + theta*lag(eps,1),1,0);
+x   = recserar(eps,0,alpha);
+sig2=1;
+{ f1,f2,f3,f4,f5 }
+= specwx(x,pmax,qmax,_kernel,wx);
+fyy    = specarma(a,b,sig2,wx);
+fyyhat = f1~f2~f3~f4~f5;
+zz=fyy~fyyhat;
+graphset;
+title( " Spectral Density estimates ");
+_pdate   = "";
+_pnum    = 2;
+_ptitlht = 0.32;
+_pltype  = {6,3,5,2,1,4};
+_psilent = 1;
+_plegctl = { 2,4,4.2,1.0 };
+_plegstr = " True spectrum\000 2-stage ARMA ";
+xy(wx',fyy~f1);
+_plegstr = " True spectrum\000 3-stage ARMA ";
+xy(wx',fyy~f2);
+_plegstr = " True spectrum\000 kernel estimate";
+xy(wx',fyy~f3);
+_plegstr = " True spectrum\000 Phillips - Lee";
+xy(wx',fyy~f4);
+_plegstr = " True spectrum\000 Andrews - Monahan";
+xy(wx',fyy~f5);
+_plegstr = " True spectrum\000 2-stage ARMA estimate " $+
+                         "\000 3-stage ARMA estimate " $+
+                         "\000 kernal estimate " $+
+                         "\000 Phillips - Lee " $+
+                         "\000 Andrews-Monahan ";
+xy(wx',zz);
+
+output off;
+
+
+/**************************************************************************
+********************          tspwx.grf             ***********************
+********************  test program for proc spwxgrf ***********************
+**************************************************************************/
+output file = tspwx.out  reset;
+print;
+"       GRAPHS OF SPECTRAL DENSITY ESTIMATES FROM AR & ARMA MODEL SELECTION
+                       AND PREFILTERING" ;
+n=40;
+nn=200;
+seed = 123;
+_kernel=1;
+wx=seqa(0,pi/n,n+1)';
+pmax=5;
+qmax=1;
+alpha=0.40;
+theta=-0.80;
+a=1~(-alpha);
+b=1~theta;
+" true coefficients: alpha~theta = " alpha~theta;
+eps = rndns(nn,1,seed);
+eps = trimr(eps + theta*lagn(eps,1),1,0);
+x   = recserar(eps,0,alpha);
+sig2=1;
+{ f1,f2,f3,f4,f5 }
+= spwxgrf(x,pmax,qmax,_kernel,wx);
+
+output off;
+
+
+/**************************************************************************
+********************          tpplee.prg           **********************
+********************  test program for proc pplee  **********************
+**************************************************************************/
+output file = tpplee.out  reset;
+print;
+nn=200;
+seed = 123;
+_kernel=1;
+wx=0;
+pmax=5;
+qmax=1;
+alpha=0.40;
+theta=-0.20;
+a=1~(-alpha);
+b=1~theta;
+eps = rndns(nn,1,seed);
+eps = trimr(eps + theta*lagn(eps,1),1,0);
+x   = recserar(eps,0,alpha);
+sig2=1;
+lrvar  = pplee(x,pmax,qmax,_kernel);
+truelr = slrvr(a,b,sig2);
+" True long run variance  = " truelr;
+" Phillips-Lee estimate   = " lrvar;
+
+output off;
+
+
+/**************************************************************************
+********************          tamlrvr.prg           **********************
+********************  test program for proc amlrvr **********************
+**************************************************************************/
+output file = tamlrvr.out  reset;
+print;
+nn=150;
+seed = 1323;
+_kernel=1;
+wx=0;
+pmax=7;
+qmax=1;
+alpha=0.80;
+theta=0.40;
+a=1~(-alpha);
+b=1~theta;
+eps = rndns(nn,1,seed);
+eps = trimr(eps + theta*lagn(eps,1),1,0);
+x   = recserar(eps,0,alpha);
+sig2=1;
+truelr = slrvr(a,b,sig2);
+am     = amlrvr(x,_kernel);
+" True long run variance  = " truelr;
+" A-M estimate            = " am;
+
+output off;
+
+
+/**************************************************************************
+********************          tlrvro.prg           **********************
+********************  test program for proc lrvro  **********************
+**************************************************************************/
+output file = tlrvro.out  reset;
+print;
+nn=200;
+seed = 123;
+_kernel=1;
+wx=0;
+pmax=5;
+qmax=1;
+alpha=0.40;
+theta=-0.80;
+a=1~(-alpha);
+b=1~theta;
+eps = rndns(nn,1,seed);
+eps = trimr(eps + theta*lagn(eps,1),1,0);
+x   = recserar(eps,0,alpha);
+sig2=1;
+truelr = slrvr(a,b,sig2);
+{ g1,g2,g3,g4,g5 } = lrvro(x,pmax,qmax,_kernel);
+" True long run variance     = " truelr;
+" ARMA 2-stage estimate      = " g1;
+" ARMA 3-stage estimate      = " g2;
+" QS kernel estimate         = " g3;
+" Phillips - Lee  estimate   = " g4;
+" Andrews - Monahan estimate = " g5;
+
+output off;
+
+
+*/
+/**************************************************************************
+********************          tzazt.prg           **********************
+********************  test program for proc ppzazt **********************
+**************************************************************************/
+output file = tzazt.out reset;
+
+pt    = -1;         @ set order of time polynomial;"p=1" gives linear trend @
+nn    = 104;        @ set sample size for simulation   @
+a     = 1.00;       @ autoregressive coefficient   @
+theta = -0.60;      @ value of MA(1) coefficient  @
+drift = 0.00;       @ true drift coefficient  @
+y0  = 0;            @ set initialization of dependent variable              @
+seed1=93;           @ set random number seed @
+pmax = 9;        @ set max lag length for long AR  @
+qmax = 1;           @ set max lag length for MA  @
+sel  = 1;           @ set parameter for use of Phillips-Lee l-r variance @
+_kernel = 1;        @ use QS kernel @
+kk = 1;
+do until kk == 10;
+eps = rndns(nn,1,seed1);
+eps = trimr(eps + theta*lagn(eps,1),1,0);
+nv  = rows(eps);
+trend = seqa(1,1,nv);
+x = drift*trend + recserar(eps,y0,a);
+{alpha,zax,ztx} = ppzazt(x,pmax,qmax,pt,_kernel,sel);
+" AR coefficient = " alpha;
+" Z(a) statistic = " zax;
+" Z(t) statistic = " ztx;
+kk = kk + 1;
+endo;
+
+output off;
+
+"Okay, done with LRVAR; ARMA.DRV coming up";
+"Press any key to continue...";
+CWait(" ");
+
+
+/**************************************************************************
+**************                 ARMA.DRV                 *******************
+**************     TEST DRIVER PROGRAMS FOR LRVAR.SRC   *******************
+**************************************************************************/
+
+
+/**************************************************************************
+********************          tarord.prg          *************************
+********************  test program for proc arord *************************
+**************************************************************************/
+output file = tarord.out reset;
+
+a = 1.00;
+b = -0.75;
+c = 0.5;
+d = 0.025;
+n = 150;
+pmax = 5;
+tmax = 3;
+x = rndn(n,1);
+x = recserar(x,0,a);
+x = recserar(x,0,b) + d*seqa(1,1,n) + c*ones(n,1);
+{ aic,bic,pic } = arord(x,pmax,tmax);
+" aic values    = " aic;
+" bic values    = " bic;
+" pic values    = " pic;
+
+output off;
+
+"arbc"; CWait(" ");
+
+/**************************************************************************
+********************          tbic.prg            *************************
+********************  test program for proc arbc  *************************
+**************************************************************************/
+output file = tbic.out reset;
+
+a = 1.00;
+b = -0.45;
+c = 0.0;
+d = 0.0;
+n = 80;
+pmax = 5;
+tmax = 3;
+x = rndn(n,1);
+x = recserar(x,0,a);
+x = recserar(x,0,b) + d*seqa(1,1,n) + c*ones(n,1);
+{ bic,p,t,b,st,trat,vmat } = arbc(x,pmax,tmax);
+" bic values    = " bic;
+"selected lag   = " p;
+"selected trend = " t;
+"coefficients   = " b';
+"st. errors     = " st';
+"t- ratios      = " trat';
+
+output off;
+
+"arpc"; CWait(" ");
+
+/**************************************************************************
+********************          tpic.prg            *************************
+********************  test program for proc arpc  *************************
+**************************************************************************/
+output file = tpic.out reset;
+
+a = 1.00;
+b = -0.45;
+c = 0.0;
+d = 0.0;
+n = 80;
+lmax = 5;
+tmax = 3;
+x = rndn(n,1);
+x = recserar(x,0,a);
+x = recserar(x,0,b) + d*seqa(1,1,n) + c*ones(n,1);
+{ pic,picu,l,t,b,st,trat,vmat } = arpc(x,lmax,tmax);
+" pic values = " pic;
+"odds in favour of a unit root = " picu;
+"selected lag   = " l;
+"selected trend = " t;
+"coefficients = " b';
+"st. errors = " st';
+" t- ratio  = " trat';
+
+output off;
+
+"adftr"; CWait(" ");
+
+/**************************************************************************
+********************         tadftr.prg            ************************
+********************  test program for proc adftr  ************************
+**************************************************************************/
+output file = tadftr.out reset;
+
+p = 2;
+pt= 1;
+a = 1.00;
+b = -0.45;
+c = 0.5;
+d = 0.0;
+n = 200;
+x = rndn(n,1);
+x = recserar(x,0,a);
+x = recserar(x,0,b) + d*seqa(1,1,n) + c*ones(n,1);
+{ b,st,trat,vmat } = adftr(x,p,pt);
+"coefficients   = " b';
+"st. errors     = " st';
+"t- ratios      = " trat';
+
+output off;
+
+"armatr"; CWait(" ");
+
+/**************************************************************************
+********************         tarmatr.prg           ************************
+********************  test program for proc armatr ************************
+**************************************************************************/
+output file = tarmatr.out reset;
+
+seed = 123;
+a = 0.70;
+bb = -0.00;
+theta =-0.20;
+c = 0;
+d = 0;
+n = 250;
+pmax = 5;
+p = 1;
+q = 1;
+t = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+nx = rows(x);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,nx) + c*ones(nx,1);
+{ b,st,trat,vmat } = armatr(x,p,q,t,pmax);
+" Estimated coefficients = " b';
+" Standard errors        = " st';
+" t-ratios               = " trat';
+
+output off;
+
+"armatra";CWait(" ");
+
+/**************************************************************************
+********************         tarmatra.prg           ************************
+********************  test program for proc armatra ************************
+**************************************************************************/
+output file = tarmatra.out reset;
+
+seed = 123;
+a = 0.70;
+bb = -0.00;
+theta =-0.20;
+c = 0;
+d = 0;
+n = 250;
+pmax = 5;
+p = 1;
+q = 1;
+t = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+nx = rows(x);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,nx) + c*ones(nx,1);
+{ b,st,trat,vmat } = armatra(x,p,q,t,pmax);
+" Estimated coefficients = " b';
+" Standard errors        = " st';
+" t-ratios               = " trat';
+
+output off;
+
+"armatr2";CWait(" ");
+
+/**************************************************************************
+********************         tarmatr2.prg           ***********************
+********************  test program for proc armatr2 ***********************
+**************************************************************************/
+output file = tarmatr2.out reset;
+
+seed = 123;
+a = 0.70;
+bb = -0.00;
+theta =-0.20;
+c = 0;
+d = 0;
+n = 250;
+pmax = 5;
+p = 1;
+q = 1;
+t = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+nx = rows(x);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,nx) + c*ones(nx,1);
+{ b,st,trat,vmat } = armatr2(x,p,q,t,pmax);
+" Estimated coefficients = " b';
+" Standard errors        = " st';
+" t-ratios               = " trat';
+
+output off;
+
+"armabic3";CWait(" ");
+
+/**************************************************************************
+*******************        tarmab3.prg               **********************
+*******************  test program for proc armabic3  **********************
+**************************************************************************/
+output file = tarmab3.out reset;
+
+a = 0.75;
+bb = -0.00;
+theta = 0.40;
+seed  = 4567;
+c = 0;
+d = 0;
+n = 200;
+pmax = 4;
+qmax = 3;
+tmax = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+n = rows(xx);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,n) + c*ones(n,1);
+{ bic,p,q,b,st,trat,vmat,sig2 } = armabic3(x,pmax,qmax,tmax);
+" bic values       = " bic;
+"selected AR lag   = " p;
+"selected MA lag   = " q;
+"true values        = " a~theta;
+"estimated coeff.'s = " b';
+"standard errors    = " st';
+"t-ratios           = " trat';
+
+output off;
+
+/**************************************************************************
+*******************        tarmab2.prg               **********************
+*******************  test program for proc armabic2  **********************
+**************************************************************************/
+output file = tarmab2.out reset;
+
+a = 0.75;
+bb = -0.00;
+theta = 0.40;
+seed  = 4567;
+c = 0;
+d = 0;
+n = 200;
+pmax = 4;
+qmax = 3;
+tmax = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+n = rows(xx);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,n) + c*ones(n,1);
+{ bic,p,q,b,st,trat,vmat,sig2 } = armabic2(x,pmax,qmax,tmax);
+" bic values       = " bic;
+"selected AR lag   = " p;
+"selected MA lag   = " q;
+"true values        = " a~theta;
+"estimated coeff.'s = " b';
+"standard errors    = " st';
+"t-ratios           = " trat';
+
+output off;
+
+/**************************************************************************
+***********                tarmabic.grf                         ***********
+*********  test program for procs: grfbicpq; grfbicp; grfbicq   ***********
+**************************************************************************/
+output file = tarmabic.out reset;
+
+a = 0.75;
+bb = -0.00;
+theta = 0.40;
+seed  = 34567;
+c = 0;
+d = 0;
+n = 100;
+pmax = 3;
+qmax = 3;
+tmax = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+n = rows(xx);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,n) + c*ones(n,1);
+{ bic,p,q,b,st,trat,vmat,sig2 } = armabic3(x,pmax,qmax,tmax);
+" bic values = " bic;
+"selected AR lag   = " p;
+"selected MA lag   = " q;
+"true values        = " a~bb~theta;
+"estimated coeff.'s = " b';
+"standard errors    = " st';
+"t-ratios           = " trat';
+"***************************************************************************";
+"***********   Press any key to continue with graphics *********************";
+"***************************************************************************";
+CWait(" ");
+grfbicpq(pmax,qmax,bic);  @ graph bic surface  @
+grfbicp(pmax,q,bic);  @ graph bic(.,qhat) @
+grfbicq(p,qmax,bic);  @ graph bic(lhat,.) @
+
+output off;
+
+/**************************************************************************
+***********              tarmabc.prg                 **********************
+***********  test program for procedure: armabc.prg  **********************
+**************************************************************************/
+output file = tarmabc.out reset;
+
+a = 0.75;
+bb = -0.00;
+theta = 0.40;
+seed  = 34567;
+c = 0;
+d = 0;
+n = 100;
+pmax = 3;
+qmax = 3;
+tmax = -1;
+x = rndns(n,1,seed);
+x1 = lag1(x);
+xx = trimr(x+theta*x1,1,0);
+x = xx;
+n = rows(xx);
+x = recserar(x,0,a);
+x = recserar(x,0,bb) + d*seqa(1,1,n) + c*ones(n,1);
+{ bic,p,q,t,b,st,trat,vmat } = armabc(x,pmax,qmax,tmax);
+" bic values = " bic;
+"selected AR lag    = " p;
+"selected MA lag    = " q;
+"selected TR degree = " q;
+"true values        = " a~bb~theta;
+"estimated coeff.'s = " b';
+"standard errors    = " st';
+"t-ratios           = " trat';
+
+output off;
+
+
+
+
+/*
+/**************************************************************************
+**************                 BAYES.DRV                *******************
+**************     TEST DRIVER PROGRAMS FOR BAYES.SRC   *******************
+**************************************************************************/
+
+
+/**************************************************************************
+********************          tbartr.prg          *************************
+********************  test program for proc bartr *************************
+**************************************************************************/
+output file = tbartr.out reset;
+format /rdn 12,4;
+
+/*
+**  set input parameters that follow to required
+**  specifications
+*/
+
+nstd = 4.5; @ +/-nstd * asyptotic standard deviations = the posterior support @
+/*
+**     if GAUSS routine "intsimp" fails during execution of BARTR , reduce nstd
+**     to contract support of computed posterior density
+*/
+seed     = 44123;
+npoints  = 500; @    number of points to evaluate densities @
+klag     = 1;   @    set AR lag parameter : use klag >= 1  @
+qtrend   = 1;   @    set trend degree >= -1  @
+scr1     = 1;   @    graph to screen if scr1 = 1 ; 0 otherwise   @
+name  = " Test Data from an AR(1) + trend model"; @ data @
+dates = " 1:n simulated ";
+/* input parameters are now set    */
+/* now generate data               */
+a = 0.75;
+c = 0.5;
+d = 0.025;
+n = 150;
+x = rndns(n,1,seed);
+x = recserar(x,0,a) + d*seqa(1,1,n) + c*ones(n,1);
+print;
+print;
+   "          Series Name = " $name;
+   "          Sample size for this series = " rows(x);
+datgraph(x,scr1,name);
+print;
+print;
+"  RESULTS FROM AN AR(1) WITH MAINTAINED LINEAR TREND" ;
+print;
+"           Trend degree  =  " qtrend;
+"           AR lag length =  " 1;
+klag = 1;
+pt   = 1;
+{ pdf1,pdf2,zb } = bartr(x,nstd,npoints,klag,pt);
+zy = pdf1~pdf2;
+zx = zb;
+dgraph(zx,zy,name,dates,klag,n,0);
+print;
+"  RESULTS FROM AN AR(4) WITH MAINTAINED LINEAR TREND" ;
+klag = 4;
+{ pdf1,pdf2,zb } = bartr(x,nstd,npoints,klag,pt);
+zy = pdf1~pdf2;
+zx = zb;
+dgraph(zx,zy,name,dates,klag,n,0);
+output off;
+
+*/
+/**************************************************************************
+********************          tbartr2.prg          ************************
+********************  test program for proc bartr2 ************************
+**************************************************************************/
+output file = tbartr2.out reset;
+format /rdn 12,4;
+
+/*
+**  set input parameters that follow to required
+**  specifications
+*/
+nstd = 4.5; @ +/-nstd * asyptotic standard deviations = the posterior support @
+/*
+**     if GAUSS routine "intsimp" fails during execution of BARTR , reduce nstd
+**     to contract support of computed posterior density
+*/
+seed     = 44125;
+npoints  = 500; @    number of points to evaluate densities @
+klag     = 4;   @    set AR lag parameter : use klag >= 1  @
+qtrend   = 1;   @    set trend degree >= -1  @
+scr1     = 1;   @    graph to screen if scr1 = 1 ; 0 otherwise   @
+name  = " Test Data from an AR(2) + trend model"; @ data @
+dates = " 1:n simulated ";
+/* input parameters are now set    */
+/* now generate data               */
+a = 1.0;
+b = 0.40;
+c = 0.5;
+d = 0.025;
+n = 150;
+x = rndns(n,1,seed);
+x = recserar(x,0,b);
+x = recserar(x,0,a) + d*seqa(1,1,n) + c*ones(n,1);
+print;
+print;
+   "          Series Name = " $name;
+   "          Sample size for this series = " rows(x);
+datgraph(x,scr1,name);
+print;
+print;
+"  RESULTS FROM AN AR(1) & AR(klag) WITH MAINTAINED LINEAR TREND" ;
+print;
+"           Trend degree  =  " qtrend;
+"           AR lag lengths =  " 1~klag;
+pt   = 1;
+{ pdf1,pdf2,pdf3,zb } = bartr2(x,nstd,npoints,klag,pt);
+zy = pdf1~pdf2~pdf3;
+zx = zb;
+dgraph(zx,zy,name,dates,klag,n,1);
+print;
+output off;
+
+
+/**************************************************************************
+********************          tdgraph.prg          ************************
+********************  test program for proc dgraph ************************
+**************************************************************************/
+/*
+**  set input parameters that follow to required
+**  specifications
+*/
+nstd = 8.5; @ +/-nstd * asyptotic standard deviations = the posterior support @
+/*
+**     if GAUSS routine "intsimp" fails during execution of BARTR , reduce nstd
+**     to contract support of computed posterior density
+*/
+seed     = 43125;
+npoints  = 500; @    number of points to evaluate densities @
+klag     = 4;   @    set AR lag parameter : use klag >= 1  @
+qtrend   = 1;   @    set trend degree >= -1  @
+scr1     = 1;   @    graph to screen if scr1 = 1 ; 0 otherwise   @
+name  = " Test Data from an AR(2) + trend model"; @ data @
+dates = " 1:n simulated ";
+/* input parameters are now set    */
+/* now generate data               */
+a = 0.85;
+b = 0.45;
+c = 0.5;
+d = 0.025;
+n = 150;
+x = rndns(n,1,seed);
+x = recserar(x,0,b);
+x = recserar(x,0,a) + d*seqa(1,1,n) + c*ones(n,1);
+print;
+print;
+   "          Series Name = " $name;
+   "          Sample size for this series = " rows(x);
+datgraph(x,scr1,name);
+print;
+print;
+"  RESULTS FROM AN AR(1) & AR(klag) WITH MAINTAINED LINEAR TREND" ;
+print;
+"           Trend degree  =  " qtrend;
+"           AR lag lengths =  " 1~klag;
+pt   = 1;
+{ pdf1,pdf2,pdf3,zb } = bartr2(x,nstd,npoints,klag,pt);
+zy = pdf1~pdf2~pdf3;
+zx = zb;
+dgraph(zx,zy,name,dates,klag,n,1);
+print;
+
+/**************************************************************************
+********************          tcbare.prg          ************************
+********************  test program for proc cbare ************************
+**************************************************************************/
+output file = tcbare.out reset;
+format /rdn 12,4;
+
+/*
+**  set input parameters that follow to required
+**  specifications
+*/
+nstd = 7.5; @ +/-nstd * asyptotic standard deviations = the posterior support @
+/*
+**     if GAUSS routine "intsimp" fails during execution of BARTR , reduce nstd
+**     to contract support of computed posterior density
+*/
+seed     = 44125;
+npoints  = 300; @    number of points to evaluate densities @
+klag     = 2;   @    set AR lag parameter : use klag >= 1  @
+scr1     = 1;   @    graph to screen if scr1 = 1 ; 0 otherwise   @
+name  = " Test Data for a cointegrating regression"; @ data @
+dates = " 1:n simulated ";
+_eps   = 0.03;   @    set eps = epsilon in e-prior of Zivot-Phillips(1992) @
+eqnname = " y = a + b'x  + u " ;
+filegr  = "myfile.tkf" ;  @ set tkf file @
+yname   = "density";
+xname   = "\202\114\201 = l_r AR coeff.";
+xc      = "     ";
+resname = " Residuals from OLS cointegrating regression\l" $+ xc $+ eqnname;
+/* input parameters are now set    */
+/* now generate data               */
+a = 1.0;
+b = 0.50;
+c = 2.0;
+n = 150;
+x = rndns(n,1,seed);
+u = rndns(n,1,seed);
+x = recserar(x,0,a);
+y = b*x + c*ones(n,1) + u;
+sdat = y~x;
+print;
+print;
+   "          Series Name = " $name;
+   "          Sample size for this series = " rows(x);
+{a1,a2,a3,a4,a5} = quickols(sdat); @ ols residuals from regression  @
+                                   @ of first column on other cols of sdat@
+sdat = a5;      @ reset to residuals from cointegrating regression @
+datgraph(sdat,scr1,resname);
+print;
+"  RESULTS FROM AN AR(1) & AN AR(K) WITH AN E-PRIOR " ;
+"               k =   " klag;
+print;
+{ pdf1,pdf2,pdf3,zb } = cbare(sdat,nstd,npoints,klag);
+zy = pdf1~pdf2~pdf3;
+zx = zb;
+dgraphe(zx,zy,eqnname,filegr,yname,xname);
+output off;

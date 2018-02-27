@@ -1,0 +1,236 @@
+/*
+** corrs.src
+** (C) Copyright 2005-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format            Purpose                                        Line
+** =========================================================================
+** cx = corrms(m);     correlation matrix from moment matrix.          27
+** cx = corrxs(x);     correlation matrix from data matrix.            90
+** vc = vcms(m);       var-covar matrix from moment matrix.           144
+** vc = vcxs(x);       var-covar matrix from data matrix.             206
+*/
+
+/*
+**> corrms
+**
+**  Purpose:    Computes sample correlation matrix from moment (x'x) matrix.
+**
+**  Format:     cx = corrms(m);
+**
+**  Input:      m     KxK moment (x'x) matrix. Constant term MUST have been
+**                    the first variable when moment matrix was computed.
+**
+**  Output:     cx    KxK correlation matrix.
+*/
+
+proc corrms(m);
+    local cc,xx,n,xbar,vv,vc,std,dims,orders,index,neworders,a;
+    /* check for complex input */
+    if iscplx(m);
+        if hasimag(m);
+            errorlog "ERROR: Not implemented for complex arguments.";
+            end;
+        else;
+            m = real(m);
+        endif;
+    endif;
+
+    if (type(m) == 6);
+        cc = seqa(2,1,cols(m)-1);
+        xx = m[cc,cc];      /* Pull out K-1xK-1 submatrix */
+        n = m[1,1];         /* Number of observations. */
+        xbar = m[cc,1]/n;           /* Vector of means */
+        vv = xbar*xbar';
+        vc = xx/n - vv;     /* VC matrix */
+        std = sqrt(diag(vc));
+        retp( vc./(std.*std') );
+    elseif (type(m) == 21);
+        dims = getdims(m);
+        orders = getorders(m);
+
+        if (dims > 2 );
+            index = ones(dims-2,1);
+            neworders = orders[1:dims-2];
+            neworders = neworders||orders[dims-1]-1||orders[dims]-1;
+            a = arrayalloc(neworders,0);
+
+        loopni:
+
+            setarray a, index, corrms(getmatrix(m,index));
+            loopnextindex loopni, index, orders;
+        else;
+            if (dims == 1);
+                neworders = orders-1;
+            else;
+                neworders = orders[dims-1]||orders[dims];
+            endif;
+            a = mattoarray(corrms(arraytomat(m)));
+        endif;
+
+        retp(a);
+    else;
+        errorlog "ERROR: Type mismatch.";
+    endif;
+endp;
+
+/*
+**> corrxs
+**
+**  Purpose:    Computes a sample correlation matrix.
+**
+**  Format:     cx = corrxs(x);
+**
+**  Input:      x     NxK matrix of data.
+**
+**  Output:     cx    KxK correlation matrix of columns of x.
+*/
+
+proc corrxs(x);
+    local vc, std, dims, orders, torders;
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex arguments.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if (type(x) == 6);
+        vc = moment(x-meanc(x)',0)/rows(x);         /* variance-covariance matrix */
+        std = sqrt(diag(vc));       /* standard deviations */
+        retp( vc./(std.*std') );
+    elseif (type(x) == 21);
+        dims = getdims(x);
+        if (dims < 3);
+            x = arraytomat(x);
+            vc = moment(x-meanc(x)',0)/rows(x);     /* variance-covariance matrix */
+            std = sqrt(diag(vc));           /* standard deviations */
+            retp( mattoarray(vc./(std.*std')) );
+        else;
+            orders = getorders(x);
+            torders = seqa(1,1,dims-2);
+            torders = torders||dims||dims-1;
+            vc = moment(x-amean(x,2),0)/orders[dims-1];     /* variance-covariance matrix */
+            std = sqrt(diag(vc));           /* standard deviations */
+            retp( vc./(std.*atranspose(std,torders)) );
+        endif;
+    else;
+        errorlog "ERROR: Type mismatch.";
+    endif;
+endp;
+
+/*
+**> vcms
+**
+**  Purpose:    Computes a sample variance-covariance matrix from
+**              a moment matrix.
+**
+**  Format:     vc = vcms(m);
+**
+**  Input:      m    KxK moment (x'x) matrix. Constant term MUST have
+**                   been first variable when moment matrix was computed.
+**
+**  Output:     vc   KxK variance-covariance matrix.
+*/
+
+proc vcms(m);
+    local cc, xx, n, xbar, vv, orders, dims, index, neworders, a;
+
+    /* check for complex input */
+    if iscplx(m);
+        if hasimag(m);
+            errorlog "ERROR: Not implemented for complex arguments.";
+            end;
+        else;
+            m = real(m);
+        endif;
+    endif;
+
+    if (type(m) == 6);
+        cc = seqa(2,1,cols(m)-1);
+        xx = m[cc,cc];      /* Pull out K-1xK-1 submatrix */
+        n = m[1,1];         /* Number of observations. */
+        xbar = m[cc,1]/n;           /* Vector of means */
+        vv = xbar*xbar';
+        retp( xx/n-vv );
+    elseif (type(m) == 21);
+        dims = getdims(m);
+        orders = getorders(m);
+
+        if (dims > 2 );
+            index = ones(dims-2,1);
+            neworders = orders[1:dims-2];
+            neworders = neworders||orders[dims-1]-1||orders[dims]-1;
+            a = arrayalloc(neworders,0);
+
+        loopni:
+
+            setarray a, index, vcms(getmatrix(m,index));
+            loopnextindex loopni, index, orders;
+        else;
+            if (dims == 1);
+                neworders = orders-1;
+            else;
+                neworders = orders[dims-1]||orders[dims];
+            endif;
+            a = mattoarray(vcms(arraytomat(m)));
+        endif;
+
+        retp(a);
+    else;
+        errorlog "ERROR: Type mismatch.";
+    endif;
+endp;
+
+/*
+**> vcxs
+**
+**  Purpose:    Computes a variance-covariance matrix from a data matrix.
+**
+**  Format:     vc = vcxs(x);
+**
+**  Input:      x    NxK matrix of data.
+**
+**  Output:     vc   KxK var-covar matrix.
+*/
+
+proc vcxs(x);
+    local orders;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex arguments.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if (type(x) == 6);
+        retp( moment( x-meanc(x)',0) / rows(x) );
+    elseif (type(x) == 21);
+        if (getdims(x) == 1);
+            x = areshape(x,1|getorders(x));
+        endif;
+        orders = getorders(x);
+        retp( moment( x-amean(x,2),0) / orders[getdims(x)-1] );
+    else;
+        errorlog "ERROR: Type mismatch.";
+    endif;
+endp;
+

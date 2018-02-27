@@ -1,0 +1,97 @@
+/*
+** maxlik.dec - declarations for globals used in MAXLIK
+** (C) Copyright 1988-2005 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+/* Version info:  major version | minor version | revision */
+declare matrix _ml_ver = { 5, 0, 9 };
+
+declare matrix _max_QmlProc = 0;
+declare matrix _max_Options = 0;
+declare matrix _max_Algorithm = 2;   /* descent method */
+declare matrix _max_LineSearch = 2;  /* line search method */
+declare matrix _max_CovPar = 1;      /* type of vc matrix of parameters */
+declare matrix _max_GradMethod = 1;  /* gradient method */
+declare matrix _max_ParNames = 0;      /* parameter names */
+declare matrix _max_GradTol = 1e-5;    /* convergence tolerance for */
+                                       /* gradient */
+declare matrix _max_HessProc = 0;      /* procedure to compute hessian */
+declare matrix _max_GradProc = 0;      /* procedure to compute gradient */
+declare matrix _max_MaxIters = 1e+5;   /* maximum number of iterations */
+declare matrix _max_IterData = {0,0,0};  /* elapsed time, */
+                                         /* # of iters,   */
+                                         /* cov method    */
+declare matrix _max_RandRadius = .01;   /* random line search */
+declare matrix _max_UserSearch = 0;     /* interactive line search */
+declare matrix _max_UserNumGrad = 0;
+declare matrix _max_UserNumHess = 0;
+declare matrix _max_Extrap = 2.0;    /* extrapolation constant */
+declare matrix _max_Interp = 0.25;   /* interpolation constant */
+declare matrix _max_Delta = .1;
+declare matrix _max_MaxTry = 100;
+declare matrix _max_Lag = 0;        /* number of lags in model */
+declare matrix _max_FinalHess = 0;  /* stores hessian used in the */
+                                    /* computation of the covariance */
+                                    /* matrix of parameters */
+declare matrix _max_NumObs = 0;     /* rows in transformed data matrix */
+declare matrix _max_HessCov = {.};    /* Hessian matrix covariance matrix */
+                                      /* of parameters */
+declare matrix _max_XprodCov = {.};   /* cross product covariance */
+                                      /* matrix of parameters */
+declare matrix _max_Key = 1;          /* controls keyboard trap 1-on, 2-off */
+declare matrix _max_MaxTime = 1e5;
+declare matrix _max_Active = 1;
+declare matrix _max_GradStep = 0;    /* size of increment for computing */
+                                     /* gradient */
+
+declare matrix _max_CrossTab = {.}; /* crosstab of coef's output from MAXHIST */
+declare matrix _max_CutPoint = {.};  /* cutting points for _max_CrossTab */
+declare matrix _max_Increment = 0;   /* if nonzero, histogram increments */
+declare matrix _max_Center = 0;   /* if nonzero, center points for histogram */
+declare matrix _max_Width = 2;    /* width of histogram = _max_Width * sd's */
+declare matrix _max_NumSample = 50;  /* bootstrap sample size */
+declare matrix _max_NumCat = 16;   /* # of cat's for bootstrapped histogram */
+declare matrix _max_Select = {.};
+declare matrix _max_Diagnostic = 0;
+declare matrix _max_GradCheckTol = 0;
+declare matrix _max_Alpha = .05;
+declare matrix _max_Switch = {.};
+
+declare matrix _max_BayesAlpha = 1.4;
+declare matrix _max_PriorProc = { . };
+declare string _max_BootFname = "";
+declare matrix _max_Kernel = 1;
+declare matrix _max_Smoothing = 0;
+declare matrix _max_EndPoints = {0 0};
+declare matrix _max_NumPoints = 100;
+declare matrix _max_Truncate = {0 0};
+declare matrix _max_state = 345678;
+declare matrix _max_RandType = 1;
+
+
+
+
+/*  MAXLIK scratch globals - not to be set by user */
+
+declare string _max_dsn = "";
+declare matrix _max_dat = {.};
+declare matrix _max_row = 0;
+declare matrix _max_eps2 = 6.0554544523933429e-6;
+declare matrix _max_eps3 = 1.4933184523068080e-8;
+
+

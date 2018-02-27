@@ -1,0 +1,682 @@
+/*
+**  regarma.src                                 Version 0.9b vom 27.12.2000
+**  -----------------------------------------------------------------------
+**
+**  Algorithm by Wincek and Reinsel for maximum likelihood estimation of
+**  'regression-ARMA time series models with possibly nonconsecutive data'
+**
+**  Model:   y = x*beta + z    mit  alpha(B)*Z_t = theta(B)*e_t
+**
+**  Syntax
+**  -----------------------------------------------------------------------
+**
+** {beta,alpha,theta,stdevb,stdeva,stdevt,corb,corat,sigma2} = regarma(y,x,p,q)
+**                                           
+**
+**  Input
+**  -----------------------------------------------------------------------
+**    y.........(n,1)-vector, times series
+**    x.........(n,k)-matrix, regression variables
+**    p.........scalar, order of AR polynom
+**    q.........scalar, order of MA polynom
+**
+**  Output
+**  -----------------------------------------------------------------------
+**    beta....(k,1)-vector, regression parameters
+**    alpha...(p,1)-vector, AR parameters
+**    theta...(q,1)-vector, MA parameters
+**    stdevb..(k,1)-vector, standard deviations of regression parameters
+**    stdeva..(p,1)-vector, standard deviations of AR-parameters
+**    stdevt..(q,1)-vector, standard deviations of MA-parameters
+**    corb....(k,k)-matrix, correlations of regression parameters 
+**    corat...(p+q,p+q)-matrix, correlations of ARMA parameters   
+**    sigma2..scalar, variance of innovations
+**
+**  Remarks
+**  -----------------------------------------------------------------------
+**    To see intermediate results at iteration steps, set _iterout_ = 1
+**
+**  Reference
+**  -----------------------------------------------------------------------  
+**  "An exact maximum likelihood estimation procedure for regression-ARMA  
+**   time series models with possibly nonconsecutive data"
+**   Michael A. Wincek and Gregory C. Reinsel
+**   J. R. Statist. Soc. B (1986), Vol 48, No.3, pp. 303-313
+**
+** -----------------------------------------------------------------------
+**   external procedures:
+**
+**    armadhr : tsagauss.lcg   
+**     acovth : tsagauss.lcg
+**     missls : tsagauss.lcg
+**     take   : tsagauss.lcg
+**     tsvar  : tsagauss.lcg 
+*/
+
+
+PROC (9) = regarma(y,x,p,q);
+
+  LOCAL n,m,par,stdpar,e,corat,aic,sbc,tol,schritt,abbruch;
+  LOCAL beta,z,zt,alpha,theta,sigma2,resi;
+  LOCAL beta_neu,alpha_neu,theta_neu,sigma2_neu;
+  LOCAL p_index,q_index,stdevb,stdevat,stdeva,stdevt,covb,covat;
+  LOCAL alla,alld;
+
+  IF p;  
+   p_index = SEQA(1,1,p);
+  ELSE;
+   p_index = 0; 
+  ENDIF;
+  IF q;  
+   q_index = SEQA(1,1,q); 
+  ELSE;
+   q_index = 0;   
+  ENDIF;
+
+ /**  checking and building regressor ******/
+    
+    IF (x == 1); x = ONES(ROWS(y),1);  ENDIF; 
+    IF (x == 0); x = ZEROS(ROWS(y),1);  ENDIF;
+
+ /**  elimination of missing values at the begining and the end ******/
+     
+    IF ISMISS(y);    
+      z = PACKR(SEQA(1,1,ROWS(y))~y~x); 
+      y = y[MINC(z[.,1]):MAXC(z[.,1])];
+      x = x[MINC(z[.,1]):MAXC(z[.,1]),.];
+    ENDIF;
+
+    
+ /** initial estimates **********************************************/
+
+  beta = 0;
+  z = y;
+  IF NOT x==0;
+   z = PACKR(y~x);   
+   beta = OLSQR(z[.,1],z[.,2:COLS(z)]);
+   z = y - x*beta;
+  ENDIF; 
+
+  /** substitution of missing values by least squares method... ***/
+
+  IF ISMISS(z);
+     z = missls(z,p+q);
+  ENDIF;
+
+  /** start values of alpha, theta and sigma2 ******************/
+  
+  alpha = ZEROS(MAXC(p|1),1);
+  theta = ZEROS(MAXC(q|1),1);
+  stdevt = MISS(0,0);
+  stdeva = MISS(0,0);  
+  {par,stdpar,corat,e,sigma2} = armadhr(z,p_index,q_index);
+  IF p;
+     alpha = par[1:p];
+  ENDIF;   
+  IF q;
+     theta = par[p+1:p+q];
+  ENDIF;
+
+/*
+  IF p;
+     alpha = .1*ones(p,1); alpha[1]=.5;
+  ENDIF;   
+  IF q;
+     theta =  .1*ones(q,1); theta[1]=-.5;
+  ENDIF;
+  sigma2=tsvar(z);
+*/  
+
+  IF _iterout_ ;
+     PRINT "initial estimates:";
+     IF NOT x==0;
+      PRINT "beta: " beta';
+     ENDIF;
+     IF p; 
+      PRINT "Lags:  " p_index';
+      PRINT "alpha: " alpha';
+     ENDIF;
+     IF q;
+      PRINT "Lags:  " q_index';
+      PRINT "theta: " theta';
+     ENDIF;
+     PRINT "sigma^2: " sigma2;
+  ENDIF;
+
+  /** indices of non missing values ************************************/
+
+  zt = PACKR(SEQA(1,1,ROWS(y))~y~x);  zt = zt[.,1];
+  
+  /** iteration steps by Wincek & Reinsel *************************/
+
+  tol=0.005;
+
+  FORMAT 7,3;
+
+  schritt=0;
+  abbruch=0;
+  DO UNTIL abbruch;
+
+   schritt=schritt+1;
+   
+   {beta_neu,alpha_neu,theta_neu,covb,covat}
+     = w_schritt(y[zt],x[zt,.],zt,beta,alpha,theta,sigma2,p_index,q_index);
+
+  /* residuals & sSigma2 ***********************************************/
+
+     resi = armaresid(y-x*beta_neu,alpha_neu,theta_neu);
+     sigma2_neu = tsvar(resi); 
+     resi = MISS(ZEROS(MAXC(p_index|q_index),1),0)|resi;
+     
+  /* intermediate results ***********************************************/
+
+    IF _iterout_;
+      PRINT;  
+      "step: " schritt;
+      "estimates:";
+      IF NOT x==0;
+      " beta " beta_neu';
+      ENDIF;
+      " alpha " alpha_neu';
+      " theta " theta_neu';
+      " sigma2 " sigma2_neu;
+    ENDIF;
+    
+   /* stop control *************************************************/
+ 
+     alla = beta|alpha|theta|sigma2;
+     alld = (beta_neu-beta)|(alpha_neu-alpha)|(theta_neu-theta)|(sigma2_neu-sigma2);    
+     IF (ABS(alld)< (0.0001*(ABS(alla)+0.001))) OR (schritt>10);
+        abbruch=1;
+     ENDIF;
+     IF (schritt>10); 
+        PRINT "Iterations may have not converged (>10).";
+     ENDIF;     
+     
+     beta = beta_neu;
+     alpha = alpha_neu;
+     theta = theta_neu;
+     sigma2 = sigma2_neu;
+     
+  ENDO;
+
+  /**********************************************************************/
+  IF x==0; 
+   beta = MISS(0,0);
+  ENDIF; 
+  stdevb = MISS(0,0);
+  IF NOT x==0;      
+   stdevb = SQRT(sigma2*DIAG(covb));                           
+  ENDIF;
+  stdevat = SQRT(sigma2*DIAG(covat));                         
+  IF p; stdeva = take(stdevat,ROWS(p_index)); ENDIF;                      
+  IF q; stdevt = take(stdevat,-ROWS(q_index)); ENDIF;
+  covb=MISS(0,0);
+  IF NOT x==0;
+   covb = sigma2*covb./(stdevb.*stdevb');
+  ENDIF;
+   covat =sigma2*covat./(stdevat.*stdevat');    
+ 
+
+  RETP(beta,alpha,theta,stdevb,stdeva,stdevt,covb,covat,sigma2);
+        
+ENDP;
+
+
+  /***** Unterprozeduren ***********************************************
+  **
+  **       w_schritt : Iterationsschritt
+  **        armadiff : Differentiation der ACF
+  **       armaresid : Residuen für ARMA-Reihe
+  **
+  *********************************************************************/
+
+PROC (5) = w_schritt(y,x,zt,beta,alpha,theta,sigma2,p_index,q_index);
+
+  LOCAL n,m,p,q,z,r,c,cova0,cova,dc,T,zx,trans,zs1,gm1,s,k,h,zs0,gm0;
+  LOCAL g,Vep,ep,dg,Wd,H1,H2,i,dT,dcova0,dcova,dzs1,dgm1,dzs0,dgm0;
+  LOCAL M_Matrix,H_Matrix,sat,beta_neu,alpha_neu,theta_neu,sigma2_neu;
+  LOCAL add,par,par_neu,modf,modt,pq_index,covb,covat,RR,c1;
+
+  n = ROWS(x);
+  m = COLS(x);
+
+  p = MAXC(p_index);
+  q = MAXC(q_index);
+  r = MAXC(p|(q+1));
+
+ /* gemeinsamer Index **************************************************/
+
+  pq_index =  TRIMR(p_index|(p + q_index),p==0,q==0);
+  
+ /*********************************************************************/
+   
+  z = y - x*beta;
+
+  /** Autocovarianzfunktion ********************************************/
+
+  c = acovth(alpha,theta,sigma2,r);
+  cova0 = c[1];
+  cova = c[ABS(SEQA(q-r+1,1,r))+1];
+
+
+  /** ...und Ableitungen ***********************************************/
+
+  dc = armadiff(c,alpha,theta,sigma2);
+  dc = dc[.,pq_index];
+
+  /** Matrix \Phi aus (5.5) ********************************************/
+
+  IF r > 1;
+     T = TRIMR(EYE(r),1,0)|ZEROS(1,r);
+     IF p;
+        T[r,r-p+1:r] = alpha[p:1]';
+     ENDIF;
+   ELSE;
+     T = alpha;
+  ENDIF;
+
+  /** Transformationen: \epsilon=R'*Z (=trans[.,1]) und R'*X **********/
+
+  zx = z~x;
+  trans = ZEROS(n,m+1);
+
+  /** ...und Berechnung der ersten Spalte von H1' und H2' *************/
+
+  H1 = ZEROS(ROWS(pq_index)+1,n); H2 = H1;
+
+  /** Startwerte ******************************************************/
+
+  s = ZEROS(n,1);
+  s[1] = cova0;
+
+  trans[1,.]=zx[1,.];
+
+  zs1 = cova*zx[1,.]/cova0;                                      @ (5.8) @
+  gm1 = cova*cova'/cova0;                                        @ (5.9) @
+
+  dcova0 = dc[1,1];
+  dcova = dc[ABS(SEQA(q-r+1,1,r))+1,1];
+  dzs1 = dcova*zx[1,1]/cova0 - cova*zx[1,1]*dcova0/(cova0^2);   @ (5.14) @
+  dgm1 = (dcova*cova' + cova*dcova')/cova0 - cova*cova'*dcova0/(cova0^2);
+                                                                @ (5.15) @
+
+  H2[2,1] = dcova0;                                             @ (5.11) @
+
+  /** k=1,...,n-1 *****************************************************/
+
+  k=0;
+  DO WHILE k < n-1;
+
+     k=k+1;
+
+     h=zt[k+1]-zt[k];
+
+     zs0=T*zs1;                                                @ (5.5) @
+     gm0=T*gm1*T';                                             @ (5.6) @
+     dzs0=T*dzs1;                               @ 2.Summand aus (5.12) @
+     dgm0=T*dgm1*T';                            @ 2.Summand aus (5.13) @
+
+     IF p;
+        dzs0[r]=dzs0[r] + zs1[r,1];             @ 1.Summand aus (5.12) @
+        dgm0[r,.]=dgm0[r,.] + gm1[r,.]*T';      @ 1.Summand aus (5.13) @
+        dgm0[.,r]=dgm0[.,r] + T*gm1[.,r];       @ 3.Summand aus (5.13) @
+     ENDIF;
+
+     h=h-1;
+
+     DO WHILE h;                     @ ...falls fehlende Werte (h > 0) @
+
+        zs0=T*zs0;                                             @ (5.5) @
+        gm0=T*gm0*T';                                          @ (5.6) @
+        dzs0=T*dzs0;                            @ 2.Summand aus (5.12) @
+        dgm0=T*dgm0*T';                         @ 2.Summand aus (5.13) @
+
+        IF p;
+           dzs0[r]=dzs0[r] + zs0[r,1];          @ 1.Summand aus (5.12) @
+           dgm0[r,.]=dgm0[r,.] + gm0[r,.]*T';   @ 1.Summand aus (5.13) @
+           dgm0[.,r]=dgm0[.,r] + T*gm0[.,r];    @ 3.Summand aus (5.13) @
+        ENDIF;
+
+        h=h-1;
+
+     ENDO;
+
+     g = cova - gm0[.,r-q];                                      @ (5.7) @
+     trans[k+1,.] = zx[k+1,.] - zs0[r-q,.];               @ hinter (5.6) @
+     s[k+1] = cova0 - gm0[r-q,r-q];                       @ hinter (5.6) @
+    
+      IF (s[k+1]<=0); 
+       PRINT "Problem is ill conditioned. Program terminates."; STOP;
+      ENDIF;  
+     
+     dg = dcova - dgm0[.,r-q];                           @ hinter (5.15) @
+
+     H1[2,k+1] = dzs0[r-q];                                   @ (5.10) @
+     H2[2,k+1] = dcova0 - dgm0[r-q,r-q];                      @ (5.11) @
+
+     /*****************************************************************/
+
+     zs1 = zs0 + RESHAPE(g,m+1,r)'.*RESHAPE(trans[k+1,.],r,m+1)/s[k+1];
+                                                               @ (5.8) @
+
+     gm1=gm0 + g*g'/s[k+1];                                    @ (5.9) @
+
+     dzs1=dzs0 + dg*trans[k+1,1]/s[k+1] - g*(dzs0[r-q]/s[k+1]
+               + trans[k+1,1]*H2[2,k+1]/s[k+1]^2);            @ (5.14) @
+ 
+     dgm1=dgm0 + (dg*g' + g*dg')/s[k+1] - g*g'*H2[2,k+1]/s[k+1]^2;
+                                                              @ (5.15) @
+
+     /*****************************************************************/
+
+  ENDO;
+
+  FORMAT 8,5;
+ 
+  ep=trans[.,1];
+  M_Matrix=trans[.,2:m+1];
+  trans={};
+
+  Wd=(ep./s)|((ep.*ep - s)./(2*s^2));
+
+
+  /** ... partiellen Ableitungen nach \sigma^2 in H1(=0) und H2 *********/
+
+  H2[1,.]=s'/sigma2;
+
+  /*
+  **  H1[2:rows(pq_index)+1,2:...]  .. partiellen Ableitungen nach \alpha_j
+  **
+  **  H2[2:rows(pq_index)+1,2:....] .. partiellen Ableitungen nach \theta_j
+  */
+
+  i=0;
+  DO WHILE i < ROWS(pq_index);                  @ i=2,...,p,p+1,...,p+q @
+                                                @ ohne ''0-Parameter''  @
+     i=i+1;
+
+     dcova0 = dc[1,i];
+     dcova = dc[ABS(SEQA(q-r+1,1,r))+1,i];
+
+     /* Startwerte */
+
+     zs1=cova*z[1]/cova0;                                       @ (5.8) @
+     gm1=cova*cova'/cova0;                                      @ (5.9) @
+
+     dzs1=dcova*z[1]/cova0 - cova*z[1]*dcova0/(cova0^2);       @ (5.14) @
+     dgm1=(dcova*cova' + cova*dcova')/cova0 - cova*cova'*dcova0/(cova0^2);
+                                                               @ (5.15) @
+     H2[i+1,1]=dcova0;                                         @ (5.11) @
+
+     /* k=1,...,n-1 */
+
+     k=0;
+     do while k < n-1;
+
+        k=k+1;
+
+        h=zt[k+1]-zt[k];
+
+        zs0=T*zs1;                                              @ (5.5) @
+        gm0=T*gm1*T';                                           @ (5.6) @
+        dzs0=T*dzs1;                             @ 2.Summand aus (5.12) @
+        dgm0=T*dgm1*T';                          @ 2.Summand aus (5.13) @
+
+        IF i LE p;
+           dzs0[r]=dzs0[r] + zs1[r+1-i];         @ 1.Summand aus (5.12) @
+           dgm0[r,.]=dgm0[r,.] + gm1[r,.]*T';    @ 1.Summand aus (5.13) @
+           dgm0[.,r]=dgm0[.,r] + T*gm1[.,r-i+1]; @ 3.Summand aus (5.13) @
+        ENDIF;
+
+        h=h-1;
+
+        DO WHILE h;                           @ ...falls fehlende Werte @
+
+           zs0=T*zs0;
+           gm0=T*gm0*T';
+           dzs0=T*dzs0;
+           dgm0=T*dgm0*T';
+
+           IF i LE p;
+              dzs0[r]=dzs0[r] + zs0[r+1-i];
+              dgm0[r,.]=dgm0[r,.] + gm0[r,.]*T';
+              dgm0[.,r]=dgm0[.,r] + T*gm0[.,r-i+1];
+           ENDIF;
+
+           h=h-1;
+
+        ENDO;
+
+        g = cova - gm0[.,r-q];                                  @ (5.7) @
+        dg = dcova - dgm0[.,r-q];                       @ hinter (5.15) @
+
+        H1[i+1,k+1] = dzs0[r-q];                               @ (5.10) @
+        H2[i+1,k+1] = dcova0 - dgm0[r-q,r-q];                  @ (5.11) @
+
+        zs1=zs0 + g*ep[k+1]/s[k+1];                             @ (5.8) @
+        gm1=gm0 + g*g'/s[k+1];                                  @ (5.9) @
+        dzs1=dzs0 + dg*ep[k+1]/s[k+1] - g*(dzs0[r-q]/s[k+1]
+                 + ep[k+1]*H2[i+1,k+1]/s[k+1]^2);              @ (5.14) @
+        dgm1=dgm0 + (dg*g' + g*dg')/s[k+1] - g*g'*H2[i+1,k+1]/s[k+1]^2;
+                                                               @ (5.15) @
+     ENDO;
+  ENDO;
+
+  H_Matrix=(H1~H2)';  H1={}; H2={};
+
+  Vep=sigma2*ep./s;
+
+  /*
+  **  Neue Schätzungen für \beta, \alpha, \theta
+  */
+
+  RR = QR(M_Matrix.*SQRT(sigma2/s));
+  covb = INVSWP(RR'*RR);
+  beta_neu=beta + covb*M_Matrix'*Vep;                             @ (4.5) @
+
+  RR = QR(H_Matrix.*SQRT(1/(s|(2*s.*s))));
+  covat = INVSWP(RR'*RR);
+  sat = covat*H_Matrix'*Wd;                                      @ (4.6) @
+  covat = covat[2:ROWS(covat),2:ROWS(covat)];
+  
+  add = ZEROS(p+q,1);
+  add[pq_index] = sat[2:ROWS(sat)];
+  
+  par = {};
+  IF p;
+     par = alpha;
+  ENDIF;
+  IF q;
+     par = par|theta;
+  ENDIF;
+  
+
+  /** Neue Parameter und Wurzel-Check...  ***************/
+
+  par_neu = par + add;
+  
+  c1 = {};
+  IF p;
+    c1 = rootcheck(par[1:p]);
+  ENDIF;  
+  IF q;
+    c1 = c1|rootcheck(par[p+1:p+q]);
+  ENDIF;
+  
+  
+ IF MINC(c1)>1;
+  modf=0.9;
+  DO UNTIL modf>1;
+    c = {};
+    IF p;
+      c = rootcheck(par_neu[1:p]);
+    ENDIF;
+    IF q;
+      c = c|rootcheck(par_neu[p+1:p+q]);
+    ENDIF;
+    modf = MINC(c);
+    IF modf <= 1;
+      add = 0.9*add;
+      par_neu = par + add;
+    ENDIF;
+  ENDO;
+ ENDIF;
+
+  IF p;
+     alpha_neu=par_neu[1:p]; ELSE; alpha_neu=0;
+  ENDIF;
+
+  IF q;
+     theta_neu=par_neu[p+1:p+q]; ELSE; theta_neu=0;
+  ENDIF;
+
+  RETP(beta_neu,alpha_neu,theta_neu,covb,covat);
+ENDP;
+
+/*
+**  Ableitungen der Kovarianzen bzgl. alpha_j und theta_j
+**
+**  Algorithmus in Anlehnung an den Algorithmus von Jones zur
+**  Berechnung der ACF eines ARMA-Modells
+**
+**  Literatur: "Maximum likelihood fitting of ARMA-models to time series
+**              with missing observation"
+**
+**              By Richard H.Jones
+**
+**              Technometrics (1980), Vol.22, No.3, pp.389-395
+**
+**  Input:
+**
+**      c  : Kovarianzen c_0,c_1,...,c_max(p,q)
+**           (im Falle eines MA[q]-Modells nicht notwendig)
+**  alpha  : AR-Parameter
+**  theta  : MA-Parameter
+**  sigma2 : \sigma^2
+**
+**  Output:
+**
+**  dc_{ij} = \partial c_i/partial \alpha_j          j=1,...,p
+**          = \partial c_i/partial \theta_j-p        j=p+1,...,p+q
+**                                                   i=0,1,...,max(q,p)
+*/
+
+PROC armadiff(c,alpha,theta,sigma2);
+
+  LOCAL dC,dCa,dCt,j,y,dg,g,matA,p,q,ind1,ind2;
+
+  p=ROWS(alpha)*(1-(alpha==0));  q=ROWS(theta)*(1-(theta==0));
+
+  IF p;                                                   @ ...mit AR-Teil @
+
+     IF p==1;
+        matA=TOEPLITZ(1|-alpha);
+      ELSE;
+        matA=SHIFTR(RESHAPe(1~(-alpha)',p+1,p+1),SEQA(0,-1,p+1),0);
+        matA[2:p+1,2:p+1]=matA[2:p+1,2:p+1]+LOWMAT(TOEPLITZ(1|-alpha[1:p-1]));
+     ENDIF;
+
+     IF q==0;                                              @ AR[p]-Modell @
+
+        IF p==1;
+           y=c[2:1];  ELSE;   y=c[2:p+1]'|TOEPLITZ(c[1:p]);
+        ENDIF;
+
+        dC=y/matA;      @ dC_{ij} = \frac{\partial c_i}{\partial\alpha_j} @
+                                        @ i = 0,1,...,p  und  j = 1,...,p @
+
+     ELSE;                                             @ ARMA[p,q]-Modell @
+
+        @ ----- Differentiation von \gamma ------------------------------ @
+
+        IF p<q;                                 @ 'Aufstockung' von alpha @
+           alpha=alpha|ZEROS(q-p,1);
+        ENDIF;
+
+        g=ZEROS(q,1);                                            @ \gamma @
+        dg=EYE(q)~-EYE(q);           @ \partial g_i/\partial a_i bzw. b_i @
+
+        g[1]=alpha[1] - theta[1];
+        j=1;
+        DO WHILE j<q;
+           j=j+1;                                         @ Jones: (4.10) @
+           g[j]=alpha[1:j-1]'*g[j-1:1] + alpha[j] - theta[j];
+           dg[j,1:j-1 q+1:q+j-1]=alpha[1:j-1]'*dg[j-1:1,1:j-1 q+1:q+j-1];
+           dg[j,1:j-1]=dg[j,1:j-1] + g[j-1:1]';
+        endo;
+
+        if p le q;
+           dg=dg[.,1:p q+1:2*q]; @ verwerfen von \partial g_i\partial a_j @
+           alpha=alpha[1:p];                                  @ für j > p @
+         else;
+           dg=dg[.,1:q]~zeros(q,p-q)~dg[.,q+1:2*q];
+        endif;                     @ \partial g_i\partial a_j = 0 für j>i @
+
+        @ --------------------------------------------------------------- @
+
+        y=ZEROS(MAXC(p|q)+1,p+q);
+
+        IF q==1;                                       @ ARMA[p,1]-Modell @
+           y[1,.]=-sigma2*theta*dg;
+           y[1:2,p+1]=y[1:2,p+1] - sigma2*(g[1]|1);
+         ELSE;
+           j=0;
+           DO WHILE j < p+q;                                @ y_{1,...,q} @
+              j=j+1;
+              y[1:q,j]=
+               diag(reshape(-sigma2*theta',q,q)*lowmat(toeplitz(dg[.,j])));
+           ENDO;
+           y[1:q+1,p+1:p+q]=y[1:q+1,p+1:p+q]              @ y_{1,...,q+1} @
+                         - sigma2*(g'|UPMAT(TOEPLITZ(1|g[1:q-1])));
+        Endif;
+
+        IF p==1;
+           y[1:2,1]=y[1:2,1] + c[2:1];
+         ELSE;
+           y[1:p+1,1:p]=y[1:p+1,1:p] + (c[2:p+1]'|TOEPLITZ(c[1:p]));
+        ENDIF;
+
+
+        dC=y[1:p+1,.]/matA;                            @ (p+1,p+q)-Matrix @
+
+                        @ \partial c_{0,1,...,p}/\partial\alpha_{1,...,p} @
+                    @ und \partial c_{0,1,...,p}/\partial\theta_{1,...,q} @
+
+        IF q > p;       @ \partial c_{p+1,...,q}/\partial\alpha_{1,...,p} @
+                    @ und \partial c_{p+1,...,q}/\partial\theta_{1,...,q} @
+           j=p;
+           DO WHILE j < q;
+              j=j+1;
+              dCa=alpha'*dC[j:j-p+1,1:p] + c[j:j-p+1]'
+                    -sigma2*(theta[j:q]'*dg[1:q+1-j,1:p]);
+              dCt=alpha'*dC[j:j-p+1,p+1:p+q]
+                    -sigma2*(theta[j:q]'*dg[1:q+1-j,p+1:q+p]);
+
+              IF j < q;
+                 dCt=dCt - sigma2*(ZEROS(1,j-1)~1~g[1:q-j]');
+                ELSE;
+                 dCt[q]=dCt[q] - sigma2;
+              ENDIF;
+
+              DC=DC|(DCA~DCT);
+           ENDO;
+        ENDIF;
+     ENDIF;                                             @ ...Ende: AR-Teil @
+
+  ELSE;                                                     @ MA[q]-Modell @
+
+     IF q==1;
+        dC=(2*sigma2*theta)|(-sigma2);     @ dC_0/d(theta) | dC_1/d(theta) @
+      ELSE;
+        dC=SHIFTR(RESHAPE(theta',q+1,q),SEQA(0,-1,q+1),0);
+        dC=sigma2*(dC + (theta'|UPMAT(TOEPLITZ(-1|theta[1:q-1]))));
+     ENDIF;
+
+  ENDIF;
+
+  RETP(dC);
+ENDP;
+
+
+

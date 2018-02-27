@@ -1,0 +1,52 @@
+/*
+** polymat.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> polymat
+**
+**  Purpose:    Returns a matrix containing the powers of the elements
+**              of x from 1 to p.
+**
+**  Format:     y = polymat(x,p);
+**
+**  Input:      x    NxK matrix.
+**
+**              p    scalar, positive integer.
+**
+**  Output:     x    Nx(p*K) matrix containing powers of the elemants
+**                   of x from 1 to p.  The first K columns will contain
+**                   first powers, the second K columns contain the second
+**                   powers, and so on.
+**
+**  Remarks:    To do polynomial regression use olsx:
+**
+**                     { u,m,b } = olsx(y,polymat(x,p));
+**
+**  Globals:    None
+*/
+
+proc polymat(x1,p);
+    local i,x,xd;
+    i = 2;
+    x = x1;
+    xd = x1;
+    do until i > p;
+        xd = xd.*x1;
+        x = x~xd;
+        i = i+1;
+    endo;
+    retp(x);
+endp;

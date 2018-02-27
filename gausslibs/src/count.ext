@@ -1,0 +1,41 @@
+/*
+** count.ext - external declarations for globals used in COUNT.
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+
+external matrix _cn_Start;
+external matrix _cn_ZeroTruncate;
+external matrix _cn_Fix;
+external matrix _cn_Dispersion;
+external matrix _cn_Censor;
+external matrix _cn_Precision;
+external matrix _cn_StartValues;
+external string _cn_Inference;
+
+/* scratch globals - not to be changed by user */
+external matrix _cn_c1;
+external matrix _cn_c2;
+external matrix _cn_c3;
+external string _cn_fn;
+external string _cn_dp;
+external string _cn_vr;
+

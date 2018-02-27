@@ -1,0 +1,68 @@
+/*
+** SQPsolveMT.sdf
+**
+** (C) Copyright 1997-2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+
+
+#include pv.sdf
+#include ds.sdf
+
+
+
+     struct SQPsolveMTControl { matrix A; 
+                                matrix B; 
+                                matrix C; 
+                                matrix D; 
+                                scalar eqProc;
+                                scalar ineqProc; 
+                                matrix bounds; 
+                                scalar gradProc;
+                                scalar hessProc; 
+                                scalar maxIters; 
+                                scalar dirTol; 
+                                scalar CovType;
+                                scalar feasibleTest; 
+				scalar maxTries;
+                                scalar randRadius;
+				scalar seed; 
+                                scalar output;
+                                scalar printIters; 
+                                scalar trustRadius; 
+                                matrix weights; 
+				scalar disableKey;
+                              };
+
+
+     struct SQPsolveMTLagrange { matrix lineq; 
+                                 matrix nlineq;  
+                                 matrix linineq;
+                                 matrix nlinineq; 
+                                 matrix bounds; 
+                               };
+
+
+     struct SQPsolveMTOut { struct PV par; 
+                            scalar fct; 
+			    struct SQPsolveMTLagrange lagr; 
+			    scalar retcode; 
+			    matrix moment; 
+                            matrix hessian;
+                            matrix xproduct;
+			  };
+
+
+

@@ -1,0 +1,16 @@
+/*
+** autoreg.ext
+** (C) Copyright 1988-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+#include timeser.ext
+
+external matrix _arinit;
+external matrix _ariter;
+external matrix _arvsig;
+external matrix _archisq;
+external matrix _artobs;
+external matrix _arrsq;
+external matrix _ar_lbl;
+

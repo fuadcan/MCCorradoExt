@@ -1,0 +1,2621 @@
+/*
+** finance.src
+**
+**
+** (C) Copyright 2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format
+**  ---------------------------------------------------------------------------
+**  c = EuropeanBSCall(s0,K,r,div,tau,sigma)
+**  p = EuropeanBSPut(s0,K,r,div,tau,sigma)
+**  s = EuropeanBSCall_ImpVol(c,S0,K,r,div,tau)
+**  s = EuropeanBSPut_ImpVol(c,S0,K,r,div,tau)
+**  { d,g,t,v,rh } = EuropeanBSCall_Greeks(S0,K,r,div,tau,sigma)
+**  { d,g,t,v,rh } = EuropeanBSPut_Greeks(S0,K,r,div,tau,sigma)
+**
+**  c = AmericanBSCall(s0,K,r,div,tau,sigma)
+**  p = AmericanBSPut(s0,K,r,div,tau,sigma)
+**  s = AmericanBSCall_ImpVol(c,S0,K,r,div,tau)
+**  s = AmericanBSPut_ImpVol(c,S0,K,r,div,tau)
+**  { d,g,t,v,rh } = AmericanBSCall_Greeks(S0,K,r,div,tau,sigma)
+**  { d,g,t,v,rh } = AmericanBSPut_Greeks(S0,K,r,div,tau,sigma)
+**
+**  c = EuropeanBinomCall(s0,K,r,div,tau,sigma,N)
+**  p = EuropeanBinomPut(s0,K,r,div,tau,sigma,N)
+**  s = EuropeanBinomCall_ImpVol(c,S0,K,r,div,tau,N)
+**  s = EuropeanBinomPut_ImpVol(c,S0,K,r,div,tau,N)
+**  { d,g,t,v,rh } = EuropeanBinomCall_Greeks(S0,K,r,div,tau,sigma,N)
+**  { d,g,t,v,rh } = EuropeanBinomPut_Greeks(S0,K,r,div,tau,sigma,N)
+**
+**  c = AmericanBinomCall(s0,K,r,div,tau,sigma,N)
+**  p = AmericanBinomPut(s0,K,r,div,tau,sigma,N)
+**  s = AmericanBinomCall_ImpVol(c,S0,K,r,div,tau,N)
+**  s = AmericanBinomPut_ImpVol(c,S0,K,r,div,tau,N)
+**  { d,g,t,v,rh } = AmericanBinomCall_Greeks(S0,K,r,div,tau,sigma,N)
+**  { d,g,t,v,rh } = AmericanBinomPut_Greeks(S0,K,r,div,tau,sigma,N)
+*/
+
+#include finprocs.ext
+
+
+
+
+
+/*
+**> EuropeanBSCall
+**
+**  Purpose:  European Black and Scholes Call
+**
+**  Format:   c = EuropeanBSCall(S0,K,r,div,tau,sigma);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**
+**  Output:    c     Mx1 vector, call premiums
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            b = .0498;
+**            r = .0498;
+**            div = 0;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = EuropeanBSCall(S0,K,r,div,tau,sigma);
+**            print c;
+**
+**             17.0975
+**             14.7583
+**             12.6496
+**
+**
+*/
+
+
+
+proc EuropeanBSCall(S0,K,r,div,tau,sigma);
+
+    local d1,d2,g,c;
+
+    g = sigma.*sqrt(tau);
+    d1 = ( ln(S0./K) + (r - div).*tau )./g + 0.5 * g;
+    d2 = d1 - g;
+
+    c = S0.*exp(-div.*tau).*cdfn(d1) - K .* exp(-r*tau) .* cdfn(d2);
+
+    retp(c);
+
+endp;
+
+
+
+
+/*
+**> EuropeanBSPut
+**
+**  Purpose:  European Black and Scholes Put
+**
+**  Format:   c = EuropeanBSPut(S0,K,r,div,tau,sigma);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**
+**  Output:    c     Mx1 vector, put premiums
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            div = 0;
+**            t0 = { 2001, 1, 30 };
+**            t1 = { 2001, 2, 16 };
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = EuropeanBSPut(S0,K,r,div,tau,sigma);
+**            print c;
+**
+**               16.6403
+**               19.2872
+**               22.1647
+**
+**
+*/
+
+
+proc EuropeanBSPut(S0,K,r,div,tau,sigma);
+
+    local d1,d2,g,p;
+
+    g = sigma .* sqrt(tau);
+    d1 = ( ln(S0./K) + (r - div).*tau )./g + 0.5 * g;
+    d2 = d1 - g;
+
+    p = -S0.*exp(-div.*tau).*cdfn(-d1) + K.*exp(-r.*tau).*cdfn(-d2);
+
+    retp(p);
+
+endp;
+
+
+
+
+
+/*
+**> EuropeanBSCall_ImpVol
+**
+**  Purpose:  Implied volatilities for European Black and Scholes calls
+**
+**  Format:    sigma = EuropeanBSCall_ImpVol(c,S0,K,r,div,tau);
+**
+**  Input:       c     Mx1 vector, call premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**              div    continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Example:
+**            c = { 13.70, 11.90, 9.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            div = 0;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = EuropeanBSCall_ImpVol(c,S0,K,r,div,tau);
+**            print sigma;
+**
+**                 0.1991
+**                 0.1725
+**                 0.1310
+*/
+
+
+
+proc EuropeanBSCall_ImpVol(c,s,x,r,div,tau);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = EuropeanBSCall(s,x,r,div,tau,sig0);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = EuropeanBSCall(s,x,r,div,tau,sig0);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = EuropeanBSCall(s,x,r,div,tau,sig0);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = EuropeanBSCall(s,x,r,div,tau,sig1);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = EuropeanBSCall(s,x,r,div,tau,sig2[i]);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBSPut_ImpVol
+**
+**  Purpose:  Implied volatilities for European Black and Scholes puts
+**
+**  Format:    sigma = EuropeanBSPut_ImpVol(c,S0,K,r,div,tau);
+**
+**  Input:       c     Mx1 vector, put premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**              div    continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Example:
+**            p = { 14.60, 17.10, 20.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = EuropeanBSPut_ImpVol(p,S0,K,r,div,tau);
+**            print sigma;
+**
+**               0.2123
+**               0.2493
+**               0.2937
+**
+*/
+
+
+
+
+proc EuropeanBSPut_ImpVol(c,s,x,r,div,tau);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = EuropeanBSPut(s,x,r,div,tau,sig0);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = EuropeanBSPut(s,x,r,div,tau,sig0);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = EuropeanBSPut(s,x,r,div,tau,sig0);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = EuropeanBSPut(s,x,r,div,tau,sig1);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = EuropeanBSPut(s,x,r,div,tau,sig2[i]);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBSCall_Greeks
+**
+**  Purpose:   European Black and Scholes call Delta, Gamma,
+**                             Omega, Theta, and Vega
+**
+**  Format:  { d,g,t,v,rh } = EuropeanBSCall_Greeks(S0,K,r,div,tau,sigma);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**              div    continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**
+**            print EuropeanBSCall_Greeks(S0,K,r,div,tau,sigma);
+**
+**               0.6446
+**               0.0085
+**              -38.5054
+**               65.2563
+**               56.8720
+*/
+
+
+
+
+proc(5) = EuropeanBSCall_Greeks(S0,K,r,div,tau,sigma);
+
+     local d,g,v,t,rh,w,d1,d2,h,c0,c1;
+
+     w = sigma.*sqrt(tau);
+     d1 = ( ln(S0./K) + (r-div).*tau )./w + 0.5 * w;
+     d2 = d1 - w;
+
+     d = exp(-div.*tau).*cdfn(d1);
+     g = exp(-div.*tau).*pdfn(d1)./(S0.*w);
+
+     if _fin_thetaType;
+         h = 1/250;
+         c0 = EuropeanBSCall(S0,K,r,div,tau,sigma);
+         c1 = EuropeanBSCall(S0,K,r,div,tau+h,sigma);
+         t = c1 - c0;
+     else;
+         t = r.*(S0.*exp(-div.*tau).*cdfn(d1) - K.*exp(-r*tau).*cdfn(d2))
+            - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+     endif;
+
+     v = pdfn(d1).*S0.*sqrt(tau).*exp(-div.*tau);
+     rh = K.*tau.*exp(-r.*tau).*cdfn(d2);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBSPut_Greeks
+**
+**  Purpose:   European Black and Scholes put Delta, Gamma,
+**                             Omega, Theta, and Vega
+**
+**  Format:  { d,g,t,v,rh } = EuropeanBSPut_Greeks(S0,K,r,div,tau,sigma);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**              div    continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**
+**            print EuropeanBSPut_Greeks(S0,K,r,div,tau,sigma);
+**
+**               -0.3554
+**                0.0085
+**               -15.1307
+**                65.2563
+**               -39.5486
+*/
+
+
+
+
+proc(5) = EuropeanBSPut_Greeks(S0,K,r,div,tau,sigma);
+
+     local d,g,v,t,rh,w,d1,d2,c0,c1,h;
+
+     w = sigma.*sqrt(tau);
+     d1 = ( ln(S0./K) + (r-div).*tau )./w + 0.5 * w;
+     d2 = d1 - w;
+
+     d = exp(-div.*tau).*(cdfn(d1) - 1);
+     g = exp(-div.*tau).*pdfn(d1)./(S0.*w);
+
+     c0 = EuropeanBSPut(S0,K,r,div,tau,sigma);
+     if _fin_thetaType;
+         h = 1/250;
+         c1 = EuropeanBSPut(S0,K,r,div,tau+h,sigma);
+         t = c1 - c0;
+     else;
+         t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+     endif;
+
+
+     v = pdfn(d1).*S0.*sqrt(tau).*exp(-div.*tau);
+     rh = -K.*tau.*exp(-r.*tau).*cdfn(-d2);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSCall
+**
+**  Purpose:  American Black and Scholes Call
+**
+**
+**  Format:   c = AmericanBSCall(S0,K,r,div,tau,sigma);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**            div    continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**
+**  Output:    c     Mx1 vector, call premiums
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = AmericanBSCall(S0,K,r,0,tau,sigma);
+**            print c;
+**
+**               16.093640
+**               13.846830
+**               11.829059
+**
+*/
+
+
+
+proc AmericanBSCall(S0,K,r,div,tau,sigma);
+
+    local d1,d2,g,ma,mb,m1,c,c0,s10,s11,s1,s2,q1,q2,f0,f1,f2,w,id,c1,c2;
+
+    c0 = EuropeanBSCall(S0,K,r,div,tau,sigma);
+    ma = 2*r./sigma^2;
+    mb = 2*(r-div)./sigma^2;
+    m1 = 1 - exp(-r.*tau);
+    q2 = (-(mb-1) + sqrt( (mb-1)^2 + 4*ma./m1 ))/2;
+
+    S1 = zeros(rows(K),1);
+    for i(1,rows(K),1);
+
+        S10 = S0;
+        f0 = _Scall_(S10,K[i],r,div,tau,sigma,q2);
+
+        if f0 > 0;
+
+            S11 = 1.01*S10;
+            f1 = _Scall_(S11,K[i],r,div,tau,sigma,q2);
+
+            do while f1 < f0;
+                if f1 > 0;
+                    s10 = s11;
+                    f0 = f1;
+                else;
+                    break;
+                endif;
+                S11 = 1.01*S11;
+                f1 = _Scall_(S11,K[i],r,div,tau,sigma,q2);
+                if (f0-f1)/f1 < 1e-4;
+                    break;
+                endif;
+            endo;
+
+            if f1 > f0 or f1 > 0;
+                s1[i] = s0;
+            else;
+
+                s2 = 0.5*(s11+s10);
+                f2 = _Scall_(S2,K[i],r,div,tau,sigma,q2);
+                do until abs(f2) < 1e-3;
+
+                    if f0 > 0;
+                        if f2 > 0;
+                            f0 = f2;
+                            s10 = s2;
+                        else;
+                            f1 = f2;
+                            s11 = s2;
+                        endif;
+                    else;
+                        if f2 > 0;
+                            f1 = f2;
+                            s11 = s2;
+                        else;
+                            f0 = f2;
+                            s10 = s2;
+                        endif;
+                    endif;
+                    S2 = 0.5*(S10+S11);
+                    f2 = _Scall_(S2,K[i],r,div,tau,sigma,q2);
+
+                endo;
+                s1[i] = s2;
+
+            endif;
+        else;
+            s1[i] = s0;
+        endif;
+
+    endfor;
+    d1 = (ln(S1./K)+(r-div+0.5*sigma^2).*tau)./(sigma.*sqrt(tau));
+    id = (S1 .>= S0);
+    c1 = c0 + (S1./q2).*(1-exp(-div.*tau).*cdfn(d1)).*(S0./S1)^q2;
+
+    c2 = S0 - K;
+    retp(id.*c1 + (1-id).*c2);
+
+endp;
+
+
+proc _Scall_(S1,K,r,div,tau,sigma,q2);
+    local d1,d2,g,c;
+    g = sigma.*sqrt(tau);
+    d1 = ( ln(S1./K) + (r-div).*tau )./g + 0.5 * g;
+    d2 = d1 - g;
+    c = S1.*exp(-div.*tau).*cdfn(d1) - K .* exp(-r*tau) .* cdfn(d2);
+
+    retp(c + (S1./q2).*(1-exp(-div.*tau).*cdfn(d1)) + K - S1);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSPut
+**
+**  Purpose:  American Black and Scholes Put
+**
+**
+**  Format:   c = AmericanBSPut(S0,K,r,div,tau,sigma);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**
+**  Output:    c     Mx1 vector, put premiums
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = AmericanBSPut(S0,K,r,0,tau,sigma);
+**            print c;
+**
+**               16.748987
+**               19.416727
+**               22.318856
+**
+*/
+
+
+
+
+
+
+
+
+proc AmericanBSPut(S0,K,r,div,tau,sigma);
+
+    local d1,d2,g,ma,mb,m1,p,p0,s10,s11,s1,s2,q1,f0,f1,f2,w,id,p1,p2;
+
+    p0 = EuropeanBSPut(S0,K,r,div,tau,sigma);
+    ma = 2*r./sigma^2;
+    mb = 2*(r-div)./sigma^2;
+    m1 = 1 - exp(-r.*tau);
+    q1 = (-(mb-1) - sqrt( (mb-1)^2 + 4*ma./m1 ))/2;
+
+    S1 = zeros(rows(K),1);
+    for i(1,rows(K),1);
+
+        S10 = S0;
+        f0 = _SPut_(S10,K[i],r,div,tau,sigma,q1);
+
+        if f0 > 0;
+
+            S11 = .99*S10;
+            f1 = _SPut_(S11,K[i],r,div,tau,sigma,q1);
+
+            do while f1 < f0;
+                if f1 > 0;
+                    s10 = s11;
+                    f0 = f1;
+                else;
+                    break;
+                endif;
+                S11 = .99*S11;
+                f1 = _SPut_(S11,K[i],r,div,tau,sigma,q1);
+                if (f0-f1)/f1 < 1e-4;
+                    break;
+                endif;
+            endo;
+
+            if f1 > f0 or f1 > 0;
+                s1[i] = s0;
+            else;
+
+                s2 = 0.5*(s11+s10);
+                f2 = _SPut_(S2,K[i],r,div,tau,sigma,q1);
+                do until abs(f2) < 1e-3;
+
+                    if f0 > 0;
+                        if f2 > 0;
+                            f0 = f2;
+                            s10 = s2;
+                        else;
+                            f1 = f2;
+                            s11 = s2;
+                        endif;
+                    else;
+                        if f2 > 0;
+                            f1 = f2;
+                            s11 = s2;
+                        else;
+                            f0 = f2;
+                            s10 = s2;
+                        endif;
+                    endif;
+                    S2 = 0.5*(S10+S11);
+                    f2 = _SPut_(S2,K[i],r,div,tau,sigma,q1);
+
+                endo;
+                s1[i] = s2;
+
+            endif;
+        else;
+            s1[i] = s0;
+        endif;
+
+    endfor;
+    d1 = (ln(S1./K)+(r-div+0.5*sigma^2).*tau)./(sigma.*sqrt(tau));
+    id = (S1 .<= S0);
+    p1 = p0 - (S1./q1).*(1-exp(-div.*tau).*cdfn(-d1)).*(S0./S1)^q1;
+
+    p2 = K - S0;
+    retp(id.*p1 + (1-id).*p2);
+
+endp;
+
+
+proc _SPut_(S1,K,r,div,tau,sigma,q1);
+
+    local d1,d2,g,p;
+    g = sigma.*sqrt(tau);
+    d1 = ( ln(S1./K) + (r-div).*tau )./g + 0.5 * g;
+    d2 = d1 - g;
+    p = -S1.*exp(-div.*tau).*cdfn(-d1) + K.*exp(-r.*tau).*cdfn(-d2);
+
+    retp(p - (S1./q1).*(1-exp(-div.*tau).*cdfn(-d1)) - K + S1);
+
+endp;
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSCall_ImpVol
+**
+**  Purpose:  Implied volatilities for American Black and Scholes calls
+**
+**  Format:    sigma = AmericanBSCall_ImpVol(c,S0,K,r,div,tau);
+**
+**  Input:       c     Mx1 vector, call premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Example:
+**            c = { 13.70, 11.90, 9.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = AmericanBSCall_ImpVol(c,S0,K,r,0,tau);
+**            print sigma;
+**
+**                0.10350708
+**                0.089202881
+**                0.066876221
+*/
+
+
+
+proc AmericanBSCall_ImpVol(c,s,x,r,div,tau);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = AmericanBSCall(s,x,r,div,tau,sig0);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = AmericanBSCall(s,x,r,div,tau,sig0);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = AmericanBSCall(s,x,r,div,tau,sig0);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = AmericanBSCall(s,x,r,div,tau,sig1);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = AmericanBSCall(s,x,r,div,tau,sig2[i]);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSPut_ImpVol
+**
+**  Purpose:  Implied volatilities for American Black and Scholes puts
+**
+**  Format:    sigma = AmericanBSPut_ImpVol(c,S0,K,r,div,tau);
+**
+**  Input:       c     Mx1 vector, put premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Example:
+**            p = { 14.60, 17.10, 20.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = AmericanBSPut_ImpVol(p,S0,K,r,0,tau);
+**            print sigma;
+**
+**               0.12829346
+**               0.16885986
+**               0.21544312
+**
+*/
+
+
+
+
+proc AmericanBSPut_ImpVol(c,s,x,r,div,tau);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = AmericanBSPut(s,x,r,div,tau,sig0);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = AmericanBSPut(s,x,r,div,tau,sig0);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = AmericanBSPut(s,x,r,div,tau,sig0);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = AmericanBSPut(s,x,r,div,tau,sig1);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = AmericanBSPut(s,x,r,div,tau,sig2[i]);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSCall_Greeks
+**
+**  Purpose:   American Black and Scholes call Delta, Gamma,
+**                             Omega, Theta, and Vega
+**
+**  Format:  { d,g,t,v,rh } = AmericanBSCall_Greeks(S0,K,r,div,tau,sigma);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**
+**            print AmericanBSCall_Greeks(S0,K,r,0,tau,sigma);
+**
+**                0.40034039
+**                0.016804021
+**                -55.731079
+**                115.36906
+**                46.374528
+*/
+
+
+
+
+proc(5) = AmericanBSCall_Greeks(S0,K,r,div,tau,sigma);
+
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = AmericanBSCall(S0+h,K,r,div,tau,sigma);
+        c2 = AmericanBSCall(S0-h,K,r,div,tau,sigma);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = AmericanBSCall(S0,K,r,div,tau,sigma);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = AmericanBSCall(S0,K,r,div,tau+h,sigma);
+            t = c1 - c0;
+        else;
+            t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = AmericanBSCall(S0,K,r,div,tau,sigma+h);
+        c2 = AmericanBSCall(S0,K,r,div,tau,sigma-h);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h = _fin_epsilon;
+        c1 = AmericanBSCall(S0,K,r+h,div,tau,sigma);
+        c2 = AmericanBSCall(S0,K,r-h,div,tau,sigma);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBSPut_Greeks
+**
+**  Purpose:   American Black and Scholes put Delta, Gamma,
+**                             Omega, Theta, and Vega
+**
+**  Format:  { d,g,t,v,rh } = AmericanBSPut_Greeks(S0,K,r,div,tau,sigma);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**
+**            print AmericanBSPut_Greeks(S0,K,r,0,tau,sigma);
+**
+**                -0.33296721
+**                 0.0091658294
+**               -17.556118
+**                77.614238
+**               -40.575963
+*/
+
+
+
+proc(5) = AmericanBSPut_Greeks(S0,K,r,div,tau,sigma);
+
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = AmericanBSPut(S0+h,K,r,div,tau,sigma);
+        c2 = AmericanBSPut(S0-h,K,r,div,tau,sigma);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = AmericanBSPut(S0,K,r,div,tau,sigma);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = AmericanBSPut(S0,K,r,div,tau+h,sigma);
+            t = c1 - c0;
+        else;
+            t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = AmericanBSPut(S0,K,r,div,tau,sigma+h);
+        c2 = AmericanBSPut(S0,K,r,div,tau,sigma-h);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h = _fin_epsilon;
+        c1 = AmericanBSPut(S0,K,r+h,div,tau,sigma);
+        c2 = AmericanBSPut(S0,K,r-h,div,tau,sigma);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+/*
+**> EuropeanBinomCall
+**
+**  Purpose:  European binomial method call
+**
+**  Format:   c = EuropeanBinomCall(S0,K,r,div,tau,sigma,N);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:    c     Mx1 vector, call premiums
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            b = .0498;
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = EuropeanBinomCall(S0,K,r,div,tau,sigma,N);
+**            print c;
+**
+**                17.1071
+**                15.0067
+**                12.9064
+**
+*/
+
+
+
+proc EuropeanBinomCall(S0,K,r,div,tau,sigma,N);
+
+    local ncols,e,Tree,u,d,w,fa,k1,k2,j,c0,i,S1;
+
+    ncols = rows(K);
+    e = ones(1,Ncols);
+    K = K';
+    Tree = zeros((n+1)*(n+2)/2,Ncols);
+    u = exp(sigma.*sqrt(tau./n));
+    d = 1./u;
+    fa = exp((r-div).*tau./n);
+    w = (fa-d)./(u-d);
+
+    j = seqa(0,1,n+1);
+    S1 = S0.*(d^j).*(u^rev(j));
+
+    k2 = (n+1)*(n+2)/2;
+    k1 = k2 - n;
+    c0 = (S1 - K) .* (S1 .> K);
+    Tree[k1:k2,.] = c0;
+
+    i = n - 1;
+    do while i >= 0;
+
+        k2 = k1 - 1;
+        k1 = k2 - i;
+        c0 = fa.*(w.*trimr(c0,0,1) +
+                     (1-w).*trimr(c0,1,0));
+        Tree[k1:k2,.] = c0;
+        i = i - 1;
+    endo;
+
+    retp(Tree[1,.]');
+
+endp;
+
+
+
+
+/*
+**> EuropeanBinomPut
+**
+**  Purpose:  European binomial method Put
+**
+**  Format:   c = EuropeanBinomPut(S0,K,r,div,tau,sigma,N);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:    c     Mx1 vector, put premiums
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**            N = 30;
+**
+**            c = EuropeanBinomPut(S0,K,r,div,tau,sigma,N);
+**            print c;
+**
+**              16.6927
+**              19.5266
+**              22.3604
+**
+*/
+
+
+proc EuropeanBinomPut(S0,K,r,div,tau,sigma,N);
+
+    local ncols,e,Tree,u,d,w,fa,k1,k2,j,p0,i,S1;
+
+    ncols = rows(K);
+    e = ones(1,Ncols);
+    K = K';
+    Tree = zeros((n+1)*(n+2)/2,Ncols);
+    u = exp(sigma.*sqrt(tau./n));
+    d = 1./u;
+    fa = exp((r-div).*tau./n);
+    w = (fa-d)./(u-d);
+
+    j = seqa(0,1,n+1);
+    S1 = S0.*(d^j).*(u^rev(j));
+
+    k2 = (n+1)*(n+2)/2;
+    k1 = k2 - n;
+    p0 = (K - S1) .* (K .> S1);
+    Tree[k1:k2,.] = p0;
+
+    i = n - 1;
+    do while i >= 0;
+
+        k2 = k1 - 1;
+        k1 = k2 - i;
+        p0 = fa.*(w.*trimr(p0,0,1) +
+                     (1-w).*trimr(p0,1,0));
+        Tree[k1:k2,.] = p0;
+        i = i - 1;
+    endo;
+
+    retp(Tree[1,.]');
+
+endp;
+
+
+
+
+/*
+**> EuropeanBinomCall_ImpVol
+**
+**  Purpose:  Implied volatilities for European binomial method calls
+**
+**  Format:    sigma = EuropeanBinomCall_ImpVol(c,S0,K,r,div,tau,N);
+**
+**  Input:       c     Mx1 vector, call premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div    continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**             N     number of time segments
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            c = { 13.70, 11.90, 9.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**            N = 30;
+**
+**            sigma = EuropeanBinomCall_ImpVol(c,S0,K,r,div,tau,N);
+**            print sigma;
+**
+**              0.1982
+**              0.1716
+**              0.1301
+**
+*/
+
+
+
+proc EuropeanBinomCall_ImpVol(c,s,x,r,div,tau,N);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = EuropeanBinomCall(s,x,r,div,tau,sig0,N);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = EuropeanBinomCall(s,x,r,div,tau,sig0,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = EuropeanBinomCall(s,x,r,div,tau,sig0,N);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = EuropeanBinomCall(s,x,r,div,tau,sig1,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = EuropeanBinomCall(s,x,r,div,tau,sig2[i],N);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBinomPut_ImpVol
+**
+**  Purpose:  Implied volatilities for European binomial method puts
+**
+**  Format:    sigma = EuropeanBinomPut_ImpVol(c,S0,K,r,div,tau,N);
+**
+**  Input:       c     Mx1 vector, put premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**             N     number of time segments
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            p = { 14.60, 17.10, 20.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**            N = 30;
+**
+**            sigma = EuropeanBinomPut_ImpVol(p,S0,K,r,div,tau,N);
+**            print sigma;
+**
+**               0.1307
+**               0.1714
+**               0.2165
+**
+*/
+
+
+
+
+proc EuropeanBinomPut_ImpVol(c,s,x,r,div,tau,N);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = EuropeanBinomPut(s,x,r,div,tau,sig0,N);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = EuropeanBinomPut(s,x,r,div,tau,sig0,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = EuropeanBinomPut(s,x,r,div,tau,sig0,N);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = EuropeanBinomPut(s,x,r,div,tau,sig1,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = EuropeanBinomPut(s,x,r,div,tau,sig2[i],N);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBinomCall_Greeks
+**
+**  Purpose:   European binomial method call Delta, Gamma, Theta, Vega and Rho
+**
+**  Format:  { d,g,t,v,rh } = EuropeanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**            N = 30;
+**
+**            print EuropeanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**              0.6738
+**              0.0008
+**             -44.7874
+**              69.0880
+**              96.9225
+**
+*/
+
+
+
+proc(5) = EuropeanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = EuropeanBinomCall(S0+h,K,r,div,tau,sigma,N);
+        c2 = EuropeanBinomCall(S0-h,K,r,div,tau,sigma,N);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = EuropeanBinomCall(S0,K,r,div,tau,sigma,N);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = EuropeanBinomCall(S0,K,r,div,tau+h,sigma,N);
+            t = c1 - c0;
+         else;
+            h = _fin_epsilon * abs(maxc(tau));
+            c1 = EuropeanBinomCall(S0,K,r,div,tau-h,sigma,N);
+            c2 = EuropeanBinomCall(S0,K,r,div,tau+h,sigma,N);
+            t = (c1 - c2)/(2*h);
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = EuropeanBinomCall(S0,K,r,div,tau,sigma+h,N);
+        c2 = EuropeanBinomCall(S0,K,r,div,tau,sigma-h,N);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h =  _fin_epsilon;
+        c1 = EuropeanBinomCall(S0,K,r+h,div,tau,sigma,N);
+        c2 = EuropeanBinomCall(S0,K,r-h,div,tau,sigma,N);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> EuropeanBinomPut_Greeks
+**
+**  Purpose:   European binomial method put Delta, Gamma, Theta, Vega, and Rho
+**
+**  Format:  { d,g,t,v,rh } = EuropeanBinomPut_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**            N = 30;
+**
+**            print EuropeanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**               -0.3804
+**                0.0038
+**               -17.9838
+**                69.0880
+**               -33.7666
+**
+*/
+
+
+
+
+proc(5) = EuropeanBinomPut_Greeks(S0,K,r,div,tau,sigma,N);
+
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = EuropeanBinomPut(S0+h,K,r,div,tau,sigma,N);
+        c2 = EuropeanBinomPut(S0-h,K,r,div,tau,sigma,N);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = EuropeanBinomPut(S0,K,r,div,tau,sigma,N);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = EuropeanBinomPut(S0,K,r,div,tau+h,sigma,N);
+            t = c1 - c0;
+        else;
+            t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = EuropeanBinomPut(S0,K,r,div,tau,sigma+h,N);
+        c2 = EuropeanBinomPut(S0,K,r,div,tau,sigma-h,N);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h = _fin_epsilon;
+        c1 = EuropeanBinomPut(S0,K,r+h,div,tau,sigma,N);
+        c2 = EuropeanBinomPut(S0,K,r-h,div,tau,sigma,N);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBinomCall
+**
+**  Purpose:  American binomial method Call
+**
+**
+**  Format:   c = AmericanBinomCall(S0,K,r,div,tau,sigma,N);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:    c     Mx1 vector, call premiums
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = AmericanBinomCall(S0,K,r,0,tau,sigma,60);
+**            print c;
+**
+**                17.190224
+**                14.905054
+**                12.673322
+**
+*/
+
+
+
+proc AmericanBinomCall(S0,K,r,div,tau,sigma,N);
+    local ncols,e,TreeS,TreeC,u,d,w,fa,k1,k2,j,c0,i,S1,P0,C1,indx;
+
+    ncols = rows(K);
+    e = ones(1,Ncols);
+    K = K';
+    TreeS = zeros((n+1)*(n+2)/2,Ncols);
+    TreeC = zeros((n+1)*(n+2)/2,Ncols);
+    u = exp(sigma.*sqrt(tau./n));
+    d = 1./u;
+    fa = exp((r-div).*tau./n);
+    w = (fa-d)./(u-d);
+
+    k1 = 0;
+    i = 0;
+    do until i > n;
+        k2 = k1+1+i;
+        j = seqa(0,1,i+1);
+        S1 = S0.*(d^j).*(u^rev(j));
+        TreeS[1+k1:k2,.] = S1.*ones(1,Ncols);
+        k1 = k2;
+        i = i + 1;
+    endo;
+
+    P0 = (S1 - K) .* (S1 .> K);
+    C1 = P0;
+    k2 = (n+1)*(n+2)/2;
+    k1 = k2 - n;
+    TreeC[k1:k2,.] = C1;
+    i = n - 1;
+    do while i >= 0;
+        k2 = k1 - 1;
+        k1 = k2 - i;
+        C1 = fa.*(w.*trimr(C1,0,1) +
+                     (1-w).*trimr(C1,1,0));
+        S1 = TreeS[k1:k2,.];
+        P0 = (S1 - K) .* (S1 .> K);
+        indx = P0 .> C1;
+        C1 = indx .* P0 + (1-indx) .* C1;
+        TreeC[k1:k2,.] = C1;
+        i = i - 1;
+    endo;
+
+    retp(TreeC[1,.]');
+
+endp;
+
+
+
+
+/*
+**> AmericanBinomPut
+**
+**  Purpose:  American binomial method Put
+**
+**
+**  Format:   c = AmericanBinomPut(S0,K,r,div,tau,sigma,N);
+**
+**  Input:    S0     scalar, current price
+**
+**             K     Mx1 vector, strike prices
+**
+**             r     scalar, risk free rate
+**
+**           div     continuous dividend yield
+**
+**           tau     scalar, T - t, elapsed number of trading days
+**
+**         sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:    c     Mx1 vector, put premiums
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            sigma = .2493;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            c = AmericanBinomPut(S0,K,r,0,tau,sigma,60);
+**            print c;
+**
+**               16.862683
+**               19.606573
+**               22.433590
+**
+*/
+
+
+proc AmericanBinomPut(S0,K,r,div,tau,sigma,N);
+    local ncols,e,TreeS,TreeC,u,d,w,fa,k1,k2,j,c0,i,S1,P0,C1,indx;
+
+    ncols = rows(K);
+    e = ones(1,Ncols);
+    K = K';
+    TreeS = zeros((n+1)*(n+2)/2,Ncols);
+    TreeC = zeros((n+1)*(n+2)/2,Ncols);
+    u = exp(sigma.*sqrt(tau./n));
+    d = 1./u;
+    fa = exp((r-div).*tau./n);
+    w = (fa-d)./(u-d);
+
+    k1 = 0;
+    i = 0;
+    do until i > n;
+        k2 = k1+1+i;
+        j = seqa(0,1,i+1);
+        S1 = S0.*(d^j).*(u^rev(j));
+        TreeS[1+k1:k2,.] = S1.*ones(1,Ncols);
+        k1 = k2;
+        i = i + 1;
+    endo;
+
+    P0 = (K - S1) .* (K .> S1);
+    C1 = P0;
+    k2 = (n+1)*(n+2)/2;
+    k1 = k2 - n;
+    TreeC[k1:k2,.] = C1;
+    i = n - 1;
+    do while i >= 0;
+        k2 = k1 - 1;
+        k1 = k2 - i;
+        C1 = fa.*(w.*trimr(C1,0,1) +
+                     (1-w).*trimr(C1,1,0));
+        S1 = TreeS[k1:k2,.];
+        P0 = (K - S1) .* (K .> S1);
+        indx = P0 .> C1;
+        C1 = indx .* P0 + (1-indx) .* C1;
+        TreeC[k1:k2,.] = C1;
+        i = i - 1;
+    endo;
+
+    retp(TreeC[1,.]');
+
+endp;
+
+
+
+
+
+/*
+**> AmericanBinomCall_ImpVol
+**
+**  Purpose:  Implied volatilities for American binomial method calls
+**
+**  Format:    sigma = AmericanBinomCall_ImpVol(c,S0,K,r,div,tau,N);
+**
+**  Input:       c     Mx1 vector, call premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**             N     number of time segments
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            c = { 13.70, 11.90, 9.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            div = 0;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = AmericanBinomCall_ImpVol(c,S0,K,r,div,tau,30);
+**            print sigma;
+**
+**               0.1981
+**               0.1715
+**               0.1301
+*/
+
+
+proc AmericanBinomCall_ImpVol(c,s,x,r,div,tau,N);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = AmericanBinomCall(s,x,r,div,tau,sig0,N);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = AmericanBinomCall(s,x,r,div,tau,sig0,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = AmericanBinomCall(s,x,r,div,tau,sig0,N);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = AmericanBinomCall(s,x,r,div,tau,sig1,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = AmericanBinomCall(s,x,r,div,tau,sig2[i],N);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBinomPut_ImpVol
+**
+**  Purpose:  Implied volatilities for American binomial method puts
+**
+**  Format:    sigma = AmericanBinomPut_ImpVol(c,S0,K,r,div,tau,N);
+**
+**  Input:       c     Mx1 vector, put premiums
+**
+**              S0     scalar, current price
+**
+**               K     Mx1 vector, strike prices
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**             N     number of time segments
+**
+**
+**  Output:   sigma     Mx1 vector, volatility
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            p = { 14.60, 17.10, 20.10 };
+**            S0 = 718.46;
+**            K = { 720, 725, 730 };
+**            r = .0498;
+**            div = 0;
+**            t0 = dtday(2001,1,30);
+**            t1 = dtday(2001,2,16);
+**            tau = elapsedTradingDays(t0,t1) / annualTradingDays(2001);
+**
+**            sigma = AmericanBinomPut_ImpVol(p,S0,K,r,div,tau,30);
+**            print sigma;
+**
+**                 0.1254
+**                 0.1668
+**                 0.2134
+**
+*/
+
+
+
+
+proc AmericanBinomPut_ImpVol(c,s,x,r,div,tau,N);
+
+    local sig0,c0,sig1,c1,sig2,c2,k;
+
+    sig2 = zeros(rows(c),1);
+
+    for i(1,rows(c),1);
+
+        sig0 = .01;
+        k = 0;
+        c0 = AmericanBinomPut(s,x,r,div,tau,sig0,N);
+        do while c0 > c[i];   /* look for lower bound */
+            sig0 = .95*sig0;
+            c0 = AmericanBinomPut(s,x,r,div,tau,sig0,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        sig1 = .6;
+        c1 = AmericanBinomPut(s,x,r,div,tau,sig0,N);
+        k = 0;
+        do while c1 < c[i];   /* look for upper bound */
+            sig1 = 1.05*sig1;
+            c1 = AmericanBinomPut(s,x,r,div,tau,sig1,N);
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+        endo;
+
+
+        k = 0;
+        do while abs(c1-c0) > .005;
+
+            sig2[i] = 0.5*(sig1-sig0) + sig0;
+            c2 = AmericanBinomPut(s,x,r,div,tau,sig2[i],N);
+
+            if c2 < c[i];
+                sig0 = sig2[i];
+                c0 = c2;
+            else;
+                sig1 = sig2[i];
+                c1 = c2;
+            endif;
+
+            k = k + 1;
+            if k > 100;
+                retp(error(0));
+            endif;
+
+        endo;
+
+    endfor;
+
+    retp(sig2);
+
+endp;
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBinomCall_Greeks
+**
+**  Purpose:   American binomial method call Delta, Gamma, Theta, Vega, and Rho
+**
+**  Format:  { d,g,t,v,rh } = AmericanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            sigma = .25;
+**            tau = .33;
+**            div = 0;
+**
+**            print AmericanBinomCall_Greeks(S0,K,r,div,tau,sigma,30);
+**
+**                0.70631204
+**                0.00076381912
+**              -17.400851
+**               68.703849
+**               76.691829
+*/
+
+
+
+
+proc(5) = AmericanBinomCall_Greeks(S0,K,r,div,tau,sigma,N);
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = AmericanBinomCall(S0+h,K,r,div,tau,sigma,N);
+        c2 = AmericanBinomCall(S0-h,K,r,div,tau,sigma,N);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = AmericanBinomCall(S0,K,r,div,tau,sigma,N);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = AmericanBinomCall(S0,K,r,div,tau+h,sigma,N);
+            t = c1 - c0;
+        else;
+            t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = AmericanBinomCall(S0,K,r,div,tau,sigma+h,N);
+        c2 = AmericanBinomCall(S0,K,r,div,tau,sigma-h,N);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h = _fin_epsilon;
+        c1 = AmericanBinomCall(S0,K,r+h,div,tau,sigma,N);
+        c2 = AmericanBinomCall(S0,K,r-h,div,tau,sigma,N);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> AmericanBinomPut_Greeks
+**
+**  Purpose:   American binomial method put Delta, Gamma, Theta, Vega, and Rho
+**
+**  Format:  { d,g,t,v,rh } = AmericanBinomPut_Greeks(S0,K,r,div,tau,sigma,N);
+**
+**  Input:      S0     scalar, current price
+**
+**               K     Mx1 vector, strike price
+**
+**               r     scalar, risk free rate
+**
+**             div     continuous dividend yield
+**
+**             tau     scalar, T - t, elapsed number of trading days
+**
+**           sigma     scalar, volatility
+**
+**             N     number of time segments
+**
+**
+**  Output:      d      Mx1 vector, delta
+**
+**               g      Mx1 vector, gamma
+**
+**               t      Mx1 vector, theta
+**
+**               v      Mx1 vector, vega
+**
+**               rh     Mx1 vector, rho
+**
+**  Remarks:   The binomial method of Cox, Ross, and Rubinstein ("Option
+**             pricing:  a simplified approach", Journal of Financial
+**             Economics, 7:229:264) as described in Options, Futures,
+**             and other Derivatives by John C. Hull is the basis of this
+**             procedure.
+**
+**  Example:
+**            S0 = 305;
+**            K = 300;
+**            r = .08;
+**            div = 0;
+**            sigma = .25;
+**            tau = .33;
+**
+**            print AmericanBinomCall_Greeks(S0,K,r,div,tau,sigma,60);
+**
+**                -0.38324908
+**                 0.00076381912
+**               8.1336630
+**                68.337294
+**               -27.585043
+*/
+
+
+
+
+proc(5) = AmericanBinomPut_Greeks(S0,K,r,div,tau,sigma,N);
+
+
+     local d,g,v,t,rh,h,c0,c1,c2;
+
+
+     /* delta */
+
+        h = _fin_epsilon * abs(maxc(S0));
+        c1 = AmericanBinomPut(S0+h,K,r,div,tau,sigma,N);
+        c2 = AmericanBinomPut(S0-h,K,r,div,tau,sigma,N);
+        d = (c1 - c2)/(2*h);
+
+     /* gamma */
+
+        c0 = AmericanBinomPut(S0,K,r,div,tau,sigma,N);
+        g = (c1 + c2 - 2*c0) / h^2;
+
+     /* theta */
+
+        if _fin_thetaType;
+            h = 1/250;
+            c1 = AmericanBinomPut(S0,K,r,div,tau+h,sigma,N);
+            t = c1 - c0;
+        else;
+            t = r.*c0 - (r-div).*S0.*d - 0.5*(sigma^2).*(s0^2).*g;
+        endif;
+
+
+     /* vega */
+
+        h = _fin_epsilon;
+        c1 = AmericanBinomPut(S0,K,r,div,tau,sigma+h,N);
+        c2 = AmericanBinomPut(S0,K,r,div,tau,sigma-h,N);
+        v = (c1 - c2)/(2*h);
+
+     /* rho */
+
+        h = _fin_epsilon;
+        c1 = AmericanBinomPut(S0,K,r+h,div,tau,sigma,N);
+        c2 = AmericanBinomPut(S0,K,r-h,div,tau,sigma,N);
+        rh = (c1 - c2)/(2*h);
+
+     retp(d,g,t,v,rh);
+endp;
+
+
+

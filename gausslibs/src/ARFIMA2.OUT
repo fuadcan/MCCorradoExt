@@ -1,0 +1,11 @@
+
+There is two maxima:
+
+Parameter         True value      Scoring         OPTMUM
+    phi1             0.95       0.96437152       0.88154745 
+  theta1              0.5       0.23724943        0.6122161 
+       d                0      -0.26952619       0.19811301 
+   sigma                2        2.0141793        2.0211814 
+
+
+Press any key to continue...

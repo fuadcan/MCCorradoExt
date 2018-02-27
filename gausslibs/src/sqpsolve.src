@@ -1,0 +1,911 @@
+/*
+** sqpSolve.src
+**
+**
+** (C) Copyright 1997-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+******************************************************************************
+**
+**> sqpSolve
+**
+**  Purpose:  solve the nonlinear programming problem
+**
+**  Format:   { x,f,lagr,retcode } = sqpSolve(&fct,start)
+**
+**
+**  Input:    &fct      pointer to a procedure that computes the function to
+**                      be minimized.  This procedure must have one input
+**                      argument, a vector of parameter values, and one
+**                      output argument, the value of the function evaluated
+**                      at the input vector of parameter values.
+**
+**           start      Kx1 vector of start values
+**
+**
+**  Output:      x      Kx1 vector of parameters at minimum
+**
+**               f      scalar, function evaluated at x
+**
+**            lagr      vector, created using VPUT.  Contains the Lagrangean
+**                      for the constraints.  The may be extracted with the
+**                      VREAD command using the following strings:
+**
+**                        "lineq"    - Lagrangeans of linear equality
+                                          constraints,
+**                        "nlineq"   - Lagrangeans of nonlinear equality
+                                          constraints
+**                        "linineq"  - Lagrangeans of linear inequality
+                                          constraints
+**                        "nlinineq" - Lagrangeans of nonlinear inequality
+**                                     constraints
+**                        "bounds"   - Lagrangeans of bounds
+**
+**                      Whenever a constraint is active, its associated
+**                      Lagrangean will be nonzero.
+**
+**
+**         retcode      return code:
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**
+**  Input Globals:
+**
+**   _sqp_A            MxK matrix, linear equality constraint coefficients
+**   _sqp_B            Mx1 vector, linear equality constraint constants
+**
+**                      These globals are used to specify linear equality
+**                      constraints of the following type:
+**
+**                         _sqp_A * X = _sqp_B
+**
+**                      where X is the Kx1 unknown parameter vector.
+**
+**   _sqp_EqProc       scalar, pointer to a procedure that computes
+**                      the nonlinear equality constraints.  For example,
+**                      the statement:
+**
+**                          _sqp_EqProc = &eqproc;
+**
+**                      tells CO that nonlinear equality constraints
+**                      are to be placed on the parameters and where the
+**                      procedure computing them is to be found.
+**                         The procedure must have one input argument, the
+**                      Kx1 vector of parameters, and one output argument,
+**                      the Rx1 vector of computed constraints that are
+**                      to be equal to zero.  For example, suppose that
+**                      you wish to place the following constraint:
+**
+**                         P[1] * P[2] = P[3]
+**
+**                      The proc for this is:
+**
+**                         proc eqproc(p);
+**                            retp(p[1]*[2]-p[3]);
+**                         endp;
+**
+**   _sqp_C             MxK matrix, linear inequality constraint coefficients
+**   _sqp_D             Mx1 vector, linear inequality constraint constants
+**
+**                       These globals are used to specify linear inequality
+**                       constraints of the following type:
+**
+**                         _sqp_C * X >= _sqp_D
+**
+**                       where X is the Kx1 unknown parameter vector.
+**
+**   _sqp_IneqProc     scalar, pointer to a procedure that computes
+**                      the nonlinear inequality constraints.  For example
+**                      the statement:
+**
+**                           _sqp_EqProc = &ineqproc;
+**
+**                      tells CO that nonlinear equality constraints
+**                      are to be placed on the parameters and where the
+**                      procedure computing them is to be found.
+**                      The procedure must have one input argument, the
+**                      Kx1 vector of parameters, and one output argument,
+**                      the Rx1 vector of computed constraints that are
+**                      to be equal to zero.  For example, suppose that
+**                      you wish to place the following constraint:
+**
+**                         P[1] * P[2] >= P[3]
+**
+**                      The proc for this is:
+**
+**                         proc ineqproc(p);
+**                            retp(p[1]*[2]-p[3]);
+**                         endp;
+**
+**   _sqp_Bounds       Kx2 matrix, bounds on parameters.  The first column
+**                      contains the lower bounds, and the second column the
+**                      upper bounds.  If the bounds for all the coefficients
+**                      are the same, a 1x2 matrix may be used.
+**                      Default = { -1e256 1e256 }
+**
+**   _sqp_GradProc     scalar, pointer to a procedure that computes the
+**                      gradient of the function with respect to the
+**                      parameters.  For example, the statement:
+**
+**                            _sqp_GradProc=&gradproc;
+**
+**                      tells CO that a gradient procedure exists as well
+**                      where to find it.  The user-provided procedure has
+**                      two input arguments, a Kx1 vector of parameter values
+**                      and an NxP matrix of data.  The procedure returns a
+**                      single output argument, an NxK matrix of gradients
+**                      of the log-likelihood function with respect to the
+**                      parameters evaluated at the vector of parameter values.
+**
+**                      Default = 0, i.e., no gradient procedure has been
+**                      provided.
+**
+**   _sqp_HessProc     scalar, pointer to a procedure that computes the
+**                      hessian, i.e., the matrix of second order partial
+**                      derivatives of the function with respect to the
+**                      parameters.  For example, the instruction:
+**
+**                           _sqp_HessProc=&hessproc;
+**
+**                      will tell OPTMUM that a procedure has been provided
+**                      for the computation of the hessian and where to find
+**                      it.  The procedure that is provided by the user must
+**                      have two input arguments, a Px1 vector of parameter
+**                      values and an NxK data matrix.  The procedure returns
+**                      a single output argument, the PxP symmetric matrix of
+**                      second order derivatives of the function evaluated at
+**                      the parameter values.
+**
+**
+**
+**   _sqp_MaxIters     scalar, maximum number of iterations. Default = 1e+5.
+**                     Termination can be forced by pressing C on the keyboard
+**
+**   _sqp_DirTol       scalar, convergence tolerance for gradient of estimated
+**                      coefficients.  Default = 1e-5.  When this criterion has
+**                      been satisifed SQPSolve will exit the iterations.
+**
+**   _sqp_ParNames     Kx1 character vector,  parameter names
+**
+**   _sqp_PrintIters   scalar, if nonzero, prints iteration information.
+**                     Default = 0.  Can be toggled during iterations by
+**                     pressing P on the keyboard.
+**
+**   _sqp_FeasibleTest scalar, if nonzero, parameters are tested for feasibility
+**                      before computing function in line search.  If function
+**                      is defined outside inequality boundaries, then this test
+**                      can be turned off.
+**
+**   _sqp_RandRadius   scalar, If zero, no random search is attempted.  If
+**                     nonzero, it is the radius of random search which is
+**                     invoked whenever the usual line search fails.
+**                     Default = .01.
+**
+**    __output          scalar, if nonzero, results are printed.  Default = 0.
+**
+**
+**  Remarks:  Pressing C on the keyboard will terminate iterations, and
+**            pressing P will toggle iteration output.
+**
+**            SQPSolve is recursive, that is, it can call a version of itself
+**            with another function and set of global variables,
+*/
+
+
+#include gauss.ext
+#include sqpsolve.ext
+
+
+
+
+proc (4) = sqpSolve(fnct,start);
+    local x,f,retcode,lagrange,iters,t0,t1,lbl,fmt;
+
+
+    if __output > 0;
+        t0 = hsec;
+    endif;
+    { x,f,lagrange,retcode,iters } = _sqpsolve(fnct, start,
+        _sqp_GradProc, _sqp_HessProc, _sqp_DirTol,
+        _sqp_MaxIters, _sqp_PrintIters, _sqp_FeasibleTest,
+        _sqp_A, _sqp_B, _sqp_C, _sqp_D, _sqp_Bounds, _sqp_EqProc,
+        _sqp_IneqProc, _sqp_RandRadius );
+
+
+
+    if __output >0;
+
+
+        t1 = hsec;
+        print;
+        call header("SQPSolve","",_rtl_ver);
+        print;
+        print "return code = " ftos(retcode,"%*.*lf",4,0);
+        if retcode == 0;
+           print "normal convergence";
+        elseif retcode == 1;
+           print "forced termination";
+        elseif retcode == 2;
+           print "maximum number of iterations exceeded";
+        elseif retcode == 3;
+           print "function calculation failed";
+        elseif retcode == 4;
+           print "gradient calculation failed";
+        elseif retcode == 5;
+           print "Hessian calculation failed";
+        elseif retcode == 6;
+           print "line search failed";
+        elseif retcode == 7;
+           print "error with constraints";
+        endif;
+        print;
+        print "Value of objective function " ftos(f,"%*.*lf",15,6);
+        print;
+        print "Parameters    Estimates";
+        print "-----------------------------------------";
+
+
+        if _qn_ParNames $== 0;
+            lbl = 0 $+ "P" $+ ftocv(seqa(1,1,rows(x)),2,0);
+        else;
+            lbl = _qn_ParNames;
+        endif;
+        let fmt[2,3] = "-*.*s" 9 8 "*.*lf" 14 4;
+        call printfm(lbl~x,0~1,fmt);
+
+
+        print;
+        print;
+        print "Linear Equality Lagrangean Coefficients";
+        print vread(lagrange,"lineq");
+        print;
+        print "Linear Inequality Lagrangean Coefficients";
+        print vread(lagrange,"linineq");
+        print;
+        print "Nonlinear Equality Lagrangean Coefficients";
+        print vread(lagrange,"nlineq");
+        print;
+        print "Nonlinear Inequality Lagrangean Coefficients";
+        print vread(lagrange,"nlinineq");
+        print;
+        print "Bounds Lagrangean Coefficients";
+        print vread(lagrange,"bounds");
+
+
+        print;
+        print "Number of iterations    " ftos(iters,"%*.*lf",5,0);
+        print "Minutes to convergence  " ftos((t1-t0)/6000,"%*.*lf",10,5);
+    else;
+        print;
+    endif;
+
+
+    retp(x,f,lagrange,retcode);
+endp;
+
+
+
+
+proc (5) = _sqpsolve(&fnct,start,LNSgdprc,LNShsprc,LNSDtol,LNSmiter,
+  LNSPiters,LNSFtest,LNS_A,LNS_B,LNS_C,LNS_D,LNS_Bnds,
+  LNSeproc,LNSiproc,LNSrteps);
+
+
+    /* ------- LOCALS ----------- */
+    local g,s,h,ky,old,f0,x0,iter,
+        np,gproc,hsproc,LNSlagr,k1,numeq,qp_m,
+        qp_t,qp_xl,qp_xu,qp_ret,qp_maxit,lagr1,lagr2,qp_a,qp_b,qp_d,qp_lql,
+        numNlinEqC,numNlinIneqC,eqproc,ineqproc,fnct:proc,rteps,delta,
+        ub,lb,cdelta,dg,tt,f1,f2,w1,sprev,s2prev,rprev,r2prev,j,
+        sprev2,s2prev2,sp2,dsprev,vv,zz,ab,a,b,qv,MaxTry,f10;
+
+
+
+    clear numEq,lagr1,lagr2,qp_m,qp_ret,LNSlagr;
+    clear numNlinEqC,numNlinIneqC;
+
+
+    MaxTry = 100;
+    vv = ones(2,2);
+    vv[1,2] = -1;
+    zz = zeros(2,1);
+    sp2 = zeros(1,2);
+    start = vec(start);
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+
+    qp_maxit = 1000;
+    qp_d = .01*start;
+    qp_t = 1e+256*ones(rows(start),1);
+    qp_lql = 1;
+
+
+    LNSlagr = vput(LNSlagr,error(0),"lineq");
+    LNSlagr = vput(LNSlagr,error(0),"linineq");
+    LNSlagr = vput(LNSlagr,error(0),"nlineq");
+    LNSlagr = vput(LNSlagr,error(0),"nlinineq");
+    LNSlagr = vput(LNSlagr,error(0),"bounds");
+
+
+
+    if LNSgdprc /= 0;
+        gproc = LNSgdprc;
+        local gproc:proc;
+    endif;
+
+
+    if LNShsprc /= 0;
+        hsproc = LNShsprc;
+        local hsproc:proc;
+    endif;
+
+
+    if not scalmiss(LNS_A);
+        qp_m = qp_m + rows(LNS_A);
+        numEq = numEq + rows(LNS_A);
+    endif;
+
+
+    if not scalmiss(LNS_C);
+        qp_m = qp_m + rows(LNS_C);
+    endif;
+
+
+    if not scalmiss(LNSeproc);
+        eqproc = LNSeproc;
+        local eqproc:proc;
+        numNlinEqC = rows(EqProc(start));
+        qp_m = qp_m + numNlinEqC;
+        numEq = numEq + numNlinEqC;
+    endif;
+
+
+    if not scalmiss(LNSiproc);
+        ineqproc = LNSiproc;
+        local ineqproc:proc;
+        numNlinIneqC = rows(IneqProc(start));
+        qp_m = qp_m + numNlinIneqC;
+    endif;
+
+
+    if not scalmiss(LNS_Bnds);
+        if cols(LNS_Bnds) /= 2 or (rows(LNS_Bnds) /= rows(start) and
+            rows(LNS_Bnds) /= 1);
+            if not trapchk(4);
+                errorlog "ERROR:  LNS_Bnds is not correctly defined";
+            endif;
+            call ndpcntrl(old,0xffff);
+            ndpclex;
+            retp(start,error(0),LNSlagr,7,0);
+        endif;
+    endif;
+
+
+    if qp_m == 0;           /* if no constraints other than bounds  */
+        qp_m = 1;           /* set to one dummy constraint */
+    endif;
+
+
+    x0 = start;
+    qp_d = .1 * x0;
+    np = rows(x0);          /* Number of parameters to estimate */
+
+
+
+    if not LNSPiters and (__output /= 0);
+        print;
+        print "Executing";;
+    endif;
+
+    iter = 1; do until iter > LNSmiter;
+
+    if not LNSPiters and (__output /= 0);
+        if iter%60 == 0;
+            print ". "$+ftos(iter,"*.*lf",1,0);
+        else;
+            print ".";;
+        endif;
+    endif;
+
+    f0 = sumc(fnct(x0));
+    if scalmiss(f0) or (f0 $== __INFp) or (f0 $== __INFn) or (f0 $==
+         __INDEFp) or (f0 $== __INDEFn);
+            retp(x0,f0,LNSlagr,3,iter);
+    endif;
+
+
+
+    if LNSgdprc /= 0;
+        g = sumc(gproc(x0));
+    else;
+        g = sumc(gradp(&fnct,x0));
+    endif;
+
+
+    if scalmiss(g);
+        if not trapchk(4);
+            errorlog "gradient function failed";
+        endif;
+        retp(x0,f0,LNSlagr,4,iter);
+    endif;
+
+
+    if LNShsprc /= 0;
+        h = hsproc(x0);
+    else;
+        h = hessp(&fnct,x0);
+    endif;
+
+
+    qp_a = {};
+    qp_b = {};
+
+
+    if not scalmiss(LNS_A);
+        qp_a = qp_a | LNS_A;
+        qp_b = qp_b | (-LNS_A*x0 + LNS_B);
+    endif;
+
+
+    if not scalmiss(LNSeproc);
+        qp_a = qp_a | gradp(&EqProc,x0);
+        qp_b = qp_b | -EqProc(x0);
+    endif;
+
+
+    if not scalmiss(LNS_C);
+        qp_a = qp_a | LNS_C;
+        qp_b = qp_b | -LNS_C*x0 + LNS_D;
+    endif;
+
+
+    if not scalmiss(LNSiproc);
+        qp_a = qp_a | gradp(&IneqProc,x0);
+        qp_b = qp_b | -IneqProc(x0);
+    endif;
+
+
+    if scalmiss(qp_a);
+        qp_a = ones(1,rows(x0));
+        qp_b = -1e256;
+    endif;
+
+
+    if cols(LNS_Bnds) == 2;
+        qp_xl = LNS_Bnds[.,1] - x0;
+        qp_xu = LNS_Bnds[.,2] - x0;
+    else;
+        qp_xl = -qp_t;
+        qp_xu = qp_t;
+    endif;
+
+    if _sqp_TrustRadius > 0;
+        local q1;
+        q1 = _sqp_TrustRadius.*ones(1,np);
+        qp_xl = maxc(qp_xl' | -q1);
+        qp_xu = minc(qp_xu' | q1);
+    endif;
+
+    { qp_b,qp_xl,qp_xu,qp_d,qp_ret } = _intqpsolvfcn01(h,-g,qp_a,qp_b,
+        qp_xl,qp_xu,qp_d,numeq,qp_maxit,qp_lql);
+
+
+    if qp_ret < 0;
+        if not trapchk(4) and qp_ret < 0;
+            errorlog "constraint no. "$+ftos(-qp_ret,"%*.*lf",1,0)$+" incon"\
+                "sistent";
+        endif;
+        retp(x0,f0,LNSlagr,7,iter);
+
+
+    elseif qp_ret == 1;
+        if not trapchk(4);
+            errorlog "maximum iterations exceeded in QPSOLVE";
+        endif;
+    elseif qp_ret == 2;
+        if not trapchk(4);
+            errorlog "quadratic program iterations halted due to lack"\
+                     " of precision";
+        endif;
+    endif;
+
+
+    if cols(LNS_Bnds) == 2;
+        k1 = qp_d .< (LNS_Bnds[.,1] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (LNS_Bnds[.,1] - x0);
+        k1 = qp_d .> (LNS_Bnds[.,2] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (LNS_Bnds[.,2] - x0);
+    endif;
+
+
+    ky = 1;
+    if not scalmiss(LNS_A);
+        LNSlagr = vput(LNSlagr,qp_b[ky:rows(LNS_A)],"lineq");
+        lagr1 = maxc(abs(qp_b[ky:rows(LNS_A)]));
+        ky = ky + rows(LNS_A);
+    endif;
+
+
+    if not scalmiss(LNSeproc);
+        LNSlagr = vput(LNSlagr,qp_b[ky:ky+numNlinEqC-1],"nlineq");
+        lagr1 = maxc(lagr1|abs(qp_b[ky:rows(LNS_A)]));
+        ky = ky + numNlinEqC;
+    endif;
+
+
+    if not scalmiss(LNS_C);
+        LNSlagr = vput(LNSlagr,qp_b[ky:ky+rows(LNS_C)-1],"linineq");
+        lagr2 = maxc(abs(qp_b[ky:ky+rows(LNS_C)-1]));
+        ky = ky + rows(LNS_C);
+    endif;
+
+
+    if not scalmiss(LNSiproc);
+        LNSlagr = vput(LNSlagr,qp_b[ky:ky+numNlinIneqC-1],"nlinineq");
+        lagr2 = maxc(abs(lagr2|qp_b[ky:ky+numNlinIneqC-1]));
+    endif;
+
+
+    if cols(LNS_Bnds) == 2;
+        LNSlagr = vput(LNSlagr,qp_xl~qp_xu,"bounds");
+        lagr2 = maxc(abs(qp_xl|qp_xu|lagr2));
+    endif;
+
+
+    if abs(qp_d) < LNSDtol;
+        retp(x0,f0,LNSlagr,0,iter);
+    endif;
+
+
+
+    /*
+    **  line search
+    */
+
+
+        delta = 1e-4;   /* must be in (0,1/2) interval */
+        ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+        lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+        cdelta = 1 - delta;
+        dg = qp_d' * g;
+        if LNSFtest;
+            s = _sqp_feasible(x0,1,qp_d,LNS_C,LNS_D,LNSiproc,LNS_bnds);
+            if scalmiss(s);
+                goto A1;
+            endif;
+        else;
+            s = 1;
+        endif;
+        tt = s * dg;
+        f1 = _sqp_meritFunct(x0+s*qp_d,&fnct,lagr1,lagr2,
+              LNS_A,LNS_B,LNSeproc,LNS_C,LNS_D,LNSiproc,LNS_Bnds);
+
+
+        if scalmiss(f1) or (f1 $== __INFp) or (f1 $== __INFn) or (f1 $==
+             __INDEFp) or (f1 $== __INDEFn);
+                s = error(0);
+                goto A1;
+@                retp(x0,f0,LNSlagr,6,iter);@
+        endif;
+
+
+        if (f1 / tt - f0 / tt) < delta;
+
+
+            s = -dg/(2*(f1-f0-dg));
+            if LNSFtest;
+                s = _sqp_feasible(x0,maxc(s|lb),qp_d,LNS_C,LNS_D,LNSiproc,
+                       LNS_bnds);
+                if scalmiss(s);
+                    goto A1;
+                endif;
+            endif;
+            f2 = _sqp_meritFunct(x0+s*qp_d,&fnct,lagr1,lagr2,
+                    LNS_A,LNS_B,LNSeproc,LNS_C,LNS_D,LNSiproc,LNS_Bnds);
+
+
+            if scalmiss(f2) or (f2 $== __INFp) or (f2 $== __INFn) or (f2 $==
+                 __INDEFp) or (f2 $== __INDEFn);
+                s = error(0);
+                goto A1;
+@                    retp(x0,f0,LNSlagr,6,iter);@
+            endif;
+
+
+            tt = s * dg;
+            w1 = f2 / tt - f0 / tt;
+
+
+            if w1 < delta or w1 > cdelta;
+
+
+                sprev = s;
+                s2prev = 1;
+                rprev = f2;
+                r2prev = f1;
+                j = 1; do until j > MaxTry;
+                    sprev2 = sprev * sprev;
+                    s2prev2 = s2prev * s2prev;
+                    sp2[1,1] = sprev2;
+                    sp2[1,2] = s2prev2;
+                    dsprev = sprev - s2prev;
+
+
+                    vv[2,1] = -s2prev;
+                    vv[2,2] = sprev;
+                    vv = vv./sp2;
+
+
+                    zz[1] = rprev - f0 - dg * sprev;
+                    zz[2] = r2prev - f0 - dg * s2prev;
+                    ab = (1 / dsprev) * vv * zz;
+                    a = ab[1,1];
+                    b = ab[2,1];
+
+
+                    if a == 0;
+                        s = -dg / (2 * b);
+                    else;
+                        qv = b * b - 3 * a * dg;
+                        if qv < 0;
+                            break;
+                        endif;          /* terminate if not real root */
+                        tt = 3 * a;
+                        s = -b / tt + sqrt(qv) / tt;
+                    endif;
+
+
+                    if s > ub * sprev;
+                        s = ub * sprev;
+                    elseif s < lb * sprev;
+                        s = lb * sprev;
+                    endif;
+
+
+                    if LNSFtest;
+                        s = _sqp_feasible(x0,s,qp_d,LNS_C,LNS_D,LNSiproc,
+                             LNS_bnds);
+                        if scalmiss(s);
+                            goto A1;
+                        endif;
+                    endif;
+                    f1 = _sqp_meritFunct(x0+s*qp_d,&fnct,lagr1,lagr2,
+                             LNS_A,LNS_B,LNSeproc,LNS_C,LNS_D,LNSiproc,
+                             LNS_Bnds);
+
+
+                    if scalmiss(f1) or (f1 $== __INFp) or (f1 $== __INFn) or
+                       (f1 $==  __INDEFp) or (f1 $== __INDEFn);
+                          s = error(0);
+                          break;
+                    endif;
+
+
+                    tt = s * dg;
+                    w1 = f1 / tt - f0 / tt;
+
+
+                    if w1 >= delta and w1 <= cdelta;
+                        break;
+                    endif;
+
+
+                    s2prev = sprev;
+                    sprev = s;
+                    r2prev = rprev;
+                    rprev = f1;
+                j = j + 1; endo;
+
+
+            else;
+                 f1 = f2;
+            endif;
+
+
+        endif;
+
+
+     A1:
+
+
+        if scalmiss(s);
+            j = 1;
+            f1 = 1e250;
+            do while f1 > f0;
+                rteps = 10^trunc(log(meanc(abs(g)))) * LNSrteps;
+                qp_d = rteps*(2*rndu(np,1)-1).*x0;
+                f10 = sumc(fnct(x0+qp_d));
+                if not(scalmiss(f1) or (f1 $== __INFp) or (f1 $== __INFn) or
+                   (f1 $==  __INDEFp) or (f1 $== __INDEFn));
+                   f1 = f10;
+                endif;
+                j = j + 1;
+                if j > MaxTry;
+                    break;
+                endif;
+            endo;
+            f0 = f1;
+            x0 = x0 + qp_d;
+            s = 1;
+        else;
+            x0 = x0 + s * qp_d;
+        endif;
+
+
+        if LNSpiters;
+
+
+            print;
+            print;
+            print "---------------------------------------------------";
+#ifDOS
+            print " iter "$+ftos(iter,"%*.*lf",1,0);;
+#else
+            print " iter "$+ftos(iter+0,"%*.*lf",1,0);;
+#endif
+            print "          function = "$+ftos(sumc(fnct(x0)),"%*.*lf",15,8);
+            print "---------------------------------------------------";
+            print;
+            print "       parameter      direction        gradient";
+            call printfmt(x0~qp_d~g,1);
+        endif;
+
+
+
+        ky = key;
+        do while ky;
+            if upper(chrs(ky)) $== "C";
+                retp(x0,f0,LNSlagr,1,iter);
+            elseif upper(chrs(ky)) $== "P";
+                LNSPiters = 1 - LNSPiters;
+            endif;
+            ky = key;
+        endo;
+
+
+    iter = iter + 1; endo;
+
+
+    call ndpcntrl(old,0xffff);
+    ndpclex;
+
+
+    retp(x0,f0,LNSlagr,2,LNSmiter);
+
+
+endp;
+
+
+
+proc _sqp_feasible(x,l,d,LNS_C,LNS_D,LNSiproc,LNS_bnds);
+    local m0, t, ineqproc;
+
+
+    m0 = 0;
+    do until m0 > 200;
+        m0 = m0 + 1;
+        t = x + l * d;
+        if not scalmiss(LNS_C);
+            if not((LNS_C*t - LNS_D) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if not scalmiss(LNSiproc);
+            IneqProc = LNSiproc;
+            local ineqproc:proc;
+            if not(IneqProc(t) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if cols(LNS_Bnds) == 2;
+            if not((t - LNS_Bnds[.,1]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+            if not((-t + LNS_Bnds[.,2]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        retp(l);
+    endo;
+    if not trapchk(4);
+        errorlog "feasible step length could not be found";
+    endif;
+    retp(error(0));
+endp;
+
+
+
+
+proc _sqp_meritFunct(x,fnct,lagr1,lagr2,
+       LNS_A,LNS_B,LNSeproc,LNS_C,LNS_D,LNSiproc,LNS_Bnds);
+
+
+    local f0, zz, eqproc, ineqproc;
+    local fnct:proc;
+
+
+    f0 = sumc(fnct(x));
+    if lagr1 /= 0;
+        if not scalmiss(LNS_A);
+            f0 = f0 + lagr1 * sumc(abs(LNS_A*x - LNS_B));
+        endif;
+        if not scalmiss(LNSeproc);
+            EqProc = LNSeproc;
+            local eqproc:proc;
+            f0 = f0 + lagr1 * sumc(abs(EqProc(x)));
+        endif;
+    endif;
+    if lagr2 /= 0;
+        if not scalmiss(LNS_C);
+            zz = LNS_C*x - LNS_D;
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if not scalmiss(LNSiproc);
+            ineqproc = LNSiproc;
+            local ineqproc:proc;
+            zz = IneqProc(x);
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if cols(LNS_Bnds) == 2;
+            zz = x - LNS_Bnds[.,1];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+            zz = -x + LNS_Bnds[.,2];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+
+
+    endif;
+    retp(f0);
+endp;
+
+
+
+
+
+proc(0) = sqpSolveset;
+    _sqp_ParNames = 0;       /* parameter names */
+    _sqp_DirTol = 1e-5;      /* convergence tolerance */
+    _sqp_HessProc = 0;       /* procedure to compute hessian */
+    _sqp_GradProc = 0;       /* procedure to compute gradient */
+    _sqp_MaxIters = 1e+5;    /* maximum number of iterations */
+    _sqp_PrintIters = 0;
+    _sqp_FeasibleTest = 1;
+    _sqp_A = { . };
+    _sqp_B = { . };
+    _sqp_C = { . };
+    _sqp_D = { . };
+    _sqp_Bounds = { . };
+    _sqp_EqProc = { . };
+    _sqp_IneqProc = { . };
+    _sqp_RandRadius = .001;
+    _sqp_TrustRadius = 0;
+endp;
+
+

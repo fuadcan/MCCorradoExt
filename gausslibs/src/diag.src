@@ -1,0 +1,147 @@
+/*
+** diag.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                Purpose                                  Line
+** -----------------------------------------------------------------------
+** L =  LOWMAT(x);        Lower half including diagonal             26
+** L =  LOWMAT1(x);       Lower half with diagonal of ones          26
+** U =  UPMAT(x);         Upper half including diagonal             88
+** U =  UPMAT1(x);        Upper half with diagonal of ones          88
+*/
+
+/*
+**> lowmat, lowmat1
+**
+**  Purpose:    Returns the lower portion of a matrix.  lowmat
+**              returns the main diagonal and every element below.
+**              lowmat1 is the same except it replaces the main
+**              diagonal with ones.
+**
+**  Format:     L =  lowmat(x);
+**              L =  lowmat1(x);
+**
+**  Input:      x    NxK matrix
+**
+**  Output:     L    NxK matrix containing the lower elements
+**                   of the matrix.  The upper elements
+**                   are replaced with zeros.  lowmat
+**                   returns the main diagonal. lowmat1
+**                   replaces the main diagonal with ones.
+**
+**  Example:    let X = { 1  2 -1,
+**                        2  3 -2,
+**                        1 -2  1 };
+**
+**              L = lowmat(x);
+**              L1 = lowmat1(x);
+**
+**              The resulting matrices are
+**
+**              L  =   1  0  0
+**                     2  3  0
+**                     1 -2  1
+**
+**              L1 =   1  0  0
+**                     2  1  0
+**                     1 -2  1
+**
+**  See Also:   upmat, upmat1, diag, diagrv, crout, and croutp
+*/
+
+proc lowmat(x);
+    local ord,sv;
+    ord = minc(rows(x)|cols(x));
+    sv = seqa(cols(x)-1,-1,ord);
+    if ord < rows(x);
+        sv = sv|zeros(rows(x)-ord,1);
+    endif;
+    x = rotater(shiftr(x,sv,0),-sv);
+    retp(x);
+endp;
+
+proc lowmat1(x);
+    local ord,sv;
+    ord = minc(rows(x)|cols(x));
+    sv = seqa(cols(x)-1,-1,ord);
+    if ord < rows(x);
+        sv = sv|zeros(rows(x)-ord,1);
+    endif;
+    x = rotater(shiftr(x,sv,0),-sv);
+    retp(diagrv(x,ones(ord,1)));
+endp;
+
+/*
+**
+**> upmat, upmat1
+**
+**  Purpose:    Returns the upper portion of a matrix.  upmat
+**             returns the main diagonal and every element above.
+**             upmat1 is the same except it replaces the main
+**             diagonal with ones.
+**
+**  Format:     U =  upmat(x);
+**              U =  upmat1(x);
+**
+**  Input:      x    NxN square matrix.
+**
+**  Output:     U    NxN matrix containing the upper elements
+**                   of the matrix.  The lower elements
+**                   are replaced with zeros.  upmat
+**                   returns the main diagonal.  upmat1
+**                   replaces the main diagonal with ones.
+**
+**  Example:    let x = { 1  2 -1,
+**                        2  3 -2,
+**                        1 -2  1 };
+**
+**              U = upmat(x);
+**              U1 = upmat1(x);
+**
+**              The resulting matrices are
+**
+**              U =   1  2 -1
+**                    0  3 -2
+**                    0  0  1
+**
+**              U1 =  1  2 -1
+**                    0  1 -2
+**                    0  0  1
+**
+**
+** See Also:   lowmat, lowmat1, diag, diagrv, crout, and croutp
+*/
+
+proc upmat(x);
+    local ord,sv;
+    ord = minc(rows(x)|cols(x));
+    sv = seqa(0,1,ord);
+    if ord < rows(x);
+        sv = sv|zeros(rows(x)-ord,1)+ord;
+    endif;
+    x = rotater(shiftr(x,-sv,0),sv);
+    retp(x);
+endp;
+
+proc upmat1(x);
+    local ord,sv;
+    ord = minc(rows(x)|cols(x));
+    sv = seqa(0,1,ord);
+    if ord < rows(x);
+        sv = sv|zeros(rows(x)-ord,1)+ord;
+    endif;
+    x = rotater(shiftr(x,-sv,0),sv);
+    retp(diagrv(x,ones(ord,1)));
+endp;

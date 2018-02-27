@@ -1,0 +1,218 @@
+/*
+** pbar.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> bar
+**
+**  Purpose:    Bar Graph.
+**
+**  Format:     bar(val,ht);
+**
+**  Inputs:     val        Nx1 numeric vector. If scalar 0, a sequence from 1 to
+**                         rows(ht) will be created.
+**
+**              ht         NxK numeric vector, bar heights. K sets of bars will
+**                         be graphed.
+**
+**              _pbarwid   Global scalar, width of bars.  The valid range is
+**                         0-1.  If this is 0 the bars will be a single pixel
+**                         wide, if 1 the bars will touch each other.
+**
+**                         If this value is positive, the bars will be
+**                         overlapping and care on the part of the user must be
+**                         taken to set the bar shades accordingly.
+**
+**                         If this value is negative, the bars will be plotted
+**                         side-by-side.  There is no limit to how many bars may
+**                         be plotted.
+**
+**                         The default value for _pbarwid is .5 (overlapping).
+**
+**              _pbartyp   Global 1x2 or Kx2 matrix.  The first column
+**                         controls the shading, the second column controls the
+**                         color.  Each row of shade and color corresponds to a
+**                         column of bar data.  Shade types are:
+**
+**                         0  no shading
+**                         1  dots
+**                         2  horizontal lines
+**                         3  diagonal lines, positive slope
+**                         4  diagonal lines, negative slope
+**                         5  diagonal crosshatch
+**                         6  solid
+**
+**  See Also:   xy, logx, logy, loglog, scale, hist
+*/
+
+#include pgraph.ext
+
+proc 0 = bar(val,ht);
+    local colorq,xformat,yformat,frame,msgstr,psym,psymnum,msgnum,sca,
+        gcode,linenum,arrownum,arrow,c,t1,t2,msx,xlab,ylab,
+        gridflag,errbnum,fontnum,x,y,nrows,ncols,bcolor,btype,tictemp,
+        pmsgctl,mem,fntsize,pline,pnum,paxes,pbartyp,gpcpath;
+    /* ----------------------------------------------------- */
+    local minx,maxx,miny,maxy,qsig,qfield,qxprec,qxpow,qxorig,qxstep,
+        qxmax,qxmint,qlab,qyprec,qypow,qyorig,qystep,qymax,
+        qymint;
+
+    tictemp = _pxscale;
+
+    clear xlab,ylab;
+
+    _pqgtype = { 5, 1 };    /* graph type bar, 2d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    x = val;
+    y = ht;
+    ncols = cols(y);
+    nrows = rows(y);
+
+    if rows(x) == 1 and x == 0;    /* create x variable if 0 */
+        x = seqa(1,1,rows(y));
+        if rows(_pxscale) == 1 and cols(_pxscale) == 1;
+            xtics(0,rows(y)+1,1,1);
+        endif;
+    endif;
+
+    /* test x and y for cols */
+    if cols(x) /= cols(y) and cols(x) /= 1 and cols(y) /= 1;
+        errorlog "X and Y matrices not conformable.";
+        goto errout;
+    endif;
+
+    if cols(_pbartyp) /= 2;
+        errorlog "Invalid _PBARTYP matrix";
+        goto errout;
+    endif;
+
+    /* attach endpoints (these are for spacing in x and are not plotted) */
+    x = x[1]-(x[2]-x[1]) | x | x[nrows]+(x[nrows]-x[nrows-1]);
+    y = zeros(1,ncols) | y | zeros(1,ncols);
+    nrows = rows(y);
+
+    btype = reshape(_pbartyp[.,1],ncols,2);
+    bcolor = reshape(_pbartyp[.,2],ncols,2);
+
+    goto g00;
+
+makestru:
+
+        pop msx;
+    c = 1;
+    t1 = 1|0|0|0|0|0|0|0|0|0;
+    do while c<=rows(msx);
+        if strlen(msx[c,1]);
+            t2 = vals(""$+msx[c,1]);
+            t1 = t1|t2|zeros(10-rows(t2),1);
+        else;
+            t1 = t1|zeros(10,1);
+        endif;
+        c = c+1;
+    endo;
+    return(chrs(t1));
+
+g00:
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+
+    { qsig,qfield,qxprec,qxpow,qxorig,qxstep,qxmax,qxmint,qlab } =
+        _paxnum(pnum[1],minx,maxx,_pxsci,_pxscale,_pxpmax);
+
+    { qsig,qfield,qyprec,qypow,qyorig,qystep,qymax,qymint,qlab } =
+        _paxnum(pnum[2],miny,maxy,_pysci,_pyscale,_pypmax);
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+    endif;
+
+    if qypow;
+        y = y * 10^(-qypow);
+    endif;
+
+    if not(_pascx $== 0);
+        gosub makestru(_pascx);
+            pop xlab;
+        xformat = 0;
+    elseif strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);
+    endif;
+
+    if not(_pascy $== 0);
+        gosub makestru(_pascy);
+            pop ylab;
+        yformat = 0;
+    elseif strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);
+    endif;
+
+    sca = qxorig|qxstep|qxmax|qyorig|qystep|qymax;
+
+    _setpage();
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+
+    if _pgrid $== 0;
+        gridflag = 0|2|qxmint|qymint;
+    else;
+        gridflag = _pgrid[1 2]|qxmint|qymint;
+    endif;
+
+    if rows(_perrbar) == 1 and cols(_perrbar) == 1;
+        errbnum = 0;
+    elseif cols(_perrbar) /= 9;
+        errorlog "Error bar matrix invalid";
+        end;
+    else;
+        errbnum = rows(_perrbar);
+    endif;
+
+    arrow = 0;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,pline,_pmsgctl,psym);
+
+    { fontnum,mem,fntsize } = _fontsiz();
+
+    y = y';
+
+    /* pbar <=> 1 */
+
+    GraphSEv3(x,y,nrows,ncols,bcolor,btype,_pbarwid,sca,_ptitle,
+        _pxlabel,_pylabel,_ptek,_pfonts,fontnum,fntsize,_pcross,gridflag,
+        xformat,yformat,_pbox,paxes,msgstr,pmsgctl,msgnum,psym,psymnum,
+        _paxht,_pnumht,_ptitlht,_pagesiz,_pageshf,_plotsiz,_plotshf,
+        _protate,frame,pline,linenum,arrow,arrownum,xlab,ylab,colorq,
+        _pdate,_perrbar,errbnum,qxpow,qypow,pnum,_plegctl,_plegstr,
+        _pnotify,_pappend,_pmargin,_pcwin,_pncwin,_pcrop,_pticout,gpcpath,1);
+
+    _pxscale = tictemp;
+    clear x,y,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+    retp;
+
+errout:
+    _pxscale = tictemp;
+    end;
+endp;

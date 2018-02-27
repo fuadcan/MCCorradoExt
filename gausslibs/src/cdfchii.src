@@ -1,0 +1,562 @@
+/*
+** cdfchii.src
+**
+**
+** (C) Copyright 1995-2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**  Format                       Purpose                              Line
+**  ---------------------------------------------------------------------------
+**  c = cdfchii(p,n);            inverse chi-square                     30
+**  x = gammaii(a,p)             inverse incomplete gamma               59
+*/
+
+/*
+**> cdfchii
+**
+**  Purpose:  compute chi-square abscissae values given probability
+**            and degrees of freedom.
+**
+**  Format:  c = cdfchii(p,n);
+**
+**  Input:   p    MxN matrix, or Mx1, or 1xN vector, probabilities.
+**
+**           n    MxN matrix, or Mx1, or 1xN vector, degrees of freedom.
+**
+**  Output:  c    MxN matrix, abscissae values for chi-square
+**                distribution.
+**
+**  Globals:  gammaii
+*/
+
+proc cdfchii(p,n);
+    if p < 0 or p > 1 or n <= 0;
+        if not trapchk(1);
+            errorlog "CDFCHII:  argument(s) out of range";
+            end;
+        endif;
+        retp(error(0));
+    endif;
+    retp(2*gammaii(0.5*n,p));
+endp;
+
+/*
+**> gammaii
+**
+**  Purpose: Compute the inverse incomplete Gamma function.
+**
+**  Format:  x = gammaii(a,p);
+**
+**  Input:   a    MxN matrix, or Mx1, or 1xN vector, exponents.
+**
+**           p    MxN matrix, or Mx1, or 1xN vector, incomplete gamma
+**                values.
+**
+**  Output:  x    MxN matrix, abscissae.
+**
+**  Globals:  _ginvinc, __macheps
+*/
+
+proc gammaii(a,p);
+    local i, j, g, l, m, n;
+    clear l;
+    if rows(p) == rows(a) and cols(p) == cols(a);
+        l = 1;
+        m = rows(a);
+        n = cols(a);
+    elseif rows(p) == rows(a);
+        if cols(p) == 1;
+            l = 2;
+            m = rows(a);
+            n = cols(a);
+        elseif cols(a) == 1;
+            l = 3;
+            m = rows(p);
+            n = cols(p);
+        endif;
+    elseif cols(p) == cols(a);
+        if rows(p) == 1;
+            l = 4;
+            m = rows(a);
+            n = cols(a);
+        elseif rows(a) == 1;
+            l = 5;
+            m = rows(p);
+            n = cols(p);
+        endif;
+    endif;
+    if not l;
+        if not trapchk(1);
+            errorlog "GammaIncInv:  arguments not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    g = zeros(m,n);
+    i = 1;
+    do until i > m;
+        j = 1;
+        do until j > n;
+            if l == 1;
+                g[i,j] = _ginvinc(a[i,j],p[i,j]);
+            elseif l == 2;
+                g[i,j] = _ginvinc(a[i,j],p[i]);
+            elseif l == 3;
+                g[i,j] = _ginvinc(a[i],p[i,j]);
+            elseif l == 4;
+                g[i,j] = _ginvinc(a[i,j],p[j]);
+            elseif l == 5;
+                g[i,j] = _ginvinc(a[j],p[i,j]);
+            endif;
+            j = j + 1;
+        endo;
+        i = i + 1;
+    endo;
+    retp(g);
+endp;
+
+proc _ginvinc(a,p);
+
+    local ln10;
+    local tol;
+    local euler;
+
+    local a_max, b, d, g, h, q;
+    local s, t, u, r, w, y, z;
+    local c1, c2, c3, c4, c5, s2;
+    local qg, pn, qn, xn;
+    local am1, ap1, ap2, ap3, apn, rta;
+    local eps, sum;
+
+    local x,x_min,x_max;
+
+    if (p < 0 or p > 1) or a < 0;
+        if trapchk(1);
+            errorlog "GAMMII: arguments out of range";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    ln10 = 2.3025850929940459;
+    tol = 1e-5;
+    euler = .577215664901533;       /* Euler's Constant */
+
+    x = 0.0;
+    x_min = 2.2250738585072014e-308;
+    x_max = 1.7976931348623157e+308;
+
+    q = 1.0 - p;
+    if (p == 0.0);
+        retp(x);
+    endif;
+    if (q == 0.0);
+        retp(x_max);
+    endif;
+    if (a == 1.0);
+        if (q < 0.9);
+            retp(-ln(q));
+        else;
+            retp(-_gammaii_1(-p));
+        endif;
+    endif;
+    a_max = 4e-11 / (__macheps * __macheps);
+    eps = 1e-10;
+
+    if (a <= 1.0);
+        g = gamma(a + 1.0);
+        qg = q * g;
+        if (qg == 0.0);
+            retp(x_max);
+        endif;
+        b = qg / a;
+        if (qg <= a * 0.6);
+            if (a < 0.3) and (b >= 0.35);
+                t = exp(-(b + euler));
+                u = t * exp(t);
+                xn = t * exp(u);
+                if (p > 0.5);
+                    goto B;
+                else;
+                    goto A;
+                endif;
+            endif;
+
+            if (b < 0.45);
+                if (b == 0.0);
+                    retp(x_max);
+                endif;
+                y = -ln(b);
+                s = 0.5 - a + 0.5;
+                z = ln(y);
+                t = y - s * z;
+                if (b >= 0.15);
+                    xn = y - s * ln(t) - ln(s / (t + 1.0) + 1.0);
+                    goto B;
+                endif;
+
+                if (b > 0.01);
+                    u = ((t + (3. - a) * 2.0) * t + (2.0 - a) * ( 3. - a))
+                        / ((t + (5. - a)) * t + 2.0);
+                    xn = y - s * ln(t) - ln(u);
+                    goto B;
+                endif;
+
+                c1 = -s * z;
+                c2 = -s * (c1 + 1.0);
+                c3 = s * ((c1 * 0.5 + (2.0 - a)) * c1 + (2.5 - a * 1.5));
+                c4 = -s * (((c1 / 3. + (2.5 - a * 1.5)) * c1 + ((a - 6.) *
+                    a + 7.)) * c1 + ((a * 11. - 46) * a + 47.) / 6.);
+                c5 = -s * ((((-c1 / 4. + (a * 11. - 17.) / 6.) * c1 + ((a
+                    * -3. + 13.) * a - 13.)) * c1 + (((a * 2.0 - 25.) * a +
+                    72.) * a - 61.) * 0.5) * c1 + (((a * 25. - 195.) * a +
+                    477.) * a - 379.) / 12.);
+                xn = (((c5 / y + c4) / y + c3) / y + c2) / y + c1 + y;
+                if (a > 1.0) or (b > 1e-28);
+                    goto B;
+                endif;
+                retp(xn);
+            endif;
+        endif;
+
+        if (b * q > 1e-8);
+            if (p <= 0.9);
+                xn = exp(ln(p * g) / a);
+            else;
+                xn = exp((_gammaii_1(-q) + _gammaii_5(a)) / a);
+            endif;
+        else;
+            xn = exp(-(q / a + euler));
+        endif;
+
+        t = 0.5 - xn / (a + 1.0) + 0.5;
+        xn = xn / t;
+        if (p > 0.5);
+            goto B;
+        else;
+            goto A;
+        endif;
+    else;
+        b = 0;
+    endif;
+    if (q <= 0.5);
+        w = ln(q);
+    else;
+        w = ln(p);
+    endif;
+    t = sqrt(w * -2.);
+    s = t - (((.213623493715853 * t + 4.28342155967104) * t +
+        11.6616720288968) * t + 3.31125922108741) / ((((0.036117081018842
+        * t + 1.27364489782223) * t + 6.40691597760039) * t +
+        6.61053765625462) * t + 1.0);
+    if (q > 0.5);
+        s = -s;
+    endif;
+    rta = sqrt(a);
+    s2 = s * s;
+    xn = a + s * rta + (s2 - 1.0) / 3. + s * (s2 - 7.) / (rta * 36.) -
+        ((s2 * 3. + 7.) * s2 - 16.) / (a * 810.) + s * ((s2 * 9. + 256.) *
+        s2 - 433.) / (a * 38880. * rta);
+    xn = maxc(xn | 0);
+    if (a >= 500);
+        x = xn;
+        if (abs(1.0 - x / a) <= 1e-6);
+            retp(x);
+        endif;
+    endif;
+    if (p > 0.5);
+        if (xn < a * 3.);
+            goto B;
+        endif;
+        y = -(w + lnfact(a-1));
+        d = maxc(a*(a-1)|2);
+        if (y >= ln10 * d);
+            s = 1.0 - a;
+            z = ln(y);
+            c1 = -s * z;
+            c2 = -s * (c1 + 1.0);
+            c3 = s * ((c1 * 0.5 + (2.0 - a)) * c1 + (2.5 - a * 1.5));
+            c4 = -s * (((c1 / 3. + (2.5 - a * 1.5)) * c1 + ((a - 6.) * a +
+                7.)) * c1 + ((a * 11. - 46) * a + 47.) / 6.);
+            c5 = -s * ((((-c1 / 4. + (a * 11. - 17.) / 6.) * c1 + ((a *
+                -3. + 13.) * a - 13.)) * c1 + (((a * 2.0 - 25.) * a + 72.)
+                * a - 61.) * 0.5) * c1 + (((a * 25. - 195.) * a + 477.) *
+                a - 379.) / 12.);
+            xn = (((c5 / y + c4) / y + c3) / y + c2) / y + c1 + y;
+            if (a > 1.0) or (b > 1e-28);
+                goto B;
+            endif;
+            retp(xn);
+        endif;
+        t = a - 1.0;
+        xn = y + t * ln(xn) - _gammaii_1(-t / (xn + 1.0));
+        goto B;
+    endif;
+    ap1 = a + 1.0;
+    if (xn <= ap1 * 0.7);
+        w = w + lnfact(ap1-1);
+        if (xn <= ap1 * 0.15);
+            ap2 = a + 2.0;
+            ap3 = a + 3.;
+            x = exp((w + x) / a);
+            x = exp((w + x - ln(x / ap1 * (x / ap2 * (x / ap3 + 1.0) + 1.)
+                + 1.0)) / a);
+            xn = x;
+            if (xn <= ap1 * 0.01);
+                if (xn <= 0.002 * ap1);
+                    retp(x);
+                else;
+                    goto A;
+                endif;
+            endif;
+        endif;
+        apn = ap1;
+        t = xn / apn;
+        sum = t + 1.0;
+
+        do while t > 1e-4;
+            apn = apn + 1.0;
+            t = t * (xn / apn);
+            sum = sum + t;
+        endo;
+        t = w - ln(sum);
+        xn = exp((xn + t) / a);
+        xn = xn * ( 1.0 - (a * ln(xn) - xn - t) / (a - xn) );
+    endif;
+
+A:
+
+    if (p <= x_min * 1e10) or (xn <= x_min * 1e10);
+        retp(xn);
+    endif;
+    am1 = a - 1;
+
+    d = tol + 1;
+A1:
+
+    if ((a > a_max) and abs(0.5 - xn / a + 0.5) <= 2.22e-16);
+        retp(xn);
+    endif;
+    pn = cdfgam(a, xn);
+    qn = 1.0 - pn;
+    if (pn == 0.0) or (qn == 0.0);
+        retp(xn);
+    endif;
+    r = _gammaii_3(a,xn);
+    if (r == 0.0);
+        retp(xn);
+    endif;
+    t = (pn - p) / r;
+    w = (am1 - xn) * 0.5;
+    if (abs(t) <= 0.1) and (abs(w * t) <= 0.1);
+        h = t * (w * t + 1.0);
+        x = xn * (1.0 - h);
+        if (abs(w) >= 1.0) and (abs(w) * t * t <= eps);
+            retp(x);
+        endif;
+        d = abs(h);
+    else;
+        x = xn * (1.0 - t);
+        d = abs(t);
+    endif;
+    xn = x;
+    if (d > tol) or ((d > eps) and (abs(p - pn) > tol * p));
+        goto A1;
+    endif;
+    retp(x);
+
+B:
+
+    if (q <= x_min * 1e10);
+        retp(xn);
+    endif;
+    am1 = a - 1;
+
+B1:
+
+B2:
+
+    if (a > a_max);
+        d = 0.5 - xn / a + 0.5;
+        if (abs(d) <= 2.22e-16);
+            retp(xn);
+        endif;
+    endif;
+    pn = 1-cdfchic(2*xn,2*a);
+    qn = 1.0 - pn;
+    if (pn == 0.0) or (qn == 0.0);
+        retp(xn);
+    endif;
+    r = _gammaii_3(a,xn);
+    if (r == 0.0);
+        retp(xn);
+    endif;
+    t = (q - qn) / r;
+    w = (am1 - xn) * 0.5;
+    if (abs(t) <= 0.1) and (abs(w * t) <= 0.1);
+        h = t * (w * t + 1.0);
+        x = xn * (1.0 - h);
+        if (abs(w) >= 1.0) and (abs(w) * t * t <= eps);
+            retp(x);
+        endif;
+        d = abs(h);
+    else;
+        x = xn * (1.0 - t);
+        d = abs(t);
+    endif;
+    xn = x;
+    if (d > tol);
+        goto B2;
+    endif;
+
+    if (d > eps) and (abs(q - qn) > tol * q);
+        goto B1;
+    endif;
+
+    retp(x);
+endp;
+
+proc _gammaii_1(a);
+    local t,w,x,t2;
+    if abs(a) > .375;
+        retp(ln(a + 1));
+    else;
+        t = a / (a + 2);
+        t2 = t * t;
+        w = (((-.0178874546012214 * t2 + 0.405303492862024) * t2 -
+            1.29418923021993) * t2 + 1.0) / (((-.0845104217945565 * t2 +
+            0.747811014037616) * t2 - 1.62752256355323) * t2 + 1.0);
+        retp(t * 2.0 * w);
+    endif;
+endp;
+
+proc _gammaii_2(x);
+
+    local r, t, u, w, w1;
+
+    if x < 0.61 or x > 1.57;
+        r = x - 1.0;
+        retp(r - ln(x));
+    elseif x < 0.82;
+        u = x - 0.7;
+        u = u / 0.7;
+        w1 = 0.0566749439387324 - u * 0.3;
+    elseif x > 1.18;
+        u = x * .75 - 1.;
+        w1 = 0.0456512608815524 + u / 3.;
+    else;
+        u = x - 1.0;
+        w1 = 0.0;
+    endif;
+
+    r = u / (u + 2.0);
+    t = r * r;
+    w = ((0.00620886815375787 * t + -.224696413112536) * t +
+        0.333333333333333) / ((0.354508718369557 * t - 1.27408923933623) *
+        t + 1.0);
+    retp(t * 2.0 * (1.0 / (1.0 - r) - r * w) + w1);
+endp;
+
+proc _gammaii_4(a);
+
+    local top,bot,t,d;
+    t = a;
+    d = a - 0.5;
+    if d > 0.0;
+        t = d - 0.5;
+    endif;
+
+    if t < 0.0;
+        top = (((((((-1.32674909766242e-4 * t + 2.66505979058923e-4) * t +
+            0.00223047661158249) * t - 0.0118290993445146) * t +
+            9.30357293360349e-4) * t + 0.118378989872749) * t -
+            0.244757765222226) * t - 0.771330383816272) * t -
+            0.422784335098468;
+        bot = (0.0559398236957378 * t + 0.273076135303957) * t + 1.0;
+        if d > 0.0;
+            retp(t * (top / bot) / a);
+        else;
+            retp(a * (top / bot + 1.0));
+        endif;
+    elseif t == 0.0;
+        retp(0.0);
+    else;
+        top = (((((5.89597428611429e-4 * t - 0.00514889771323592) * t +
+            0.0076696818164949) * t + 0.0597275330452234) * t -
+            0.230975380857675) * t - 0.409078193005776 ) * t +
+            0.577215664901533;
+        bot = (((0.00423244297896961 * t + 0.0261132021441447) * t +
+            0.158451672430138) * t + 0.427569613095214) * t + 1.0;
+        if d > 0.0;
+            retp(t / a * (top / bot - 1.0));
+        else;
+            retp(a * (top / bot));
+        endif;
+    endif;
+endp;
+
+proc _gammaii_3(a,x);
+    local t, u, t1, r1;
+
+    if a >= 20;
+        u = x / a;
+        if u == 0.0;
+            retp(0.0);
+        endif;
+
+        r1 = 1.0 / a;
+        t = r1 * r1;
+        t1 = (((t * 0.75 - 1.0) * t + 3.5) * t - 105.) / (a * 1260.);
+        t1 = t1 - a * _gammaii_2(u);
+        retp(0.398942280401433 * sqrt(a) * exp(t1));
+    else;
+        t = a * ln(x) - x;
+        if a >= 1.0;
+            retp(exp(t) / gamma(a));
+        else;
+            retp(a * exp(t) * (_gammaii_4(a) + 1.0));
+        endif;
+    endif;
+endp;
+
+proc _gammaii_5(a);
+    local w, x;
+
+    if a >= 0.6;
+        x = a - 1.;
+        w = (((((4.97958207639485e-4 * x + 4.97958207639485e-4) * x +
+            0.156513060486551) * x + 0.565221050691933) * x +
+            0.848044614534529) * x + 0.422784335098467) /
+            (((((1.16165475989616e-4 * x + 0.00713309612391) * x +
+            0.10155218743983) * x + 0.548042109832463) * x +
+            1.24313399877507) * x + 1.0);
+        retp(x * w);
+    else;
+        w = ((((((-.00271935708322958 * a - 0.0673562214325671) * a -
+            0.402055799310489) * a - 0.780427615533591) * a -
+            0.168860593646662) * a + 0.844203922187225) * a +
+            0.577215664901533) / ((((((6.67465618796164e-4 * a +
+            0.0325038868253937) * a + 0.361951990101499) * a +
+            1.56875193295039) * a + 3.12755088914843) * a +
+            2.88743195473681) * a + 1.0);
+        retp(-a * w);
+    endif;
+endp;
+

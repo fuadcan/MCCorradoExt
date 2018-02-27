@@ -1,0 +1,437 @@
+/*
+**  optim.src -- FFT support routines
+**
+**
+** (C) Copyright 1995-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format               Purpose                                       Line
+**  -------------------------------------------------------------------------
+**  n = nextn(n0);       Compute next allowable size for FFTs            35
+**  n = nextnevn(n0);    Compute next even allowable size for FFTs      126
+**  n = optn(n0);        Compute next optimal size for FFTs             221
+**  n = optnevn(n0);     Compute next even optimal size for FFTs        329
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+*/
+
+/*
+**> nextn
+**
+**  Purpose:    Returns allowable matrix dimensions for computing ffts.
+**
+**  Format:     n = nextn(n0);
+**
+**  Input:      n0    scalar, the length of a vector or the number of rows or
+**                    columns in a matrix.
+**
+**  Output:     n     scalar, the next allowable size for the given dimension
+**                    for computing an fft or rfft. n >= n0.
+**
+**              nextn and nextnevn determine allowable matrix dimensions for
+**              computing fft's. The Temperton fft routines (see table below)
+**              can handle any matrix whose dimensions can be expressed as
+**
+**                    2^p * 3^q * 5^r * 7^s    p,q,r nonnegative integers
+**                                             s is 0 or 1
+**
+**              with one restriction: the vector length or matrix column size
+**              must be even (p must be positive) when computing rfft's.
+**
+**              fftn, etc., automatically pad matrices (with zeros) to the next
+**              allowable dimensions; nextn and nextnevn are provided in case
+**              you want to check or fix matrix sizes yourself.
+**
+**              Use the following table to determine what to call for a given
+**              function and matrix:
+**
+**                       fft    | Vector     Matrix    Matrix
+**                     Function | Length     Rows      Columns
+**                    --------------------------------------------
+**                              |
+**                      fftn    | nextn      nextn     nextn
+**                              |
+**                      rfftn,  | nextnevn   nextn     nextnevn
+**                      rfftnp  |
+**                              |
+**
+**  Globals:    None
+**
+**  See Also: fftn, nextnevn, optn, optnevn, rfftn, rfftnp
+*/
+
+proc nextn(Nstart);
+
+    local N,n0;
+
+    Nstart = ceil(real(Nstart[1,1]));
+
+    if Nstart < 1;
+        retp(1);
+    endif;
+
+    if Nstart <= 10;
+        retp(Nstart);
+    endif;
+
+    N = Nstart;
+    do while 1;
+
+        n0 = N;
+
+        do while n0 % 2 == 0;
+            n0 = n0/2;
+        endo;
+
+        do while n0 % 3 == 0;
+            n0 = n0/3;
+        endo;
+
+        do while n0 % 5 == 0;
+            n0 = n0/5;
+        endo;
+
+        if n0 == 7;
+            n0 = 1;
+        endif;
+
+        if (n0 == 1);
+            retp(N);
+        endif;
+
+        N = N + 1;
+
+    endo;
+
+endp;
+
+/*
+**> nextnevn
+**
+**  Purpose:    Returns allowable matrix dimensions for computing ffts.
+**
+**  Format:     n = nextnevn(n0);
+**
+**  Input:      n0    scalar, the length of a vector or the number of rows or
+**                    columns in a matrix.
+**
+**  Output:     n     scalar, the next even allowable size for the given
+**                    dimension for computing an fft or rfft. n >= n0.
+**
+**              nextn and nextnevn determine allowable matrix dimensions for
+**              computing fft's. The Temperton fft routines (see table below)
+**              can handle any matrix whose dimensions can be expressed as
+**
+**                    2^p * 3^q * 5^r * 7^s    p,q,r nonnegative integers
+**                                             s is 0 or 1
+**
+**              with one restriction: the vector length or matrix column size
+**              must be even (p must be positive) when computing rfft's.
+**
+**              fftn, etc., automatically pad matrices (with zeros) to the next
+**              allowable dimensions; nextn and nextnevn are provided in case
+**              you want to check or fix matrix sizes yourself.
+**
+**              Use the following table to determine what to call for a given
+**              function and matrix:
+**
+**                       fft    | Vector     Matrix    Matrix
+**                     Function | Length     Rows      Columns
+**                    --------------------------------------------
+**                              |
+**                      fftn    | nextn      nextn     nextn
+**                              |
+**                      rfftn,  | nextnevn   nextn     nextnevn
+**                      rfftnp  |
+**                              |
+**
+**  Globals:    None
+**
+**  See Also: fftn, nextn, optn, optnevn, rfftn, rfftnp
+**
+*/
+
+proc nextnevn(Nstart);
+
+    local N,n0;
+
+    Nstart = ceil(real(Nstart[1,1]));
+
+    if Nstart % 2;
+        Nstart = Nstart+1;
+    endif;
+
+    if Nstart < 2;
+        retp(2);
+    endif;
+
+    if Nstart <= 20;
+        retp(Nstart);
+    endif;
+
+    N = Nstart/2;
+    do while 1;
+
+        n0 = N;
+
+        do while n0 % 2 == 0;
+            n0 = n0/2;
+        endo;
+
+        do while n0 % 3 == 0;
+            n0 = n0/3;
+        endo;
+
+        do while n0 % 5 == 0;
+            n0 = n0/5;
+        endo;
+
+        if n0 == 7;
+            n0 = 1;
+        endif;
+
+        if (n0 == 1);
+            retp(N*2);
+        endif;
+
+        N = N + 1;
+
+    endo;
+
+endp;
+
+/*
+**> optn
+**
+**  Purpose:    Returns optimal matrix dimensions for computing FFTs.
+**
+**  Format:     n = optn(n0);
+**
+**  Input:      n0    scalar, the length of a vector or the number of rows or
+**                    columns in a matrix.
+**
+**  Output:     n     scalar, the next optimal size for the given dimension
+**                    for computing an fft or rfft. n >= n0.
+**
+**              optn and optnevn determine optimal matrix dimensions for
+**              computing fft's. The Temperton fft routines (see table below)
+**              can handle any matrix whose dimensions can be expressed as
+**
+**                    2^p * 3^q * 5^r * 7^s    p,q,r nonnegative integers
+**                                             s is 0 or 1
+**
+**              with one restriction: the vector length or matrix column size
+**              must be even (p must be positive) when computing rfft's.
+**
+**              fftn, etc., pad matrices to the next allowable dimensions;
+**              however, they generally run faster for matrices whose dimensions
+**              are highly composite numbers, that is, products of several
+**              factors (to various powers), rather than powers of a single
+**              factor. For example, even though it is bigger, a 33600x1 vector
+**              can compute as much as 20% faster than a 32768x1 vector, because
+**              33600 is a highly composite number, 2^6*3*5^2*7, whereas 32768
+**              is a simple power of 2, 2^15. optn and optnevn are provided so
+**              you can take advantage of this fact by hand-sizing matrices to
+**              optimal dimensions before computing the fft.
+**
+**              Use the following table to determine what to call for a given
+**              function and matrix:
+**
+**                       fft    | Vector     Matrix    Matrix
+**                     Function | Length     Rows      Columns
+**                    --------------------------------------------
+**                              |
+**                      fftn    | optn       optn      optn
+**                              |
+**                      rfftn,  | optnevn    optn      optnevn
+**                      rfftnp  |
+**                              |
+**
+**  Globals:    None
+**
+**  See Also: fftn, nextn, nextnevn, optnevn, rfftn, rfftnp
+**
+*/
+
+proc optn(Nstart);
+
+    local N,n0,p,q,r,s;
+
+    Nstart = ceil(real(Nstart[1,1]));
+
+    if Nstart < 1;
+        retp(1);
+    endif;
+
+    if Nstart <= 10;
+        retp(Nstart);
+    endif;
+
+    N = Nstart;
+    do while 1;
+
+        n0 = N; p = 0; q = 0; r = 0; s = 0;
+
+        do while n0 % 2 == 0;
+            p = p+1;
+            n0 = n0/2;
+        endo;
+
+        do while n0 % 3 == 0;
+            q = q+1;
+            n0 = n0/3;
+        endo;
+
+        do while n0 % 5 == 0;
+            r = r+1;
+            n0 = n0/5;
+        endo;
+
+        if n0 == 7;
+            s = 1;
+            n0 = 1;
+        endif;
+
+        if (n0 == 1);
+            if ((N <= 24) or
+                (N > 27 and N < 512 and ((r and r < 2 and s) or
+                 (p and p > 2*r and q < 5) or (q and q > r and q < 3))) or
+                (p >= q-1 and p < q+10 and q and (p+q > 2*r or q > r or r==1))
+                );
+                retp(N);
+            endif;
+        endif;
+
+        N = N + 1;
+
+    endo;
+
+endp;
+
+/*
+**> optnevn
+**
+**  Purpose:    Returns optimal matrix dimensions for computing ffts.
+**
+**  Format:     n = optnevn(n0);
+**
+**  Input:      n0    scalar, the length of a vector or the number of rows or
+**                    columns in a matrix.
+**
+**  Output:     n     scalar, the next even optimal size for the given dimension
+**                    for computing an fft or rfft. n >= n0.
+**
+**              optn and optnevn determine optimal matrix dimensions for
+**              computing fft's. The Temperton fft routines (see table below)
+**              can handle any matrix whose dimensions can be expressed as
+**
+**                    2^p * 3^q * 5^r * 7^s    p,q,r nonnegative integers
+**                                             s is 0 or 1
+**
+**              with one restriction: the vector length or matrix column size
+**              must be even (p must be positive) when computing rfft's.
+**
+**              fftn, etc., pad matrices to the next allowable dimensions;
+**              however, they generally run faster for matrices whose dimensions
+**              are highly composite numbers, that is, products of several
+**              factors (to various powers), rather than powers of a single
+**              factor. For example, even though it is bigger, a 33600x1 vector
+**              can compute as much as 20% faster than a 32768x1 vector, because
+**              33600 is a highly composite number, 2^6*3*5^2*7, whereas 32768
+**              is a simple power of 2, 2^15. optn and optnevn are provided so
+**              you can take advantage of this fact by hand-sizing matrices to
+**              optimal dimensions before computing the fft.
+**
+**              Use the following table to determine what to call for a given
+**              function and matrix:
+**
+**                       fft    | Vector     Matrix    Matrix
+**                     Function | Length     Rows      Columns
+**                    --------------------------------------------
+**                              |
+**                      fftn    | optn       optn      optn
+**                              |
+**                      rfftn,  | optnevn    optn      optnevn
+**                      rfftnp  |
+**                              |
+**
+**  Globals:    None
+**
+**  See Also: fftn, nextn, nextnevn, optn, rfftn, rfftnp
+**
+*/
+
+proc optnevn(Nstart);
+
+    local N,n0,p,q,r,s;
+
+    Nstart = ceil(real(Nstart[1,1]));
+
+    if Nstart % 2;
+        Nstart = Nstart+1;
+    endif;
+
+    if Nstart < 2;
+        retp(2);
+    endif;
+
+    if Nstart <= 20;
+        retp(Nstart);
+    endif;
+
+    N = Nstart/2;
+    do while 1;
+
+        n0 = N; p = 0; q = 0; r = 0; s = 0;
+
+        do while n0 % 2 == 0;
+            p = p+1;
+            n0 = n0/2;
+        endo;
+
+        do while n0 % 3 == 0;
+            q = q+1;
+            n0 = n0/3;
+        endo;
+
+        do while n0 % 5 == 0;
+            r = r+1;
+            n0 = n0/5;
+        endo;
+
+        if n0 == 7;
+            s = 1;
+            n0 = 1;
+        endif;
+
+        if (n0 == 1);
+            if ((N <= 24) or
+                (N > 27 and N < 512 and ((r and r < 2 and s) or
+                 (p and p > 2*r and q < 5) or (q and q > r and q < 3))) or
+                (p >= q-1 and p < q+10 and q and (p+q > 2*r or q > r or r==1))
+                );
+                retp(N*2);
+            endif;
+        endif;
+
+        N = N + 1;
+
+    endo;
+
+endp;

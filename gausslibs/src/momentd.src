@@ -1,0 +1,144 @@
+/*
+** momentd.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/*
+**> momentd
+**
+**  Purpose:    To compute a moment (X'X) matrix from a GAUSS data set.
+**
+**  Format:     m = momentd(dataset,vars);
+**
+**  Input:   dataset    string, name of data set.
+**
+**              vars    Kx1 character vector, names of variables
+**                              or
+**                      Kx1 numeric vector, indices of columns
+**
+**                      These can be any size subset of the variables in
+**                      the data set, and can be in any order.  If a
+**                      scalar 0 is passed, all columns of the data set
+**                      will be used.
+**
+**              Defaults are provided for the following global input
+**              variables so they can be ignored unless you need control
+**              over the other options provided by this procedure.
+**
+**              __con   global scalar, default 1
+**
+**                      if 1, a constant term will be added.
+**                      if 0, no constant term will be added.
+**
+**              __miss  global scalar, (default 0)
+**
+**                      if 0, there are no missing values (fastest).
+**
+**                      if 1, do listwise deletion, drop an observation
+**                            if any missings occur in it.
+**
+**                      if 2, do pairwise deletion, This is equivalent to
+**                             setting missings to 0 when calculating m.
+**                             Not generally advised.
+**
+**              __row   global scalar, (default 0) the number of
+**                      rows to read per iteration of the read loop.
+**
+**                      if 0, the number of rows will be calculated
+**                      internally.
+**
+**  Output:         m   MxM matrix, where M = K+__con, the moment matrix
+**                      constructed by calculating X'X where X is the data
+**                      with or without a constant vector of ones.
+**
+**                      Error handling is controlled by the low order bit
+**                      of the trap flag.
+**
+**                      TRAP 0     terminate with error message
+**
+**                      TRAP 1     return scalar error code in m
+**
+**                                33  too many missings
+**                                34  file not found
+**
+**  Globals:    __con, __miss, __row, indices(), maxvec()
+*/
+
+external proc indices;
+
+proc momentd(dataset,vars);
+    local k,nr,fin,m,indx,dta;
+
+    /* check for complex input */
+    if iscplx(vars);
+        if hasimag(vars);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            vars = real(vars);
+        endif;
+    endif;
+
+    /* open file using name in variable DATASET */
+    dataset = "" $+ dataset;
+    open fin = ^dataset;
+    if fin == -1;
+        if not trapchk(1);
+            errorlog "Can't open file: " $+ dataset;
+            end;
+        else;
+            retp(0,0,error(34));
+        endif;
+    endif;
+    if iscplxf(fin);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    /* process variables */
+    { vars,indx } = indices(dataset,vars);
+
+    /* Computation of max number of rows to read at one time */
+    if __row;
+        nr = __row;
+    else;
+        k = colsf(fin);
+        nr = floor(minc(coreleft/(k*8*3.5)|maxvec/(k+1)));
+    endif;
+    m = 0;
+    do until eof(fin);
+        dta = readr(fin,nr);
+        if __con;
+            dta = ones(rows(dta),1) ~ dta[.,indx];
+        else;
+            dta = dta[.,indx];
+        endif;
+        dta = moment(dta,__miss);
+        if scalmiss(dta);
+            continue;
+        endif;
+        m = m+dta;
+        clear dta;
+    endo;
+    fin = close(fin);
+    if cols(m) == 1 and m $== 0;
+        if not trapchk(1);
+            errorlog "Too many missings - no data left after packing";
+        else;
+            retp(m,error(33));
+        endif;
+    endif;
+    retp(m);
+endp;

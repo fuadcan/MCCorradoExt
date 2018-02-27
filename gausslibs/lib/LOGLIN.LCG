@@ -1,0 +1,40 @@
+/* 
+** loglin.lcg - Loglinear Analysis Library 
+** (C) copyright 1992-1994 by aptech systems, inc.
+** all rights reserved.
+*/
+
+llest.src
+    llest    : proc
+    llout    : proc
+
+llinput.src
+    lltable  : proc
+    lldesign : proc
+    _llpos   : proc
+
+llappl.src
+    llhier   : proc
+    letters  : proc
+    ll3way   : proc
+    lluser   : proc
+    _llhdsgn : proc
+    _lldigit : proc
+    _llsubcn : proc
+    _llhlbl  : proc
+    llset    : proc
+    _llnum   : proc
+
+loglin.dec
+    _ll_ver  : matrix
+    _llmaxit : matrix
+    _llettrs : matrix
+    _llmult  : matrix
+    _llprtd  : matrix
+    _llprte  : matrix
+    _llprtit : matrix
+    _llprtt  : matrix
+    _llsum0  : matrix
+    _lltol   : matrix
+    _lltwo   : matrix
+

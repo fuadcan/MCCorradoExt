@@ -1,0 +1,14 @@
+#ifDLLCALL
+#else
+
+/*
+** parse.ext - String parsing function.
+** (C) Copyright 1991-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declaration for procedure PARSE.
+*/
+
+external matrix _parse;
+
+#endif

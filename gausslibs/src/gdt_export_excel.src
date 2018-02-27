@@ -1,0 +1,393 @@
+/*
+** gdt_export_excel.src - export data into Excel file
+**
+** (C) Copyright 2004-2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Purpose:   export data into Excel file
+**
+** Format:
+**
+**      { r,n } = _gdt_export_excel(data, args, names, types);
+**
+** Inputs:
+**
+**      data      NxK matrix, data for frequency distributions.
+**
+**      args      Lx1 string array, keywords for freq options
+**
+**                     use   variable list
+**
+**      names     Kx1 vector with names of variables in data
+**
+**      types     Kx1 vector, types of variables in data, 0 character,
+**                     1 - numeric, 2 - date
+**
+** Output:   r           scalar, return code.  Normal return = 0.
+**
+**           s           string, return message.  Normal return = "".
+**
+*/
+
+#ifOS2WIN
+
+
+
+proc (2) = _gdt_export_excel(data,args,names,types);
+    local namerange,datarange,namesheet,datasheet,missym,i1,drange,
+         col,s1,s2,s3,keepcols,found,outfname,spech,deletef,updatef,
+         vls,k,err,cpart,rpart,frpart,irange,jrange,nrange,dstr,k0,r,i,j;
+
+    updatef = 0;
+    deletef = 0;
+    keepcols = error(0);
+    namerange = "";
+    datarange = "a1";
+    namesheet = 1;
+    datasheet = 1;
+    col = rows(types);
+    outfname = "";
+    missym = "";
+    spech = "empty"$| 
+            "#N/A"$|
+            "#VALUE!"$| 
+            "#DIV/0!"$| 
+            "#NAME?"$| 
+            "#REF!"$|
+            "#NUM!"$|
+            "#NULL!"$|
+            "#ERR";
+
+    r = rndn(1,1);
+
+    do until r /= data;
+        r = rndn(1,1);
+    endo;
+
+    vls = reshape(r,9,1);
+
+    for i(1,rows(args),1);
+
+        if args[i] $/= "";
+
+            { s1,s2 } = token(args[i]);
+
+            if lower(s1) $== "output";
+                outfname = s2;
+            elseif lower(s1) $== "namerange";
+                 namerange = upper(s2);
+            elseif lower(s1) $== "datarange";
+                 datarange = upper(s2);
+            elseif lower(s1) $== "datasheet";
+                 datasheet = stof(s2);
+            elseif lower(s1) $== "namesheet";
+                 namesheet = stof(s2);
+            elseif lower(s1) $== "deletefile";
+                 deletef = 1;
+            elseif lower(s1) $== "update";
+                 updatef = 1;
+            elseif lower(s1) $== "drop";
+                keepcols = seqa(1,1,col);
+
+                do while s2 $/= "";   
+                    found = 0;
+                    { s1, s2 } = token(s2);
+
+                    for j (1,col,1);
+                        if lower(s1) $== lower(names[j]);
+                            keepcols[j] = error(0);
+                            found = 1;
+                            break;
+                        endif;
+                    endfor;
+
+                    if not found;
+                        retp(-4, "Variable not found: " $+ s1);
+                    endif;
+                endo;
+
+                keepcols = packr(keepcols);
+                data = data[.,keepcols];
+                names = names[keepcols];
+                types = types[keepcols];
+                col = rows(keepcols);
+
+            elseif lower(s1 $== "keep");
+                keepcols = {};
+
+                do while s2 $/= "";
+                    found = 0;
+                    { s1, s2 } = token(s2);
+
+                    for j (1,col,1);
+                        if lower(s1) $== lower(names[j]);
+                            keepcols = keepcols|j;
+                            found = 1;
+                            break;
+                        endif;
+                    endfor;
+
+                    if not found;
+                        retp(-4, "Variable not found: " $+ s1);
+                    endif;
+                endo;
+
+                data = data[.,keepcols];
+                names = names[keepcols];
+                types = types[keepcols];
+                col = rows(keepcols);
+
+            elseif lower(s1) $== "translate";
+                 i1 = strindx(s2,"=",1);
+                 if i1;
+                     { s1,s3 } = token(strsect(s2,1,i1-1));
+                     { s2,s3 } = token(strsect(s2,i1+1,strlen(s2)-i1));
+                 else;
+                     { s1,s2 } = token(s2);
+                 endif;
+                 if scalmiss(vls);
+                     vls = error(0)*zeros(9,1);
+                 endif;
+                 i1 = indsav(s2,spech);
+                 if i1;
+                     vls[i1] = stof(s1);
+                 else;
+                     retp(-2,"Illegal special character in translate statement");
+                 endif;
+            endif;
+        endif;
+     endfor;
+
+    if outfname $== "";
+        retp(-3, "No output file specified");
+    endif;
+    if strindx(outfname,".xls",1) == 0;
+        outfname = outfname $+ ".xls";
+    endif;
+
+    if filesa(outfname) $/= "";
+         if updatef == 0 and deletef == 0;
+              retp(-1, "Output file already exists - set update or deleteFile");
+         elseif deletef == 1;
+              call deleteFile(outfname);
+         endif;
+    endif;
+
+    if namerange $/= "";
+        namerange = upper(namerange);
+        k0 = strindx(namerange,":",1);
+        if k0 == 0;
+            k = 1;
+            nrange = vals(namerange);
+            do until nrange[k] < 65;
+                k = k + 1;
+            endo;   
+            if k == 1;
+               retp(-5,"Illegal argument for namerange");
+            endif;
+            k = k - 1;
+            cpart = chrs(_gdt_export_excel_getrange(vals(strsect(namerange,1,k)),col-1));
+            rpart = strsect(namerange,k+1,strlen(namerange)-k+1);
+            namerange = namerange $+ ":" $+ cpart $+ rpart;
+            if strsect(namerange,1,k) $/= cpart;
+                 names = names';
+            endif;
+        else;
+            i = 0;
+            do while isalpha(strsect(namerange,1,i+1));
+                i = i+1;
+            endo;
+
+            j = 0;
+            do while isalpha(strsect(namerange,k0+1,j+1));
+                j = j+1;
+            endo;
+            if strsect(namerange,1,i) $/= strsect(namerange,k0+1,j);
+                 names = names';
+            endif;
+        endif;
+        err = xlswritesa(names,outfname,namerange,namesheet,"");
+        if err /= 0;
+            retp(-6,"Variable name write failed");
+        endif;
+    endif;
+
+    if types == 1;
+
+       if vls == 0;
+            err = xlswritem(data,outfname,datarange,datasheet,"");
+        else;
+            err = xlswritem(data,outfname,datarange,datasheet,vls);
+        endif;    
+        if err /= 0;
+            retp(-7,"Data write failed");
+        endif;
+
+    else;
+
+        k = 1;
+        drange = vals(datarange);
+        do until drange[k] < 65;
+            k = k + 1;
+        endo;   
+        if k == 1;
+           retp(-8,"Illegal argument for datarange");
+        endif;
+        k = k - 1;
+
+        cpart = vals(strsect(datarange,1,k));
+        rpart = strsect(datarange,k+1,strlen(datarange));
+        frpart = stof(rpart);
+
+        for i(1,col,1);
+
+            irange = ""$+chrs(cpart)$+rpart$+":"$+chrs(cpart)$+ftos(stof(rpart)+rows(data)-1,"*.*lf",1,0);
+            if types[i] == 0;
+
+                if vls == 0;
+                    err = xlswritesa(""$+data[.,i],outfname,irange,datasheet,"");
+                else;
+                    err = xlswritesa(""$+data[.,i],outfname,irange,datasheet,""$+vls);
+                endif;
+                if err /= 0;
+                    retp(-9,"Data write failed for "$+names[i]);
+                endif;
+
+            elseif types[i] == 1;
+
+                if vls == 0;
+                    err = xlswritem(data[.,i],outfname,irange,datasheet,"");
+                else;
+                    err = xlswritem(data[.,i],outfname,irange,datasheet,vls);
+                endif;
+                if err /= 0;
+                    retp(-9,"Data write failed for "$+names[i]);
+                endif;
+
+            elseif types[i] == 2;
+
+                for j(1,rows(data),1);
+                    jrange = chrs(cpart)$+ftos(frpart+j-1,"*.*lf",1,0);
+                    dstr = satostrC(dttostr(data[j,i],"YYYY/MO/DD HH:MI:SS"), "%s");
+                    if vls == 0;
+                        err = xlswritesa(dstr[1],outfname,jrange,datasheet,"");
+                    else;
+                        err = xlswritesa(dstr[1],outfname,jrange,datasheet,""$+vls);
+                    endif;
+                    if err /= 0;
+                        retp(-9,"Data write failed for "$+names[i]);
+                    endif;
+                endfor;
+
+            endif;
+            cpart =_gdt_export_excel_getrange(cpart,1);
+
+        endfor;
+
+    endif;
+
+    retp(0,"");
+
+endp;
+
+
+proc _gdt_export_excel_getrange(z,r);
+
+    for i(1,r,1);
+
+         if z == 90;
+              z = 64 | z;
+         endif;         
+         if z[rows(z)] < 90;
+              z[rows(z)] = z[rows(z)] + 1;
+         elseif z[rows(z)-1] < 90;
+              z[rows(z)] = 65;
+              z[rows(z)-1] = z[rows(z)-1] + 1;
+         elseif z[rows(z)-2] < 90;
+              z[rows(z)] = 65;
+              z[rows(z)-1] = 65;
+              z[rows(z)-2] = z[rows(z)-2] + 1;
+         elseif z[rows(z)-3] < 90;
+              z[rows(z)] = 65;
+              z[rows(z)-1] = 65;
+              z[rows(z)-2] = 65;
+              z[rows(z)-3] = z[rows(z)-3] + 1;
+         elseif z[rows(z)-4] < 90;
+              z[rows(z)] = 65;
+              z[rows(z)-1] = 65;
+              z[rows(z)-2] = 65;
+              z[rows(z)-3] = 65;
+              z[rows(z)-4] = z[rows(z)-4] + 1;
+         endif;
+
+    endfor;
+    retp(z);
+
+endp;          
+
+#else
+
+
+proc(2) = _gdt_export_excel(args);
+        errorlog "Not supported on this platform";
+        retp(-1,"");
+endp;
+
+
+#endif
+
+
+proc(0) = _gdt_export_excel_help;
+
+       local s1;
+
+       s1 = "
+Purpose: exports a GAUSS data set into an Excel file
+
+Format:  export excel
+         [options]
+
+Example: export excel
+         namerange a1
+         datarange a3
+         output data1.xls
+
+Options: output      output file name
+         namerange   cell range for names
+         datarange   cell range for data
+         namesheet   sheet no. for names
+         datasheet   sheet no. for data
+         update      updates data in existing Excel file
+         deleteFile  Excel file deleted before exporting data 
+         drop        list of variable names not included
+         keep        list of variable names included
+         translate   num = special_character 
+                        where num is a number (or GAUSS error code)
+                        and special_character is one of the following: 
+                                  
+                                empty  
+                                #N/A        
+                                #VALUE!     
+                                #DIV/0!     
+                                #NAME?      
+                                #REF!       
+                                #NUM!       
+                                #NULL!      
+                                #ERR        
+             ";
+
+       print s1;
+
+    endp;
+

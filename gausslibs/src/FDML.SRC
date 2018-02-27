@@ -1,0 +1,654 @@
+/*
+** fdml.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {theta,stderr,Mcov,LogL} = FD_cml(y,&sgf,sv,RR,r);
+**                                Maximum Likelihood Estimation
+**                                in the FREQUENCY domain
+**                                under linear restrictions                26
+**
+**  {theta,stderr,Mcov,LogL} = FD_ml(y,&sgf,sv);
+**                                Maximum Likelihood Estimation
+**                                in the FREQUENCY domain                  78
+**
+**  {J_matrix,G_matrix,H_matrix,I_matrix} = FDml_derivatives(y,&sgf,theta);
+**                                Jacobian, gradient, Hessian and information
+**                                matrices of the log-likelihood function
+**                                in the frequency domain                 127
+**
+*/
+
+
+/*
+** FD_cml
+**
+** Purpose: Maximum Likelihood Estimation in the FREQUENCY domain
+**          under the linear restriction theta = RR*gamma+r
+**
+** Format:  {theta,stderr,Mcov,LogL} = FD_cml(y,&sgf,sv,RR,r);
+**
+** Input:   y - Nobs*1 vector, data
+**       &sgf - pointer to a procedure which computes
+**              the spectral generating function
+**         sv - g*1 vector, starting values for the maximization algorithm
+**         RR - np*g matrix, the R matrix of the restricted equation
+**         r - np*1 vector, the r vector of the restricted equation
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function at
+**                  its maximum
+**
+** Globals:    _print - scalar 1 (default), print the statistics
+**                      scalar 0, do not print the statistics
+**           _fourier - scalar 1 (default) for the discrete transform (dfft)
+**                      - or -
+**                      scalar 0 for the fast transform (fft)
+**        _tsm_optmum - scalar 1, use the optmum library
+**                      scalar 0, use the scoring method
+**          _tsm_gtol - scalar, convergence criterion for the gradient for
+**                      the scoring method (default = 0.001)
+**          _tsm_Mcov - scalar, type of the covariance matrix
+**                      1 for the inverse of the negative hessian matrix
+**                      2 for the inverse of the OPG estimator
+**                      3 for the White Heteroskedasticity matrix
+**         _tsm_parnm - np*1 vector, names of the parameters
+**                      - or -
+**                      scalar 0, default names
+** _sgf_Jacobian_proc - pointer to a procedure wich computes the Nstar*np
+**                      Jacobian matrix of the spectral generating function
+**                      - or -
+**                      scalar 0, numerical Jacobian
+**
+**    _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                      matrices of the log-likelihood function
+**
+** Remarks:
+**           The CV matrix and the standard errors of the estimated coefficients
+**           are not computed if _tsm_Mcov = 0
+**
+*/
+
+
+/*
+** FD_ml
+**
+** Purpose: Maximum Likelihood Estimation in the FREQUENCY domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = FD_ml(y,&sgf,sv);
+**
+** Input:   y - Nobs*1 vector, data
+**       &sgf - pointer to a procedure which computes
+**              the spectral generating function
+**         sv - np*1 vector, starting values for the maximization algorithm
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function at
+**                  its maximum
+**
+** Globals:    _print - scalar 1 (default), print the statistics
+**                      scalar 0, do not print the statistics
+**           _fourier - scalar 1 (default) for the discrete transform (dfft)
+**                      - or -
+**                      scalar 0 for the fast transform (fft)
+**        _tsm_optmum - scalar 1, use the optmum library
+**                      scalar 0, use the scoring method
+**          _tsm_gtol - scalar, convergence criterion for the gradient for
+**                      the scoring method (default = 0.001)
+**          _tsm_Mcov - scalar, type of the covariance matrix
+**                      1 for the inverse of the negative hessian matrix
+**                      2 for the inverse of the OPG estimator
+**                      3 for the White Heteroskedasticity matrix
+**         _tsm_parnm - np*1 vector, names of the parameters
+**                      - or -
+**                      scalar 0, default names
+** _sgf_Jacobian_proc - pointer to a procedure wich computes the Nstar*np
+**                      Jacobian matrix of the spectral generating function
+**                      - or -
+**                      scalar 0, numerical Jacobian
+**
+**    _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                      matrices of the log-likelihood function
+**
+** Remarks:
+**           The CV matrix and the standard errors of the estimated coefficients
+**           are not computed if _tsm_Mcov = 0
+**
+*/
+
+
+/*
+** FDml_derivatives
+**
+** Purpose: Jacobian, gradient, Hessian and information
+**          matrices of the log-likelihood function in the frequency domain
+**
+** Format:  {J_matrix,G_matrix,H_matrix,I_matrix}
+**                                  = FDml_derivatives(y,&sgf,theta)
+**
+** Input:   y - Nobs*1 vector, data
+**       &sgf - pointer to a procedure that computes
+**              the spectral generating function (s.g.f.)
+**      theta - np*1 vector, coefficients
+**
+** Output:  J_matrix - Nobs*np matrix, the Jacobian matrix
+**          G_matrix - np*1 vector, the gradient vector
+**          H_matrix - np*np matrix, the Hessian matrix
+**          I_matrix - np*np matrix, the infomation matrix
+**
+** Globals:  _fourier - scalar 1 (default) for the discrete transform (dfft)
+**                      - or -
+**                      scalar 0 for the fast transform (fft)
+** _sgf_Jacobian_proc - pointer to a procedure wich computes the Nstar*np
+**                      Jacobian matrix of the spectral generating function
+**                      - or -
+**                      scalar 0, numerical Jacobian
+**
+*/
+
+
+/*
+** Maximum Likelihood in the FREQUENCY domain
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 191-196
+*/
+
+
+/*
+** FD_ml
+*/
+
+proc (4) = FD_ml(y,sgf,sv);
+  local sgf:proc;
+  local Np,RR,r,theta,stderr,Mcov,Logl;
+
+  Np = rows(sv);
+  RR = eye(Np); r = zeros(Np,1);
+
+  {theta,stderr,Mcov,Logl} = _FD_cml(y,&sgf,sv,RR,r);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+
+/*
+** FD_cml
+*/
+
+proc (4) = FD_cml(y,sgf,sv,RR,r);
+  local sgf:proc;
+  local Np,err,theta,stderr,Mcov,Logl;
+
+  Np = rows(sv);
+
+  if ( cols(RR) /= Np ) or ( cols(r) /= 1 ) or ( rows(RR) /= rows(r) );
+
+    ERRORLOG "error: Wrong size format of the RR, r or sv matrices.";
+    call pause(2);
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  {theta,stderr,Mcov,Logl} = _FD_cml(y,&sgf,sv,RR,r);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+
+/*
+================================================================================
+*/
+
+proc (4) = _FD_cml(y,sgf,sv,RR,r);
+  local sgf:proc;
+  local s,y_,lambda,I,T,Np,Np_,N,oldtrap;
+  local _gamma,_gamma0,logl,gd,retcode,CVretcode;
+  local Jproc,Jacobian,Hessian,Gradient,H_inv,JJ_inv,Mcov;
+  local theta,stderr,tstudent,pvalue,ddl,parnm,cn;
+  local Niter,Inf,alpha,cl,j,omat,fmt,databuf,old;
+
+  clear databuf;
+
+  old = csrtype(0);
+
+  output off;
+
+  Np = cols(RR); Np_ = rows(RR);
+  N = rows(y);
+
+  y_ = packr(y);  T = rows(y_);
+  _FD_sgf = &sgf;
+
+  {lambda,I} = PDGM(y_);
+
+  _FD_lambda = lambda;
+  _FD_pdgm = I;
+
+  _ml_RR = RR; _ml_r = r;
+
+  if __title $== "";
+    __title = "MLE in the Frequency Domain";
+  endif;
+
+  if _sgf_Jacobian_proc /= 0;
+
+    Jproc = _sgf_Jacobian_proc;
+    local Jproc:proc;
+
+    Jacobian = Jproc(RR*sv+r,lambda);
+
+    if ( rows(Jacobian) /= rows(I) ) or ( cols(Jacobian) /= Np_ );
+
+      ERRORLOG "error: The dimension of the matrix defined by"\
+               " _sgf_Jacobian_proc";
+      ERRORLOG "       must be Nstar*np.";
+      end;
+    endif;
+
+  endif;
+
+  if _tsm_optmum == 0;
+
+    /* Method of Scoring */
+
+    _gamma0 = sv;
+    Logl = -__FD_cml(_gamma0);
+
+    Jacobian = _ml_jacobian;       /* Jacobian of ml(theta)            */
+    Gradient = sumc(Jacobian);     /* Gradient of ml(theta)            */
+    Inf = _FD_information;         /* Information matrix of ml(theta)  */
+
+    Gradient = RR'*Gradient;       /* Gradient of ml(_gamma)           */
+    Inf = RR'*Inf*RR;              /* Information matrix of ml(_gamma) */
+
+    cls;
+    Niter = 0;
+    alpha = miss(0,0);
+
+    do while 1;
+
+      if maxc(abs(Gradient)) < _tsm_gtol;
+        _gamma = _gamma0;
+        break;
+      endif;
+
+      cl = key;
+      if cl == 1030;
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      if __output /= 0;
+
+        locate 1,2; print chrs(45*ones(1,77));
+        locate 3,2; print chrs(45*ones(1,77));
+        locate 7,2; print chrs(45*ones(1,77));
+
+        locate 2,32; print "Method of Scoring";
+        locate 4,23; print ftos(LogL, "Log-likelihood          %lf",10,5);
+        locate 5,23; print ftos(alpha,"Line Search             %lf",10,3);
+        locate 6,23; print ftos(Niter,"Number of iterations    %lf",10,0);
+        locate 8,5; print "parameters/gradient";
+
+        if Np <= 26;
+
+          omat = _gamma0~Gradient;
+          if Np%2 == 1;
+            omat = omat|miss(zeros(1,2),0);
+          endif;
+
+          omat = reshape(omat,rows(omat)/2,4);
+          let fmt[4,3] =  "*.*lf" 18 6  "*.*lf" 18 6
+                          "*.*lf" 18 6  "*.*lf" 18 6;
+          locate 10,1; call printfm(omat,1~1~1~1,fmt);
+
+          locate 9,2;  print chrs(45*ones(1,77));
+          j = 1;
+          do until j > rows(omat);
+            locate 9+j,40; print chrs(124);
+            j = j+1;
+          endo;
+          locate 9+j,2;  print chrs(45*ones(1,77));
+
+        else;
+
+          locate 15,2; print ftos(maxc(Gradient),"Max. Gradient:  %lf",10,6);
+
+        endif;
+
+      endif;
+
+      {_gamma,alpha,LogL} = _Fd_scoring(_gamma0,Gradient,Inf,LogL);
+
+      if _gamma == error(0);
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      Niter = Niter +1;
+      _gamma0 = _gamma;
+
+      Jacobian = _ml_jacobian;       /* Jacobian of ml(theta)            */
+      Gradient = sumc(Jacobian);     /* Gradient of ml(theta)            */
+      Inf = _FD_information;         /* Information matrix of ml(theta)  */
+
+      Gradient = RR'*Gradient;       /* Gradient of ml(_gamma)           */
+      Inf = RR'*Inf*RR;              /* Information matrix of ml(_gamma) */
+
+    endo;
+
+  endif;
+
+  if _tsm_optmum /= 0;
+
+    _opgdprc = &_FD_gradient;
+    {_gamma,Logl,gd,retcode} = optmum(&__FD_cml,sv);
+    _tsm_retcode = retcode;
+    _opgdprc = 0;
+    Logl = - Logl;
+
+  endif;
+
+  theta = RR*_gamma+r;
+
+  cls;
+  if   __title $== "MLE in the Frequency Domain";
+    __title = "";
+  endif;
+
+  if _tsm_Mcov == 0;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    retp(theta,stderr,Mcov,Logl);
+
+  else;
+
+    print "Computing the covariance matrix...";
+
+    Jacobian = _ml_jacobian;            /* Jacobian of ml(theta)            */
+    Gradient = sumc(Jacobian);          /* Gradient of ml(theta)            */
+    Inf = _FD_information;              /* Information matrix of ml(theta)  */
+    if _tsm_Mcov == 2 and _tsm_Hessian == 0;
+      Hessian = miss(0,0);
+    else;
+      Hessian = hessp(&___FD_cml,theta); /* Hessian matrix of ml(theta)  */
+    endif;
+
+    databuf = vput(databuf,Jacobian,"J_matrix");
+    databuf = vput(databuf,Gradient,"G_matrix");
+    databuf = vput(databuf,Hessian,"H_matrix");
+    databuf = vput(databuf,Inf,"I_matrix");
+    _ml_derivatives = databuf;
+
+    Hessian = RR'*Hessian*RR;
+    Jacobian = Jacobian*RR;
+
+    if _tsm_Mcov == 3;
+
+      CVretcode = 3;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      H_inv = inv(Hessian);
+      trap oldtrap,1;
+      if scalerr(H_inv);
+
+        ERRORLOG "error: The Hessian matrix is not invertible.";
+        call pause(2);
+        H_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = H_inv*(Jacobian'Jacobian)*H_inv;
+
+    elseif _tsm_Mcov == 2;
+
+      CVretcode = 2;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      JJ_inv = invpd(Jacobian'Jacobian);
+      trap oldtrap,1;
+      if scalerr(JJ_inv);
+
+        ERRORLOG "error: The cross product of the derivatives is not"\
+                 " invertible.";
+        call pause(2);
+        JJ_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = JJ_inv;
+
+    else;
+
+      CVretcode = 1;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      H_inv = inv(Hessian);
+      trap oldtrap,1;
+      if scalerr(H_inv);
+
+        ERRORLOG "error: The Hessian matrix is not invertible.";
+        call pause(2);
+        H_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = - H_inv;
+
+    endif;
+
+    Mcov = RR*Mcov*RR';
+
+  endif;
+
+  if hasimag(Mcov) == 0;
+
+    Mcov = real(Mcov);
+
+  else;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    CVretcode = 4;
+
+  endif;
+
+  ddl = T-Np;
+  stderr = sqrt(diag(Mcov));
+
+  if iscplx(stderr);
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    CVretcode = 4;
+
+  endif;
+
+  tstudent = theta./miss(stderr,0);
+  pvalue = 2*cdftc(abs(tstudent),ddl);
+
+  output on; cls;
+
+  if _print == 1;
+    cn = N|T|Np|ddl|LogL;
+
+    if ( _tsm_parnm /= 0 ) and ( rows(_tsm_parnm) == Np_);
+      parnm = _tsm_parnm;
+    else;
+    parnm = {};
+      parnm = 0$+"P"$+ftocv(seqa(1,1,Np_),2,0);
+    endif;
+
+    cls;
+    call _ml_print(parnm,theta,stderr,tstudent,pvalue,cn,CVretcode);
+  endif;
+
+  call csrtype(old);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc __FD_cml(_gamma);
+  local RR,r,theta,I,g_j,Logl_j,w1,w2,w3,w4,w5,w6,L;
+  local Jproc,lambda;
+
+  RR = _ml_RR; r = _ml_r;
+  theta = RR*_gamma+r;
+
+  I = _FD_PDGM;
+  g_j = __FD_sgf(theta);
+
+  if _sgf_Jacobian_proc /= 0;
+    Jproc = _sgf_Jacobian_proc;
+    local Jproc:proc;
+    lambda = _FD_lambda;
+    w1 = Jproc(theta,lambda);
+  else;
+    w1 = gradp(&__FD_sgf,theta);
+  endif;
+
+  w2 = I;
+  if g_j[1] == 0;
+    g_j[1] = 0.1;
+  endif;
+  w3 = 1./g_j;
+  w4 = w3.*w1;
+  w5 = 0.5*(w2.*w3-1).*w4;
+  w6 = 0.5*(w4'w4);
+
+  _ml_jacobian = w5;       /* Jacobian of ml(theta)    */
+  _FD_Information = w6;    /* Information matrix of ml(theta) */
+
+  Logl_j = -0.5*ln(2*pi) - 0.5*ln(g_j) - 0.5*(I./g_j);
+
+  L = - sumc(Logl_j);
+
+  retp(L);
+endp;
+
+proc ___FD_cml(theta);
+  local I,g_j,Logl_j,L;
+
+  I = _FD_PDGM;
+  g_j = __FD_sgf(theta);
+  Logl_j = -0.5*ln(2*pi) - 0.5*ln(g_j) - 0.5*(I./g_j);
+  L = sumc(Logl_j);
+
+  retp(L);
+endp;
+
+proc __FD_sgf(theta);
+  local g_j,sgf,lambda;
+
+  lambda = _FD_lambda;
+  sgf = _FD_sgf;
+  local sgf:proc;
+
+  g_j = sgf(theta,lambda);
+
+  retp(g_j);
+endp;
+
+proc _FD_gradient(_gamma);
+  local RR,Jacobian,Gradient,w;
+
+  RR = _ml_RR;
+
+  Jacobian = _ml_jacobian;    /* Jacobian of ml(theta)   */
+  Gradient = sumc(Jacobian);  /* Gradient of ml(theta)   */
+  w = RR'*Gradient;           /* Gradient of ml(_gamma)  */
+  w = -w;                     /* Gradient of -ml(_gamma) */
+
+  retp(w');
+endp;
+
+proc (3) = _FD_scoring(_gamma0,Gradient,Inf,logL);
+  local Inf_inv,alpha,_gamma,D,L;
+  local oldtrap;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Inf_inv = inv(Inf);
+  trap oldtrap,1;
+  if scalerr(Inf_inv);
+
+    ERRORLOG "error: The Information matrix is not invertible.";
+    call pause(2);
+    retp(error(0),error(0),error(0));
+
+  endif;
+
+  /* Line search */
+
+  alpha = 1;
+  D = Inf_inv*Gradient;
+
+  do while 1;
+    _gamma = _gamma0 + alpha*D;
+    L = -__FD_cml(_gamma);
+    if L > LogL;
+      break;
+    else;
+      alpha = alpha/2;
+    endif;
+    if alpha < 0.5^5;
+
+      ERRORLOG "error: Line Search failed.";
+      call pause(2);
+      retp(error(0),error(0),error(0));
+
+    endif;
+  endo;
+
+  retp(_gamma,alpha,L);
+endp;
+
+/*
+================================================================================
+*/
+
+
+/*
+** FDml_derivatives
+*/
+
+proc (4) = FDml_derivatives(y,sgf,theta);
+  local sgf:proc;
+  local Np,y_,lambda,I,J_matrix,G_matrix,H_matrix,I_matrix;
+
+  Np = rows(theta);
+  _ml_RR = eye(Np); _ml_r = zeros(Np,1);
+
+  y_ = packr(y);
+  _FD_sgf = &sgf;
+  {lambda,I} = PDGM(y_);
+  _FD_lambda = lambda;
+  _FD_pdgm = I;
+
+  call __FD_cml(theta);
+  J_matrix = _ml_jacobian;
+  G_matrix = sumc(J_matrix);
+  H_matrix = hessp(&___FD_cml,theta);
+  I_matrix = _FD_information;
+
+  retp(J_matrix,G_matrix,H_matrix,I_matrix);
+endp;
+
+
+

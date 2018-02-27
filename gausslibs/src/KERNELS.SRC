@@ -1,0 +1,271 @@
+weights = zeros(1,1) ;
+proc kernel(uv,l);
+     local f ;
+     if rows(uv) <= 1;
+	"ERROR: data must have more than one observation to";
+	"estimate autocorrelations";
+     endif;
+     f = VARGET("_ker_fun");
+     local f:proc ;
+     retp( f(uv,l) );
+endp ;
+ /*
+ **
+ ** Procedure to compute the CAUCHY lag window
+ ** Brilinger (1981) p:55
+ **
+ */
+proc cauchy(uv,k);
+     local l,m,a,t1,t2,f;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     l = 1; a = 0 ;
+     Do until l > k;
+         f = l/(k+1) ;
+         m = 1.0/(1+(f^2));
+        t1 = detrend(trimr(uv,l,0),0);
+    t2 = detrend(trimr(lagn(uv,l),l,0),0);
+     a = a + m*(t1't2);
+     weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+ /*
+ **
+ ** Procedure to compute the Fejer kernal
+ ** Brilinger (1981) p:55
+ **
+ */
+proc fejer(uv,k);
+     local l,m,a,t1,t2,f;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     l = 1; a = 0 ;
+     Do until l > k;
+         f = abs(l)/(k+1);
+         m = 1.0 - f;
+        t1 = detrend(trimr(uv,l,0),-1);
+    t2 = detrend(trimr(lagn(uv,l),l,0),-1);
+         a = a + m*(t1't2);
+     weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**  Procedure to compute the Tukey-Hanning window
+**  Brillinger (1981): p55
+*/
+proc tukhan(uv,k);
+     local l,m,a,t1,t2;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     l = 1; a = 0 ;
+     Do until l > k;
+         m = 0.5*(1.0 + cos((pi*l)/(k+1)));
+        t1 = detrend(trimr(uv,l,0),0);
+    t2 = detrend(trimr(lagn(uv,l),l,0),0);
+         a = a + m*(t1't2);
+     weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**  Procedure to compute the Tukey-Hamming window
+**  Brillinger (1981): p55
+*/
+proc tukham(uv,k);
+     local l,m,a,t1,t2,aa;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     aa = 0.23 ;
+     l = 1; a = 0 ;
+     Do until l > k;
+     m = 1.0 - (2*aa) + 2*aa*cos((pi*l)/(k+1));
+        t1 = detrend(trimr(uv,l,0),0);
+        t2 = detrend(trimr(lagn(uv,l),l,0),0);
+         a = a + m*(t1't2);
+         weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**  Procedure to compute the Bohman window
+**  See Brillinger(1981): p55.
+*/
+proc bohman(uv,k);
+     local l,m,a,t1,t2,f;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     l = 1; a = 0 ;
+     Do until l > k;
+         f = l/(k+1);
+         m = (1.0 - abs(f))*cos(pi*f)
+              + inv(pi)*sin(pi*abs(f));
+        t1 = detrend(trimr(uv,l,0),0);
+    t2 = detrend(trimr(lagn(uv,l),l,0),0);
+         a = a + m*(t1't2);
+     weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**
+** Procedure to compute the RIESZ lag window
+** Brilinger (1981) p:55
+**
+*/
+proc reisz(uv,k);
+    local l,m,a,t1,t2,f;
+    if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+    if (k GE 1);
+        weights = zeros(k,1) ;
+    endif ;
+    l = 1; a = 0 ;
+    Do until l > k;
+        f = l/(k+1) ;
+        m = 1.0 - (f^2) ;
+       t1 = detrend(trimr(uv,l,0),0);
+       t2 = detrend(trimr(lagn(uv,l),l,0),0);
+        a = a + m*(t1't2);
+    weights[l] = m ;
+        l = l + 1;
+    Endo ;
+    retp(a/rows(uv));
+endp ;
+/*
+**
+**  Computes the Dirichlet lag window
+**  Brillinger (1981): p55
+**
+*/
+proc diric(uv,k);
+     local l,m,a,t1,t2;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     l = 1; a = 0 ;
+     Do until l > k;
+          m = 1.0;
+         t1 = detrend(trimr(uv,l,0),0);
+     t2 = detrend(trimr(lagn(uv,l),l,0),0);
+         a = a + m*(t1't2);
+     weights[l] = m ;
+         l = l + 1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**  Computes the modified Dirichlet lag window
+**
+*/
+proc mdiric(uv,k);
+    local l,m,a,t1,t2;
+    if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+    if (k GE 1);
+        weights = zeros(k,1) ;
+    endif ;
+    l = 1; a = 0 ;
+    Do until l > k;
+        if ( l < (k-1) ) ;
+             m = 1.0;
+        else ;
+             m = 0.5;
+        endif ;
+        t1 = detrend(trimr(uv,l,0),0);
+    t2 = detrend(trimr(lagn(uv,l),l,0),0);
+        weights[l] = m ;
+        a = a + m*(t1't2);
+        l = l + 1;
+    Endo ;
+    retp(a/rows(uv));
+endp ;
+/*
+** Computes the Parzen window
+** Brillinger (1981). p55
+*/
+proc parzen(uv,k) ;
+     local i,m,a,t1,t2;
+     if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+     if (k GE 1);
+         weights = zeros(k,1) ;
+     endif ;
+     i = 1 ;  a = 0  ;
+     Do until  i  >  k/2 ;
+         m  =  1.0  -  6*((i/(k+1))^2) + 6*((abs(i)/(k+1))^3)   ;
+        t1  =  detrend(trimr(uv,i,0),0);
+    t2  =  detrend(trimr(lagn(uv,i),i,0),0);
+         a  =  a  +  m*(t1't2) ;
+         weights[i] = m ;
+         i  =  i  + 1 ;
+     Endo ;
+     Do until  i  >  k ;
+         m  =  2*(1 - (abs(i)/(k+1)))^3 ;
+        t1  =  detrend(trimr(uv,i,0),0) ;
+    t2  =  detrend(trimr(lagn(uv,i),i,0),0) ;
+         a  =  a  +  m*(t1't2);
+         weights[i] = m ;
+         i  =  i  +  1;
+     Endo ;
+     retp(a/rows(uv));
+endp ;
+/*
+**
+** Procedure to compute the GAUSS-WEIERSTRASS lag window
+** Brilinger (1981) p:55
+**
+*/
+proc gw(uv,k);
+    local l,m,a,t1,t2,f;
+    if (k > rows(uv)) ; k = rows(uv)-1 ; endif ;
+    if (k GE 1);
+         weights = zeros(k,1) ;
+    endif ;
+    l = 1; a = 0 ;
+    Do until l > k;
+        f = l/(k+1);
+        m = exp(-0.5*(f^2));
+       t1 = detrend(trimr(uv,l,0),0);
+       t2 = detrend(trimr(lagn(uv,l),l,0),0);
+        a = a + m*(t1't2);
+        weights[l] = m ;
+        l = l + 1;
+    Endo ;
+    retp(a/rows(uv));
+endp ;
+proc qs(uv,k) ;
+     local jb, jband, kn, l, f, m, t1, t2, a ;
+     if (k > rows(uv));k = rows(uv)-1;endif;
+     if (rows(uv) GE 1);
+	 weights = zeros(rows(uv),1);
+     endif ;
+     jb = seqa(1,1,rows(uv)-1)/(k+1);
+     jband = jb*1.2*pi;
+     kn = ((sin(jband)./jband - cos(jband))./(jband.^2)).*3;
+     l = 1 ; a = 0 ;
+     Do while l <= rows(uv)-1;
+        m = kn[l];
+       t1 = detrend(trimr(uv,l,0),0);
+       t2 = detrend(trimr(lagn(uv,l),l,0),0);
+        a = a + m*(t1't2);
+    weights[l] = m ;
+        l = l + 1;
+    Endo ;
+retp(a/rows(uv));
+endp ;
+_ker_fun = &fejer ;

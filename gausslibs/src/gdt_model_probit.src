@@ -1,0 +1,252 @@
+/*
+** gdt_model_probit.src
+**
+**
+** (C) Copyright 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** if you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> _gdt_model_probit
+**
+**  Purpose:    generates simulated data based on probit model
+**
+**  Format:     { r,s } = _gdt_model_probit(args);
+**
+**  Input:      args    string array, keywords for simulation options
+**
+**                         file   output file name, default = "probit"
+**                      depname   name of dependent variable, default = "Y"
+**                       indvar   list of names of independent variables,
+**                                   default is no independent variables
+**                     constant   value of constant, default = 1
+**                         beta   list of values of coefficients, default
+**                                     is no coefficients
+**                          vcx   covariance matrix of exogenous variables, default = identity.
+**                       numobs   number of observations, default = 100
+**                       normal   variance.  Normally distributed error term with
+**                                   specified variance.  Default is no error term.
+**                        gamma   alpha.  Gamma distributed error term with
+**                                 specified alpha parameter.  Default is no error term.
+**                         seed   random number generator seed. Default = 345678
+**                         open   resulting dataset opened in Data Tool. Default
+**                                  is closed
+**
+**
+**  Output:     r           scalar, return code.  Normal return = 0.
+**
+**              s           string, return message.  Normal return = "".
+**
+**
+**  Example:
+**
+**         sa1 = "file test"      $|
+**               "depvar YY"      $|
+**               "indvar XX1,XX3" $|
+**               "constant -1"    $|
+**               "beta .5,.5"     $|
+**               "numobs 10000"   $|
+**               "Normal 1.5";
+**
+**               call _gdt_model_probit(sa1);
+**
+*/
+
+
+#include gdttools.ext
+
+
+proc(2) = _gdt_model_probit(args);
+
+    local fp,fname,depname,indnames,b0,beta,s1,s2,s3,vcx,numx,
+         lbl,y,x,distType,distPars,eps,sd,pr,z,nobs,openf,oldt;
+
+    fname = "probit";
+    depname = "Y";
+    indnames = "";
+    b0 = 1;
+    beta = error(0);
+    distType = 1;
+    distPars = 1;
+    nobs = 100;
+    sd = 345678;
+    openf = 0;
+    numx = 0;
+    vcx = 1;
+
+    for i(1,rows(args),1);
+
+        if args[1] $== "";
+
+            indnames = "X1"$|"X2";
+            beta = { .5, .5 };
+
+        else;
+
+            { s1,s2 } = token(args[i]);
+            if lower(s1) $== "file";
+                 fname = s2;
+            elseif lower(s1) $== "depvar";
+                 depname = s2;
+            elseif lower(s1) $== "indvar";
+                 indnames = strsplit(s2)';
+            elseif lower(s1) $== "constant";
+                 b0 = stof(s2);
+            elseif lower(s1) $== "beta";
+                 beta = strtof(strsplit(s2))';
+            elseif lower(s1) $== "vcx";
+                 vcx = strtof(strsplit(s2))';
+            elseif lower(s1) $== "numobs";
+                 nobs = stof(s2);
+            elseif lower(s1) $== "normal";
+                 distType = 1;
+                 distPars = stof(s2);
+                 if distPars == 0;
+                     distPars = 1;
+                 endif;
+            elseif lower(s1) $== "gamma";
+                 distType = 2;
+                 distPars = stof(s2);
+                 if distPars == 0;
+                     distPars = 1;
+                 endif;
+            elseif lower(s1) $== "seed";
+                 sd = stof(s2);
+            elseif lower(s1) $== "open";
+                openf = 1;
+            endif;
+
+       endif;
+
+     endfor;
+
+     if nobs == 0;
+         nobs = 100;
+     endif;
+
+     open fp = ^fname;
+     if fp /= -1;
+         errorlog "dataset already exists, choose a different name";
+         fp = close(fp);
+         retp(-1,"",);
+     endif;
+     fp = close(fp);
+
+     if scalmiss(beta) and indnames[1] $/= "";
+         beta = .2 * ones(rows(indnames),1);
+         numx = rows(indnames);
+     elseif not scalmiss(beta) and indnames[1] $== "";
+         numx = rows(beta);
+         indnames = ftostrC(seqa(1,1,numx),"X%1.0lf");
+     elseif not scalmiss(beta) and indnames[1] $/= "";
+         if rows(beta) /= rows(indnames);
+             errorlog "number of coefficients inconsistent with\n"\
+                      "list of names of independent variables";
+             retp(-1,"");
+         else;
+             numx = rows(indnames);
+         endif;
+     else;
+         numx = 0;
+     endif;
+
+     if numx > 0;
+        if rows(vcx) > 1 and not (vcx == 1);
+            if rows(vcx) /= 0.5*numx*(numx+1);
+                errorlog "size of variance-covariance matrix inconsistent\n"\
+                         "with number of independent variables";
+                retp(-1,"");
+            endif;
+            vcx = xpnd(vcx);
+            oldt = trapchk(1);
+            trap 1,1;
+            vcx = chol(vcx);
+            trap oldt,1;
+            if scalmiss(vcx);
+                errorlog "covariance matrix of independent variables is\n"\
+                         " singular, identity matrix will be used";
+                vcx = 1;
+            endif;
+        endif;
+     endif;
+
+    if numx > 0;
+         { x,sd } = rndKMn(nobs,rows(beta),sd);
+         x = x * vcx;
+     endif;
+
+     if distType == 1;
+         { eps,sd } = rndKMn(nobs,1,sd);
+         eps = eps * sqrt(distPars[1]);
+     elseif distType == 2;
+         { eps,sd } = rndKMgam(nobs,1,distPars[1],sd);
+     else;
+         eps = 0;
+     endif;
+     if not scalmiss(beta);
+         pr = cdfn(-b0-x*beta-eps);
+     else;
+         pr = cdfn(-b0-eps);
+     endif;
+     { z,sd } = rndKMu(nobs,1,sd);
+     y = pr .> z;
+     if scalmiss(beta);
+         lbl = depname;
+     else;
+         lbl = depname $| indnames;
+     endif;
+
+     create fp = ^fname with ^lbl,0,8;
+     if scalmiss(beta);
+         call writer(fp,y);
+     else;
+         call writer(fp,y~x);
+     endif;
+     fp = close(fp);
+
+     if openf;
+         retp(1,fname);
+     else;
+         retp(0,"");
+     endif;
+
+ endp;
+
+
+
+
+    proc(0) = _gdt_model_probit_help;
+
+       local s1;
+
+       s1 =
+         "        file   output file name, default = \"probit\"" $|
+         "     depname   name of dependent variable, default = \"Y\"" $|
+         "      indvar   list of names of independent variables, default is no independent variables" $|
+         "    constant   value of constant, default = 1" $|
+         "        beta   list of values of coefficients, default is no coefficients" $|
+         "         vcx   covariance matrix of exogenous variables, default = identity" $|
+         "      numobs   number of observations, default = 100" $|
+         "      normal   variance.  Normally distributed error term with" $|
+         "                 specified variance.  Default is no error term." $|
+         "       gamma   alpha.  Gamma distributed error term with" $|
+         "                 specified alpha parameter.  Default is no error term. "$|
+         "        seed   random number generator seed. Default = 345678"$|
+         "        open   resulting dataset opened in Data Tool. Default is closed";
+
+       print s1;
+
+    endp;

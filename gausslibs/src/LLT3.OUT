@@ -1,0 +1,36 @@
+
+Total observations:                                           61  
+Usable observations:                                          61  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                           58  
+Value of the maximized log-likelihood function:       -281.05421  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+P01            20.935297        3.821497         5.478297        0.000001
+P02             1.865094        0.598828         3.114575        0.002861
+P03             7.544870       10.754893         0.701529        0.485778
+
+Covariance matrix: White Heteroskedastic matrix.
+edit;
+edit;
+Autocovariance matrix of order 0
+          original data                 surrogate data
+
+          1.2145          0.8734          1.2145          0.8734
+          0.8734          1.9643          0.8734          1.9643
+
+Autocovariance matrix of order 1
+          original data                 surrogate data
+
+          0.6056          0.4624          0.6026          0.4667
+          0.7817          1.2913          0.7638          1.2810
+
+Autocovariance matrix of order 2
+          original data                 surrogate data
+
+          0.3192          0.2108          0.3097          0.2165
+          0.5830          0.7579          0.5725          0.7490
+
+edit;

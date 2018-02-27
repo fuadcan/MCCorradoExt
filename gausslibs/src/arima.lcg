@@ -1,0 +1,53 @@
+/*
+** GAUSS library file
+**
+** (C) Copyright 1988-1998  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+
+arima.dec
+    _am_y                            : matrix
+    _am_n                            : matrix
+    _am_p                            : matrix
+    _am_d                            : matrix
+    _am_q                            : matrix
+    _amconst                         : matrix
+    _am_m                            : matrix
+    _am_k                            : matrix
+    _am_b                            : matrix
+    _aminter                         : matrix
+    _am_varn                         : matrix
+    _am_e                            : matrix
+    _am_itol                         : matrix
+    _amcritl                         : matrix
+
+arima.src
+    arima                            : proc
+    _am_lfunc                        : proc
+    _am_startv                       : proc
+    arimaset                         : proc
+
+forecast.src
+    tsforecast                       : proc
+    _am_critz                        : proc
+
+simarma.src
+    simarma                          : proc
+
+tautocov.src
+    tautocov                         : proc
+

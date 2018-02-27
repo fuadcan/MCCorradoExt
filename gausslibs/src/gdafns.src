@@ -1,0 +1,236 @@
+/*
+** gdafns.src
+**
+**
+** (C) Copyright 2005-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                            Purpose                               Line
+**  -----------------------------------------------------------------------------
+**  v0 = gdagetvarinfo(datafile);     Returns variable information            31 
+**  sa = gdareportvarinfo(datafile);  Reports variable information            38 
+**  y = gdavars(datafile);            Gets the number of variables in a GDA  100
+**
+*/
+
+#include gdafns.sdf
+
+/* 
+**> gdaGetVarInfo
+**
+** Purpose:    Gets information about all of the variables in a GAUSS 
+**             Data Archive and returns it in an array of gdavartable
+**             structures.
+**
+** Include:    gdafns.sdf
+**
+** Format:     vtab = gdaGetVarInfo(filename);
+**
+** Input:      filename   string, name of data file.
+**
+** Output:     vtab       Nx1 array of gdavartable structures, where N 
+**                        is the number of variables in filename, 
+**                        containing the following members:
+**
+**                            vtab.name     string, name of variable.
+**                            vtab.type     scalar, type of variable.
+**                            vtab.orders   Mx1 vector or scalar, orders 
+**                                          of the variable.
+**
+** Remarks:    The size of \substitute{vartab}.\commandname{orders} is 
+**             dependent on the type of the variable as follows:
+**
+**                 Variable Type    vartab.orders
+**                 -------------------------------------------------------
+**                 array            Mx1 vector, where M is the number of 
+**                                  dimensions in the array, containing 
+**                                  the sizes of each dimension, from the
+**                                  slowest-moving dimension to the 
+**                                  fastest-moving dimension.
+**
+**                 matrix           2x1 vector containing the rows and 
+**                                  columns of the matrix, respectively.
+**                
+**                 string           scalar containing the length of string, 
+**                                  excluding the null terminating byte.
+**
+**                 string array     2x1 vector containing the rows and 
+**                                  columns of the string array, 
+**                                  respectively.
+**
+**             vartab.type may contain any of the following:
+**                  6 - matrix
+**                 13 - string
+**                 15 - string array
+**                 17 - structure
+**                 21 - array
+**                 38 - sparse matrix
+**
+** Example:    #include gdafns.sdf
+**             struct gdavartable vtab;
+**             vtab = gdaGetVarInfo("myfile.gda");
+**
+*/
+
+
+proc gdagetvarinfo(datafile);
+    local names,types;
+    struct gdavartable v0, v1;
+    
+    names = gdagetnames(datafile);
+    types = gdagettypes(datafile);
+
+    v0.name = names[1];
+    v0.type = types[1];
+    v0.orders = gdagetorders(datafile,names[1]);
+	
+    for i(2,rows(types),1);
+        v1.name = names[i];
+        v1.type = types[i];	
+        v1.orders = gdagetorders(datafile,names[i]);
+
+        v0 = v0|v1;
+    endfor;
+
+    retp(v0);
+endp;
+
+
+/*
+**> gdaReportVarInfo
+**
+** Purpose:    Gets information about all of the variables in a GAUSS 
+**             Data Archive and returns it in a string array formatted 
+**             for printing.
+** 
+** Format:     vinfo = gdaReportVarInfo(filename);
+**
+** Input:      filename   string, name of data file.
+**
+** Output:     vinfo      Nx1 string array containing variable 
+**                        information.
+**
+** Remarks:    If you just want to print the information to the window, 
+**             call gdaReportVarInfo without assigning the output to a 
+**             symbol name:
+**
+**                 gdaReportVarInfo(filename);
+**
+** Example:    x1 = rndn(100,50);
+**             x2 = rndn(75,5);
+**             a = areshape(rndn(10000,1),10|100|10);
+**             fname = "myfile.gda";
+**             ret = gdaCreate(fname,1);
+**             ret = gdaWrite(fname,x1,"x1");
+**             ret = gdaWrite(fname,x2,"x2");
+**             ret = gdaWrite(fname,a,"a1");
+**             gdaReportVarInfo(fname);
+** 
+**             produces:
+** 
+**                 Index    Name    Type            Orders
+**                 1        x1      matrix          100x50
+**                 2        x2      matrix          75x5
+**                 3        a1      array           10x100x10
+**
+*/
+
+proc gdareportvarinfo(datafile);
+    local names,types,orders,namewid,spaces,ostr,typestr,fmt,onum,tms,titles,structtype,typestrwid;
+
+    names = gdagetnames(datafile);
+    types = gdagettypes(datafile);
+	
+    fmt = "%-1.0f";
+    tms = "x";
+    typestr = {};
+    ostr = {};
+    typestrwid = 13;
+	
+    for i (1, rows(names), 1);
+        if types[i] == 6;
+            typestr = typestr $| "matrix";
+        elseif types[i] == 13;
+            typestr = typestr $| "string";
+        elseif types[i] == 15;
+            typestr = typestr $| "string array";
+        elseif types[i] == 21;
+            typestr = typestr $| "array";
+        elseif types[i] == 17;
+            structtype = gdagetstructtype(datafile,names[i]);
+            typestr = typestr $| "struct    "$+structtype;
+            if (strlen(structtype)+10 > typestrwid);
+                typestrwid = strlen(structtype)+10;
+            endif;
+        elseif types[i] == 38;
+            typestr = typestr $| "sparse matrix";
+	else;
+            typestr = typestr $| ("type ?: "$+ftocv(types[i],1,0));
+        endif;
+        
+        orders = gdagetorders(datafile,names[i]);
+        if (rows(orders) > 1);
+            ostr = ostr $| strcombine(ftostrC(orders',fmt)$+(reshape(tms,1,rows(orders)-1)$~""),"",0);
+        else;
+            ostr = ostr $| strcombine(ftostrC(orders,fmt),"",0);
+        endif;
+    endfor;
+
+    spaces = reshape(" ",rows(names),1);
+
+    namewid = maxc(strlen(names)|4);
+
+    fmt = ("%-"$+ftos(namewid,"%*.*f",1,0)$+"."$+ftos(namewid,"%*.*f",1,0)$+"s") $~
+        "%-4.1s" $~ ("%-"$+ftos(typestrwid,"%*.*f",1,0)$+"."$+ftos(typestrwid,"%*.*f", 1,0)$+"s") 
+        $~ "%-4.1s";
+    ostr = strcombine(ftostrC(seqa(1,1,rows(names)),"%-9.0f")$~
+    satostrC(names$~spaces$~typestr$~spaces,fmt)$~ostr,"",0);
+
+    string titles =  { "Index" "Name" " " "Type" " " "Orders" };
+    titles = strcombine(satostrC(titles,"%-9.7s"$~fmt$~"%-7.7s"),"",0);
+    ostr = titles$|ostr;
+
+    retp(ostr);
+endp;
+
+
+/*
+**> gdaVars
+**
+** Purpose:    Gets the number of variables in a GAUSS Data Archive.
+** 
+** Format:     nvars = gdaVars(filename);
+**
+** Input:      filename   string, name of data file.
+**
+** Output:     nvars      scalar, the number of variables in the GDA.
+**
+** Example:    nvars = gdaVars("myfile.gda");
+**
+*/
+
+proc gdavars(datafile);
+    local sa;
+ 
+    sa = gdagetnames(datafile);
+    if (scalerr(sa));
+        retp(-1);
+    else;
+        retp(rows(sa));
+    endif;
+endp;
+

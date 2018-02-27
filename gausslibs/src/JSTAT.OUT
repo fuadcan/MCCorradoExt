@@ -1,0 +1,4 @@
+J(p,q) statistic for random walk without drift
+J(-1,5); 5% critical value        9.4852666        1.9728800 
+Accept null hypothesis of a unit root
+run pcb.ex;

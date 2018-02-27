@@ -1,0 +1,17 @@
+
+Total observations:                                           75  
+Usable observations:                                          75  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                           70  
+Value of the maximized log-likelihood function:        227.42824  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+INC(t-1)        0.938376        0.650538         1.442461        0.153632
+CON(t-1)        0.033981        0.641926         0.052937        0.957933
+CONSTANT        0.028476        0.116918         0.243555        0.808288
+INV(t-1)        0.031802        0.046596         0.682507        0.497171
+sigma          -0.011663        0.006245        -1.867665        0.065995
+
+Covariance matrix: White Heteroskedastic matrix.

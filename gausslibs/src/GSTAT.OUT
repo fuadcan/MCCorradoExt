@@ -1,0 +1,9 @@
+G(p,q) statistic for random walk without drift
+ 
+G(-1,5); p-value (PARZEN kernal)      0.86703054       0.99015481 
+Null hypothesis accepted incorrectly
+ 
+  
+G(-1,5); p-value (FEJER kernal)      0.82336169       0.99143259 
+Null hypothesis accepted --- incorrectly
+run jstat.ex;

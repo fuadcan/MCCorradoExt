@@ -1,0 +1,121 @@
+/*
+** lnfact.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> lnfact
+**
+**  Purpose:    Computes the natural log of the factorial function.
+**
+**  Format:     y = lnfact( x );
+**
+**  Input:      x     NxK matrix. All elements must be non-negative.
+**
+**  Output:     y     NxK matrix containing the natural log of the factorials of
+**                    each of the elements of x.
+**
+**  Remarks:    For integer x in the range from 1 to 172, this is
+**              (approximately) ln(x!). However, the computation is done
+**              using using a formula, and the function is defined for
+**              non-integer x.
+**
+**              In most formulae in which the factorial operator appears it
+**              is possible to avoid computing the factorial directly, and
+**              to use lnfact instead. The advantage of this is that lnfact
+**              does not have the overflow problems that ! has.
+**
+**              For x >= 1, this function has at least 6 digit accuracy,
+**              for x > 4 it has at least 9 digit accuracy, and for x > 10
+**              it has at least 12 digit accuracy. For 0 < x < 1, accuracy
+**              is not known completely but is probably at least 6 digits.
+**
+**              Sometimes log gamma is required instead of log factorial.
+**              These are related by:
+**
+**                   lngamma( x ) = lnfact( x - 1 );
+**
+**              This function can be converted into lngamma by removing the
+**              statement x = x + 1 at the top of the proc. Alternatively,
+**              lngamma can be defined in terms of lnfact using the above
+**              relationship.
+**
+**  Technical
+**  Notes:     For x > 1, Stirling's formula is used. For 0 < x <= 1,
+**             ln( gamma( x ) ) is used.
+**
+**  See Also:  gamma, !
+*/
+
+proc lnfact(x);
+    local x2,x3,ys,yp,mask,brkpnt;
+    brkpnt = 1;     /* for x below this, use direct computation */
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if not (x >= 0);        /* some negative x's */
+
+        errorlog "ERROR: Arguments must all be non-negative.";
+        end;
+
+    endif;
+
+    x = x + 1;      /* if this is removed, the function computes ln gamma  */
+    brkpnt = brkpnt + 1;
+
+    if (x > brkpnt);        /* all x's greater than this -- use stirling's
+                            :: approx.
+                            */
+
+        gosub stirling;
+        retp( ys );
+
+    elseif (x <= brkpnt);           /* all x's less than this -- use
+                                    :: ln(gamma)
+                                    */
+
+        gosub lngamma;
+        retp( yp );
+
+    else;           /* some x's of each type -- combine estimates */
+
+        gosub stirling;
+        gosub lngamma;
+        mask = (x .> brkpnt);
+        retp( ys.*mask + yp.*(.not mask) );
+
+    endif;
+/* ----------------- subroutines follow ----------------------- */
+stirling:
+
+    /* stirling's approx */
+    x2 = x.*x;
+    x3 = x.*x2;
+    ys = 0.5 * ln(2*pi) + (x - 0.5) .* ln(x) - x + 1./(12.*x) - 1./(360.*x3)
+        + 1./(1260.*x3.*x2) - 1./(1680.*x3.*x2.*x2) +
+        1./(1188.*x3.*x2.*x2.*x2);
+    return;
+lngamma:
+
+    yp = ln( gamma(x) );
+    return;
+
+endp;

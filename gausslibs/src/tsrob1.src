@@ -1,0 +1,468 @@
+/*     this is the file with GAUSS PROCedures
+       for robust time series analysis
+*/
+
+@ M-estimation of location parameter @
+@ x is n,1 data vector               @
+
+PROC (1)=roblevel(&psi,x);
+  LOCAL d,it,m,s,w,psi:PROC;
+  m=MEDIAN(x);
+  s=mad(x);
+  d=s; it=1;
+   DO WHILE (d > 0.0001*s) and (it<10);
+      w = (x.==m);
+      w = (w + psi((x-m)/s))./(w + x-m);
+      d = m-(w'*x)/SUMC(w);
+      m = m - d;
+      it=it+1;
+   ENDO;
+ RETP(m);
+ENDP;
+
+
+@ computes robust scale estimator  @
+@ MAD for univariate samples       @
+PROC (1) = mad(u);
+  RETP(1.4826*MEDIAN(abs(u-MEDIAN(u))));
+ENDP;
+
+
+
+/* The following PROCedures are psi-functions for (robust) M-estimation of uni-
+   variate location parameters. See H.Spaeth: Math.Softw. zur lin.Reg., p.198 */
+
+PROC (1) = sign(u);
+  RETP((u.>0)-(u.<0));
+ENDP;
+
+PROC (1) = psihub(u);
+  RETP( u.*((u.>-1.5).*(u.<1.5)) +  1.5*((u.>-1.5)-(u.<1.5)) );
+ENDP;
+
+PROC (1) = psifair(u);
+  RETP(u./(1+abs(u/1.4)));
+ENDP;
+PROC (1) = psitgh(u);
+  RETP(1.205*tanh(u/1.205));
+ENDP;
+PROC (1) = psibiw(u);
+  RETP((abs(u).<=4.685).*(u.*(1-(u/4.685)^2)^2));
+ENDP;
+PROC (1) = psihamp(u);
+   LOCAL a,abu,b,c,w;
+   a=1.31;  b=2.039;  c=4;
+   abu = abs(u);
+   w = (abu.<=c).*sign(u).*minc(abu'|(a*ONES(1,ROWS(u)))|abs((c-abu)'*a/(c-b)));
+   RETP(w);
+ENDP;
+PROC (1) = psitalw(u);
+  RETP( u.*(abs(u)<=2.795) );
+ENDP;
+PROC (1) = psils(u);
+  RETP(u);
+ENDP;
+
+
+@ Autocovariancefunction of Huberized time @
+@ series x ( n,1 vector ) for lags 0 to m. @
+@ x is transformed with Hubers psi function@
+
+PROC (1) = acovrb(x,mlag);
+  LOCAL n,s,y;
+  n=ROWS(x);
+     s = mad(x);
+     y = s*psihub((x-roblevel(&psihub,x))/s);
+     y = 1.285*acfemp(y,mlag);
+  RETP( y );
+ENDP;
+
+@ Autocovariancefunction of Huberized time @
+@ series x ( n,1 vector ) for lags 0 to m. @
+@ x is transformed with psi function psi   @
+@ b is normalisation const. for Gaussian p.@
+
+PROC (1) = acfrob1(x,m,&psi);
+
+  LOCAL b,n,s,y,psi:PROC;
+     n=ROWS(x);
+     s = mad(x);
+     y = s*psi((x-roblevel(&psihamp,x))/s);
+     b = SEQA(-3,.01,601);
+     b = SUMC((psi(b)^2).*(1/SQRT(2*PI)).*exp(-0.5*b^2))*0.01;
+     y = acfemp(y,m)/b;
+  RETP( y );
+ENDP;
+
+
+@ Autocovariancefunction of Winsorized time @
+@ series x ( n,1 vector ) for lags 0-m. x is@
+@ transformed to level if abs(x) > 3s. Then @
+@ a LOCAL 'taper' of length 2p+1 is applied.@
+@ where p = 2*SQRT(m)                       @
+
+
+PROC (1) = acfrob2(x,m);
+
+  LOCAL n,p,s,t,tap,w,y;
+     n=ROWS(x);
+     x = x - roblevel(&psihamp,x);
+     s = 3*mad(x);
+     p = trunc(2*m^.5);
+     tap = 0.5*(1-COS(SEQA(-p,1,2*p+1)*pi/(p+1)))';
+     w = ZEROS(p,1)|tap[p+1:2*p+1]'|ONES(n-2*p,1)|tap[1:p]'|ZEROS(p,1);
+     t = 1;
+     DO WHILE t <= n;
+        if abs(x[t]) > s; w[t:t+2*p] = minc(w[t:t+2*p]'|tap); ENDIF;
+        t = t+1;
+     ENDO;
+     w = w[p+1:p+n];
+     y = acfemp(x.*w,m)*n/(w'*w) ;
+  RETP( y );
+ENDP;
+
+
+@ Autocovariancefunction of trimmed time @
+@ series x ( n,1 vector ) for lags 0-m. @
+@ x is transformed to level for the al- @
+@ pha most extreme values at each end @
+
+PROC (1) = acfrob3(x,alpha,m);
+
+  LOCAL ht,ind,n,u,y;
+     n=ROWS(x);
+     ind = rankindx(x,1);
+     ht = ONES(n,1).*( ind.>(n*alpha) .and ind.<(n*(1-alpha)) );
+     x = (x - SUMC(x.*ht)/SUMC(ht)).*ht;
+     y = ZEROS(m+1,1);
+     u = 0;
+     DO WHILE u <= m;
+        y[u+1] =  (x[1:n-u]'*x[u+1:n])/(ht[1:n-u]'*ht[u+1:n]);
+        u = u+1;
+     ENDO;
+  RETP( y );
+ENDP;
+
+
+@ Robust estimation of ACF. for lags 0 to @
+@ mlag by M-estimation of multivariate    @
+@ scatter. To get Toepliz-form averaging  @
+@ over diagonals is performed at the end  @
+@ x:  n,1 vector @
+
+PROC (1) = acfmest(x,mlag,&psi);
+
+  LOCAL b,beta,d,g,g1,it,m,n,s,v,y,z,psi:PROC;
+
+     beta = SEQA(-3,.01,601);
+     beta=SUMC(psi(beta)^2*(0.5/pi)^0.5.*exp(-0.5*beta^2)*0.01);
+     n=ROWS(x);
+     s = mad(x);
+     m = roblevel(&psi,x);
+     z = x-m;
+     z = RESHAPE(z'~ZEROS(1,mlag+1),mlag+1,n+mlag)';
+     g = s*psi((x-m)/s);                               @ robust start estimate @
+     g = RESHAPE(g'~ZEROS(1,mlag+1),mlag+1,n+mlag)';   @ for covariance matrix @
+     g = (1/n)*g'*g;
+     g1=0;
+     it=1;
+     DO WHILE (abs(g1-g) >= abs(g1/1000)) and it<=50;
+       g1=g;
+       d = SUMC(z'.*(INVSWP(g)*z'));
+       d = MAXC(d'|((1e-10)*ONES(1,ROWS(d))));
+       v = (mad(d)*psi(d/mad(d))./d);
+       g =(1/n)*(z'*(z.*v));
+       it=it+1;
+     ENDO;
+     z=TRIMR(SUMC(RESHAPE(g1~ZEROS(mlag+1,mlag+1),mlag+1,2*mlag+3)),0,mlag+2);
+                                                    @ averaging over diagonals @
+     RETP((1/beta)*z./SEQA(mlag+1,-1,mlag+1) );
+ENDP;
+
+
+@ M estimation of linear   @
+@ regression via Hubers    @
+@ algorithm.               @
+@ LS start estimate        @
+
+PROC (1) = regmest(&psi,x,z);
+
+ LOCAL beta,beta1,it,n,s,zziz,psi:PROC;
+  n=ROWS(x);
+  beta = x/z;
+  s = mad(x-z*beta);
+  zziz = inv(z'*z)*z';
+  beta1=0;
+  it=1;
+  DO WHILE abs(beta-beta1)>(0.0001*(abs(beta)+0.001)) and it <=20;
+                                                    @ improving start estimate @
+    beta1=beta;                                     @ using Hubers psi-f. and @
+    beta = beta + s*zziz*psihub((x-z*beta)/s);      @ updating scale estimate @
+    s = mad(x-z*beta);
+    it=it+1;
+  ENDO;
+  beta1=0;
+  it=1 ;
+  DO WHILE abs(beta-beta1)>(0.0001*(abs(beta)+0.001)) and it <=20;
+                                                    @ final loop with inserted @
+    beta1=beta;                                     @ psi-f. and fixed scale   @
+    beta = beta + s*zziz*psi((x-z*beta)/s);
+    it=it+1;
+   ENDO;
+ RETP(beta);
+ENDP;
+
+@ bounded influence regression by @
+@ the method of krasker-welsch    @
+@ via iteratively reweighted ls   @
+          @ starting values by ls @
+
+PROC (1) = gmreg(x,mat);
+  LOCAL beta,beta1,d,it,mat1,n,r,rd,s,w;
+  n=ROWS(x);
+  beta = x/mat;
+  s = mad(x -mat*beta);
+  mat1 = mat - MEDIAN(mat)';
+  d = (1/n)*moment(mat1,0);
+  d = SUMC( mat1'.*(INVSWP(d)*mat1'));
+  beta1 = beta;
+  it = 1;
+  DO WHILE abs(beta1)>(0.00001*(abs(beta)+0.001)) and it <=20;
+    r = x - mat*beta;
+    rd = r.*d;
+    w = (psihamp(rd/s)./(rd+(rd.==0)))^0.5;
+    beta1 = (r.*w)/(mat.*w);
+    beta = beta+beta1;
+    it=it+1;
+  ENDO;
+RETP(beta);
+ENDP;
+
+@ bounded influence regression by @
+@ the method of krasker-welsch    @
+@ via iteratively reweighted ls   @
+@ beta is vector of start values  @
+
+
+PROC (1) = gmreg1(x,mat,beta);
+
+  LOCAL beta1,d,it,mat1,n,r,rd,s,w;
+  n = ROWS(x);
+  s = mad(x - mat*beta);
+  mat1 = mat - MEDIAN(mat)';
+  d = (1/n)*moment(mat1,0);
+  d = SUMC( mat1'.*(INVSWP(d)*mat1'));
+  beta1 = beta;
+  it = 1;
+  DO WHILE abs(beta1)>(0.00001*(abs(beta)+0.001)) and it <=20;
+    r = x - mat*beta;
+    rd = r.*d;
+    w = (psihamp(rd/s)./(rd+(rd.==0)))^0.5;
+    beta1 = (r.*w)/(mat.*w);
+    beta = beta+beta1;
+    it=it+1;
+  ENDO;
+RETP(beta);
+ENDP;
+
+@ Robust estimation of AR[p]-model @
+@ via GM-stimation; Start values   @
+@ from YW-fit based on robust acf  @
+
+
+PROC (1) = robarfit(x,p);
+
+  LOCAL a,acf,mat,n ;
+  x = x-roblevel(&psihamp,x);
+  n = ROWS(x);
+  acf = acfrob2(x,p);
+  a = ldrec(acf);
+  a = a[p,1:p]';
+  mat = TRIMR(RESHAPE(x',p,n-1)',p-1,0);
+  a = gmreg1(x[p+1:n],mat,a);
+ RETP(a);
+ENDP;
+
+
+@ ACM-filtering of n,1 series y  @
+@ by p,1 filter a using psi-function @
+@ output is y[1],..,y[p],x^[p+1],..,x^[n] @
+
+
+PROC (1) = acmfilt(&psi,y,a,se);
+
+
+  LOCAL aa,dy,ind,m,n,p,s,t,x,psi:PROC;
+  n=ROWS(y);
+  x = y;
+  p=ROWS(a);
+  ind=SEQA(1,1,p)';
+  aa = a'|((ind[1:p-1]'.==ind[1:p-1])~ZEROS(p-1,1));
+  m = ZEROS(p,p); m[1,1] = se; s = se^0.5;
+  t=p+1;
+  DO WHILE t <= n;
+   x[t] = a'*x[t-ind];
+   dy = y[t] - x[t];
+   x[t+1-ind] = x[t+1-ind] + psi(dy/s)*m[.,1]/s;
+    m = aa*(m - (psi(dy/s)/(dy/s))*m[.,1]*m[.,1]'/s^2)*aa';
+   m[1,1] = m[1,1] + se;
+   s = m[1,1]^0.5;
+   t=t+1;
+  ENDO;
+ RETP(x);
+ENDP;
+
+@ robust determination of    @
+@ periodogram of time series @
+@ using regression interpr.  @
+
+PROC (2) = periodo1(&psi,x);
+
+  LOCAL fcoef, ind, n, n2, spec,u,z,psi:PROC;
+  x=x-roblevel(&psi,x);
+  n=ROWS(x);
+  ind=(2*pi/n)*SEQA(1,1,n);
+  n2 = trunc((n-1)/2);
+  fcoef = (MEANC(x)~0)|ZEROS(n2,2);
+  spec = (n*fcoef[1,1]^2)|ZEROS(n2,1);
+  u=1;
+  DO WHILE  u<= n2;
+    z=COS(ind*u)~SIN(ind*u);
+    fcoef[u+1,.] =  regmest(&psi,x,z)' ;
+    spec[u+1] = n*SUMC(fcoef[u+1,.]'^2 )/4;
+     u=u+1;
+  ENDO;
+  if 1-n%2;
+    fcoef = fcoef|(regmest(&psi,x,(-1)^SEQA(1,1,n))~0);
+    spec = spec|(n*fcoef[n2+1,1]^2);
+  ENDIF;
+ RETP(spec,fcoef);
+ENDP;
+
+@ robust determination of pe- @
+@ riodogram of time series @
+@ using regression interpr.  @
+@ and startvalues for spec @
+@ robspec starts from 1/n and @
+@ ends at [(n-1)/2]/n       @
+
+PROC (2) = periodo2(&psi,x,robspec);
+
+ LOCAL fcoef,ind,n,n2,rnk,spec,u,x1,z,psi:PROC;
+  x1=x-roblevel(&psi,x);
+  n=ROWS(x);
+
+  ind=(2*pi/n)*SEQA(1,1,n);
+  n2 = ROWS(robspec);
+  spec=ZEROS(n2,1);
+  fcoef=ZEROS(n2,2);
+  rnk = REV(rankindx(robspec,1));
+  u=1;
+  DO WHILE  u<= n2;
+    z=COS(ind*(rnk[u]-1))~SIN(ind*(rnk[u]-1));
+    if 1 < rnk[u] and rnk[u] < n2;
+      fcoef[rnk[u],.] = regmest(&psi,x1,z)';
+      spec[rnk[u]] = n*SUMC( fcoef[rnk[u],.]'^2 )/4;
+    elseif rnk[u]==1 ;
+      fcoef[1,1] = MEANC(x1)';
+      spec[1] = n*fcoef[1,1]^2 ;
+    elseif rnk[u] ==  n2;
+      fcoef[n2,1] = regmest(&psi,x1,z[.,1]);
+      spec[n2] = n*fcoef[n2,1]^2;
+    ENDIF;
+    x1 = x1 - z*fcoef[rnk[u],.]';
+    u=u+1;
+  ENDO;
+  fcoef = (MEANC(x)~0)|fcoef;
+  spec = (n*fcoef[1,1]^2)|spec;
+  if 1-n%2;
+    fcoef = fcoef|(regmest(&psi,x,(-1)^SEQA(1,1,n))~0);
+    spec = spec|(n*fcoef[n2+1,1]^2);
+  ENDIF;
+ RETP(spec,fcoef);
+ENDP;
+
+@ robust determination of    @
+@ periodogram of time series @
+@ using regression interpr.  @
+@ separate fit of cos & sin  @
+
+
+PROC (2) = periodo3(&psi,x);
+
+  LOCAL fcoef, ind, n, n2, spec,u,psi:PROC;
+  x=x-roblevel(&psi,x);
+  n=ROWS(x);
+  ind=(2*pi/n)*SEQA(1,1,n);
+  n2 = trunc((n-1)/2);
+  fcoef = (MEANC(x)~0)|ZEROS(n2,2);
+  spec = (n*fcoef[1,1]^2)|ZEROS(n2,1);
+  u=1;
+  DO WHILE  u<= n2;
+    fcoef[u+1,.] = regmest(&psi,x,COS(ind*u))~regmest(&psi,x,SIN(ind*u));
+    spec[u+1] = n*SUMC(fcoef[u+1,.]'^2)/4;
+    u=u+1;
+  ENDO;
+  if 1-n%2;
+    fcoef = fcoef|(regmest(&psi,x,(-1)^SEQA(1,1,n))~0);
+    spec = spec|(n*fcoef[n2+1,1]^2);
+  ENDIF;
+ RETP(spec,fcoef);
+ENDP;
+
+
+@ computes cor of huberized var's from original @
+@ cor assuming normal distribution  @
+
+
+
+PROC (1) = transc1(r);
+ LOCAL f,f1,i,m,x,psix;
+  x = SEQA(-3,0.01,601);
+  psix = psihub(x);
+  f = 0;
+  i=1;
+  DO WHILE i <= 601;
+    f1 = exp(-(0.5/(1-r^2)).*( x^2 - 2*r*x*x[i] + x[i]^2));
+    f1 = psix.*psix[i].*f1;
+    f = f + SUMC(f1);
+    i=i+1;
+   ENDO;
+ RETP(  (1/(2*PI*(1-r^2)^.5)).*f*(0.01^2)/0.7725 );
+ENDP;
+
+@ computes variance of huberized var @
+@ assuming normal distribution  @
+
+PROC (1) = transvar(r);
+ LOCAL f,f1,i,m,x,y ;
+  x = SEQA(-3,.01,601);
+  f = (1/(2*PI)^.5)*SUMC( (psihub(x)^2).*exp(-0.5* x^2 ))*.01 ;
+  RETP( f);
+ENDP;
+
+@ computes original cor's from correlation @
+@ of Huberized variables using value-table @
+@ and linear interpolation                 @
+
+
+PROC (1) = acovrbin(r);
+ LOCAL i,ind,m,rr,r0;
+ loadm rr = cormat;
+ r0 = abs(r);
+  m = ROWS(r);
+  i = 1;
+  DO WHILE i <= m;
+    ind = 1 + SUMC(r0[i] .> rr[.,2]);
+    if ind == 1; r0[i] = -1;
+    else;
+      r0[i] = rr[ind-1,1] +
+            (rr[ind,1]-rr[ind-1,1])*(r0[i]-rr[ind-1,2])/(rr[ind,2]-rr[ind-1,2]);
+      r0[i] = r0[i]*((r[i]>0)-(r[i]<0));
+    ENDIF;
+    i = i+1;
+  ENDO;
+ RETP(r0);
+ENDP;
+
+

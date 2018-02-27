@@ -1,0 +1,47 @@
+/*
+** strput.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> strput
+**
+**  Purpose:    To lay a substring over a string.
+**
+**  Format:     y = strput(substr,str,off);
+**
+**  Input:      substr    string, the substring to be laid over the
+**                        other string.
+**
+**              str       string, the string to receive the substring.
+**
+**              off       scalar, the offset in str to place substr.
+**
+**  Output:     y         string, the new string.
+*/
+
+proc strput(substr,str,off);
+    local lenstr,head,tail;
+    lenstr = strlen(str);
+    if off > lenstr+1;
+        errorlog "Offset past end of string.";
+        end;
+    endif;
+    if off > 1;
+        head = strsect(str,1,off-1);
+    else;
+        head = "";
+    endif;
+    tail = strsect(str,off+strlen(substr),lenstr);
+    retp(head $+ substr $+ tail);
+endp;

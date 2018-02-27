@@ -1,0 +1,20 @@
+True Regression Coefficients:
+
+       1.0000000 
+       1.0000000 
+       10.000000 
+ 
+Phillips spectral regression coefficients using PCB:
+
+       1.0024108        37.484129 
+       1.0428654        71.408239 
+       9.7817947        54.211763 
+ 
+ 
+Phillips spectral regression coefficients using PCBZ:
+
+      0.99618488        37.207782 
+       1.0399156        71.849194 
+       9.7604182        54.371672 
+ 
+run ps.ex;

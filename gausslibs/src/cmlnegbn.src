@@ -1,0 +1,323 @@
+/*
+** cmlnegbn.src    CMLNegbin - Constrained Negative Binomial Regression Model
+**                 (Truncation-at-zero and Variance Functions Optional)
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  FORMAT     { bg,vc,llik } = CMLNegbin(dataset,dep,ind1,ind2);
+**
+**  INPUT
+**
+**      dataset = name of Gauss dataset or name of matrix in memory
+**      dep     = dependent variable name or column number
+**      ind1    = vector of independent variable names or column numbers
+**      ind2    = 0 for negbin (scalar dispersion parameter), vector of var
+**                names for variance function
+**
+**  OUTPUT:
+**      bg    = vector of effect parameters that maximize the likelihood
+**             on top of parameter(s) corresponding to ind2.
+**             PARAMETERIZATION: bg=b|g;
+**                 E(Y) = exp(ind1*b)
+**                 V(Y) = E(Y)*(1+exp(g))       for ind2==0;
+**                 V(Y) = E(Y)*(1+exp(ind2*g))  for ind2==vector
+**      vc   = variance-covariance matrix of b
+**      llik = value of the log-likelihood at the maximum
+**
+**  GLOBALS
+**
+**  _cmlc_Inference    = CML for constrained maximum likelihood estimates
+**                     = BOOT for bootstrapped estimates
+**                     = BAYES for Bayesian inference
+**
+**  _cmlc_ZeroTruncate  1 = regular model, 0 = truncated-at-zero model,
+**                      default 1
+**
+**  _cmlc_Fix       0 = do nothing extra (default)
+**             symbol = include this variable from a dataset,
+**                      fixing its coefficient to 1.0.
+**            integer = include log of this column of input matrix,
+**                      fixing its coefficient to 1.0.
+**
+**  _cmlc_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = set to vector stored in _cmlc_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**  _cmlc_Dispersion   starting value for scalar dispersion parameter.
+**                     Default = 3.
+**
+**  __output    1  =  print output to screen (default),
+**              0  =  do not print to screen
+**
+**  OTHER GLOBALS
+**
+**      see CML
+**
+**  EXAMPLE 1:
+**  dep = { wars };
+**  ind1 = { age, party, unem };
+**  dataset = "sample";
+**  call cmlnegbin(dataset,dep,ind1,0);
+**
+**  EXAMPLE 2:
+**  dep = { wars };
+**  ind1 = { age, party, unem };
+**  ind2 = { coups, us }; /* var function */
+**  dataset = "sample";
+**  call cmlnegbin(dataset,dep,ind1,ind2);
+**
+**
+**  REFERENCE (for the basic negative binomial model):
+**      Gary King. 1989. "Variance Specification in Event Count
+**      Models:  From Restrictive Assumptions to a Generalized Estimator,"
+**      AMERICAN JOURNAL OF POLITICAL SCIENCE, 33, 2.
+**
+**  REFERENCE (negative binomial model with truncation and variance functions):
+**      Gary King. 1989. "Event Count Models for International Relations:
+**      Generalizations and Applications," INTERNATIONAL STUDIES QUARTERLY.
+*/
+#include cmlcount.ext
+#include gauss.ext
+#include cml.ext
+
+proc _cmlc_svnb(dataset,dep,ind1,ind2);
+    local res,b0,b1,b,pars;
+    if ind1==0;
+        pars = 1;
+    else;
+        pars = rows(ind1)+1;
+    endif;
+    If ind2==0;
+        pars = pars+1;
+    else;
+        pars = pars+rows(ind2)+1;
+    endif;
+    if _cmlc_Start==0;
+        if ind1==0;
+            b0 = 0;
+        else;
+            b0 = clols(dataset,dep,ind1);
+        endif;
+        if ind2$/=0;        /* if variance function */
+            b1 = clols(dataset,dep,ind2);
+            res = b0|b1;
+        else;       /* if scalar ancillary param */
+            res = b0|_cmlc_Dispersion;
+        endif;
+    elseif _cmlc_Start==1;
+        b = _cmlc_StartValues;
+        res = b;
+        if rows(b)/=pars;
+            if not trapchk(4);
+                errorlog "b is the wrong size for _cmlc_Start";
+            endif;
+            retp(error(0));
+        endif;
+    elseif _cmlc_Start==2;
+        if _cml_RandType;
+            { res,_cml_state } = rndLCu(pars,1,_cml_state);
+        else;
+            { res,_cml_state } = rndKMu(pars,1,_cml_state);
+        endif;
+        res = res - 0.5;
+    elseif _cmlc_Start==3;
+        res = zeros(pars,1);
+    else;
+        res = _cmlc_Start;
+        if rows(res)/=pars;
+            if not trapchk(4);
+                errorlog "rows(_cmlc_Start) is wrong.\g";
+            endif;
+            retp(error(0));
+        endif;
+    endif;
+    retp(res);
+endp;
+
+proc _cmlc_linb(b,dta);
+    local res,xb1,l,t,lth,lthy,b0,b1,n,y,x0,x1,cx0,cx1;
+
+    y = dta[.,1];
+    n = rows(y);
+    x0 = ones(n,1);
+    if _cmlc_c1/=0;
+        x0 = x0~dta[.,_cmlc_c1];
+    endif;
+    cx0 = cols(x0);
+    x1 = ones(n,1);
+    if _cmlc_c2/=0;
+        x1 = x1~dta[.,_cmlc_c2];
+    endif;
+    cx1 = cols(x1);
+    if _cmlc_ZeroTruncate==0;
+        if sumc(y.==0)>0;
+            if not trapchk(4);
+                errorlog "Model not admissable.  Use _cmlc_ZeroTruncate == 0"\
+                  " only if y is truncated so that zeros do not appear in"\
+                  " the data set.\g";
+            endif;
+            retp(error(0));
+        endif;
+    endif;
+    b0 = b[1:cx0];
+    b1 = b[cx0+1:cx0+cx1];
+
+    if _cmlc_Fix==0;
+       l = exp(x0*b0);
+    else;
+       l = exp(x0*b0).*dta[.,cols(dta)];
+    endif;
+    xb1 = x1*b1;
+    t = exp(xb1);
+    lth = l./t;
+    lthy = lth+y;
+    res = _cmlc_lng(lthy)-_cmlc_lng(lth)+(y.*xb1)-lthy.*ln(1+t);
+    if _cmlc_ZeroTruncate==0;
+        res = res-ln(1-((1+t).^(-lth)));
+    endif;
+    retp(res);
+endp;
+
+proc 3 = CMLNegbin(dataset,dep,ind1,ind2);
+
+    local vars,b,logl,vc,st,ret,nv;
+    clearg _cmlc_c1,_cmlc_c2;
+    _cml_CovPar = 3;
+    _cmlc_fn = dataset;   /*   never used, should delete  */
+    if dep $== 0;
+        if not trapchk(4);
+            errorlog "DEP must be variable name or number";
+        endif;
+        retp(error(0),error(0),error(0));
+    endif;
+    if (type(dataset)==13) and (type(_cmlc_Fix)==13);
+        _cmlc_Censor = indcv(_cmlc_Fix,getname(dataset));
+    endif;
+    if type(dataset) /= 13;
+        if _cmlc_Fix > cols(dataset);
+            if not trapchk(4);
+                errorlog "If dataset is a matrix, _cmlc_Fix must= 0"\
+                   " or a column of dataset\g";
+            endif;
+            end;
+        endif;
+        retp(error(0),error(0),error(0));
+    endif;
+    if type(dataset) /= 13;
+         if (maxc(ind1) > cols(dataset)) or (dep > cols(dataset));
+             if not trapchk(4);
+                errorlog "If DATASET is a matrix, DEP and ind1 must be column"\
+                     " numbers of the input matrix.\g";
+                end;
+             endif;
+        endif;
+        retp(error(0),error(0),error(0));
+    endif;
+    vars = dep;
+    if ind1==0;
+        _cmlc_c1 = 0;
+    else;
+        _cmlc_c1 = seqa(2,1,rows(ind1));
+        vars = vars|ind1;
+    endif;
+    if ind2==0;
+        _cmlc_c2 = 0;
+    else;
+        _cmlc_c2 = seqa(rows(vars)+1,1,rows(ind2));
+        vars = vars|ind2;
+    endif;
+    if _cmlc_Fix/=0;
+        vars = vars|_cmlc_Fix;
+    endif;
+    st = _cmlc_svnb(dataset,dep,ind1,ind2);
+    if __title $== "";
+      if _cmlc_ZeroTruncate==0;
+        __title = "Truncated ";
+      else;
+        __title = "";
+      endif;
+      __title = __title $+ "Negative Binomial Regression Model";
+    endif;
+    local infm,inf0,lcInf;
+    infm = { CML, BOOT, BAYES };
+    inf0 = { 1, 2, 3 };
+    LcInf = _cml_check(_cmlc_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,vars,vc,ret } = CML(dataset,vars,&_cmlc_linb,st);
+    elseif LcInf == 2;
+        { b,logl,vars,vc,ret } = cmlboot(dataset,vars,&_cmlc_linb,st);
+    elseif LcInf == 3;
+        { b,logl,vars,vc,ret } = cmlbayes(dataset,vars,&_cmlc_linb,st);
+    endif;
+    if ret /=  0;
+        if not trapchk(4);
+            errorlog "ERROR: Model estimation failed.";
+        endif;
+        retp(b,vc,logl*_cml_NumObs);
+    endif;
+
+    vars = "beta0";
+
+    if type(dataset)==13 and cols(dataset) >= 2;
+        nv = getname(dataset);
+        nv = rows(nv);
+    else;
+        nv = 1e+15;
+    endif;
+
+    if ind1/=0;
+        if round(ind1) == ind1 and ind1 >= 1 and ind1 < 131072;
+            if ind1 > nv;
+                if not trapchk(4);
+                    errorlog "ERROR: index of variable out of range: " $+
+                    ftos(ind1,"%*.*lf",1,0);
+                endif;
+                retp(b,vc,logl*_cml_NumObs);
+            endif;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind1),1))$+_cmlc_ftosm(ind1,2));
+        else;
+            vars = vars|ind1;
+        endif;
+    endif;
+    vars = vars|"gamma0";
+    if ind2/=0;
+        if round(ind2) == ind2 and ind2 >= 1 and ind2 < 131072;
+            if ind2 > nv;
+                if not trapchk(4);
+                    errorlog "ERROR: index of variable out of range: " $+
+                        ftos(ind2,"%*.*lf",1,0);
+                endif;
+                retp(b,vc,logl*_cml_NumObs);
+            endif;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind2),1))$+_cmlc_ftosm(ind2,2));
+        else;
+            vars = vars|ind2;
+        endif;
+    endif;
+
+    _cmlc_vr = vars;
+    _cmlc_dp = dep;
+    ndpclex;
+    retp(b,vc,logl*_cml_NumObs);
+endp;
+
+

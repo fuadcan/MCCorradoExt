@@ -1,0 +1,214 @@
+/*
+** polar.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> polar
+**
+**  Purpose:    Graphs x vs y using polar coordinates.
+**
+**  Format:     polar(radius,theta);
+**
+**  Inputs:     radius    NxM or Nx1 matrix. Each column represents the
+**                        x values for a particular line.
+**
+**              theta    NxM or Nx1 matrix. Each column represents the
+**                       y values for a particular line.
+**
+**  See Also:   xy, logx, logy, loglog, scale, xtics, ytics
+*/
+
+#include pgraph.ext
+
+proc 0 = polar(radius,theta);
+    local symbol,colorq,xformat,yformat,msgstr,psym,psymnum,msgnum,
+        n,k,sca,gcode,linenum,arrownum,arrow,c,t1,t2,msx, xlab,ylab,
+        errbnum,fontnum,pstype,pcolor,pltype,grid,cross,psymsiz, plctrl,
+        xinc,yinc,normal,x,y,pmsgctl,mem,fntsize,plwidth,pline,frame,
+        pnum,paxes,gpcpath;
+    /* ------------------------------------------------------ */
+    local minx,maxx,miny,maxy,qsig,qfield,qxprec,qxpow,qorig,qstep,
+        qmax,qmint,qlab,qyprec,qypow;
+
+    clear xlab,ylab;
+
+    _pqgtype = { 7, 1 };    /* graph type polar, 2d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    /* ---- test input variables and take appropriate action ---- */
+
+    normal = maxc(maxc(abs(radius)));
+    if normal > 1;
+        radius = radius .* (1/normal);
+    endif;
+    x = radius.*cos(theta);
+    y = radius.*sin(theta);
+    clear radius,theta;
+
+    /* test x and y for rows */
+    if rows(x) /= rows(y);
+        errorlog "Radius, theta matrices must have the same number of rows.";
+        end;
+    endif;
+
+    /* test x and y for cols */
+    if cols(x) /= cols(y) and cols(x) /= 1 and cols(y) /= 1;
+        errorlog "Matrices not conformable.";
+        end;
+    endif;
+
+    xinc = cols(x) /= 1;
+    yinc = cols(y) /= 1;
+
+    /* test for missings in x or y */
+    if ismiss(x) or ismiss(y);
+        errorlog "ERROR: There are missing values in the data.";
+        end;
+    endif;
+
+    goto g00;
+
+makestru:
+
+        pop msx;
+    c = 1;
+    t1 = 1|0|0|0|0|0|0|0|0|0;
+    do while c<=rows(msx);
+        if strlen(msx[c,1]);
+            t2 = vals(""$+msx[c,1]);
+            t1 = t1|t2|zeros(10-rows(t2),1);
+        else;
+            t1 = t1|zeros(10,1);
+        endif;
+        c = c+1;
+    endo;
+    return(chrs(t1));
+
+g00:
+
+    /* Dimensions of data matrices. */
+    if y==0 and rows(y)==1 and cols(y)==1;
+        n = 0;
+        k = 0;
+    else;
+        n = rows(x);
+        k = maxc(cols(x)|cols(y));
+    endif;
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+
+    { qsig,qfield,qxprec,qxpow,qorig,qstep,qmax,qmint,qlab } =
+        _paxnum(pnum[1],minx,maxx,3,_pxscale,_pxpmax);
+
+    { qsig,qfield,qyprec,qypow,qorig,qstep,qmax,qmint,qlab } =
+        _paxnum(pnum[2],miny,maxy,3,_pyscale,_pypmax);
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+    endif;
+    if qypow;
+        y = y * 10^(-qypow);
+    endif;
+
+    grid = _pgrid[1];
+
+    if not(_pascx $== 0);
+        gosub makestru(_pascx);
+            pop xlab;
+        xformat = 0;
+    elseif strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);
+    endif;
+
+    if not(_pascy $== 0);
+        gosub makestru(_pascy);
+            pop ylab;
+        yformat = 0;
+    elseif strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);
+    endif;
+
+    sca = -1|.5|1|-1|.5|1;
+
+    _setpage();
+
+    if _pstype == 0;
+        pstype = _pssel;
+    else;
+        pstype = _pstype;
+    endif;
+
+    if _pltype == 0;
+        pltype = _plsel;
+    else;
+        pltype = _pltype;
+    endif;
+
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        pcolor = _pcsel;
+    else;
+        pcolor = _pcolor;
+    endif;
+
+    pstype = reshape(pstype,k,1)-1;
+    psymsiz = reshape(_psymsiz,k,1);
+    pltype = reshape(pltype,k,1);
+    pcolor = reshape(pcolor,k,1);
+    plctrl = reshape(_plctrl,k,1);
+    plwidth = reshape(_plwidth,k,1);
+    symbol = pstype~psymsiz~pltype~pcolor~plctrl~plwidth;
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+
+    /* Transpose data matrices */
+    x = x';
+    y = y';
+
+    if rows(_perrbar) == 1 and cols(_perrbar) == 1;
+        errbnum = 0;
+    elseif cols(_perrbar) /= 9;
+        errorlog "Error bar matrix invalid";
+        end;
+    else;
+        errbnum = rows(_perrbar);
+    endif;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,pline,_pmsgctl,psym);
+    { fontnum,mem,fntsize } = _fontsiz();
+
+    cross = 1;
+
+    /* polar <=> 6 */
+
+    GraphSEv3(x,y,k,n,xinc,yinc,sca,_ptitle,_pxlabel,_pylabel,_ptek,
+        symbol,_pfonts,fontnum,fntsize,cross,grid,xformat,yformat,_pbox,
+        paxes,msgstr,pmsgctl,msgnum,psym,psymnum,_paxht,_pnumht,_ptitlht,
+        _pagesiz,_pageshf,_plotsiz,_plotshf,_protate,pline,linenum,arrow,
+        arrownum,xlab,ylab,colorq,_pdate,_perrbar,errbnum,qxpow,qypow,
+        pnum,_plegctl,_plegstr,_pnotify,_pappend,_pmargin,_pcwin, _pncwin,
+        _pcrop,_pticout,gpcpath,6);
+
+    clear x,y,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+endp;

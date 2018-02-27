@@ -1,0 +1,59 @@
+
+Total observations:                                         1000  
+Usable observations:                                        1000  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                          995  
+Number of moment conditions:                                   6  
+Value of the criterion function:                         0.00017  
+
+
+Hansen's test of overidentifying restrictions:           0.16949  
+p-value:                                                 0.68056  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+P01            -0.148808        0.019201        -7.750081        0.000000
+P02            -1.996582        0.020271       -98.494803        0.000000
+P03             0.745813        0.018993        39.267588        0.000000
+P04             1.101648        0.018694        58.931359        0.000000
+P05             2.024448        0.044587        45.404707        0.000000
+
+
+Total observations:                                         1000  
+Usable observations:                                        1000  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                          995  
+Number of moment conditions:                                   6  
+Value of the criterion function:                         0.00017  
+
+
+Hansen's test of overidentifying restrictions:           0.16949  
+p-value:                                                 0.68056  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+P01            -0.148808        0.019201        -7.750080        0.000000
+P02            -1.996582        0.020271       -98.494802        0.000000
+P03             0.745813        0.018993        39.267589        0.000000
+P04             1.101648        0.018694        58.931358        0.000000
+P05             2.024448        0.044587        45.404707        0.000000
+
+
+Total observations:                                         1000  
+Usable observations:                                        1000  
+Number of parameters to be estimated:                          5  
+Degrees of freedom:                                          995  
+Value of the maximized log-likelihood function:      -2124.28242  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+P01            -0.148856        0.019583        -7.601297        0.000000
+P02            -1.996924        0.019720      -101.261347        0.000000
+P03             0.746049        0.019114        39.032479        0.000000
+P04             1.101755        0.019680        55.984529        0.000000
+P05             2.024545        0.045269        44.722344        0.000000
+
+Covariance matrix: inverse of the negative Hessian.

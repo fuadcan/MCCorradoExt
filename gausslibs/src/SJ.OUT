@@ -1,0 +1,32 @@
+True Cointegrating vector:
+
+       1.0000000 
+      -1.0000000 
+      -1.0000000 
+ 
+ 
+Johansen's MLE
+ 
+Eigen values:
+
+      0.42384343 
+      0.10217943 
+    0.0065765034 
+ 
+Cointegrating vector: 
+
+       1.3740194 
+      -1.3743717 
+      -1.4286855 
+ 
+Johansen's trace statistics for 0 to       2.0000000 :
+       65.244392 
+       11.209560 
+      0.64662594 
+ 
+Re-normalized cointegrating vector: 
+
+       1.0000000 
+      -1.0002564 
+      -1.0397855 
+run sw.ex;

@@ -1,0 +1,1259 @@
+/*
+** tscs.src - Time Series, Cross-Sectional Analysis
+** (C) Copyright 1988-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+** --------------------------------------------------------------------------
+**
+**> tscs
+**
+**  Purpose:    Procedure for computing pooled time-series cross-section
+**              regression coefficients from a GAUSS data set on disk.
+**              This program allows for different numbers of time-series
+**              observations per cross-sectional unit.
+**
+**  Format:     { bdv,vcdv,mdv,bec,vcec,mec } =
+**                      tscs(dataset,depvar,indvars,grp)
+**
+**  Input:
+**              dataset  --  string, input data file name
+**
+**              depvar   --  string or character variable, either
+**                           name or column number of dependent variable
+**
+**              indvars  --  string or character vector, either
+**                           vector of names or column numbers of
+**                           independent variables
+**
+**              grp     --  string or character variable, either
+**                          name or column number of group index variable
+**
+**  Output:
+**              bdv     --  matrix of estimated coefficients, dummy
+**                          variable method.
+**
+**              vcdv    --  covariance matrix of the parameters, dummy
+**                          variable method.
+**
+**              mdv     --  moment matrix of the transformed variables,
+**                          dummy variable method.
+**
+**              bec     --  matrix of estimated coefficients, error
+**                          components method.
+**
+**              vcec    --  covariance matrix of the parameters, error
+**                          components method.
+**
+**              mec     --  moment matrix of the transformed variables,
+**                          error components method.
+**
+**  Globals:
+**
+**   _tsmodel  --  scalar.  If 0 all models estimated (OLS dummy, OLS, and
+**                 error components).  If 1, will omit error components model.
+**
+**     _tsstnd --  scalar.  If 1 standardized coefficients will be printed.
+**
+**     _tsmeth --  scalar.  If 0, OLS dummy coefficients will be used to
+**                 to estimate variance components.  This method is
+**                 appropriate if there are a different number of
+**                 observations for each individual or group.  (The
+**                 Chi-squared test for the individual error components
+**                 equal to zero may not be correct if there are different
+**                 numbers of observations per group.)
+**
+**                 If 1, regression on group means is used to estimate
+**                 variance components as suggested in Judge et al.
+**                 (1982).
+**
+**     _ts_ise --  scalar.  If 1, estimates for fixed effects,  dummy
+**                 variables and random effects estimates will be printed.
+**
+**    _tsmnsfn --  string.  Will allow user create a file which contains
+**                 the group means of the data set.  By default, this file
+**                 will not be saved.
+**
+**    __output --  scalar.  If 1 results will be printed to the screen
+**
+**     __title --  string.  Title to be given to printout.
+**
+**       __row --  scalar.   Specifies how may rows of the data set will be
+**                 read per iteration of the read loop.  By default, the
+**                 number of rows to be read will be calculated by tscs.
+**
+**    __rowfac --  scalar.  If tscs fails due to insufficient memory while
+**                 attempting to read a GAUSS data set, then __rowfac
+**                 may be set to some value between 0 and 1 to read a
+**                 proportion of the original number of rows of the
+**                 GAUSS data set.  For example, setting
+**
+**                          __rowfac = 0.8
+**
+**                 will cause GAUSS to read 80% of the rows of the GAUSS
+**                 data set that were read when the failure due to
+**                 insufficient memory occurred.
+**
+**                 This global only has an affect when __row = 0.
+**
+**                 Default = 1.
+**
+**  Remarks:
+**
+**        Appropriate test statistics are computed and printed
+**    if __output = 1.  See Judge, George G. et al., Introduction
+**    to the Theory and Practice of Econometrics, Wiley, 1988,
+**    Chapter 16 for a discussion of the estimation procedure and
+**    test statistics in the case in which there are the same number
+**    of time-series observations per cross-sectional unit.
+**
+**        It is assumed that the data are contained in the data set
+**    observation by observation, with one variable containing
+**    an individual or group index.  That is, each row in the data
+**    set contains observations on the variables for some
+**    cross-sectional unit (e.g., individual) for some time
+**    period PLUS the index variable which specifies the identity
+**    of the individual or group.  There does not need to be any
+**    variable which specifies the "time period," since no
+**    assumptions are made about this.
+**
+**        The index variable is assumed to be a series of integers.
+**    All observations for each individual must be together in
+**    the data set.  However, the individuals do not have to be
+**    in the data set in the order indicated by the index (for
+**    instance, individual 10 could come before individual 1
+**    in the data set).
+**
+*/
+
+#include tscs.ext
+#include gauss.ext
+
+external proc indices2;
+
+proc (6) = tscs(dataset,depvar,indvars,grp);
+
+/* ---------------       Initializations  -------------------------*/
+
+    local ts,f1,fmt,vars,dvind,indvind,k,nra,nr,grpind,varind,i,b0,
+        a,x,b,d,dum,t,sumt,cflag,mod2,alpha,bc,option,g2,rownum,
+        ngrp,sumgres,lastgrp,lastres,ressq,nobs,m,iter,xi,y,rw,
+        tt,sig1,sigu2,z,mm,zc,mmc,mc,ei,grpres,km,df,kmc,k1c,xx,
+        xy,yy,kc,dfc,mndat,mns,sige2,rbsqc,fstatc,pvfc,pvtc,rv,ssq,
+        vc,stderr,ybar,tv,vcy,stdy,rsq,rbsq,fstat,xxc,xyc,yyc,rvc,
+        ssqc,vcc,stderrc,tc,ybarc,tvc,vcyc,stdyc,rsqc,pvf,stdb,pvt,
+        cc,xbar,xxnc,vcxx,stdx,omat,xym,xxi,sumdum,ind,dummy,stdd,
+        stddum,mask,sumsig,mmm,mn,xxm,yym,bb,ff,
+        dfv,sigv2,ti,sig12,olsind,olsvars,subvars,kz,var,idx,
+        endprog,subx,varnms,chk,stdbc,rsf,rsr,outfn,din,bdv,
+        err,bec,mdv,mec,vcdv,vcec,str,j;
+
+    din = -1;
+    f1 = -1;
+    g2 = -1;
+    bdv = error(0);
+    mdv = error(0);
+    vcdv = error(0);
+    bec = error(0);
+    mec = error(0);
+    vcec = error(0);
+    ts = hsec;
+    clear sigu2,sige2,stdb,stdbc,endprog;
+
+#ifDOS
+    cls;
+#endif
+    print;
+    call header("tscs",dataset,_ts_ver);
+    print;
+
+/* Step 1: Open the GAUSS data set and output file. */
+
+
+    open din = ^dataset;       /* Opening the data set. */
+    outfn = dataset;
+    if din == -1;
+#ifUNIX
+        errorlog("\nERROR:  Can't open file " $+ dataset $+ ".");
+#else
+        errorlog("\nERROR:  Can't open file " $+ upper(dataset) $+ ".");
+#endif
+        end;
+    endif;
+    din = close(din);
+    { depvar,dvind,indvars,indvind } = indices2(outfn,depvar,indvars);
+    { grp,grpind } = indices(dataset,grp);
+    vars = indvars|depvar;
+    varind = indvind|dvind;
+
+    open f1 = ^outfn;       /* Opening the data set to write new data. */
+
+/* ----  Computation of max number of rows to read at one time --- */
+    k = rows(vars);
+    nr = getnr(3.5,k);
+    nra = floor(sqrt(nr*k));
+    if rows(__row) > 1;
+        if __row[2] /= 0;
+            nra = minc(__row[2]|nra);
+        endif;
+    endif;
+
+    clear sigu2,sige2;
+
+/* -----------  Calling Procedure To Compute Group Means ----------- */
+
+    call _tsgrpmeans(f1,varind,grpind,nra);
+
+/* ----------------------------------------------------------------- */
+
+    clear sumt, bc;
+    cflag = 0;
+    mod2 = 0;
+    alpha = 1;
+
+    option = (_tsmodel == 0) + 1;
+
+/* ------- Checking for Variables that Are Constant within Groups --- */
+
+    open g2 = ^_ts_mn;
+    ngrp = rowsf(g2);
+    z = 0;
+
+    do until eof(g2);
+        x = readr(g2,nra);
+        z = z + sumc(x[.,(k+3):cols(x)]);
+    endo;
+
+    chk = (z) .== 0;
+    chk[rows(chk),1] = 0;           /* Always keeping the dependent variable */
+
+    olsind = varind;
+    olsvars = vars;
+
+    if sumc(chk) > 0;
+        subvars = packr(seqa(1,1,rows(chk))~miss(chk,1));
+        subvars = subvars[.,1];
+
+        i = 1;
+        do until i == rows(chk) + 1;
+
+            if chk[i,1] == 1;
+                if __output;
+                    print (" The variable " $+ vars[i,1] $+ " is constan"\
+                        "t within each");
+                    print "group.  It will be omitted from the dummy"\
+                      " variable regression .";
+                endif;
+            endif;
+
+            i = i+1;
+        endo;
+
+        olsind = submat(olsind,subvars,1);
+        olsvars = submat(olsvars,subvars,1);
+
+    else;
+        subvars = seqa(1,1,rows(chk));
+    endif;
+
+/* ------ Beginning of do loop to allow for estimation of olsdum,
+          followed by the error components model.        ------ */
+
+    do until mod2 == option;
+
+        call seekr(f1,1);
+        call seekr(g2,1);
+        rownum = 1;
+
+        clear b0, sumgres, lastgrp, lastres, ressq, nobs, m, mc;
+
+        iter = 1;
+
+        if mod2 == 0;
+            varnms = olsvars;
+        else;
+            varnms = vars;
+            subvars = seqa(1,1,rows(vars)+1);
+        endif;
+
+        k = rows(vars);
+
+/* --------- Beginning of do loop to read in data --------------------- */
+
+        do until eof(f1);
+
+            x = readr(f1,nra);
+            x = packr(submat(x,0,grpind|varind));
+
+            grp = x[.,1];
+            y = x[.,2:cols(x)];
+            a = grp[1,1];
+            b = grp[rows(y),1];
+            d = a;
+            j = 2;
+
+            do until j == rows(grp) + 1;
+
+                if grp[j,1] /= grp[j-1,1];
+                    d = d|grp[j,1];
+                endif;
+
+                j = j+1;
+            endo;
+/*          d = unique(grp,1); */
+            rw = rows(d);
+
+            if a == b0;
+                rownum = seekr(g2,rownum-1);
+            endif;
+
+            mndat = readr(g2,rw);
+            rownum = rownum + rw;
+
+            dum = grp .== d';
+
+    /* --- Putting means as data for each observations. ---- */
+            mns = dum * mndat[.,3:k+2];
+            tt = dum * mndat[.,2];
+
+    /* Computing the weight for mean deviations for the e.c. model.  */
+
+            if mod2 == 1;
+                sig1 = sqrt((TT*sigu2) + sige2);
+                alpha = 1 - (sqrt(sige2)/sig1);
+            endif;
+
+    /* Replacing variables used in regression with deviations from means. */
+
+            x = y - (alpha.*mns);
+
+            if mod2 == 1;           /* Adding the weighted constant for error
+                                    :: components.
+                                    */
+
+                x = (1-alpha)~x[.,1:cols(x)];
+            endif;
+
+    /* Computing the moment matrix for the transformed data */
+
+            z = ones(rows(x),1)~x;
+            clear x;
+
+            mm = moment(z,1);
+
+            m = m + mm;
+
+    /* Computing the moment matrix for the constrained model. */
+
+            if mod2 == 0;
+                zc = ones(rows(y),1)~y;
+                clear y;
+                mmc = moment(zc,1);
+                mc = mc + mmc;
+            endif;
+
+    /* Computing residuals for specification test of error components. */
+
+            if mod2 == 1;
+                ei = y[.,cols(y)] - (ones(rows(y),1)~y[.,1:(cols(y)-1)])*bc;
+                grpres = dum'ei;    /* This is a vector of within group
+                                    :: summed residuals.
+                                    */
+
+                if iter > 1;
+                    if lastgrp == grp[1,1];
+                        grpres[1,1] = grpres[1,1] + lastres;
+                    else;
+                        grpres = lastres|grpres;
+                    endif;
+                endif;
+
+                if rows(grpres) > 1;
+                    ressq = sumc(grpres[1:(rows(grpres)-1),1] .*
+                        grpres[1:(rows(grpres)-1),1]);
+                    sumgres = sumgres + ressq;
+                endif;
+
+                lastgrp = grp[rows(grp),1];
+                lastres = grpres[rows(grpres),1];
+            endif;
+
+        ENDOLSD:
+
+            clear z;
+            iter = iter + 1;
+            b0 = b;
+
+        ENDRD:
+
+        endo;
+
+/*--------------------- End of do loop reading in data--------------------*/
+
+        if mod2 == 1;
+            sumgres = sumgres +(lastres*lastres);
+        endif;
+
+/* ---------  SECOND HALF OF THE PROCEDURE ---------------------------*/
+
+        print;
+        ts = hsec;
+        nobs = m[1,1];
+        km = cols(m) - 1;           /* m includes the endogenous variable and
+                                    :: a constant
+                                    */
+        k = km - 1;         /* k is the number of coefficients */
+
+        if mod2 == 0;       /* CONSTRAINED estimation */
+            df = nobs - k - ngrp;
+            kmc = cols(mc) - 1;
+            k1c = 1;
+            kc = kmc - k1c + 1;
+            dfc = nobs - kc;
+
+        elseif mod2 == 1;
+            df = nobs - k;
+        endif;
+
+        if df < 0;
+            errorlog ("ERROR: There are only " $+ ftos(nobs,"%*.*lf",1,0) $+
+                " observations (after missings deleted).\n"\
+                "This implies that there are more parameters to be"\
+                " estimated than there are observations.");
+            goto endpr;
+        endif;
+
+        subx = 1 + subvars[1:(rows(subvars)-1),1];
+        xx = submat(m,subx,subx);
+        xy = submat(m,subx,km+1);
+        yy = submat(m,km+1,km+1);
+        k = rows(xx);
+
+    /* --------- Computation of Least Squares Coefficients --------  */
+
+        trap 1;
+        b = solpd(xy,xx);
+
+        if scalmiss(b);
+            errorlog "ERROR:  The moment matrix is singular";
+            goto endpr;
+        endif;
+
+        if df == 0;
+            errorlog "The number of observations equals the number of param"\
+                "eters to be estimated.\nSince no meaningful statistics c"\
+                "an be computed for the estimated parameters,\nthe result"\
+                "s have not been printed.";
+            bdv = b;
+            goto endpr;
+        endif;
+
+    /* -------- Computation of Constrained Model Coefficients ------
+    :: - -
+    */
+
+        if mod2 == 0;
+            xxc = mc[k1c:kmc,k1c:kmc];
+            xyc = mc[k1c:kmc,kmc+1];
+            yyc = mc[kmc+1,kmc+1];
+            bc = solpd(xyc,xxc);
+            rvc = yyc - bc'xyc;
+            ssqc = rvc/dfc;
+            vcc = ssqc * invpd(xxc);
+            stderrc = sqrt(diag(vcc));
+            tc = bc./stderrc;
+            ybarc = mc[1,kc+1]/nobs;
+            tvc = yyc-nobs*ybarc*ybarc;
+            vcyc = tvc/(nobs-1);
+            stdyc = sqrt(vcyc);
+            rsqc = 1 - (rvc/tvc);
+            rbsqc = 1 - (rvc/dfc)/(tvc/(nobs-1));
+            fstatc = ((tvc-rvc)/(kc-1))/(rvc/dfc);
+            pvfc = cdffc(fstatc,kc,dfc);
+            pvtc = 2*cdftc(abs(tc),dfc);
+        endif;
+
+/* clear space */
+
+        clear xxc,xyc,yyc;
+
+/* ----- Computation of Basic Statistics ----------- */
+
+        rv = yy - b'xy;
+        ssq = rv/df;
+        vc = (ssq)*invpd(xx);
+        stderr = sqrt(diag(vc));
+        t = b./stderr;
+        ybar = m[1,cols(m)]/nobs;
+        tv = yy - (nobs*ybar*ybar);
+        vcy = tv/(nobs-1);
+        stdy = sqrt(vcy);
+        rsq = 1 -( rv/tv);
+        rbsq = 1 - (rv/df)/(tv/(nobs-1));
+
+        if cflag == 1;
+            fstat = ((tv-rv)/(k-1))/(rv/df);
+        else;
+            fstat = b'xx * b * df/(rv*k);
+        endif;
+
+        pvf = cdffc(fstat,k,df);
+        pvt = 2*cdftc(abs(t),df);
+
+/* ----- Computing Correlation Matrix Using OLS constrained reg.----
+:: -
+*/
+
+        if _tsstnd and mod2 == 0;
+            cc = seqa(2,1,k  );
+            xbar = submat(mc,cc,1)/nobs;
+            xxnc = submat(mc,cc,cc);        /* xx, no constant */
+            vcxx = (xxnc-nobs*(xbar*xbar'))/(nobs-1);
+                                            /* VC matrix of x's, no cnst  */
+            clear xxnc;
+
+            stdx = sqrt(diag(vcxx));        /* Standard devs of variables. */
+
+            if _tsstnd;
+                stdbc = bc .* ((0|stdx)/stdyc);
+            endif;
+        endif;
+
+/* ----------Computing Standardized Coefficients --------------- */
+
+        if _tsstnd;
+
+            if mod2 == 0;
+                cc = seqa(2,1,k);
+            else;
+                cc = seqa(3,1,k-1);
+            endif;
+
+            xbar = submat(m,cc,1)/nobs;     /* Vector of means */
+            xxnc = submat(m,cc,cc);         /* xx, no constant */
+            vcxx = (xxnc - nobs*(xbar*xbar'))/(nobs-1);
+                                        /* VC matrix of x's, no cnst  */
+            clear xxnc;
+
+            stdx = sqrt(diag(vcxx));        /* Standard devs of variables. */
+
+            clear vcxx ;
+
+            if mod2 == 0;
+                stdb = b .* ((stdx)/stdy);      /* Standardized coefficients  */
+            else;
+                stdb = b .* ((0|stdx)/stdy);   /* Standardized coefficients  */
+            endif;
+
+        endif;
+
+        if mod2 == 0;
+            mdv = m;
+            bdv = b;
+            vcdv = vc;
+        elseif mod2 == 1;
+            mec = m;
+            bec = b;
+            vcec = vc;
+        endif;
+
+/* --------------- Calling Procedure to Write Out Results --------- */
+        if __output;
+            _tsprtp(depvar,vars,varnms,nobs,df,rsq,rbsq,rv,tv,k,fstat,
+                pvf, sigu2,sige2,b,stdb,stderr,t,pvt,cflag,mod2,ngrp) ;
+        endif;
+
+/* ---------- Formats for Dummy Variables or Random Components -- */
+
+/*
+** add in option to control printing of dummy variable estimates and random
+** components--_tsise = 1 when printing effects, otherwise = 0
+*/
+
+        if _tsise == 1 and __output;
+            print;
+            print;
+
+            if mod2 == 0;
+
+                print "Group Number        Dummy Variable    Standard Error ";
+                print;
+
+                mask = 1~1~1;
+                let fmt[3,3] = "*.*lf " 7 0 "*.*lf " 20 6 "*.*lf " 20 6;
+            else;
+
+                print "Group Number        Random Components ";
+                print;
+
+                mask = 1~1;
+                let fmt[2,3] = "*.*lf " 7 0 "*.*lf " 20 6;
+            endif;
+
+        endif;      /* _tsise = 1 check */
+        sumsig = 0;
+
+/* ---------------------- Computing Regression on Means ------------- */
+
+        if _tsmeth == 1 and mod2 == 0;
+
+            mmm = 0;
+
+            call seekr(g2,1);
+            do until eof(g2);
+                mns = readr(g2,nra);
+                mn = ones(rows(mns),1)~mns[.,3:cols(mns)];
+                mm = moment(mn,1);
+                mmm = mmm+mm;
+                clear mm;
+            endo;
+
+    /* Checking for variables whose means are constant across groups  */
+
+            idx = seqa(1,1,rows(mmm));
+
+            i = 2;
+            do until i == rows(mmm) + 1;
+                var = mmm[i,i] - (mmm[i,1]*mmm[i,1]/ngrp);
+                if var < 0.00000001;
+                    idx = miss(idx,i);
+                endif;
+                i = i+1;
+            endo;
+
+            idx = packr(idx);
+            kz = k - (rows(mmm)) + rows(idx);
+            mmm = submat(mmm,idx,idx);
+
+            xxm = mmm[1:(kz+1),1:(kz+1)];
+            yym = mmm[kz+2,kz+2];
+            xym = mmm[1:(kz+1),(kz+2)];
+            bb = solpd(xym,xxm);
+            sumsig = yym - bb'xym;
+            clear yym, xxm, xym;
+
+        endif;
+
+/*--------------------- Computing Dummy Variables and R.C.'s ---------*/
+
+        call seekr(g2,1);
+        sumdum = 0;
+        xxi = invpd(xx);
+        do until eof(g2);
+            mns = readr(g2,nra);
+            mns = submat(mns,0,1|2|(subvars+2));
+            if mod2 == 1;
+                mns = mns[.,1:cols(mns)-1];
+            endif;
+
+            ind = mns[.,3:(cols(mns)-1)];
+            if mod2 == 1;
+                ind = ones(rows(ind),1)~ind;
+            endif;
+
+            dummy = mns[.,cols(mns)] - (ind*b);
+
+            i = 1;
+            do until i == rows(mns) + 1;    /* Computing std. errors for
+                                            :: dummy's
+                                            */
+                if mod2 == 0;
+                    xi = mns[i,3:(cols(mns)-1)];
+                    stdd = sqrt((rv/df)*((1/mns[i,2]) + (xi*xxi*xi')));
+
+                    if i == 1;
+                        stddum = stdd;
+                    else;
+                        stddum = stddum|stdd;
+                    endif;
+
+                elseif mod2 == 1;           /* Computing Random Components  */
+                    ti = mns[i,2];
+                    sig12 = ((ti*sigu2) + sige2);
+                    err = dummy*ti*sigu2/sig12;
+                endif;
+                i = i + 1;
+            endo;
+
+/* ------- Printing Out Dummy Variables and Random Components ---- */
+
+/* control printing of dummy variable and random components */
+
+            if _tsise == 1 and __output;
+
+                if mod2 == 0;
+                    omat = mns[.,1]~dummy~stddum;
+                elseif mod2 == 1;
+                    omat = mns[.,1]~err;
+                endif;
+
+                d = printfm(omat,mask,fmt);
+
+            endif;
+
+            if mod2 == 0;
+
+    /* --------Computing the sigma 1---- */
+                if _tsmeth == 0;
+                    sumsig = sumsig + (dummy'dummy);
+                    sumdum = sumdum + sumc(dummy);
+                endif;
+
+                sumt = sumt + (sumc(1./mns[.,2]));
+
+            endif;
+        endo;
+/* ----------------- End of Means Data Loop ------------------------- */
+
+/* ---------------- Computations for Dummy Variable Model Only ------ */
+        if mod2 == 0 and __output;
+
+/*-- F-Test for equality of dummy variables --------*/
+          if __output;
+            print;
+            print;
+
+            print "   F-statistic for equality of dummy variables : ";
+
+            ff = ((rvc-rv)/(ngrp-1))/(rv/(nobs-ngrp-k));
+            print ("      F(" $+ ftos((ngrp - 1),"%-*.*lf",1,0) $+ ", " $+
+                ftos((nobs-ngrp-k),"%*.*lf",1,0) $+ ") = " $+
+                ftos(ff,"%-*.*lf",12,4) $+ "   P-value:  " $+
+                ftos(cdffc(ff,ngrp-1,nobs-ngrp-k),"%-*.*lf",12,4));
+            print;
+            print;
+
+            dfv = ngrp - (k+1);
+                /* If the T's are different, the small sample bias is not
+                :: known -- subtracting k+1 from ngrp may improve the
+                :: estimate.
+                */
+            if dfv <= 0;
+                print "  The number of groups is less than or equal to the"\
+                    " number of ";
+                print "    independent variables (including a constant). ";
+                print ("  The degrees of freedom for the group estimates is"\
+                   " set to " $+ ftos(ngrp,"%*.*lf",1,0) $+ ".");
+                dfv = ngrp;
+            endif;
+          endif;
+    /* Computing the variance of the dummy variables for _tsmeth 0  */
+            if _tsmeth == 0;
+                sumsig = sumsig - (sumdum*sumdum/ngrp);
+            endif;
+
+            sigv2 = sumsig/dfv;
+            sige2 = rv/df;
+            sigu2 = sigv2 - (sige2*sumt/ngrp);
+
+            if sigu2 < 0;
+                errorlog "The estimate of the variance of the individual ef"\
+                    "fects is negative.\nThe error components model cannot"\
+                    " be estimated.";
+                goto endpr;
+            endif;
+
+    /* --- Printing out Constrained Model --- */
+          if __output;
+            _tsprtp(depvar,vars,varnms,nobs,dfc,rsqc,rbsqc,rvc,tvc,
+                kc, fstatc, pvfc,sigu2,sige2,bc,stdbc,stderrc,tc,pvtc,1,3,
+                ngrp);
+
+/* call proc to compute partial r-squared, r-squared for model with all */
+/* variables, and r-squared for the constrained model--no dummy variables */
+            print;
+            print;
+            print "--------------------------------------------------------"\
+                "-------------------";
+            print " FULL, RESTRICTED, AND PARTIAL R-SQUARED TERMS--DUMMY VA"\
+                "RIABLES ARE CONSTRAINED ";
+
+            rsf = 1 - (rv ./ tvc);
+            rsr = 1 - (rvc ./ tvc);
+
+            print "-------------------------------------";
+            print " TABLE OF R-SQUARED TERMS";
+            print "-------------------------------------";
+            print " R-squared--full model:        " ftos(rsf,"%-*.*lf",5,3);
+            print " R-squared--constrained model: " ftos(rsr,"%-*.*lf",5,3);
+            print (" Partial R-squared:            " $+
+                ftos((rsf - rsr)./(1 - rsr),"%-*.*lf",5,3));
+            print "-------------------------------------";
+            print;
+            print;
+            print "--------------------------------------------------------"\
+                "--------------------";
+            print " FULL, RESTRICTED, AND PARTIAL R-SQUARED TERMS--X VARIAB"\
+                "LES ARE CONSTRAINED ";
+
+/*
+**  the cross product term yy is used as the restricted error sums
+**  for this model
+*/
+
+            rsf = 1 - (rv ./ tvc);
+            rsr = 1 - (yy ./ tvc);
+
+
+            print "-------------------------------------";
+            print " TABLE OF R-SQUARED TERMS";
+            print "-------------------------------------";
+            print " R-squared--full model:        " ftos(rsf,"%-*.*lf",5,3);
+            print " R-squared--constrained model: " ftos(rsr,"%-*.*lf",5,3);
+            print (" Partial R-squared:            " $+
+                ftos((rsf - rsr)./(1 - rsr),"%-*.*lf",5,3));
+            print "-------------------------------------";
+          endif;
+        endif;
+
+        if endprog == 1;
+            goto endpr;
+        endif;
+
+/*-------End of computations for end of dummy variable regression. --------*/
+
+        if mod2 == 1 and __output;       /* Error Components Tests  */
+            print;
+            print;
+            local lamda, bdif, vcdif, chistat, plamb, pchis;
+
+        /* ------Specification Tests for Error Components Model ----
+        :: --
+        */
+
+    /* -------Chi-squared Test for Error Components Model ------- */
+
+            lamda = ((sumgres/rvc)-1)*((sumgres/rvc)-1)*nobs*sumt/
+                ((ngrp-sumt)*2);
+            if lamda > 0;
+                plamb = cdfchic(lamda,1);
+            else;
+                plamb = error(0);
+            endif;
+#ifDOS
+            cls;
+#endif
+            print;
+            print "          Lagrange Multiplier Test for Error Components "\
+                "Model";
+            print;
+            print;
+            print "    Null hypothesis:  Individual error components do not"\
+                " exist.";
+            print;
+            print "    Chi-squared statistic (1): " ftos(lamda,"%-*.*lf",12,4);
+            print "    P-value: " ftos(plamb,"%-*.*lf",12,4);
+
+    /* ---------------------Hausman Test----------------------------
+    :: ---
+    */
+
+            if rows(bdv) == rows(bec) - 1;
+
+                bdif = bdv - bec[2:rows(bec),.];
+                vcdif = vcdv - vcec[2:rows(vcec),2:cols(vcec)];
+
+                chistat = bdif'(inv(vcdif))*bdif;
+                if chistat > 0;
+                   pchis = cdfchic(chistat,k-1);
+                else;
+                   pchis = error(0);
+                endif;
+
+                print;
+                print;
+                print;
+                print "          Hausman (1978) Chi-Squared Specification T"\
+                    "est ";
+                print;
+                print;
+                print "    Null hypothesis:  Error components model is the "\
+                    "correct specification.";
+                print;
+                print ("    Chi-squared statistic (" $+ ftos(k-1,"%-*.*lf",1,0)
+                    $+ ") = " $+ ftos(chistat,"%-*.*lf",12,4));
+                print "    P-value = " ftos(pchis,"%-*.*lf",12,4);
+                print;
+            endif;
+        endif;
+
+        mod2 = mod2 + 1;
+    endo;
+endpr:
+
+   if f1 > 0;
+      f1 = close(f1);
+   endif;
+   if g2 > 0;
+      g2 = close(g2);
+   endif;
+
+   if _tsmnsfn $== "";
+       call deletefile(_ts_mn$+".dat");
+   endif;
+
+   retp(bdv,vcdv,mdv,bec,vcec,mec);
+endp;
+
+/**************************************************************************
+**
+**> _tsgrpmeans
+**
+**  Purpose:    Compute Group Means for Variables in a data set to use as
+**              input into the tscs program.
+**
+**  Format:     _tsgrpmeans(f1, vars, grpvar,  nra);
+**
+**  Input:      F1           filehandle.
+**              Vars         Variables for which to compute group means.
+**              Grpvar       Variable containing group index.
+**              Nra          Number of rows to read at a time.
+**
+**  Output:     Matrix containing summary descriptive statistics:
+**
+**              Column 1:   Variable Name
+**              Column 2:   Means
+**              Column 3:   Standard Deviations
+**              Column 4:   Minimums
+**              Column 5:   Maximums
+**
+**
+** ------------------------------------------------------------------------ */
+
+proc (0) = _tsgrpmeans(f1,varind,grpind,nra);
+
+    local i, nmiss, tobs, fgrp, lgrp, lgrp0, grpnums, x, grp, vrs, resid,
+          means, gobs, varncs, meandat, t, g2, last, min, max, mins, maxs,
+          sm, smsq, nobs, k, dum, sumdat, mnvars, vnm, mnm,j;
+
+    g2 = -1;
+    call seekr(f1,1);
+    k = rows(varind);
+
+/* ---  Creating the data set to hold group means ----- */
+
+    vnm = 0 $+ "VAR" $+ ftocv(varind,1,0);
+    mnm = 0 $+ "MEAN" $+ ftocv(varind,1,0);
+    mnvars = "GROUP"|"OBS"|MNM|VNM;
+
+    if _tsmnsfn $== "";
+        _ts_mn = _tsfile("MN");
+    else;
+        _ts_mn = _tsmnsfn;
+    endif;
+
+    create g2 = ^_ts_mn with ^mnvars,rows(mnvars),4;
+
+/*--------------Computing Group Means and Descriptive Statistics---------*/
+
+    i = 1;
+    lgrp0 = 0;
+    nmiss = 0;
+
+    do until eof(f1);       /* Beginning of loop to read in data */
+
+        x = readr(f1,nra);
+        tobs = rows(x);
+        x = packr(submat(x,0,grpind|varind));
+
+        if ismiss(x) and rows(x)==1;
+            goto endread;
+        endif;
+
+    /* ------- Creating a Matrix of Summed Variables -------- */
+
+        nmiss = nmiss + (tobs-rows(x));
+
+        grp = x[.,1];
+        vrs = ones(rows(x),1)~x[.,2:cols(x)];
+        fgrp = grp[1,1];    /* First Group in X */
+        lgrp = grp[rows(x),1];      /* Last Group in X */
+
+    /* Creating Vector of Group Numbers */
+/*      grpnums = unique(grp,1); */
+        grpnums = grp[1,1];
+        j = 2;
+        do until j == rows(grp) + 1;
+
+            if grp[j,1] /= grp[j-1,1];
+                grpnums = grpnums|grp[j,1];
+            endif;
+
+            j = j + 1;
+        endo;
+
+        dum = grp .== grpnums';     /* Matrix of dummy variables for groups */
+
+        sumdat = grpnums~(dum'vrs)~ (dum'(vrs[.,2:cols(vrs)].*
+                                                     vrs[.,2:cols(vrs)]));
+
+                /* SUMDAT is a matrix of summed variables: # of rows=
+                :: # of groups in this read # of cols=2*(# of variables)
+                :: + 2 The first column contains the observation index.
+                :: The second column contains the number of observations per
+                :: group. The next k columns contains the sum of variables by
+                :: group The last k columns contain the sum of sqrd.
+                :: vars.
+                */
+
+    /* --- Checking for overlaping groups in chunks of data read in.
+    :: - -
+    */
+
+        if fgrp == lgrp0;           /* This read begins with a continued
+                                    :: observation.
+                                    */
+
+            sumdat[1,.] = sumdat[1,.] + resid;
+            sumdat[1,1] = resid[1,1];
+
+        else;       /* The last observation of the previous read is
+                    :: concatenated.
+                    */
+
+            if i > 1;
+                sumdat = resid|sumdat;
+            endif;
+        endif;
+
+        resid = sumdat[rows(sumdat),.];
+
+        means = sumdat[.,3:(k+2)]./sumdat[.,2];
+
+    /* Allowing for only 1 observation */
+
+        gobs = sumdat[.,2] + (sumdat[.,2].==1);
+
+    /* Computing Variances */
+
+        varncs = (sumdat[.,(3+k):cols(sumdat)] - (sumdat[.,2]
+            .*means.*means)) ./(gobs-1);
+
+        meandat = sumdat[.,1 2]~means~varncs;
+
+/* -------------- Computing Information for Descriptive Statistics ---- */
+
+        min = minc(x[.,2:cols(x)]);
+        max = maxc(x[.,2:cols(x)]);
+
+        if i == 1;          /* First Read */
+            mins = min;
+            maxs = max;
+            sm = sumc(x[.,2:cols(x)]);
+            smsq = sumc(x[.,2:cols(x)].*x[.,2:cols(x)]);
+            nobs = rows(x);
+
+        else;
+            mins = minc((min~mins)');
+            maxs = maxc((max~maxs)');
+            sm = sm + sumc(x[.,2:cols(x)]);
+            smsq = smsq + sumc(x[.,2:cols(x)].*x[.,2:cols(x)]);
+            nobs = nobs + rows(x);
+        endif;
+
+/* ---------------------------------------------------------------------- */
+
+/* ---------  Writing Out the Means Data Set ------------------------ */
+
+        if rows(meandat) > 1;
+            t = writer(g2,meandat[1:(rows(meandat)-1),.]);
+        endif;
+
+        i = i + 1;          /* Counter for Number of Reads */
+        lgrp0 = lgrp;
+
+    ENDREAD:
+
+    endo;
+
+/* --------- End of Do Loop to Read in Data -------------------------- */
+
+/* -------- Computing Information for the Last Group -------- */
+
+
+    means = resid[.,3:(k+2)]./resid[.,2];
+    gobs = resid[.,2] + (resid[.,2].==1);
+    varncs = (resid[.,(k+3):cols(resid)] - resid[.,2].*means.*means)./gobs;
+    last = resid[.,1 2]~means~varncs;
+    t = writer(g2,last);
+
+    if g2 > 0;
+        g2 = close(g2);
+    endif;
+
+endp;
+
+
+/*
+**
+**> _tsprtp
+**
+**  Purpose:   Type out tscs results.
+**
+**  Format:    call _tsprtp(depvar,vars,varnms,nobs,df,rsq,rbsq,
+**                   rv,tv,k,fstat,pvf,sigu2,sige2,b,stderr,t,pvt,
+**                   cflag,model,ngrp);
+**
+**  Output:    Null string.
+**
+**
+*/
+
+proc (0) = _tsprtp(depvar,vars,varnms,nobs,df,rsq,rbsq,rv,tv,k, fstat,
+    pvf,sigu2,sige2,b,stdb,stderr,t,pvt,cflag,model,ngrp);
+
+    local omat, mask, fmt, indvars, dash, mss;
+
+/* Printing Title */
+    mss = { . };
+    msym "---";
+    if model == 0;
+
+        print "----------------------- OLS DUMMY VARIABLE RESULTS  --------"\
+            "--------------";
+    elseif model == 1;
+        print "---------------------- GLS ERROR COMPONENTS RESULTS  -------"\
+            "---------------";
+    elseif model == 3;
+        print "------------------- OLS ESTIMATE OF CONSTRAINED MODEL ------"\
+            "---------------";
+    endif;
+    dash = "    " $+ chrs(45*ones(1,23+strlen(""$+depvar)));
+    print;
+    print dash;
+    print ("     Dependent variable:  " $+ depvar);
+    print dash;
+    print;
+
+    print "Observations          :  " ftos(nobs,"%-*.*lf",12,0);
+    print "Number of Groups      :  " ftos(ngrp,"%-*.*lf",12,0);
+    print "Degrees of freedom    :  " ftos(df,"%-*.*lf",12,0);
+
+    if cflag;
+        print "R-squared             :  " ftos(rsq,"%-*.*lf",12,3);
+        print "Rbar-squared          :  " ftos(rbsq,"%-*.*lf",12,3);
+    endif;
+
+    print "Residual SS           :  " ftos(rv,"%-*.*lf",12,3);
+    print "Std error of est      :  " ftos(sqrt(rv/df),"%-*.*lf",12,3);
+    print "Total SS (corrected)  :  " ftos(tv,"%-*.*lf",12,3);
+    print ("F                     =  " $+ ftos(fstat,"%-*.*lf",12,3) $+
+       " with " $+ ftos(k,"%*.*lf",1,0) $+ "," $+ ftos(df,"%-*.*lf",1,0) $+
+       " degrees of freedom");
+    print "P-value               =  " ftos(pvf,"%-*.*lf",12,3);
+
+    /* -- Error Components -- */
+
+    if model == 1;
+        print "Std. errors of error terms:";
+        print " Individual constant terms: " ftos(sqrt(sigu2),"%-*.*lf",12,3);
+        print " White noise error        : " ftos(sqrt(sige2),"%-*.*lf",12,3);
+    endif;
+
+    print;
+
+    if model == 1 or model == 3;
+        indvars = "CONSTANT"|vars[1:rows(vars)-1,1];
+    else;
+        indvars = varnms[1:(rows(varnms))-1,1];
+    endif;
+
+    if not _tsstnd;
+
+        print "Var             Coef           Std. Error     t-Stat        "\
+           " P-Value";
+        print "------------------------------------------------------------"\
+           "--------";
+
+        omat = indvars~b~stderr~t~pvt;
+        mask = 0~1~1~1~1;
+        let fmt[5,3] = "-*.*s" 10 8 "*.*lf " 14 6 "*.*lf " 14 6 "*.*lf "
+            14 6 "*.*lf " 11 3;
+    else;
+        print "Var          Coef.       Std. Coef.    Std. Error    t-Stat "\
+           "       P-Value";
+        print "------------------------------------------------------------"\
+           "--------------";
+        if cflag == 1 or model == 1;
+    stdb[1] = mss;
+    stdb = stdb;
+            indvars = "CONSTANT"|vars[1:rows(vars)-1,1];
+        endif;
+
+        omat = indvars~b~stdb~stderr~t~pvt;
+        mask = 0~1~1~1~1~1;
+        let fmt[6,3] = "-*.*s" 10 8 "*.*lf " 12 6 "*.*lf " 12 6 "*.*lf "
+            12 6 "*.*lf " 12 6 "*.*lf " 11 3;
+    endif;
+
+
+    call printfm(omat,mask,fmt);
+    print;
+
+endp;
+
+/*
+**> tscsset
+**
+** Purpose:  Resets globals used by tscs.
+**
+** Format:   call tscsset;
+**
+** Input:    none
+**
+** Output:   none
+**
+*/
+
+proc (0) = tscsset;
+    _ts_mn = "";
+    _tsmodel = 0;
+    _tsstnd = 1;
+    _tsmeth = 1;
+    _tsise = 1;
+    _tsmnsfn = "";
+endp;
+
+
+/*
+**> _tsfile
+**
+**  Purpose:   Create file with unique name.
+**
+**  Format:     filename = _tsfile(prefix);
+**
+**  Input:      prefix      string, the prefix to be used on the file name.
+**                          Will be truncated to 4 characters.
+**
+**  Output:     filename    string, a filename that does not already exist
+**                          on the current directory.
+**
+*/
+
+proc  _tsfile(str);
+    local exist,i,tmp1,tmp2,len;
+    str = strsect(str,1,4);
+    exist = 1;
+    i = 1;
+    len = strlen(str);
+    do until not exist or i > 999;
+        tmp1 = str $+ ftocv(i,8-len,0) $+ ".dat";
+        tmp2 = str $+ ftocv(i,8-len,0) $+ ".dht";
+        if (filesa(tmp1) $== 0) and (filesa(tmp2) $== 0);
+            exist = 0;
+        else;
+            i = i + 1;
+        endif;
+    endo;
+    retp(strsect(tmp1,1,8));
+endp;
+

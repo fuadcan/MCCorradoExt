@@ -1,0 +1,251 @@
+/*
+** icss.src - Time Series Modelling.
+** (C) Copyright 1996 by Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  cp = icss(x)                  ICSS algorithm                           13
+*/
+
+
+/*
+** icss
+**
+** Purpose: Perform the ICSS algorithm
+**
+**          INCLAN, C. and G.C. TIAO [1994], Use of the cumulative sums
+**          of squaes for retrospective detection of changes of variance,
+**          Journal of the American Statistical Association, 89, 913-923
+**
+** Format:  cp = icss(x);
+**
+** Input:     x - Nobs*1 vector, data.
+**
+** Output:   cp - NT*1 vector, the change points
+**
+** Globals:
+**   _icss_iter - scalar, number of iterations (default = 10)
+**   _icss_p - scalar, p-value (default = 1)
+**                     1 = .99%
+**                     2 = .95%
+**                     3 = .90%
+**   _icss_cp - the vector of the change points after the step 2
+**
+** Remark: The procedure is not exactly the ICSS algorithm, because the
+**         step 3 is different.
+*/
+
+declare external _icss_p = 1;
+declare external _icss_cp;
+declare external _icss_iter = 10;
+
+proc (2) = _icss_Dk(x);
+  local pvalue,Nobs,x2,k,Ck,Dk,Dk_abs,Kstar,M,cn;
+
+  let pvalue[3,6] =
+                   1.14 1.16 1.18 1.18 1.20 1.224
+                   1.27 1.30 1.31 1.31 1.33 1.358
+                   1.52 1.55 1.57 1.57 1.60 1.628 ;
+
+  if _icss_p == 3;
+    pvalue = pvalue[1,.];
+  elseif _icss_p == 2;
+    pvalue = pvalue[2,.];
+  else;
+    pvalue = pvalue[3,.];
+  endif;
+
+  pvalue = pvalue';
+
+  Nobs = rows(x);
+  x2 = x^2;
+  k = seqa(1,1,Nobs);
+  Ck = cumsumc(x2);
+  Dk = Ck/Ck[Nobs] - (k/Nobs);
+  Dk_abs = abs(Dk);
+  Kstar = maxindc(Dk_abs);
+  M = sqrt(Nobs/2)*Dk_abs[Kstar];
+
+  cn = seqa(0,100,6).>Nobs;
+  cn = 6-sumc(cn);
+
+  if M <= pvalue[cn];
+    Kstar = miss(0,0);
+  endif;
+
+  retp(Dk,Kstar);
+endp;
+
+
+proc (1) = icss(data);
+  local x,Nobs,i;
+  local T1_0,T2_0,cp,w,Dk,Kstar1,Kstar2;
+  local T1_2a,T2_2a,T1_2b,T2_2b,kFirst,kLast,NT,cp_,j,Kstar3;
+
+  if ismiss(data);
+    ERRORLOG "error: Not implemented for missing values.";
+    end;
+  endif;
+
+  Nobs = rows(data);
+  x = data -meanc(data);
+
+  cp = {};
+
+  gosub step_0;
+
+  i = 1;
+  do until i > _icss_iter;
+
+    gosub step_1;
+
+    if ismiss(Kstar1);
+      break;
+    endif;
+
+    T1_2a = T1_0;
+    T2_2a = Kstar1;
+
+    gosub step_2a;
+
+    T1_2b = Kstar1+1;
+    T2_2b = T2_0;
+
+    gosub step_2b;
+
+    gosub step_2c;
+
+    i = i + 1;
+  endo;
+
+  cp = unique(cp,1);
+  _icss_cp = cp;
+
+  if rows(cp) > 1;
+    gosub step_3;
+  endif;
+
+  gosub step_4;
+
+  step_0:
+
+    T1_0 = 1;
+    T2_0 = Nobs;
+
+  step_1:
+
+    w = x[T1_0:T2_0];
+    {Dk,Kstar1} = _icss_Dk(w);
+
+    if not ismiss(Kstar1);
+      cp = cp|Kstar1;
+      KFirst = Kstar1;
+      KLast = Kstar1;
+    endif;
+
+  return;
+
+  step_2a:
+
+    do while 1;
+
+      w = x[T1_2a:T2_2a];
+      {Dk,Kstar2} = _icss_Dk(w);
+      if ismiss(Kstar2);
+        break;
+      else;
+        Kstar2 = T1_2a + Kstar2 -1;
+        cp = cp|Kstar2;
+        T2_2a = Kstar2-1;
+        kFirst = Kstar2;
+      endif;
+      if T2_2a <= T1_2a;
+        T2_2a = T1_2a;
+        break;
+      endif;
+
+    endo;
+
+  return;
+
+  step_2b:
+
+    do while 1;
+
+      w = x[T1_2b:T2_2b];
+      {Dk,Kstar2} = _icss_Dk(w);
+      if ismiss(Kstar2);
+        break;
+      else;
+        Kstar2 = T1_2b + Kstar2 -1;
+        cp = cp|Kstar2;
+        T1_2b = Kstar2+1;
+        kLast = Kstar2;
+      endif;
+      if T1_2b >= T2_2b;
+        T1_2b = T2_2b;
+        break;
+      endif;
+
+    endo;
+
+  return;
+
+  Step_2c:
+
+    if (kFirst == kLast);
+      cp = cp|kFirst;
+    else;
+      cp = cp|Kfirst|Klast;
+      T1_0 = kFirst + 1;
+      T2_0 = kLast;
+    endif;
+
+  return;
+
+  Step_3:
+
+    i = 1;
+    do until i > 3;  /* you may modify this value */
+
+      NT = rows(cp);
+      cp_ = 0|cp|Nobs;
+      cp = {};
+
+      j = 1;
+      do until j > NT;
+        w = x[cp_[j]+1:cp_[j+2]];
+        {Dk,Kstar3} = _icss_Dk(w);
+        if not ismiss(Kstar3);
+          Kstar3 = cp_[j] + Kstar3;
+          cp = cp|Kstar3;
+        endif;
+        j = j + 1;
+      endo;
+
+      j = 1;
+      do until j > NT-1;
+        w = x[cp_[j]+1:cp_[j+3]];
+        {Dk,Kstar3} = _icss_Dk(w);
+        if not ismiss(Kstar3);
+          Kstar3 = cp_[j] + Kstar3;
+          cp = cp|Kstar3;
+        endif;
+        j = j + 1;
+      endo;
+
+      cp = unique(cp,1);
+
+    i = i + 1;
+    endo;
+
+  return;
+
+  step_4:
+
+   retp(cp);
+
+endp;
+
+

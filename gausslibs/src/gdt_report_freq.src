@@ -1,0 +1,558 @@
+/*
+** gdt_report_freq.src - Compute frequency distribution
+**
+** (C) Copyright 2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** Purpose:
+**
+**      To compute frequency distributions for variables contained in a
+**      GAUSS data file.  Printout includes counts percentages and
+**      cumulative percentages.  If there are missing data for a variable,
+**      counts excluding the missing category are also made.
+**
+** Format:
+**
+**      { r,n } = _gdt_report_freq(data, args, names, types);
+**
+** Inputs:
+**
+**      data      NxK matrix, data for frequency distributions.
+**
+**      args      Lx1 string array, keywords for freq options
+**
+**                     use   variable list
+**                  weight   name of weight variable, default is none
+**                  counts   print counts of continuous variables,
+**                           default is to print counts when number
+**                           of categories is less than 20
+**
+**      names     Kx1 vector with names of variables in data for which
+**                   frequency distributions are requested.
+**
+**      types     Kx1 vector, types of variables in data, 0 character,
+**                     1 - numeric, 2 - date
+**
+** Outputs:
+**
+**     r     scalar, return code
+**
+**     s     scalar, return code
+**
+**
+** Examples:
+**
+*/
+
+proc (2) = _gdt_report_freq(data,args,names,types);
+    local c, frq, findx, cats, ncat, fnm, windx, nvars, i, nc, stv,
+          env, st, en, va, fr, wlbl, fdnm, x, nm, iswt,
+          f1, err, _weight, s1, s2, usevars, docounts;
+
+    useVars = error(0);
+    _weight = "";
+    windx = 0;
+    wlbl = "";
+    iswt = 0;
+    docounts = 0;
+
+    for i(1,rows(args),1);
+
+        if args[i] $/= "";
+
+            { s1,s2 } = token(args[i]);
+            if lower(s1) $== "use";
+                 useVars = strsplit(s2)';
+            elseif lower(s1) $== "weight";
+                 _weight = s2;
+                 windx = indsav(s2,names);
+                 wlbl = _weight;
+                 iswt = 1;
+            elseif lower(s1) $== "counts";
+                 docounts = 1;
+            endif;
+        endif;
+     endfor;
+
+    if not scalmiss(useVars);
+        findx = indsav(useVars,names);
+        nm = useVars;
+    else;
+        findx = seqa(1,1,rows(names));
+        nm = names;
+    endif;
+
+    fdnm = nm;
+    nvars = rows(fdnm);
+
+    if iswt;
+        nm = nm$|wlbl;
+        findx = findx|windx;
+    endif;
+    types = types[findx];
+
+    fnm = nm;
+
+    for i(1,rows(nm),1);
+       if types[i] == 0;
+           fnm[i] = lower(fnm[i]);
+       else;
+           fnm[i] = upper(fnm[i]);
+       endif;
+    endfor;
+
+    { cats,ncat } = _gdt_report_frinit(data,findx,windx,nm,types);
+
+    if scalerr(ncat);
+        retp(-1,0);
+    endif;
+
+    frq = _gdt_report_frtable(data,findx,windx,cats,ncat,types);
+
+    print;
+    i = 1;
+    stv = 2;
+    st = 1;
+
+    do until i > nvars;
+        print;
+        print;
+        nc = ncat[i];
+        en = st+nc-1;
+        env = stv+nc-1;
+        va = cats[stv:env];
+        fr = frq[st:en];
+        _gdt_report_freqstat(fdnm[i],fr,va,types[i],docounts);
+        st = en+1;
+        stv = env+2;
+        i = i+1;
+    endo;
+    print;
+
+    /* get rid of extra .'s in ncat */
+    i = 2;
+    x = cats;
+    en = ncat[1]+1;
+    cats = x[2:en];
+    do until i>nvars;
+        st = en+2;
+        en = en+ncat[i]+1;
+        cats = cats|x[st:en];
+        i = i+1;
+    endo;
+    ndpclex;
+    retp(-1,0);
+
+endp;
+
+proc (2) = _gdt_report_frinit(data,indx,windx,dtlbl,types);
+    local  f1, i, missing, nfvar, ncells, cats, vfi, nr, formats,
+      ncat, start, nd, ndtran, tdta,range;
+
+    missing = error(0);
+
+    if windx==0;
+        nfvar = rows(dtlbl);
+    else;
+        nfvar = rows(dtlbl)-1;
+    endif;
+
+    ndtran = zeros(2,1);
+    ndtran[1] = rows(data);
+
+    formats = 0;
+    ncat = zeros(nfvar,1);
+    range = rows(data);
+
+    tdta = data[.,indx];
+    ndtran[2] = ndtran[2] + rows(tdta);
+    { formats,ncat } = _gdt_report_frmkcat(formats,ncat,tdta,types);
+
+    if ndtran[2] == 0;
+        errorlog "ERROR:  No observations left after deleting missing values.";
+        retp(-1,error(0));
+    endif;
+
+    print;
+    print "CASES PROCESSED BY THIS PROCEDURE:";
+    print;
+    print "  "$+ftos(ndtran[2],"%-*.*lf",1,0)$+" cases were kept out of "$+ftos(range,"%-*.*lf",1,0)$+".";
+    print "  "$+ftos(range-ndtran[2],"%-*.*lf",1,0)$+" deleted because of missing values.";
+
+    i = 1;
+    do until i > nfvar;
+        if i == 1;
+            vfi = formats[1:ncat[i]];
+            cats = missing|vfi;
+        else;
+            start = sumc(ncat[1:i-1])+1;
+            vfi = formats[start:start+ncat[i]-1];
+            cats = cats|missing|vfi;
+        endif;
+        i = i + 1;
+    endo;
+    ncells = sumc(ncat);
+
+    retp(cats,ncat);
+
+endp;
+
+proc (2) = _gdt_report_frmkcat(cats,ncat,data,types);
+    local start,lim,i,newcats,newindx,temp;
+    lim = rows(ncat);
+    newindx = zeros(lim,1);
+    start = 1;
+    i = 2;
+    if ncat[1];
+        newcats = cats[seqa(start,1,ncat[1])];
+        newcats = union(newcats,data[.,1],types[1]);
+    else;
+        newcats = unique(data[.,1],types[1]);
+    endif;
+    start = ncat[1]+1;
+    newindx[1] = rows(newcats);
+    do while i <= lim;
+        if ncat[i];
+            temp = cats[seqa(start,1,ncat[i])];
+            temp = union(temp,data[.,i],types[i]);
+        else;
+            temp = unique(data[.,i],types[i]);
+        endif;
+        newindx[i] = rows(temp);
+        newcats = newcats|temp;
+        start = start+ncat[i];
+        i = i+1;
+    endo;
+    retp(newcats,newindx);
+endp;
+
+proc (1) = _gdt_report_frtable(data,indx,windx,cats,ncat,types);
+    local bks, tdta, f1, i, ii, nci, start, ncells, vfi, wt,
+          cnts;
+
+    ncells = sumc(ncat);    /* total number of cells to compute */
+    if rows(ncat) > 1;
+        bks = 0|recserar(ncat+1,ncat[1]+1,1);
+    else;
+        bks = 0|ncat+1;
+    endif;
+
+    /* initialize matrix to hold crosstab */
+    cnts = zeros(ncells,1);         /* initialize this for result */
+
+    /* check on weight */
+    if windx == 0;
+        wt = 1;
+    endif;
+
+    if windx == 0;
+        tdta = data[.,indx];
+        wt = 1;
+    else;
+        tdta = data[.,indx]~data[.,windx];
+        wt = tdta[.,cols(tdta)];
+        tdta = tdta[.,1:cols(tdta)-1];
+    endif;
+
+    i = 1;      /* loop over variables and compute index */
+    start = 1;
+    do until i > rows(ncat);
+        nci = ncat[i];
+        ii = seqa(start,1,nci);
+        vfi = cats[bks[i]+2:bks[i+1]];
+        if types[i];
+            if wt == 1;
+                cnts[ii] = counts(tdta[.,i],vfi) + cnts[ii];
+            else;
+                cnts[ii] = countwts(tdta[.,i],vfi,missrv(wt,0)) + cnts[ii];
+            endif;
+        else;
+            if wt == 1;
+                cnts[ii] = _gdt_report_frcountch(tdta[.,i],vfi) + cnts[ii];
+            else;
+                cnts[ii] = _gdt_report_frcntchwt(tdta[.,i],vfi,missrv(wt,0)) +
+                    cnts[ii];
+            endif;
+        endif;
+        start = start+nci;
+        i = i+1;
+    endo;
+
+    retp( cnts);
+endp;
+
+proc _gdt_report_frcountch(x,v);
+    local s;
+    s = zeros(rows(v),1);
+    for i(1,rows(v),1);
+        s[i] = sumc(upper(x) .$== upper(v[i]));
+    endfor;
+    retp(s);
+endp;
+
+proc _gdt_report_frcntchwt(x,v,w);
+    local s;
+    s = zeros(rows(v),1);
+    for i(1,rows(v),1);
+        s[i] = sumc((upper(x) .$== upper(v[i])).*w);
+    endfor;
+    retp(s);
+endp;
+
+
+
+
+
+
+proc (0) = _gdt_report_freqstat(nm,f,v,t,docounts);
+    local nmiss,nval,fc,no,pc,pcc,fs,vs,ns,mean,ssq,var, min,max,mode,
+        std,zip,dsn,ds,bin,height,width,cuts, cnts,maxcnts,stdcnts,q,i,
+        j,p,fmt,y, odd,nrows2,omat,nrows,fm,mask,vstr;
+    clear odd;
+    /* compute counts and percentages */
+    if ismiss(v[1]);
+        nmiss = f[1];
+        nval = sumc(f)-nmiss;
+    else;
+        nmiss = 0;
+        nval = sumc(f);
+    endif;
+    if rows(f) ne 1;
+        fc = recserar(f,f[1],ones(1,cols(f)) ) ;
+    else;
+        fc = f;
+    endif;
+    no = sumc(f);
+    pc = 100.*f./no;
+    pcc = 100.*fc./no;
+
+    if t;
+        vs = packr(v~f);
+        fs = vs[.,2];
+        vs = vs[.,1];
+        ns = sumc(fs);
+        mean = sumc(fs.*vs)/ns;
+        ssq = sumc(fs.*vs.*vs);
+        var = (ssq-(ns*mean*mean))/(ns-1);
+        min = minc(vs);
+        max = maxc(vs);
+        mode = vs[maxindc(fs)];
+        std = sqrt(var);
+        zip = 0$+" ";
+        dsn = "Valid   " | "Missing " | "Mean    " | "Std Dev " | "Vari"\
+            "ance" | "Mode    " | "Minimum " | "Maximum ";
+        ds = nval|nmiss|mean|std|var|mode|min|max;
+        dsn = dsn~ds;
+        bin = 10;       /* bins in histogram */
+        height = 18;    /* height of histogram */
+        width = (max-min)/bin;
+        cuts = (seqa(min,width,bin-1)|max)+width;
+        cnts = countwts(v,cuts,f);
+        maxcnts = maxc(cnts);
+        stdcnts = round(height*(cnts/maxcnts));
+
+        vstr = maxc(abs(min)|abs(max)) > 99999;
+
+        q = "*";        /* plot symbol */
+        i = 1;
+        j = 1;
+        do until i .gt bin;
+            j = 1;
+            p = "|";
+            do until j .gt stdcnts[bin+1-i];
+                p = p$+q;
+                j = j+1;
+            endo;
+            if vstr;
+                let fmt[3,3] = "-*.*lE " 9 8 "*.*lE " 11 4 "*.*lE " 16 5;
+            else;
+                let fmt[3,3] = "-*.*lf " 9 8 "*.*lf " 11 4 "*.*lf " 16 5;
+            endif;
+            if i == 1;
+                y = printfm(nm~zip~max,0~0~1,fmt);
+                print ""$+p;
+                if vstr;
+                    let fmt[3,3] = "*.*lE:" 9 8 "*.*lE " 11 4 "*.*lE " 16 5;
+                else;
+                    let fmt[3,3] = "*.*lf:" 9 8 "*.*lf " 11 4 "*.*lf " 16 5;
+                endif;
+            elseif i ge 3 and i le 9;
+                y = printfm(dsn[i-2,.]~zip,0~1~0,fmt);
+                print ""$+p;
+            elseif i == bin;
+                y = printfm(dsn[i-2,.]~min,0~1~1,fmt);
+                print ""$+p;
+            else;
+                if vstr;
+                    let fmt[3,3] = "*.*lE " 9 8 "*.*lE " 11 4 "*.*lE " 16 5;
+                else;
+                    let fmt[3,3] = "*.*lf " 9 8 "*.*lf " 11 4 "*.*lf " 16 5;
+                endif;
+                y = printfm(zip~zip~zip,0~0~0,fmt);
+                print ""$+p;
+            endif;
+            i = i+1;
+        endo;
+        print;
+    else;
+        vs = packr(v~f);
+        fs = vs[.,2];
+        vs = vs[.,1];
+        ns = sumc(fs);
+        mode = vs[maxindc(fs)];
+        height = 18;    /* height of histogram */
+        maxcnts = maxc(fs);
+        stdcnts = ceil(height*(fs/maxcnts));
+        if strlen(vs[1]) < 8;
+            p = chrs(32*(ones(1,8-strlen(vs[1])))) $+ vs[1];
+        endif;
+        q = "" $+ nm $+ chrs(32*(ones(1,9-strlen(nm))));
+        dsn = q $+ chrs(32*ones(1,28)) $+ p $+ " |" $+ chrs(33*ones(1,
+            stdcnts[1]));
+        print dsn;
+
+        if rows(vs) > 1;
+            if strlen(vs[2]) < 8;
+                p = chrs(32*(ones(1,8-strlen(vs[2])))) $+ vs[2];
+            endif;
+            dsn = chrs(32*ones(1,37)) $+ p $+ " |" $+ chrs(33*ones(1,
+                stdcnts[2]));
+            print dsn;
+        else;
+            print;
+        endif;
+
+
+        if rows(vs) >= 3;
+            if strlen(vs[3]) < 8;
+                p = chrs(32*(ones(1,8-strlen(vs[3])))) $+ vs[3];
+            endif;
+            dsn = "Valid    " $+ ftos(nval,"%*.*lf",11,4) $+ "   "\
+                "     " $+ p $+ " |" $+ chrs(42*ones(1,stdcnts[3]));
+        else;
+            dsn = "Valid    " $+ ftos(nval,"%*.*lf",11,4);
+        endif;
+        print dsn;
+
+        if rows(vs) >= 4;
+            if strlen(vs[4]) < 8;
+                p = chrs(32*(ones(1,8-strlen(vs[4])))) $+ vs[4];
+            endif;
+            dsn = "Missing  " $+ ftos(nmiss,"%*.*lf",11,4) $+ "  "\
+                "      " $+ p $+ " |" $+ chrs(42*ones(1,stdcnts[4]));
+        else;
+            dsn = "Missing  " $+ ftos(nmiss,"%*.*lf",11,4);
+        endif;
+        print dsn;
+        if rows(vs) >= 5;
+            if strlen(vs[5]) < 8;
+                p = chrs(32*(ones(1,8-strlen(vs[5])))) $+ vs[5];
+            endif;
+            dsn = "Mode     " $+ chrs(32*(ones(1,11-strlen(mode)))) $+
+                mode $+ "        " $+ p $+ " |" $+
+                chrs(42*ones(1,stdcnts[5]));
+        else;
+            dsn = "Mode     " $+ chrs(32*(ones(1,11-strlen(mode)))) $+
+                mode;
+        endif;
+        print dsn;
+
+        i = 6;
+        do until i gt rows(vs);
+            if strlen(vs[i]) < 8;
+                p = chrs(32*(ones(1,8-strlen(vs[i])))) $+ vs[i];
+            endif;
+            dsn = chrs(32*zeros(1,37)) $+ p $+ " |" $+ chrs(42*ones(1,
+                stdcnts[i]));
+            print dsn;
+            i = i + 1;
+        endo;
+        print;
+    endif;
+
+
+    nrows = rows(f);
+    if nrows < 20 or docounts == 1;
+
+        nrows2 = trunc(nrows/2);
+        if nrows2 == nrows/2;
+            odd = 0;
+        else;
+            odd = 1;
+        endif;
+        omat = v~f~pc~pcc;
+        mask = t~1~1~1;
+        if rows(omat) ne 1;
+            omat = omat[1:nrows2,.]~omat[nrows2+1+odd:nrows,.];
+            mask = mask~t~1~1~1;
+        endif;
+        print "                   Percents                       "\
+            "  Percents";
+        print "    Value   Count    Cell     Cum    Value   Count    "\
+            "Cell     Cum";
+        print "------------------------------------------------------"\
+            "--------------";
+        let fm[4,3] = "lG" 9 4 "lG" 8 6 "lf" 8 2 "lf" 8 2;
+        let fmt[4,3] = "lG" 10 4 "lG" 8 6 "lf" 8 2 "lf" 8 2;
+        fmt = fm|fmt;
+        if ((nrows2 .ne 0) .or (odd .eq 0));
+            y = printfm(omat,mask,fmt);
+            if rows(omat) == 1;
+                print;
+            endif;
+        endif;
+        if odd == 1;        /* print last value */
+            mask = t~1~1~1;
+            nrows = nrows2+1;
+            call printfm(v[nrows]~f[nrows]~pc[nrows]~pcc[nrows],mask,fm);
+            print;
+        endif;
+    else;
+        print;
+    endif;
+    print "------------------------------------------------------"\
+        "--------------";
+    print "  Total N " ftos(nval+nmiss,"%*.*lf",5,0);
+    print "------------------------------------------------------"\
+        "--------------";
+
+endp;
+
+
+
+
+
+    proc(0) = _gdt_report_freq_help;
+
+       local s1;
+
+       s1 = "
+Purpose: generates frequency distributions and descriptive statistics
+
+Format:  report freq
+         [options]
+
+Example: report freq
+         use age,pay
+
+Options: use     list of variables, default is all variables
+         weight  name of weight variable, default is none
+         counts  print counts of continuous variables, default
+                   is to print counts when number of categories
+                   is less than 20";
+
+       print s1;
+
+    endp;
+

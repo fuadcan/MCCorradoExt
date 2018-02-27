@@ -1,0 +1,17 @@
+
+Total observations:                                           75  
+Usable observations:                                          75  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                           71  
+Value of the maximized log-likelihood function:        227.21683  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+INC(t-1)        1.000000        0.000000                .               .
+CON(t-1)       -0.026554        0.017505        -1.516977        0.133713
+CONSTANT        0.038408        0.024699         1.555046        0.124382
+INV(t-1)        0.027420        0.019659         1.394785        0.167429
+sigma          -0.011696        0.000643       -18.189649        0.000000
+
+Covariance matrix: OPG estimator.

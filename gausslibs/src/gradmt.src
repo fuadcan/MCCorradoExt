@@ -1,0 +1,241 @@
+/*
+** gradmt.src - procedures for computing numerical gradients and Jacobians
+**
+** (C) Copyright 2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                       Purpose                                 Line
+**  ---------------------------------------------------------------------------
+**  g = gradMT(fct,par1,data1)             computes gradient/Jacobian     36
+**  g = gradMTm(fct,par1,data1,mask)       computes gradient/Jacobian    145
+**                                              with mask
+*/
+
+
+
+#include pv.sdf
+#include ds.sdf
+
+
+
+/*
+**> gradMT
+**
+**  Purpose:    computes numerical Hessian
+**
+**  Format:     g = gradMT(fct,par1,data1);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**  Output:     g        NxK Jacobian or 1xK gradient
+**
+**
+**  Remarks:   par1 must be created using the pvPack procedures
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 proc fct(struct PV p0, struct DS d0);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 g = gradMT(&fct,p1,d0);
+*/
+
+
+proc 1 = gradMT(lfct, struct PV par1, struct DS data1 );
+
+    local k, grdd, dh, ax0, xdh, dax0, f2, ee, x1, f1,
+          m, x, x0, eps;
+    local lfct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/2);
+
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+
+    par1 = pvPutParVector(par1,x0+ee[.,1]);
+    f1 = lfct(par1,data1);
+    if scalInfNanMiss(f1);
+        retp(error(0));
+    endif;
+
+    grdd = zeros(rows(f1),k);
+    for i (1,k,1);
+        if i /= 1;
+            par1 = pvPutParVector(par1,x0+ee[.,i]);
+            f1 = lfct(par1,data1);
+        endif;
+        par1 = pvPutParVector(par1,x0-ee[.,i]);
+        f2 = lfct(par1,data1);
+        grdd[.,i] = f1 - f2;
+    endfor;
+
+    retp(grdd./(2*dh'));
+
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> gradMTm
+**
+**  Purpose:    computes numerical Hessian with mask
+**
+**  Format:     g = gradMT(fct,par1,data1,mask);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**              mask     Kx1 matrix, elements in g corresponding to
+**                       elements of mask set to zero are not computed
+**                       otherwise are computed.
+**
+**  Output:     g        NxK Jacobian or 1xK gradient
+**
+**
+**  Remarks:   par1 must be created using the pvPack procedures
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 proc fct(struct PV p0, struct DS d0);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 mask = { 0, 1 };
+**
+**                 g = gradMT(&fct,p1,d0,mask);
+*/
+
+
+
+proc 1 = gradMTm(lfct, struct PV par1, struct DS data1, mask);
+
+    local k, grdd, dh, ax0, xdh, dax0, f2, ee, x1, f1,
+          m, x, x0, eps;
+    local lfct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/2);
+
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+
+    par1 = pvPutParVector(par1,x0+ee[.,1]);
+    f1 = lfct(par1,data1);
+    if scalInfNanMiss(f1);
+        retp(error(0));
+    endif;
+
+    grdd = zeros(rows(f1),k);
+    for i (1,k,1);
+        if mask[i];
+            if i /= 1;
+                par1 = pvPutParVector(par1,x0+ee[.,i]);
+                f1 = lfct(par1,data1);
+            endif;
+            par1 = pvPutParVector(par1,x0-ee[.,i]);
+            f2 = lfct(par1,data1);
+            grdd[.,i] = f1 - f2;
+        endif;
+    endfor;
+
+    retp(grdd./(2*dh'));
+
+endp;
+
+

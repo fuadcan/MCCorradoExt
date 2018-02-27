@@ -1,0 +1,473 @@
+/*
+** cmlpflcl.src     CMLPflClimits - confidence limits by inversion of
+**                                  likelihood ratio statistic
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> CMLPfClimits
+**
+**  Purpose:   Computes confidence limits by inversion of the likelihood
+**             ratio statistic.
+**
+**  Format:    cl = CMLPflClimits(b,f,dataset,var,fct);
+**
+**  Input:     b          Kx1 vector, maximum likelihood estimates.
+**
+**             f         scalar, function at minimum (mean log-likelihood).
+**
+**             dataset   string containing name of GAUSS data set, or
+**                       name of data matrix stored in memory.
+**
+**             var      character vector of labels selected for analysis, or
+**                      numeric vector of column numbers in data set
+**                      of variables selected for analysis.
+**
+**             fct      the name of a procedure that returns either
+**                      the log-likelihood for one observation or a vector of
+**                      log-likelihoods for a matrix of observations.
+**
+**  Output:    cl       Kx2 matrix, lower (first column) and upper (second
+**                      column) limits of the selected parameters.
+**
+**  Globals:  _cml_Alpha    (1-_cml_Alpha)% two-tailed limits are computed.
+**                          Default = .95
+**
+**            _cml_NumObs   scalar, number of observations.  Must be set.
+**
+**            _cml_Select   Lx1 vector, selection of columns of dataset.
+**                          For example, _cml_Select = { 1, 3, 4 }.
+**
+**  Remarks:
+**
+**    CMLPflClimits computes profile likelihood confidence limits given
+**    a maximum likelihood estimation.  'b' and 'f' should be returns
+**    from a call to CML.  This will also properly set up the global
+**    _cml_NumObs for CMLPflClimits.
+**
+**    CMLPflClimits solves for the confidence limits as a parametric
+**    nonlinear programming problem.  Thus it itself calls CML several
+**    times for each confidence limit.  The screen output is turned off
+**    for these runs.  However, the computation can be time consuming, and
+**    if you wish to check on its progress, type O, or Alt-O, and revise
+**    the __OUTPUT global.  This will turn on the screen output for that
+**    run.  The parameter number is printed on the title and this will tell
+**    you where it is.
+*/
+
+
+#include cml.ext
+
+proc (1) = CMLPflCLimits(coefs,vof,dataset,var,lfct);
+    local cl,tv,tv1,i,k,phi0,phi1,phi2,f0,f1,f2,iter,ff,ff0,select,sde,ltst;
+
+    if _cml_NumObs == 0;
+        if not trapchk(4);
+            errorlog "ERROR: _cml_NumObs not set";
+        endif;
+        retp(error(0));
+    endif;
+    coefs = vec(real(coefs));
+
+    if scalmiss(_cml_Select) or _cml_Select == 0;
+        select = seqa(1,1,rows(coefs));
+    else;
+        if maxc(_cml_Select) > rows(coefs) or minc(_cml_Select) < 1;
+            if not trapchk(4);
+                errorlog "error in selection vector";
+                retp(error(0));
+            endif;
+        else;
+            select = _cml_Select;
+        endif;
+    endif;
+    if not(_cml_Active == 1);
+        for i(1,rows(select),1);
+            if _cml_Active[select[i]] == 0;
+                 select = packr(miss(0,0),select[i]);
+            endif;
+        endfor;
+    endif;
+
+    cl = miss(zeros(rows(coefs),2),0);
+
+    tv = cdfchii(1 - _cml_Alpha,1);
+    tv1 = cdfchii(1 - 2 * _cml_Alpha,1);
+
+    sde = sqrt(tv*abs(diag(pinv(_cml_FinalHess)))/_cml_NumObs);
+
+
+    for i(1,rows(select),1);
+
+/* lower bound */
+
+        if not scalmiss(sde[select[i]]);
+            { ff, phi0 } = _pfcl_set(select[i],coefs,sde[select[i]],-1);
+        else;
+            k = _pf_magnitude(coefs[select[i]]);
+            { ff, phi0 } = _pfcl_set(select[i],coefs,k*tv,-1);
+        endif;
+
+        if scalmiss(phi0);
+            if not trapchk(4);
+                errorlog "ERROR: starting value calculation failed";
+            endif;
+            goto A1;
+        endif;
+
+        f0 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi0,select[i]);
+        if scalmiss(f0);
+            if not trapchk(4);
+                errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                goto A1;
+            endif;
+        endif;
+        ltst = _pf_test(select[i],coefs,sde[i],phi0,-1,tv,tv1);
+        if abs(f0-ltst) < __tol;
+            cl[select[i],1] = phi0;
+            goto A1;
+        endif;
+
+        k = _pf_magnitude(coefs[select[i]]);
+        phi1 = phi0 - maxc(k|k*abs(phi0));
+        { ff, phi1 } = _pfcl_set(select[i],coefs,coefs[select[i]]-phi1,-1);
+        if ff;
+            phi1 = phi0 + maxc(k|k*abs(phi0));
+        endif;
+        if phi1 >= coefs[select[i]];
+            phi1 = (phi0 + coefs[select[i]]) / 2;
+        endif;
+
+        f1 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi1,select[i]);
+        if scalmiss(f1);
+            if not trapchk(4);
+                errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                goto A1;
+            endif;
+        endif;
+        ltst = _pf_test(select[i],coefs,sde[i],phi1,-1,tv,tv1);
+        if abs(f1-ltst) < __tol;
+            cl[select[i],1] = phi1;
+            goto A1;
+        endif;
+
+        ff0 = 0;
+        for iter(1,_cml_MaxIters,1);
+
+            if f1 == f0;
+                cl[select[i],1] = phi0;
+                break;
+            endif;
+            phi2 = (phi1 * (tv - f0) - phi0 * (tv - f1)) / (f1 - f0);
+            do while phi2 > coefs[select[i]];
+                phi2 = 0.5 * (minc(phi1|phi0) + phi2);
+            endo;
+
+            ltst = _pf_test(select[i],coefs,sde[i],phi2,-1,tv,tv1);
+            if ltst /= tv;
+                phi2 = (phi1 * (ltst - f0) - phi0 * (ltst - f1)) / (f1 - f0);
+            endif;
+
+            { ff, phi2 } = _pfcl_set(select[i],coefs,coefs[select[i]]-phi2,-1);
+            if ff0 and ff;
+                cl[select[i],1] = phi2;
+                break;
+            else;
+                ff0 = 1;
+                ff = 0;
+            endif;
+
+            f2 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi2,select[i]);
+            if scalmiss(f2);
+                if not trapchk(4);
+                    errorlog "lower confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                    break;
+                endif;
+            endif;
+            ltst = _pf_test(select[i],coefs,sde[i],phi2,-1,tv,tv1);
+            if abs(f2-ltst) < __tol;
+                cl[select[i],1] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+
+        endfor;
+
+    A1:
+
+/* upper bound */
+
+        if not scalmiss(sde[select[i]]);
+            { ff, phi0 } = _pfcl_set(select[i],coefs,sde[select[i]],1);
+        else;
+            k = _pf_magnitude(coefs[select[i]]);
+            { ff, phi0 } = _pfcl_set(select[i],coefs,k*tv,1);
+        endif;
+
+        if scalmiss(phi0);
+            if not trapchk(4);
+                errorlog "ERROR: starting value calculation failed";
+            endif;
+            continue;
+        endif;
+
+        f0 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi0,select[i]);
+        if scalmiss(f0);
+            if not trapchk(4);
+                errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                continue;
+            endif;
+        endif;
+        ltst = _pf_test(select[i],coefs,sde[i],phi0,1,tv,tv1);
+        if abs(f0-ltst) < __tol;
+            cl[select[i],2] = phi0;
+            continue;
+        endif;
+
+        k = _pf_magnitude(coefs[select[i]]);
+        phi1 = phi0 + maxc(k|k*abs(phi0));
+        if ff;
+            phi1 = phi0 - maxc(k|k*abs(phi0));
+        endif;
+        if phi1 <= coefs[select[i]];
+            phi1 = (phi0 + coefs[select[i]]) / 2;
+        endif;
+
+        f1 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi1,select[i]);
+        if scalmiss(f1);
+            if not trapchk(4);
+                errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                continue;
+            endif;
+        endif;
+        ltst = _pf_test(select[i],coefs,sde[i],phi1,1,tv,tv1);
+        if abs(f1-ltst) < __tol;
+            cl[select[i],2] = phi1;
+            continue;
+        endif;
+
+        ff0 = 0;
+        for iter(1,_cml_MaxIters,1);
+
+            if f0 == f1;
+                cl[select[i],2] = phi0;
+                break;
+            endif;
+            phi2 = (phi1 * (tv - f0) - phi0 * (tv - f1)) / (f1 - f0);
+            do while phi2 < coefs[select[i]];
+                phi2 = 0.5 * (minc(phi1|phi0) + phi2);
+            endo;
+
+            ltst = _pf_test(select[i],coefs,sde[i],phi2,1,tv,tv1);
+            if ltst /= tv;
+                phi2 = (phi1 * (ltst - f0) - phi0 * (ltst - f1)) / (f1 - f0);
+            endif;
+
+            { ff, phi2 } = _pfcl_set(select[i],coefs,phi2-coefs[select[i]],1);
+            if ff0 and ff;
+                cl[select[i],2] = phi2;
+                break;
+            else;
+                ff0 = 1;
+                ff = 0;
+            endif;
+            f2 = _pfcl_quad(dataset,var,lfct,vof,coefs,phi2,select[i]);
+            if scalmiss(f2);
+                if not trapchk(4);
+                    errorlog "upper confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                    break;
+                endif;
+            endif;
+            ltst = _pf_test(select[i],coefs,sde[i],phi2,1,tv,tv1);
+            if abs(f2-ltst) < __tol;
+                cl[select[i],2] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+        endfor;
+
+    endfor;
+
+    retp(cl);
+endp;
+
+
+proc _pf_test(n,x,d,phi,a,tv,tv1);
+    local ineqproc;
+
+if _cml_InfCorr;
+
+    x[n] = phi + a * d;
+    if not scalmiss(_cml_C);
+        if not ((_cml_C * x - _cml_D) >= 0);
+            retp(tv1);
+        endif;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        if rows(_cml_Bounds) == 1;
+            if not(x[n] >= _cml_Bounds[1,1]);
+               retp(tv1);
+            endif;
+            if not (x[n] <= _cml_Bounds[1,2]);
+                retp(tv1);
+            endif;
+        else;
+            if not(x[n] >= _cml_Bounds[n,1]);
+                retp(tv1);
+            endif;
+            if not(x[n] <= _cml_Bounds[n,2]);
+                retp(tv1);
+            endif;
+        endif;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        IneqProc = _cml_IneqProc;
+        local ineqproc:proc;
+        if not(ineqproc(x) >= 0);
+            retp(tv1);
+        endif;
+    endif;
+endif;
+
+    retp(tv);
+endp;
+
+
+
+proc _pf_magnitude(x);
+    local k;
+    if x /= 0;
+        k = .01 * 10^trunc(log(abs(x)));
+    else;
+        k = .01;
+    endif;
+    retp(k);
+endp;
+
+proc(2) = _pfcl_set(n,x,d,a);
+    local t,ineqproc,ineqjacob,g,ff,i,j,iter,df;
+    clear ff;
+    x[n] = x[n] + a * d;
+    if not scalmiss(_cml_C);
+        t = _cml_C * x - _cml_D;
+        if not (t >= 0);
+            i = minindc(t);
+            j = packr(miss(seqa(1,1,rows(x)),n));
+            x[n] = (_cml_D[i] - _cml_C[i,j]*x[j]) / _cml_C[i,n];
+            t = _cml_C * x - _cml_D;
+            ff = 1;
+        endif;
+    endif;
+    if not scalmiss(_cml_Bounds);
+        if rows(_cml_Bounds) == 1;
+            if x[n] < _cml_Bounds[1,1];
+                x[n] = _cml_Bounds[1,1];
+                ff = 1;
+            endif;
+            if x[n] > _cml_Bounds[1,2];
+                x[n] = _cml_Bounds[1,2];
+                ff = 1;
+            endif;
+        else;
+            if x[n] < _cml_Bounds[n,1];
+                x[n] = _cml_Bounds[n,1];
+                ff = 1;
+            endif;
+            if x[n] > _cml_Bounds[n,2];
+                x[n] = _cml_Bounds[n,2];
+                ff = 1;
+            endif;
+        endif;
+    endif;
+    if not scalmiss(_cml_IneqProc);
+        IneqProc = _cml_IneqProc;
+        local ineqproc:proc;
+        t = ineqproc(x);
+        if not(t >= 0);
+            if not scalmiss(_cml_IneqJacobian);
+                ineqjacob = _cml_IneqJacobian;
+                local ineqjacob:proc;
+            endif;
+            df = 10;
+            iter = 1;
+            do until df < 1e-4 or iter > 10;
+                if not scalmiss(_cml_IneqJacobian);
+                    g = ineqjacob(x);
+                else;
+                    g = gradp(&IneqProc,x);
+                endif;
+                i = minindc(t);
+                if g[i,n] < 1e-3;
+                    break;
+                endif;
+                df = t[i] / g[i,n];
+                x[n] = x[n] - df;
+                t = ineqproc(x);
+                iter = iter + 1;
+            endo;
+            ff = 1;
+        endif;
+    endif;
+    retp(ff,x[n]);
+endp;
+
+
+
+
+
+proc(1) = _pfcl_quad(dataset,var,lfct,f0,coefs,phi,eta);
+
+       local f1,x0,actv,title0,dum;
+       x0 = coefs;
+       x0[eta] = phi;
+       if rows(_cml_Active) == rows(coefs);
+           actv = _cml_Active;
+       else;
+           actv = ones(rows(x0),1);
+       endif;
+       actv[eta] = 0;
+
+        title0 = __title $+ " parameter # " $+ ftos(eta,"%0*.*lf",1,0);
+
+                { dum,f1,dum,dum,dum,dum,dum,dum,dum,_cml_NumObs,dum } =
+                    _CML(dataset,var,lfct,x0, _cml_Algorithm, 0,
+                  _cml_Delta, _cml_Extrap, _cml_GradMethod,
+                  _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp, 
+                  _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry, 
+                  _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch, 
+                  _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius, 
+                  _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+                  _cml_UserNumHess, actv, _cml_GradStep, _cml_GradOrder, 
+                  _cml_GradCheckTol, __altnam, 0, __row, title0, __weight );
+
+       retp(2 * _cml_NumObs * (f0 - f1));
+endp;

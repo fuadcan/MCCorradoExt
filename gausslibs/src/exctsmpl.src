@@ -1,0 +1,129 @@
+/*
+** exctsmpl.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> exctsmpl
+**
+**  Purpose:    To take a random subsample of a data set.
+**
+**  Format:     n = exctsmpl(infile,outfile,pcntsmpl);
+**
+**  Input:      infile      string, the name of the original data set.
+**
+**              outfile     string, the name of the data set to be created.
+**
+**              pcntsmpl    scalar, the percentage random sample to take.
+**                          This must be in the range 0-100.
+**
+**  Output:     n    scalar, number of rows in output data set.
+**
+**                   Error returns are controlled by the low bit of
+**                   the trap flag:
+**
+**                   TRAP 0     terminate with error message.
+**
+**                   TRAP 1     return scalar negative integer.
+**
+**                               -1  can't open input file
+**                               -2  can't open output file
+**                               -3  disk full
+**                               -4  percentage out of range
+**
+**  Remarks:    Random sampling is done WITH REPLACEMENT.  Thus,
+**              an observation may be in the resulting sample
+**              more than once. If pcntsmpl is 100 the resulting
+**              sample may not be identical to the original
+**              sample, though it will be the same size.  This is
+**              useful for doing bootstrapping.
+**
+**  Globals:    None
+*/
+
+proc exctsmpl(infile,outfile,pcntsmpl);
+    local i,totnum,totsmpl,fout,fin,varnames;
+
+    /* check for complex input */
+    if iscplx(pcntsmpl);
+        if hasimag(pcntsmpl);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            pcntsmpl = real(pcntsmpl);
+        endif;
+    endif;
+
+    open fin = ^infile;
+    if fin == -1;
+        if not trapchk(1);
+            errorlog "ERROR Can't open input data file: " $+ infile;
+            end;
+        else;
+            retp(-1);
+        endif;
+    endif;
+    if iscplxf(fin);
+        errorlog "ERROR: Not implemented for complex data sets.";
+        end;
+    endif;
+
+    varnames = getname(infile);
+    create fout = ^outfile with ^varnames,0,typef(fin);
+    if fout == -1;
+        if not trapchk(1);
+            errorlog "ERROR Can't open output data file: " $+ outfile;
+            fin = close(fin);
+            end;
+        else;
+            fin = close(fin);
+            retp(-2);
+        endif;
+    endif;
+
+    if pcntsmpl < 0 or pcntsmpl > 100;
+        if not trapchk(1);
+            errorlog "ERROR percentage out of range";
+            end;
+        else;
+            retp(-4);
+        endif;
+    endif;
+    pcntsmpl = pcntsmpl/100;
+
+    totnum = rowsf(fin);
+    totsmpl = round(pcntsmpl*totnum);
+
+    i = 1;
+    do until i > totsmpl;
+        call seekr( fin, trunc( rndu(1,1)*totnum ) + 1 );
+        if writer(fout,readr(fin,1)) /= 1;
+            if not trapchk(1);
+                errorlog "Disk Full";
+                fout = close(fout);
+                fin = close(fin);
+                end;
+            else;
+                fout = close(fout);
+                fin = close(fin);
+                retp(-3);
+            endif;
+        endif;
+
+        i = i+1;
+    endo;
+    fout = close(fout);
+    fin = close(fin);
+    retp(totsmpl);
+endp;

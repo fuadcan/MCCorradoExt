@@ -1,0 +1,80 @@
+#ifDLLCALL
+#else
+
+/*
+** indexcat.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** This function requires GAUSS-386.
+**
+**> indexcat
+**
+**  Purpose:    Returns the indexes of the elements of a vector
+**              which fall into a specified category.
+**
+**  Format:     y = indexcat(x,v);
+**
+**  Inputs:     x    Nx1 vector.
+**
+**              v    scalar or 2x1 vector.
+**
+**                   If scalar, the function returns the indices of
+**                   all elements of x equal to v,
+**
+**                   If 2x1, then the function returns the indexes of
+**                   all elements of x that fall into the range:
+**
+**                       v[1] < x <= v[2].
+**
+**                   If v is scalar it can contain a single missing to
+**                   specify the missing value as the category.
+**
+**  Output:    y    Lx1 vector, containing the indexes of the
+**                  elements of x which fall into the category defined
+**                  by v.  It will contain error code 13 if there are
+**                  no elements in this category.
+**
+**  Remarks:    Use a loop to pull out indices of multiple categories.
+**
+**  Globals:    _ixcat
+**
+**  Example:   let x = 1 5 3 9 3 7
+**             let v = 4 6;
+**             y = indexcat(x,v);
+*/
+
+#include flibuff.ext
+
+proc indexcat(x,v);
+    local vr,xr;
+    xr = rows(x);
+    vr = rows(v);
+    if cols(x) /= 1 or cols(v) /= 1 or vr > 2;
+        errorlog "Matrices not conformable";
+        end;
+    endif;
+    if rows(_ixcat) /= 44 or _ixcat[1] $== 0;
+        _ixcat = zeros(44,1);
+        loadexe _ixcat = indexcat.rex;
+    endif;
+    callexe _ixcat(x,xr,v,vr);
+    if vr;
+        retp( trimr(x,0,xr-vr) );
+    else;
+        retp( error(13) );
+    endif;
+endp;
+
+#endif

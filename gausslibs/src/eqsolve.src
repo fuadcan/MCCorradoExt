@@ -1,0 +1,567 @@
+/*
+** eqSolve.src - Nonlinear Systems of Equations
+** (C) Copyright 1997-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> eqSolve
+**
+**  Purpose:    Solves a system of nonlinear equations
+**
+**  Format:     { x, retcode } =  eqSolve(&f,x0);
+**
+**  Input:      x0    Kx1 vector, starting values
+**
+**             &f    scalar, a pointer to a procedure which computes the
+**                   value at x of the equations to be solved.
+**
+**  Output:     x     Kx1 vector, solution
+**
+**        retcode     scalar, the return code:
+**
+**                   -1   Jacobian is singular
+**
+**                    1   Norm of the scaled function value is less than
+**                        __Tol. Xp given is an approximate root of F(X)
+**                        (unless __Tol is too large).
+**
+**                    2   The scaled distance between the last two steps is
+**                        less than the step-tolerance (_eqSolve_StepTol).
+**                        X may be an approximate root of F(X), but it is
+**                        also possible that the algorithm is making very
+**                        slow progress and is not near a root, or the
+**                        step-tolerance is too large.
+**
+**                    3   The last global step failed to decrease
+**                        norm2(F(X)) sufficiently; either X is close to a
+**                        root of F(X) and no more accuracy is possible, or
+**                        an incorrectly coded analytic Jacobian is being
+**                        used, or the secant approximation to the Jacobian
+**                        is inaccurate, or the step-tolerance is
+**                        too large.
+**
+**                    4   Iteration limit exceeded.
+**
+**                    5   Five consecutive steps of maximum step length --
+**                        have been taken; either norm2(F(X))
+**                        asymptotes from above to a finite value in some
+**                        direction or the maximum step length is too small.
+**
+**                    6   X seems to be an approximate local minimizer of
+**                        norm2(F(X)) that is not a root of F(X).
+**                        To find a root of F(X), restart eqSolve
+**                        from a different region.
+**
+**  Globals:
+**
+**  _eqs_JacobianProc      pointer to a procedure which computes the
+**                         analytical Jacobian.  By default, "eqSolve"
+**                         will compute the Jacobian numerically.
+**
+**  _eqs_MaxIters          scalar, the maximum number of iterations.
+**                         Default = 100.
+**
+**  _eqs_StepTol           scalar, the step tolerance.
+**                         Default = macheps^(2/3).
+**
+**  _eqs_TypicalF          Kx1 vector of the typical F(X) values at a point
+**                         not near a root, used for scaling.  This becomes
+**                         important when the magnitudes of the components
+**                         of F(X) are expected to be very different.
+**                         By default, function values are not scaled.
+**
+**  _eqs_TypicalX          Kx1 vector of the typical magnitude of <x>, used
+**                         for scaling. This becomes important when the
+**                         magnitudes of the components of <x> are expected
+**                         to be very different.  By default, variable
+**                         values are not scaled.
+**
+**  _eqs_IterInfo          scalar, if nonzero, iteration information is
+**                         printed.  Default = 0;
+**
+**  __Tol                  scalar, the tolerance of the scalar
+**                         function f = 0.5*||F(X)||2 required to terminate
+**                         the algorithm. That is, the  condition that
+**                         |f(x)| <= _nlfvtol must be met before  that
+**                         algorithm can terminate successfully.
+**                         Default = 1e-5
+**
+**
+**  __altnam               Kx1 character vector of alternate names to be used
+**                         by the printed output.  By default, the names "X1,
+**                         X2, X3... or X01, X02, X03 (depending on how __vpad
+**                         is set) will be used.
+**
+**  __header               string.  This is used by the printing procedure to
+**                         display information about the date, time, version
+**                         of module, etc.  The string can contain one or more
+**                         of the following characters:
+**
+**                          "t"   print title (see __title)
+**                          "l"   bracket title with lines
+**                          "d"   print date and time
+**                          "v"   print version and revision number of program
+**                          "f"   print file name being analyzed.  (NOT USED
+**                                BY EqSolve).
+**
+**                         Example:
+**
+**                             __header = "tld";
+**
+**                         Default = "tldvf".
+**
+**  __output               scalar.  If non-zero, final results are printed.
+**
+**  __title                string, a custom title to be printed at the top of
+**                         the iterations report.  By default, only a generic
+**                         title will be printed.
+**
+**  Remarks:   The equation procedure should return a column vector
+**             containing the result for each equation.  For example:
+**
+**                     Equation 1:   x1^2  + x2^2 - 2 = 0
+**                     Equation 2:   exp(x1-1) + x2^3 - 2 = 0
+**
+**
+**                    proc  f(var);
+**                        local x1,x2,eqns;
+**
+**                        x1 = var[1];
+**                        x2 = var[2];
+**                        eqns =  x1^2 + x2^2 - 2      |  /* Equation 1 */
+**                               exp(x1-1) + x2^3 - 2  ;  /* Equation 2 */
+**                        retp( eqns );
+**                    endp;
+**
+*/
+
+#include eqsolve.ext
+#include gauss.ext
+
+proc (2) = eqSolve(f,x0);
+    local xp, retcode, f:proc;
+
+    { xp,retcode } = _eqSolve(&f,x0,_eqs_typicalX,_eqs_typicalF,
+        _eqs_IterInfo,_eqs_JacobianProc,_eqs_MaxIters,
+        _eqs_StepTol,__tol,__altnam,__vpad);
+
+
+    if __output;
+
+        local table,fmt,varlist,n,fvp;
+
+        n = rows(x0);
+        call header("EqSolve","",_rtl_ver);
+        print;
+
+        print "||F(X)|| at final solution:                               "\
+              "     ";;
+        print ftos(_eqs_norm2(xp),"%*.*lg",15,8);
+
+        print chrs(45*ones(80,1));
+        print "Termination Code = " ftos(retcode,"%*.*lf",1,0) ":";
+        print;
+
+        if retcode == 1;
+            print "Norm of the scaled function value is less than __Tol;";
+        elseif retcode == 2;
+            print "The scaled distance between the last two steps is less "\
+                  "than";
+            print "the step-tolerance (_eqs_StepTol). X may be an approxim"\
+                  "ate";
+            print " root of F(X), but it is also possible that the algorit"\
+                  "hm is";
+            print "making very slow progress and is not near a root, or th"\
+                  "at the";
+            print "step tolerance is too large.";
+        elseif retcode == 3;
+            print "The last global step failed to decrease norm2(F(X)) ";
+            print "either X is close to a root of F(X) and no more accura"\
+                  "cy";
+            print "is possible, or an incorrectly coded analytic Jacobian"\
+                  " is ";
+            print "being used";
+        elseif retcode == 4;
+            print "Iteration limit exceeded.";
+        elseif retcode == 5;
+            print "Five consecutive steps of maximum length  have been taken;";
+            print "either norm2(F(X)) approaches an asymptote from above to a";
+            print "finite value in some direction or the maximum step length";
+            print "is too small.";
+        elseif retcode == 6;
+            print "X seems to be an approximate local minimizer of norm2"\
+                  "(F(X))";
+            print "that is not a root of F(X) (or __Tol is too small).  To f"\
+                  "ind";
+            print "a root of F(X), eqSolve should be restarted from a differ"\
+                  "ent";
+            print "region";
+        elseif retcode == -1;
+            print "Jacobian is singular";
+        endif;
+
+
+        print chrs(45*ones(80,1));
+        print;
+        print chrs(45*ones(80,1));
+
+        print "VARIABLE              START                   ";;
+        print "ROOTS                 F(ROOTS)";
+        print chrs(45*ones(80,1));
+        if __altnam $== 0;
+            varlist = 0$+"X"$+ftocv(seqa(1,1,n),__vpad*(floor(log(n)+1)),0);
+        else;
+            if rows(__altnam) == n;
+                varlist = __altnam;
+            elseif cols(__altnam) == n;
+                varlist = __altnam';
+            else;
+                errorlog "\nERROR:  Wrong number of rows in __ALTNAM.\n";
+                end;
+            endif;
+        endif;
+
+        fvp = f(xp);
+        table = varlist~x0~xp~fvp;
+        fmt = { "-*.*lf" 15 8, "*.*lf" 13 5, "*.*lg" 27 8, "*.*lg" 24 8 };
+        call printfm(table,0~1~1~1,fmt);
+        if rows(table) == 1;
+            print;
+        endif;
+
+        print chrs(45*ones(80,1));
+        print;
+        print;
+
+    endif;
+
+
+    retp(xp,retcode);
+endp;
+
+proc (2) = _eqSolve(&f,x0,eqtypx,eqtypf,eqiterinfo,eqjac,eqmaxit,
+    eqstol,eqtol,eqaltnam,eqvpad);
+
+    local f:proc;
+
+    local jacob,retcode,maxstep,sx,sf,xc,gc,fp,eta, fvc,restart,
+        itncount,p,xp,maxtaken,fc,fvp, jc,consecmx,n,sfsq,typx,typf,
+        macheps,fvtol,sp, gp,eqlist,varlist,fmtstr,oldt,_oldver;
+
+    local nldc, nlfpprv, nlxpprv, eqmtol;
+    local Lnlitnum;
+
+    clear nlfpprv, nlxpprv;
+    nldc = 1;
+    _oldver = (10*submat(sysstate(1,0),1,1) + submat(sysstate(1,0),2,1)) < 35;
+
+    n = rows(x0);
+    fvc = f(x0);
+    if rows(fvc) > n;
+        errorlog "\nERROR:  This is an overdetermined system.  EqSolve requ"\
+            "ires that\n        the system be square. (i.e. that the number"\
+            " of variables\n        equal the number of equations.\n";
+        end;
+    elseif rows(fvc) < n;
+        errorlog "\nERROR:  This is an underdetermined system.  EqSolve req"\
+            "uires that\n        the system be square. (i.e. that the numbe"\
+            "r of variables\n        equal the number of equations.\n";
+        end;
+    endif;
+
+/*
+** Initialize defaults.
+**
+*/
+    retcode = 0;
+
+    eta = sqrt(__macheps);
+    eqmtol = __macheps^(2/3);
+
+    if eqstol == 0;
+        eqstol = __macheps^(2/3);
+    endif;
+
+    if eqtol == 0;
+        eqtol = __macheps^(1/3);
+    endif;
+
+
+    if eqtypx == 0;
+        sx = ones(n,1);
+        typx = sx;
+    elseif rows(sx) == n;
+        typx = missrv(miss(eqtypx,0),1);
+        sx = 1/typx;
+    endif;
+
+    if eqtypf == 0;
+        sf = ones(n,1);
+        typf = sf;
+    elseif rows(sf) == n;
+        typf = missrv(miss(eqtypf,0),1);
+        sf = 1/typf;
+    endif;
+
+    sfsq = sf^2;
+
+    maxstep = (10^3)*maxc(sqrt(moment(sx.*x0,0))'|sqrt(moment(sx,0))');
+
+    if eqaltnam $== 0;
+        varlist = zeros(n,1) $+ "X" $+ ftocv(seqa(1,1,n), eqvpad*(floor(log(n)
+            )+1),0);
+    else;
+        if rows(eqaltnam) == n;
+            varlist = eqaltnam;
+        elseif cols(eqaltnam) == n;
+            varlist = eqaltnam';
+        else;
+            errorlog "\nERROR:  Wrong number of rows in __altnam.\n";
+            end;
+        endif;
+    endif;
+    eqlist = 0 $+ "F" $+ ftocv(seqa(1,1,n), eqvpad*(floor(log(n))+1),0) $+
+        "(X)";
+    fmtstr = { "-*.*lf" 15 8, "*.*lf" 18 8, "*.*lf" 22 8, "*.*lf" 22 8 };
+
+    if eqjac;
+        jacob = eqjac;      /* Assign pointer to jacob */
+        local jacob:proc;           /* Assume jacob is procedure pointer  */
+        jc = jacob(x0);
+    else;
+        jc = _eqs_jacob(&f,x0,fvc,0,typx,eta);
+    endif;
+
+    gc = jc'fvc;
+    xp = x0;
+    xc = x0;
+    fc = 0.5*moment(sf.*fvc,0);
+    retcode = 0;
+
+    consecmx = 0;
+    itncount = 0;
+
+    if eqiterinfo;
+        print chrs(45*ones(80,1));
+        print "              ROOTS";;
+        print chrs(32*ones(32,1)) "      F(ROOTS)";
+        print chrs(45*ones(80,1));
+        print;
+    endif;
+
+    do while retcode == 0;
+
+        if _oldver;
+             oldt = cond(jc);
+             if oldt < 1e16;
+                 p = -fvc/jc;
+             else;
+                 retp(xc,-1);
+             endif;
+        else;
+             oldt = trapchk(1);
+             trap 1,1;
+             p = -fvc/jc;
+             if scalmiss(p);
+                 retp(xc,-1);
+             endif;
+             trap oldt,1;
+        endif;
+
+        gc = jc'fvc;
+        xc = xp;
+
+        local alpha,newtlen,rlength,minlam,lambda,ab,inslope,
+            ltemp, one,two,three,fpprev,a,b,disc,lprev, notdone,
+            tcode;
+
+    /* Initialize Parameters */
+
+        maxtaken = 0;
+        alpha = 1e-4;
+
+        newtlen = sqrt(moment(sx.*p,0));
+        if newtlen > maxstep;
+            p = p*(maxstep/newtlen);
+            newtlen = maxstep;
+        endif;
+
+        inslope = gc'p;
+        rlength = maxc(abs(p) ./ (maxc(xc'|(typx')) ));
+
+        if rlength == 0;
+            xp = xc;
+            fp = fc;
+        else;
+            minlam = eqstol/rlength;
+
+            lambda = 1;
+            notdone = 1;
+
+            do while notdone;
+                xp = xc + lambda*p;
+                fp = 0.5*moment(sf.*f(xp),0);       /* objective function  */
+
+                if fp <= fc + alpha*lambda*inslope;
+                    if lambda == 1 and newtlen > .99*maxstep;
+                       maxtaken = 1;
+                    endif;
+                    notdone = 0;
+                elseif lambda < minlam;
+                    xp = xc;
+                    notdone = 0;
+                else;
+                    if lambda == 1;
+                            /* Quadratic step */
+                        ltemp = -inslope/(2*(fp-fc-inslope));
+                    else;
+                        one = 1/(lambda - lprev);
+                        two = ((1/lambda^2 ~ -1/lprev^2) |
+                            (-lprev/lambda^2 ~ lambda/lprev^2));
+                        three = fp - fc - lambda *inslope | fpprev - fc
+                            -lprev*inslope;
+
+                        ab = one*two*three;
+                        a = ab[1,1];
+                        b = ab[2,1];
+                        disc = b^2 - 3*a*inslope;
+
+                        if ndpchk(8);
+                            break;
+
+                        elseif a == 0;
+                            ltemp = -inslope/(2*b);
+                        elseif disc <= 0 or ndpchk(8);
+                            break;
+                        else;
+                            ltemp = (-b+sqrt(disc))/(3*a);
+                        endif;
+                        if ltemp > 0.5*lambda;
+                            ltemp = 0.5*lambda;
+                        endif;
+                    endif;
+                    lprev = lambda;
+                    fpprev = fp;
+
+                    if ltemp <= 0.1*lambda;
+                        lambda = 0.1*lambda;
+                    else;
+                        lambda = ltemp;
+                    endif;
+                endif;
+            endo;
+
+        endif;
+
+        fvp = f(xp);
+
+        if eqjac;
+            jc = jacob(xp);
+        else;
+            jc = _eqs_jacob(&f,xp,fvp,0,typx,eta);
+        endif;
+
+/*
+** Check to see if any stopping criteria have been met.
+*/
+
+        if _eqs_norm2(fvp.*sf) <= eqtol;
+            retcode = 1;    /* A proper termination */
+        elseif abs(xp-xc)./maxc(abs(xp)'|typx') <= eqstol;
+            retcode = 2;    /* Algorithm may have bogged down */
+        elseif retcode == 1;
+            retcode = 3;
+        elseif itncount >= eqmaxit;
+            retcode = 4;
+        elseif maxtaken == 1;
+            consecmx = consecmx+1;
+            if consecmx == 20;
+                retcode = 5;
+            endif;
+        else;
+            consecmx = 0;
+            gp = jc'.*sfsq*fvp;
+            if maxc(abs((gp.* maxc(xp'|typx'))/maxc(fp|1/sf))) <= eqmtol;
+                retcode = 6;
+            endif;
+        endif;
+        itncount = itncount + 1;
+
+        if eqiterinfo > 0;
+            print "Iteration #" ftos(itncount,"%*.*lf",1,0);
+            call printfm(varlist~xp~eqlist~fvp,0~1~0~1,fmtstr);
+            print;
+            print;
+        endif;
+
+        fc = fp;
+        fvc = fvp;
+
+    endo;
+
+
+retp(xp,retcode);
+endp;
+
+proc _eqs_norm2(x);
+    retp(0.5*sqrt(x'x));
+endp;
+
+
+
+
+proc _eqs_jacob(f,x,f0,dh,typx,eta);
+
+    local rows_f,rows_x,jacobian,i,xc,xp;
+    local f:proc;
+
+    rows_f = rows(f0);
+    rows_x = rows(x);
+    jacobian = zeros(rows_f,rows_x);
+
+    /* Computation of stepsize (dh) for gradient if dh == 0 */
+
+    if dh == 0;
+        dh = eta*maxc(abs(x')|typx');
+        dh = dh + (dh == 0);
+    endif;
+
+    xc = x + dh;
+    dh = xc - x;        /* This increases precision slightly */
+    xp = x + eye(rows_x).*dh;
+
+    /* Calculate forward difference */
+    i = 1;
+    do until i > rows_x;
+        jacobian[.,i] = (f(xp[.,i]) - f0);
+        i = i + 1;
+    endo;
+    retp(jacobian./(dh'));
+endp;
+
+
+
+
+proc (0) = eqSolveSet;
+
+    _eqs_typicalX = 0;
+    _eqs_typicalF = 0;
+    _eqs_IterInfo = 0;
+    _eqs_JacobianProc = 0;
+    _eqs_MaxIters = 100;
+    _eqs_StepTol = __macheps^(2/3);
+
+endp;
+
+

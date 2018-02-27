@@ -1,0 +1,373 @@
+/*
+** pbox.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> box
+**
+**  Purpose:    Graphs data using the box graph percentile method.
+**
+**  Format:     box(grp,y);
+**
+**  Inputs:     grp       1xM numeric vector.  This contains the group numbers
+**                        corresponding to each column of statistical y data.
+**                        If scalar 0, a sequence from 1 to cols(y) will be
+**                        generated automatically.
+**
+**                y       NxM or Nx1 matrix. Each column represents the y values
+**                        for an individual percentiles box symbol.
+**
+**              _pboxctl  5x1 global vector controls box width, color, and
+**                        type.
+**
+**                     [1] Box width between 0 and 1.  If 0 the box plot is
+**                         drawn as two vertical whisker lines and a filled
+**                         circle representing the median.
+**
+**                     [2] Box color.  If 0, the colors may be individually
+**                         controlled using global variable _pcolor.
+**
+**                     [3] Min/max style for the box symbol as follows:
+**
+**                         1 Min and max whisker limits taken from actual
+**                           limits of the data.  Elements 4,5 are ignored.
+**
+**                         2 Statistical std with the min and max calculated
+**                           as follows (Elements 4,5 are ignored):
+**
+**                             intqrange = 75th - 25th
+**                             min       = 25th - 1.5 * intqrange
+**                             max       = 75th + 1.5 * intqrange
+**
+**                         3 Min and max input by user in elements 4 and 5.
+**
+**                     [4] Minimum percentile value (if _pboxctl[3] = 3.
+**
+**                     [5] Maximum percentile value (if _pboxctl[3] = 3.
+**
+**  Examples:
+**
+**                     _pboxctl = { 3 10 1 }
+**                     Width 3, color 10, min/max of data.
+**
+**                     _pboxctl = { 3 10 3 10 90 }
+**                     Width 3, color 10, min/max at 10th, 90th percentiles.
+**
+**
+**              _plctrl - Box and symbol plot control scalar.
+**
+**                      0 Plot boxes only, no symbols.
+**                      1 Plot boxes and plot symbols which only lie
+**                       outside the min and max whisker limits.
+**                      2 Plot boxes and all symbols.
+**                     -1 Plot symbols only, no boxes.
+**
+**
+**  Output:     _PBOXLIM - 5xM matrix.  The calculated box/whisker limits
+**              corresponding to each column of y data.
+**
+**              _PBOXLIM[1,M] = minimum whisker limit according to _pboxctl[3].
+**              _PBOXLIM[2,M] = 25th percentile (box bottom).
+**              _PBOXLIM[3,M] = 50th percentile (median).
+**              _PBOXLIM[4,M] = 75th percentile (box top).
+**              _PBOXLIM[5,M] = maximum whisker limit according to _pboxctl[3].
+**
+**  See Also:   xy, logx, logy, loglog, scale, xtics, ytics
+*/
+
+#include pgraph.ext
+
+proc 0 = box(x,y);
+    local symbol,colorq,xformat,yformat,frame,msgstr,psym,psymnum, msgnum,
+        nx,ny,sca,gcode,linenum,arrownum,arrow,c,t1,t2, msx,xlab,ylab,
+        gridflag,errbnum, fontnum,pstype,pcolor,psymsiz,pltype, plctrl,
+        xinc,yinc,pline,pmsgctl,mem,fntsize,plwidth,pnum,paxes,nrows,
+        boxlim,pboxctl,pmin,pmax,gpcpath,nboxes;
+    /* ---------------------------------------------------------------- */
+    local minx,maxx,miny,maxy,qsig,qfield,qlab,qxprec,qxpow,qxorig,qxstep,
+        qxmax,qxmint,qyprec,qypow,qyorig,qystep,qymax,
+        qymint,i,delt1,delt2;
+
+    clear xlab,ylab;
+
+    _pqgtype = { 6, 1 };    /* graph type box, 2d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    /* dimensions of data matrix */
+    nrows  = rows(y);
+    nboxes = cols(y);
+
+    /* create x variable if 0 */
+    if x == 0;
+        x = seqa(1,1,nboxes)';
+        xtics(0,cols(x)+1,1,1);
+    endif;
+
+    if cols(x) /= nboxes;
+        if rows(x) == cols(x);
+            x = x';
+        else;
+            errorlog "X and Y matrices must have the same number of columns.";
+            end;
+        endif;
+    endif;
+
+    if cols(x) == 1;
+        x = 0 ~ x ~ 2;
+    else;
+        delt1 = x[2] - x[1];
+        delt2 = x[cols(x)] - x[cols(x)-1];
+        x = (x[1]-delt1) ~ x ~ (x[cols(x)]+delt2);
+    endif;
+
+    xinc = cols(x) /= 1;
+    yinc = cols(y) /= 1;
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+
+    /* sort y matrix and compute percentiles */
+    pboxctl = reshape(_pboxctl,5,1);
+    { y, boxlim } = calcbox( y, pboxctl );
+
+    /* update min-max values for plot limits */
+    pmin = minc(minc(boxlim));
+    pmax = maxc(maxc(boxlim));
+    if pmin < miny;
+        miny = pmin;
+    endif;
+    if pmax > maxy;
+        maxy = pmax;
+    endif;
+
+    _pboxlim = boxlim;   /* for use by the user */
+    boxlim = boxlim';    /* transpose for 'c' code */
+
+    goto g00;
+
+makestru:
+        pop msx;
+    c = 1;
+    t1 = 1|0|0|0|0|0|0|0|0|0;
+    do while c <= rows(msx);
+        if strlen(msx[c,1]);
+            t2 = vals(""$+msx[c,1]);
+            t1 = t1|t2|zeros(10-rows(t2),1);
+        else;
+            t1 = t1|zeros(10,1);
+        endif;
+        c = c+1;
+    endo;
+    return(chrs(t1));
+
+g00:
+
+    { qsig,qfield,qxprec,qxpow,qxorig,qxstep,qxmax,qxmint,qlab } =
+        _paxnum(pnum[1],minx,maxx,_pxsci,_pxscale,_pxpmax);
+
+    { qsig,qfield,qyprec,qypow,qyorig,qystep,qymax,qymint,qlab } =
+        _paxnum(pnum[2],miny,maxy,_pysci,_pyscale,_pypmax);
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+    endif;
+    if qypow;
+        y = y * 10^(-qypow);
+    endif;
+
+    if not(_pascx $== 0);
+        gosub makestru(_pascx);
+            pop xlab;
+        xformat = 0;
+    elseif strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);
+    endif;
+
+    if not(_pascy $== 0);
+        gosub makestru(_pascy);
+            pop ylab;
+        yformat = 0;
+    elseif strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);
+    endif;
+
+    sca = qxorig|qxstep|qxmax|qyorig|qystep|qymax;
+
+    _setpage();
+
+    if _pstype == 0;
+        pstype = _pssel;
+    else;
+        pstype = _pstype;
+    endif;
+
+    if _pltype == 0;
+        pltype = _plsel;
+    else;
+        pltype = _pltype;
+    endif;
+
+    if rows(_pcolor) == 1 and cols(_pcolor) == 1 and _pcolor == 0;
+        pcolor = _pcsel;
+    else;
+        pcolor = _pcolor;
+    endif;
+
+    pstype = reshape(pstype,nboxes,1)-1;
+    psymsiz = reshape(_psymsiz,nboxes,1);
+    pltype = reshape(pltype,nboxes,1);
+    pcolor = reshape(pcolor,nboxes,1);
+    plctrl = reshape(_plctrl,nboxes,1);
+    plwidth = reshape(_plwidth,nboxes,1);
+    symbol = pstype~psymsiz~pltype~pcolor~plctrl~plwidth;
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+
+    if _pgrid $== 0;
+        gridflag = 0|2|qxmint|qymint;
+    else;
+        gridflag = _pgrid[1 2]|qxmint|qymint;
+    endif;
+
+    /* Transpose data matrices for plotting in the c code */
+    x = x';
+    y = y';
+
+    if rows(_perrbar) == 1 and cols(_perrbar) == 1;
+        errbnum = 0;
+    elseif cols(_perrbar) /= 9;
+        errorlog "Error bar matrix invalid";
+        end;
+    else;
+        errbnum = rows(_perrbar);
+    endif;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,_pline,_pmsgctl,psym);
+    { fontnum,mem,fntsize } = _fontsiz();
+
+    /* pbox <=> 2 */
+
+    GraphSEv3(x,y,nrows,nboxes,boxlim,xinc,yinc,sca,_ptitle,
+        _pxlabel,_pylabel,_ptek,symbol,_pfonts,fontnum,fntsize,_pcross,
+        gridflag,xformat,yformat,_pbox,paxes,msgstr,pmsgctl,msgnum,psym,
+        psymnum,_paxht,_pnumht,_ptitlht,_pagesiz,_pageshf,_plotsiz,_plotshf,
+        _protate,frame,pline,linenum,arrow,arrownum,xlab,ylab,colorq,
+        _pdate,_perrbar,errbnum,qxpow,qypow,pnum,_plegctl,_plegstr,
+        _pnotify,pboxctl,_pappend,_pmargin,_pcwin,_pncwin,_pcrop,
+        _pticout,gpcpath,2);
+
+    clear x,y,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+endp;
+
+
+/*
+   CALCBOX
+   Loop through each column of y data and compute percentiles.  Returns
+   two NxK matrices.
+
+   { y, boxlim } = CALCBOX( y, boxctl );
+
+   Inputs:
+
+   y      - NxK matrix where each column contains the data for one box.
+   boxctl - Box plot control vector.  See procedure BOX for details.
+
+   Outputs:
+
+   y      - NxK input matrix sorted in increasing order.
+   boxlim - 5xK matrix containing percentile limits of y:
+
+            [1,K] minimum based on boxctl.
+            [2,K] 25th percentile.
+            [3,K] 50th percentile.
+            [4,K] 75th percentile.
+            [5,K] maximum based on boxctl.
+*/
+
+proc 2 = calcbox( y, boxctl );
+    local yr,i,rowv,p25,p50,p75,pmin,pmax,boxlim;
+    yr = y;
+    i = 1;
+    do while i <= cols(y);
+
+        /* Sort the data and put missings at the top of each column */
+        yr[.,i] = sortc(yr[.,i],1);
+
+        /* strip missings */
+        rowv = delif(yr[.,i],yr[.,i] .$== error(0));
+        p25 = _pcntclc(rowv,.25);
+        p50 = _pcntclc(rowv,.50);
+        p75 = _pcntclc(rowv,.75);
+
+        /* get min-max values for whisker limits */
+        if abs(boxctl[3]-1) < 1.0e-10;      /* min max data points */
+            pmin = rowv[1];
+            pmax = rowv[rows(rowv)];
+        elseif abs(boxctl[3]-2) < 1.0e-10;  /* stat std */
+            pmin = p25 - (p75 - p25)*1.5;
+            pmax = p75 + (p75 - p25)*1.5;
+        elseif abs(boxctl[3]-3) < 1.0e-10;  /* user percentiles */
+            pmin = _pcntclc(rowv,boxctl[4]/100);
+            pmax = _pcntclc(rowv,boxctl[5]/100);
+        else;
+            errorlog "Invalid control value for _PBOXCTL";
+            end;
+        endif;
+
+        /* assemble the box-whisker limits */
+        if i == 1;
+            boxlim = pmin | p25 | p50 | p75 | pmax;
+        else;
+            boxlim = boxlim ~ (pmin | p25 | p50 | p75 | pmax);
+        endif;
+
+        i = i + 1;
+    endo;
+    retp( yr, boxlim );
+endp;
+
+
+
+/* Calculate scalar y data at given percentile */
+proc (1) = _pcntclc(bvec,pcnt);
+    local n,v,vi,vf,result;
+    n = rows(bvec);
+    v = n * pcnt;
+    vi = trunc(v + 1.0e-10);
+    vf = v - vi;
+
+    if v < 1;
+        "Warning - percentile exceeds data range, using min.";
+        result = bvec[1];
+    elseif v > n;
+        "Warning - percentile exceeds data range, using max.";
+        result = bvec[n];
+    elseif abs(vi-n) < 1.0e-10;
+        result = bvec[n];
+    else;
+        result = (bvec[vi+1] - bvec[vi]) * vf + bvec[vi];
+    endif;
+
+    retp( result );
+endp;

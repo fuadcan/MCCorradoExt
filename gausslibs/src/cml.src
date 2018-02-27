@@ -1,0 +1,1044 @@
+/*
+** cml.src   CML - Maximum Likelihood Estimation with General
+**                 Nonlinear Constraints on Parameters
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   Written by Ronald Schoenberg
+**
+**        CONTENTS                                           LINE
+**        --------                                           ----
+**        CML procedure                                        39
+**        Global Variables                                     89
+**        Procedure For Computing Log-likelihood Function     470
+**        Source Code                                         536
+**
+**        CMLPrt                                              644
+**        CMLCLPrt                                            797
+**        CMLTlimits                                          940
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+*****************************************************************************
+**                          CML procedure                                  **
+*****************************************************************************
+**
+**   FORMAT
+**          { x,f,g,cov,retcode } = CML(dataset,vars,&fct,start)
+**
+**   INPUT
+**
+**    dataset - string containing name of GAUSS data set, or
+**              name of data matrix stored in memory, or scalar zero
+**              or missing value.  If scalar zero or missing value,
+**              CML does not pass data to the log-likelihood procedure
+**
+**       vars - character vector of labels selected for analysis, or
+**              numeric vector of column numbers in data set
+**              of variables selected for analysis
+**
+**        fct - the name of a procedure that returns either
+**              the log-likelihood for one observation or a vector of
+**              log-likelihoods for a matrix of observations
+**
+**      start - a Kx1 vector of start values
+**
+**   OUTPUT
+**          x - Kx1 vector, estimated parameters
+**          f - scalar, function at minimum (mean log-likelihood)
+**          g - Kx1 vector, gradient evaluated at x
+**        cov - KxK matrix, covariance matrix of the parameters
+**    retcode - scalar, return code:
+**
+**           0   normal convergence
+**           1   forced exit
+**           2   maximum number of iterations exceeded
+**           3   function calculation failed
+**           4   gradient calculation failed
+**           5   Hessian calculation failed
+**           6   line search failed
+**           7   function cannot be evaluated at initial parameter values
+**           8   error with gradient
+**           9   error with constraints
+**          10   secant update failed
+**          11   maximum time exceeded
+**          12   error with weights
+**          13   quadratic program failed
+**          20   Hessian failed to invert
+**          34   data set could not be opened
+**          99   termination condition unknown
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+*****************************************************************************
+**                         Global Variables                                **
+*****************************************************************************
+**
+** _cml_Options - character vector, specification of options.  This global
+**                   permits setting various CML options in a single
+**                   global using identifiers.  For example,
+**
+**                   _max_Options = { brent newton central file };
+**
+**                   sets the line search method to BRENT, the descent method
+**                   to NEWTON, the numerical gradient method to central
+**                   differences, and __OUTPUT = 1.
+**
+**                   Algorithms:          BFGS, DFP, NEWTON, BHHH
+**                   Line Search:         ONE, STEPBT, HALF, BRENT, BHHHSTEP
+**                   Covariance Matrix:   NOCOV, INFO, XPROD, HETCON
+**                   Gradient method:     CENTRAL, FORWARD
+**                   Output method:       NONE, FILE, SCREEN
+**
+**  ----- Constraints -----
+**
+**   _cml_A - MxK matrix, linear equality constraint coefficient matrix
+**
+**   _cml_B - Mx1 vector, linear equality constraint constant vector
+**
+**         These globals are used to specify linear equality constraints of
+**         the following type:
+**
+**               _cml_A * X = _cml_B
+**
+**         where X is the Kx1 unknown parameter vector.
+**
+**   _cml_EqProc - scalar, pointer to a procedure that computes
+**                    the nonlinear equality constraints.  For example,
+**                    the statement:
+**
+**                          _cml_EqProc = &eqproc;
+**
+**                    tells CML that nonlinear equality constraints
+**                    are to be placed on the parameters and where the
+**                    procedure computing them is to be found.
+**                      The procedure must have one input argument, the
+**                    Kx1 vector of parameters, and one output argument,
+**                    the Rx1 vector of computed constraints that are
+**                    to be equal to zero.  For example, suppose that
+**                    you wish to place the following constraint:
+**
+**                       P[1] * P[2] = P[3]
+**
+**                    The proc for this is:
+**
+**                         proc eqproc(p);
+**                            retp(p[1]*p[2]-p[3]);
+**                         endp;
+**
+**   _cml_EqJacobian - scalar, pointer to procedure computing the
+**                   Jacobian of the nonlinear constraints with respect
+**                   to each of the parameters.
+**
+**                        _cml_EqJacobian = &eqj;
+**
+**                   The procedure has one input argument, the Kx1 vector
+**                   of parameters, and one output argument, the MxK vector
+**                   of derivatives of the constraints with respect to the
+**                   parameters.  For example, if the nonlinear equality
+**                   constraint procedure was,
+**
+**                         proc eqproc(p);
+**                            retp(p[1]*p[2]-p[3]);
+**                         endp;
+**
+**                   then the Jacobian procedure would be,
+**
+**                         proc eqj(p);
+**                             retp(p[2]~p[1]~-1);
+**                         endp;
+**
+**
+**   _cml_C - MxK matrix, linear inequality constraint coefficient matrix
+**   _cml_D - Mx1 vector, linear inequality constraint constant vector
+**
+**         These globals are used to specify linear inequality constraints of
+**         the following type:
+**
+**                _cml_C * X >= _cml_D
+**
+**         where X is the Kx1 unknown parameter vector.
+**
+**   _cml_IneqProc - scalar, pointer to a procedure that computes
+**                      the nonlinear inequality constraints.  For example
+**                      the statement:
+**
+**                            _cml_IneqProc = &ineqproc;
+**
+**                      tells CML that nonlinear equality constraints
+**                      are to be placed on the parameters and where the
+**                      procedure computing them is to be found.
+**                        The procedure must have one input argument, the
+**                      Kx1 vector of parameters, and one output argument,
+**                      the Rx1 vector of computed constraints that are
+**                      to be equal to zero.  For example, suppose that
+**                      you wish to place the following constraint:
+**
+**                         P[1] * P[2] >= P[3]
+**
+**                      The proc for this is:
+**
+**                           proc ineqproc(p);
+**                              retp(p[1]*[2]-p[3]);
+**                           endp;
+**
+**   _cml_IneqJacobian - scalar, pointer to procedure computing the
+**                   Jacobian of the nonlinear constraints with respect
+**                   to each of the parameters.
+**
+**                        _cml_IneqJacobian = &ineqj;
+**
+**                   The procedure has one input argument, the Kx1 vector
+**                   of parameters, and one output argument, the MxK vector
+**                   of derivatives of the constraints with respect to the
+**                   parameters.  For example, if the nonlinear equality
+**                   constraint procedure was,
+**
+**                         proc ineqproc(p);
+**                            retp(p[1]*p[2]-p[3]);
+**                         endp;
+**
+**                   then the Jacobian procedure would be,
+**
+**                         proc ineqj(p);
+**                             retp(p[2]~p[1]~-1);
+**                         endp;
+**
+**   _cml_Bounds - Kx2 matrix, bounds on parameters.  The first column
+**                    contains the lower bounds, and the second column the
+**                    upper bounds.  If the bounds for all the coefficients
+**                    are the same, a 1x2 matrix may be used.
+**                       Default = { -1e256 1e256 }
+**
+**  _cml_Lagrange - vector, created using VPUT.  Contains the Lagrangean
+**                     coefficients for the constraints as well as their
+**                     covariance matrices, if computed.  They may be extracted
+**                     with the VREAD command using the following strings:
+**
+**                  "lineq"    - Lagrangeans of linear equality constraints,
+**                  "nlineq"   - Lagrangeans of nonlinear equality constraints
+**                  "linineq"  - Lagrangeans of linear inequality constraints
+**                  "nlinineq" - Lagrangeans of nonlinear inequality
+**                               constraints
+**                  "bounds"   - Lagrangeans of bounds
+**                  "eqcov"    - covariance matrix of equality Lagrangeans
+**                  "ineqcov"  - covariance matrix of inequality Lagrangeans
+**
+**            Whenever a constraint is active, its associated Lagrangean
+**            will be nonzero.
+**
+**  ----- Descent ------
+**
+**   _cml_Algorithm  -  scalar, indicator for optimization method:
+**                  = 1,   BFGS (Broyden, Fletcher, Goldfarb, Shanno)
+**                  = 2,   DFP (Davidon, Fletcher, Powell)
+**                  = 3,   NEWTON (Newton-Raphson)
+**                  = 4,   BHHH
+**
+**   _cml_Switch - 4x1 or 4x2 vector, controls algorithm switching:
+**
+**         if 4x1:
+**
+**            _cml_Switch[1] = algorithm number to switch to
+**            _cml_Switch[2] = CML switches if functions changes less
+**                             than this amount
+**            _cml_Switch[3] = CML switches if this number of iterations
+**                             is exceeded.
+**            _cml_Switch[4] = CML switches if line search step changes
+**                             less than this amount
+**
+**         else if 4x2, CML switches between the algorithm in column 1
+**             and column 2
+**
+**
+**   _cml_Delta - scalar, floor for eigenvalues of Hessian in the NEWTON
+**              algorithm. This will insure that the Hessian will be
+**              positive definite.
+**
+**   _cml_Trust - scalar, if nonzero a constraint is placed on the direction.
+**
+**   _cml_TrustRadius - scalar, radius of trust region.  Default = .01.
+**
+**   _cml_FeasibleTest - scalar, if nonzero the parameters will be tested for
+**                       feasibility before calling log-likelihood function.
+**                       This is important if feasibility is necessary for the 
+**                       calculation of the log-likelihood, for example if the 
+**                       procedure is computing the log of a parameter which is
+**                       being constrained to be positive.  By default this 
+**                       function is turned on, but if feasibility is not 
+**                       required for calculating the function then set 
+**                       _cml_FeasibleTest to zero if the iterations are being 
+**                       halted as a result of the test.  Default = 1.
+**
+**  ----- Line Search -----
+**
+**   _cml_LineSearch  - scalar, indicator determining line search method
+**
+**              = 1,  steplength = 1
+**              = 2,  STEPBT  (default)
+**              = 3,  HALF (step-halving)
+**              = 4,  BRENT
+**              = 5,  BHHHSTEP
+**
+**              Usually _cml_LineSearch = 2 will be best.  If the
+**              optimization bogs down try setting _cml_Step = 1 or 4.
+**              _cml_Step = 4 will generate slow iterations but faster
+**              convergence and _cml_Step = 1 will generate fast
+**              iterations but slower convergence.
+**
+**   _cml_MaxTry - scalar, maximum number of tries to find step length
+**                      that produces a descent
+**
+**   _cml_Extrap - scalar, extrapolation constant in BRENT.
+**
+**   _cml_Interp - scalar, interpolation constant in BRENT.
+**
+**   _cml_UserSearch - scalar, if nonzero and if all other line search
+**              methods fail CML will enter an interactive mode in which
+**              the user can select a line search parameter.
+**
+**   _cml_GridSearch - scalar, if nonzero a grid search for a new direction
+**              is made when the line search fails.  Default = 1.
+**
+**   _cml_GridSearchRadius - scalar, radius of grid search.  Default = .01.
+**
+**  ----- Covariance Matrix of Parameters -----
+**
+**   _cml_CovPar  -  scalar, type of covariance matrix of parameters,
+**
+**                = 0,  the inverse of the final information matrix from
+**                      the optimization is returned in cov (default).
+**
+**                = 1,  the inverse of the Hessian is returned.
+**
+**                = 2,  the inverse of the cross-product of the first
+**                      derivatives is returned.
+**
+**                = 3,  the quasi-maximum likelihood covariance matrix
+**                      is returned.
+**
+**   _cml_XprodCov - KxK matrix, when _cml_CovPar is set to 3 the
+**                      cross-product matrix covariance matrix of the
+**                      parameters will be returned in _cml_XprodCov.
+**
+**   _cml_HessCov - KXK matrix, when _cml_CovPar is set to 3 the
+**              information matrix covariance matrix of the parameters,
+**              i.e., the inverse of the matrix of second order partial
+**              derivatives of the log-likelihood by observations, will
+**              be returned in _cml_HessCov.
+**
+**   _cml_FinalHess - KxK matrix, the Hessian used to compute the covariance
+**              matrix of the parameters will be stored in _cml_FinalHess.
+**              This will be most useful if the inversion of the hessian
+**              fails, which is indicated when CML returns a
+**              missing value for the covariance matrix of the
+**              parameters.  An analysis of the Hessian stored in
+**              _cml_FinalHess can then reveal the source of the linear
+**              dependency responsible for the singularity.
+**
+**  ----- Gradients -----
+**
+**   _cml_GradMethod  - scalar, method for computing numerical gradient.
+**                = 0, central difference
+**                = 1, forward difference (default)
+**                = 2, backward difference
+**
+**   _cml_GradOrder - scalar, if greater than or equal to three, the number
+**              of points used in calculating the numerical derivatives.
+**              Otherwise the standard two point numerical derivatives are
+**              computed.
+**
+**   _cml_GradProc - scalar, pointer to a procedure that computes the
+**              gradient of the function with respect to the parameters.
+**              For example, the statement:
+**
+**                     _cml_GradProc = &gradproc;
+**
+**              tells CML that a gradient procedure exists as well
+**              where to find it.  The user-provided procedure has
+**              two input arguments, a Kx1 vector of parameter values and
+**              an NxP matrix of data.  The procedure returns a single
+**              output argument, an NxK matrix of gradients of the log-
+**              likelihood function with respect to the parameters evaluated
+**              at the vector of parameter values.
+**
+**              If the second argument in the call to CML is a scalar zero or a
+**              missing value, no data will be passed in the second argument
+**
+**              Default = 0, i.e., no gradient procedure has been provided.
+**
+**   _cml_UserNumGrad - scalar, pointer to user provided numerical gradient
+**              procedure.  The instruction
+**
+**                     _cml_UserNumGrad = &usernumgrad;
+**
+**              tells CML that a procedure for computing the
+**              numerical gradients exists. The user-provided procedure
+**              has three input arguments, a pointer to a function that
+**              computes the log-likelihood function, a Kx1 vector of
+**              parameter values, and an NxP matrix of data.  The procedure
+**              returns a single output argument, an NxK matrix of
+**              gradients of each row of the input data matrix with
+**              respect to each parameter.
+**
+**              If the second argument in the call to CML is a scalar zero or a
+**              missing value, no data will be passed in the second argument
+**
+**   _cml_HessProc - scalar, pointer to a procedure that computes the
+**              hessian, i.e., the matrix of second order partial derivatives
+**              of the function with respect to the parameters.  For example,
+**              the instruction:
+**
+**                    _cml_HessProc = &hessproc;
+**
+**              will tell OPTMUM that a procedure has been provided for the
+**              computation of the hessian and where to find it.  The
+**              procedure that is provided by the user must have two
+**              input arguments, a Px1 vector of parameter values and an
+**              NxK data matrix.  The procedure returns a single
+**              output argument, the PxP symmetric matrix of second order
+**              derivatives of the function evaluated at the parameter
+**              values.
+**
+**              If the second argument in the call to CML is a scalar zero or a
+**              missing value, no data will be passed in the second argument
+**
+**   _cml_UserNumHess - scalar, pointer to user provided numerical Hessian
+**              procedure.  The instruction
+**
+**                     _cml_UserNumHess = &usernumhess;
+**
+**              will tell CML that a procedure for computing the
+**              numerical Hessian exists. The user-provided procedure
+**              three input arguments, a pointer to a function that
+**              computes the log-likelihood function, a Px1 vector of
+**              parameter values, and an NxK matrix of data. The procedure
+**              returns a single output argument, a PxP Hessian matrix of
+**              the function with respect to the parameters.
+**
+**              If the second argument in the call to CML is a scalar zero or a
+**              missing value, no data will be passed in the second argument
+**
+**   _cml_GradStep  - scalar, or 1x2, or Kx1, or Kx2, increment size for
+**              computing numerical gradient and/or Hessian.  If scalar,
+**              stepsize will be value times parameter estimates for the
+**              numerical gradient.  If 1x2, the first element is
+**              multiplied times parameter value for gradient and second
+**              element the same for the Hessian.  If Kx1, the step size
+**              for the gradient will be the elements of the vector, i.e.,
+**              it will not be multiplied times the parameters, and if
+**              Kx2, the second column sets the step sizes for the Hessian.
+**
+**   _cml_GradCheckTol - scalar, if nonzero and if proc's exist for
+**              computing the gradient or Hessian, their calculations
+**              will be compared with numerical gradients and Hessians
+**              in order to determine their correctness.
+**
+**  ----- Convergence Criteria -----
+**
+**   _cml_DFTol - scalar.  Iterations are stopped when the log-likelihood 
+**              function decreases by less than this amount.  Default = 0.
+**
+**   _cml_DirTol  - scalar, convergence tolerance for gradient of estimated
+**              coefficients.  Default = 1e-5.  When this criterion has been
+**              satisifed OPTMUM will exit the iterations.
+**
+**   _cml_MaxIters - scalar, maximum number of iterations.
+**
+**   _cml_MaxTime - scalar, maximum time in iterations in minutes.
+**              Default = 1e+5, about 10 weeks.
+**
+**  ----- Data -----
+**
+**   _cml_Active  - vector, defines fixed/active coefficients.
+**                     This global allows you to fix a parameter to its
+**                     starting value.  This is useful, for example, when
+**                     you wish to try different models with different
+**                     sets of parameters without having to re-edit
+**                     the function.  When it is to be used, it must
+**                     be a vector of the same length as the starting
+**                     vector.  Set elements of _cml_Active to 1 for
+**                     an active parameter, and to zero for a fixed one.
+**
+**
+**   __weight - vector, frequency of observations.  By default all
+**              observations have a frequency of 1.  zero frequencies
+**              are allowed.  It is assumed that the elements of __weight
+**              sum to the number of observations.
+**
+**   _cml_Lag   - scalar, if the function includes lagged values of the
+**              variables _cml_Lag may be set to the number of lags.  When
+**              _cml_Lag is set to a nonzero value then __row is set to 1
+**              (that is, the function must evaluated one observation at a
+**              time), and CML will pass a matrix to the user-provided
+**              function and gradient procedures.  The first row in this
+**              matrix will be (i - _cml_Lag)-th observation and the last
+**              row will be the i-th observation.  The read loop will begin
+**              with the (_cml_Lag+1)-th observation.  Default = 0.
+**
+**   _cml_NumObs  - scalar, number of observations.  By default the number
+**              of observations is determined from the dataset and this number 
+**              is returned in the global after the iterations.  If a different 
+**              number is required for correct statistical inference, set 
+**              _cml_NumObs to this value.  It may also be necessary to set 
+**              this global if a dataset is not passed to "CML" and if the 
+**              log-likelihood returns a scalar.
+**
+**   _cml_ParNames - Kx1 character vector, parameter labels.
+**
+**   __row    - determines the number of rows in the data set to be passed
+**              to the user-provided procedures. Default = 0.
+**
+**   __rowfac - If CML fails due to insufficient memory while attempting
+**              to read a GAUSS data set, then __rowfac may be set to some
+**              value between 0 and 1 to read a proportion of the original
+**              number of rows of the GAUSS data set.
+**
+**  ----- Miscellaneous -----
+**
+**   __title  -  title of run
+**
+**   _cml_IterData - 3x1 vector, contains information about the iterations.
+**              The first element contains the elapsed time in minutes of the
+**              iterations, the second element contains the # of iterations,
+**              and the third element contains a character variable indicating
+**              the type of covariance matrix of the parameters.
+**
+**   _cml_Diagnostic - scalar. If 1, current estimates ("coeffs"),
+**                        gradient ("gradient"), direction ("direct"),
+**                        function value ("function"), Hessian ("Hessian"),
+**                        and step length computed in the line search ("step")
+**                        are printed to the screen.  If 2, they are
+**                        stored in _cml_Diagnostic using VPUT.  Use
+**                        VREAD to extract.  If 3, both 1 and 2 occur.
+**
+**   _cml_Alpha  -  (1-_cml_Alpha)% two-tailed limits are computed.
+**                  Default = .05
+**
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+*****************************************************************************
+**            Procedure For Computing Likelihood Function                  **
+*****************************************************************************
+**
+**          The user must provide a procedure for computing the
+**      log-likelihood for either one observation, or for a matrix of
+**      observations.  The procedure must have two input arguments,
+**      first, a vector of parameter values, and second, one or more rows
+**      of the data matrix.  The output argument is the log-likelihood
+**      for the observation or observations in the second argument
+**      evaluated at the parameters values in the first argument.
+**          Suppose that the function procedure has been named fct,
+**      the following considerations apply:
+**
+**      FORMAT
+**              logl=fct(x,y)
+**
+**      INPUT
+**              x - vector of parameters of model
+**
+**              y - one or more rows of the data set (if the data set has
+**                  been transformed, or if vars /= 0, i.e., there is
+**                  selection, then y is a selected observation)
+**                  if __row == 1,  one row of the data set
+**                  if __row >= 2,  if data set is stored in memory then
+**                                  all of the data set will be passed to FCT;
+**                                  if data set is stored in GAUSS data file
+**                                  then __row will be passed to passed to
+**                                  FCT.
+**                  if __row <= 0,  For data set is stored in memory same as
+**                                  __row >= 2,
+**                                  for GAUSS data file the maximum number of
+**                                  rows that will fit in memory will be
+**                                  computed by CML.
+**                 if _cml_Lag >= 1,  a matrix of observations, the first is
+**                                 the i-_cml_Lag row, and the final row is
+**                                 the i-th row.
+**
+**     OUTPUT
+**              logl - the log-likelihood
+**                     if __row == 1 or _cml_Lag >= 1,  a scalar value for
+**                     a given observation, otherwise a vector of
+**                     log-likelihoods.
+**
+**
+**      REMARKS
+**
+**          If you have written the procedure such that it must compute
+**       the log-likelihood of one observation at a time then you
+**       must set __row = 1.  But if you are able to write the procedure
+**       so that a vector of log-likelihoods may be returned then set
+**       __row=0; If you are getting "insufficient memory" messages when the
+**       data are being read from a GAUSS data file then either set __row ==1
+**       or to some positive value.
+**          Also, if the data set is stored in a GAUSS data set and the
+**       selected data set will fit into memory, then CML will read
+**       it in and store it before beginning the iterations.  In this
+**       case the setting of __row will follow the rules of a data set
+**       stored in memory.
+**          Significant reduction in computation time may be achieved
+**       when the data set can be stored in memory and procedure is
+**       written to compute vectors of log-probabilities.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+*****************************************************************************
+**                            Source Code                                  **
+*****************************************************************************
+*/
+
+#include gauss.ext
+#include cml.ext
+
+external proc indices;
+
+proc (5) = cml(dataset,var,lfct,start);
+    local x,f,g,h,retcode;
+    local Lmlcpvcp, Lmlhsvcp, Lmlfhess, Lmlitdta, LLoutput;
+    local Lmllagr,Lmlnobs;
+
+    { x,f,g,h,retcode,Lmlfhess,Lmlitdta,Lmlcpvcp,Lmlhsvcp,Lmlnobs,
+        Lmllagr } = _cml(dataset,var,lfct,start,_cml_Algorithm,
+        _cml_CovPar, _cml_Delta, _cml_Extrap, _cml_GradMethod,
+        _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp, 
+        _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry, 
+        _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch, 
+        _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius, 
+        _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+        _cml_UserNumHess, _cml_Active, _cml_GradStep, _cml_GradOrder, 
+        _cml_GradCheckTol, __altnam, __output, __row, __title, __weight );
+
+    _cml_Lagrange = Lmllagr;
+    _cml_FinalHess = Lmlfhess;
+    _cml_IterData = Lmlitdta;
+    _cml_HessCov = Lmlhsvcp;
+    _cml_XprodCov = Lmlcpvcp;
+    _cml_NumObs = Lmlnobs;
+
+    retp(x,f,g,h,retcode);
+
+endp;
+
+proc(0) = CMLset;
+
+    gausset;
+    _cml_Algorithm = 3;     /* optimization algorithm */
+    _cml_CovPar = 1;        /* selects covariance matrix of parameters  */
+    _cml_ParNames = 0;      /* parameter names */
+    _cml_LineSearch = 2;    /* selects type of step length */
+    _cml_DirTol = 1e-5;     /* convergence tolerance for gradient */
+    _cml_HessProc = 0;      /* procedure to compute hessian */
+    _cml_GradProc = 0;      /* procedure to compute gradient */
+    _cml_GradMethod = 0;    /* numerical gradient method */
+    _cml_MaxIters = 1e+5;           /* maximum number of iterations  */
+    _cml_IterData = { .,.,. };      /* elapsed time, # of iters, cov method */
+    _cml_UserSearch = 0;    /* interactive line search */
+    _cml_UserNumGrad = 0;
+    _cml_UserNumHess = 0;
+    _cml_Extrap = 2.0;      /* extrapolation constant */
+    _cml_Interp = 0.25;     /* interpolation constant */
+    _cml_Delta = 0;
+    _cml_MaxTry = 100;
+    _cml_Options = 0;
+    _cml_Lag = 0;           /* number of lags in model */
+    _cml_FinalHess = 0;     /* final Hessian */
+    _cml_NumObs = 0;        /* rows in transformed data matrix */
+    _cml_HessCov = 0;       /* info matrix v-c matrix of par's */
+    _cml_XprodCov = 0;      /* cross proc matrix v-c matrix of par's  */
+    _cml_key = 1;
+    _cml_MaxTime = 1e5;     /* maximum time for bootstrapping */
+    _cml_Active = 1;
+    _cml_GradStep = { . };  /* size of increment for computing gradient  */
+    _cml_Diagnostic = { . };
+    _cml_Alpha = .05;
+    _cml_GridSearch = 1;
+    _cml_GridSearchRadius = .01;
+    _cml_Trust = 0;
+    _cml_TrustRadius = .1;
+    _cml_state = 345678;
+    _cml_GradCoefs = 0;
+    _cml_GradOrder = 0;
+
+    _cml_Increment = 0;     /* if nonzero, histogram increments */
+    _cml_Center = 0;        /* if nonzero, center points for histogram  */
+    _cml_Width = 2;         /* width of histogram = _cml_Width * sd's  */
+    _cml_NumSample = 50;    /* bootstrap sample size */
+    _cml_NumCat = 16;       /* # of cat's for bootstrapped histogram  */
+    _cml_Select = { . };
+    _cml_BootFname = "";
+    _cml_GradCheckTol = 0;
+    _cml_PriorProc = {.};
+    _cml_BayesAlpha = 1.4;
+    _cml_Switch = { 1 3, 1e-4 1e-4, 20 10, 1e-6 1e-6 };
+    _cml_DFTol = { . };
+    _cml_FeasibleTest = 1;
+
+    _cml_Smoothing = 0;
+    _cml_EndPoints = { 0 0 };
+    _cml_NumPoints = 100;
+    _cml_Truncate = { 0 0 };
+
+    _cml_A = { . };
+    _cml_B = { . };
+    _cml_C = { . };
+    _cml_D = { . };
+    _cml_EqProc = { . };
+    _cml_IneqProc = { . };
+    _cml_Bounds = { . };
+    _cml_Lagrange = 0;
+    _cml_EqJacobian = { . };
+    _cml_IneqJacobian = { . };
+
+    _cml_dsn = "";
+
+endp;
+
+/*
+** CMLPrt
+**
+** FORMAT
+**           { x,f,g,vc,ret } = CMLPrt(x,f,g,vc,ret);
+**
+** INPUT
+**           x - Kx1 vector, estimated parameters
+**           f - scalar, function at minimum
+**           g - Kx1 vector, gradient evaluated at x
+**          vc - KxK matrix, covariance matrix of parameters
+**     retcode - scalar, return code:
+**
+** OUTPUT
+**         same as input
+**
+**
+** GLOBALS
+**
+**    _cml_ParNames - Kx1 character vector, parameter labels.
+*/
+
+proc (5) = CMLprt(x,f,g,h,ret);
+    local lbl,mask,fmt,ratio,se,oldfmt;
+    oldfmt = formatnv("*.*lf"~8~3);
+    print;
+    call header("CML",_cml_dsn,_cml_ver);
+    print;
+    print "return code = " ftos(ret,"%*.*lf",4,0);
+    if ret == 0;
+        print "normal convergence";
+    elseif ret == 1;
+        print "forced termination";
+    elseif ret == 2;
+        print "maximum number of iterations exceeded";
+    elseif ret == 3;
+        print "function calculation failed";
+    elseif ret == 4;
+        print "gradient calculation failed";
+    elseif ret == 5;
+        print "Hessian calculation failed";
+    elseif ret == 6;
+        print "step length calculation failed";
+    elseif ret == 7;
+        print "function cannot be evaluated at initial parameter values";
+    elseif ret == 8;
+        print "error with initial gradient";
+    elseif ret == 9;
+        print "error with constraints";
+    elseif ret == 10;
+        print "secant update failed";
+    elseif ret == 11;
+        print "maximum time exceeded";
+    elseif ret == 12;
+        print "error with weights";
+    elseif ret == 13;
+        print "quadratic program failed";
+    elseif ret == 14;
+        print "equality constraint Jacobian failed";
+    elseif ret == 15;
+        print "inequality constraint Jacobian failed";
+    elseif ret == 99;
+        print "termination condition unknown";
+    elseif ret == 20;
+        print "Hessian failed to invert";
+    elseif ret == 34;
+        print "data set could not be opened";
+        retp(x,f,g,h,ret);
+    endif;
+    print;
+    print "Mean log-likelihood " ftos(f,"%#*.*lG",15,6);
+    print "Number of cases     " ftos(_cml_NumObs,"%*.*lf",1,0);
+    print;
+
+    if _cml_ParNames $== 0 or rows(_cml_ParNames) /= rows(x);
+        lbl = 0 $+ "P" $+ ftocv(seqa(1,1,rows(x)),2,0);
+    else;
+        lbl = _cml_ParNames;
+    endif;
+
+    if ret < 3 or ret == 11;
+        print "Covariance of the parameters computed by the following method:";
+        if _cml_IterData[3] $== "SECANT";
+            print "Estimated Hessian from the secant update";
+        elseif _cml_IterData[3] $== "HESS";
+            print "Inverse of computed Hessian";
+        elseif _cml_IterData[3] $== "XPROD";
+            print "Cross-product of first derivatives";
+        elseif _cml_IterData[3] $== "HETCON";
+            print "QML covariance matrix";
+        elseif _cml_IterData[3] $== "QML";
+            print "QML covariance matrix";
+        elseif _cml_IterData[3] $== "BOOT";
+            print "Bootstrapped covariance matrix";
+        elseif _cml_IterData[3] $== "BAYES";
+            print "Bayesian covariance matrix ";
+        else;
+            print "Not computed or failed to invert";
+        endif;
+    endif;
+    if rows(g) /= rows(x);
+         g = miss(zeros(rows(x),1),0);
+    endif;
+    if not scalmiss(h) and _cml_IterData[3] $/= "NOCOVP" and ret < 3;
+
+        if scalmiss(_cml_A) and scalmiss(_cml_C) and scalmiss(_cml_EqProc)
+            and scalmiss(_cml_IneqProc) and scalmiss(_cml_Bounds);
+
+            print;
+            print "Parameters    Estimates     Std. err.  Est./s.e.  Prob. "\
+                "   Gradient";
+            print "--------------------------------------------------------"\
+                "----------";
+            se = real(sqrt(diag(h)));
+            mask = 0~1~1~1~1~1;
+            fmt = { "-*.*s" 9 8, "*.*lf" 14 4, "*.*lf" 14 4, "*.*lf" 9 3, ""\
+                "*.*lf" 9 4, "*.*lf" 12 4 };
+            ratio = x./se;
+            call printfm(lbl~x~se~ratio~2*cdfnc(abs(ratio))~g,mask,fmt);
+
+            print;
+            print "Correlation matrix of the parameters";
+            call printfmt(h./se./se',1);
+        else;
+            print;
+            print "Parameters    Estimates     Std. err.    Gradient";
+            print "--------------------------------------------------------"\
+                "----------";
+            se = real(sqrt(diag(h)));
+            mask = 0~1~1~1;
+            fmt = { "-*.*s" 9 8, "*.*lf" 14 4, "*.*lf" 14 4, "*.*lf" 12 4 };
+            call printfm(lbl~x~se~g,mask,fmt);
+        endif;
+    else;
+        print;
+        print "The covariance of the parameters failed to invert";
+        print;
+        print "Parameters     Estimates      Gradient";
+        print "----------------------------------------------";
+        mask = 0~1~1;
+        let fmt[3,3] = "-*.*s" 9 8 "*.*lf" 14 6 "*.*lf" 14 6;
+        call printfm(lbl~x~g,mask,fmt);
+    endif;
+    print;
+    print "Number of iterations    " ftos(_cml_IterData[1],"%*.*lf",1,0);
+    print "Minutes to convergence  " ftos(_cml_IterData[2],"%*.*lf",10,5);
+    call formatnv(oldfmt);
+
+    retp(x,f,g,h,ret);
+endp;
+
+/*
+** CMLCLPrt
+**
+** FORMAT
+**           { x,f,g,cl,ret } = CMLCLPrt(x,f,g,cl,ret);
+**
+** INPUT
+**           x - Kx1 vector, estimated parameters
+**           f - scalar, function at minimum
+**           g - Kx1 vector, gradient evaluated at x
+**          cl - Kx2 matrix, confidence limits
+**     retcode - scalar, return code:
+**
+** OUTPUT
+**         same as input
+**
+**
+** GLOBALS
+**
+**    _cml_Alpha - scalar, confidence level
+**
+**    _cml_ParNames - Kx1 character vector, parameter labels.
+**
+**
+** REMARKS
+**
+** CMLPrt as documented in the manual can handle confidence limits as
+** well as covariance matrices.  However, when there are two parameters
+** CMLPrt cannot distinguish a matrix of confidence limits from a matrix
+** of covariance matrices.  In general it might be best to use CMLCLPrt
+** for confidence limits.
+*/
+
+proc (5) = CMLCLprt(x,f,g,cl,ret);
+    local lbl,mask,fmt,oldfmt,str;
+    oldfmt = formatnv("*.*lf"~8~3);
+    print;
+    call header("CML",_cml_dsn,_cml_ver);
+    print;
+    print "return code = " ftos(ret,"%*.*lf",4,0);
+    if ret == 0;
+        print "normal convergence";
+    elseif ret == 1;
+        print "forced termination";
+    elseif ret == 2;
+        print "maximum number of iterations exceeded";
+    elseif ret == 3;
+        print "function calculation failed";
+    elseif ret == 4;
+        print "gradient calculation failed";
+    elseif ret == 5;
+        print "Hessian calculation failed";
+    elseif ret == 6;
+        print "step length calculation failed";
+    elseif ret == 7;
+        print "function cannot be evaluated at initial parameter values";
+    elseif ret == 8;
+        print "error with initial gradient";
+    elseif ret == 9;
+        print "error with constraints";
+    elseif ret == 10;
+        print "secant update failed";
+    elseif ret == 11;
+        print "maximum time exceeded";
+    elseif ret == 12;
+        print "error with weights";
+    elseif ret == 13;
+        print "quadratic program failed";
+    elseif ret == 14;
+        print "equality constraint Jacobian failed";
+    elseif ret == 15;
+        print "inequality constraint Jacobian failed";
+    elseif ret == 99;
+        print "termination condition unknown";
+    elseif ret == 20;
+        print "Hessian failed to invert";
+    elseif ret == 34;
+        print "data set could not be opened";
+        retp(x,f,g,cl,ret);
+    endif;
+    print;
+    print "Mean log-likelihood " ftos(f,"%#*.*lG",15,6);
+    print "Number of cases     " ftos(_cml_NumObs,"%*.*lf",1,0);
+    print;
+
+    if _cml_ParNames $== 0 or rows(_cml_ParNames) /= rows(x);
+        lbl = 0 $+ "P" $+ ftocv(seqa(1,1,rows(x)),2,0);
+    else;
+        lbl = _cml_ParNames;
+    endif;
+
+    if rows(lbl) /= rows(x);
+        if not trapchk(4);
+            errorlog "ERROR:  _cml_Parnames not conformable to coefficient "\
+                "vector";
+        endif;
+        retp(x,f,g,cl,ret);
+    endif;
+
+    if rows(g) /= rows(x);
+        g = miss(zeros(rows(x),1),0);
+    endif;
+    if rows(cl) == rows(x);
+
+        print;
+        str = "                          " $+
+             ftos((1-_cml_Alpha),"%*.*lG",8,6)$+" confidence limits";
+        print str;
+        print "Parameters    Estimates     Lower Limit   Upper Limit   Grad"\
+            "ient";
+        print "------------------------------------------------------------"\
+            "------";
+        mask = 0~1~1~1~1;
+        fmt = { "-*.*s" 9 8, "*.*lf" 14 4, "*.*lf" 14 4, "*.*lf" 14 4, "*.*"\
+            "lf" 12 4 };
+        call printfm(lbl~x~cl~g,mask,fmt);
+    else;
+        print;
+        print "The covariance of the parameters failed to invert";
+        print;
+        print "Parameters     Estimates      Gradient";
+        print "----------------------------------------------";
+        mask = 0~1~1;
+        let fmt[3,3] = "-*.*s" 9 8 "*.*lf" 14 6 "*.*lf" 14 6;
+        call printfm(lbl~x~g,mask,fmt);
+    endif;
+    print;
+    print "Number of iterations    " ftos(_cml_IterData[1],"%*.*lf",1,0);
+    print "Minutes to convergence  " ftos(_cml_IterData[2],"%*.*lf",10,5);
+    call formatnv(oldfmt);
+
+    retp(x,f,g,cl,ret);
+endp;
+
+/*
+** CMLTlimits
+**
+** FORMAT
+**          cl = CMLTlimits(b,cov,n);
+**
+** INPUT
+**          b - Kx1 vector, parameter estimates
+**
+**        cov - KxK matrix, covariance matrix of estimates
+**
+**          n - scalar, number of observations
+**
+** OUTPUT
+**         cl - Kx2 matrix, lower (first column) and upper (second column)
+**                          (1-_cml_Alpha)% confidence limits
+**
+** GLOBALS
+**         _cml_Alpha - scalar, (1-_cml_Alpha)% confidence limits are computed
+**
+**         _cml_NumObs - scalar, number of observations
+**
+**
+** REMARKS
+**
+** _cml_NumObs must be set.
+**
+** Computes (1-_cml_Alpha)% confidence limits given parameter estimates and
+** covariance matrix of the parameters.
+*/
+
+proc cmltlimits(b,cov);
+    local dv;
+    if scalmiss(_cml_NumObs) or _cml_NumObs == 0 or (_cml_NumObs - rows(b))
+        <= 0;
+        if not trapchk(4);
+            errorlog "_cml_NumObs not set or negative DF";
+        endif;
+        retp(error(0));
+    endif;
+    dv = cdftci(0.5*_cml_Alpha,_cml_NumObs-rows(b))*real(sqrt(diag(cov)));
+    retp((b-dv)~(b+dv));
+endp;
+

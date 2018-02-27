@@ -1,0 +1,529 @@
+/*
+** trig.src - Trigonometric functions
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+*************************************************************************
+*************************************************************************
+**        Code for GAUSS-386i complex version starts at line 18.       **
+**                                                                     **
+**        Code for GAUSS-386 real version starts at line 283.          **
+*************************************************************************
+*************************************************************************
+*/
+
+#ifcplx
+
+/*
+** ========================================================================
+** ==================== GAUSS-386i complex version ========================
+** ========================================================================
+**
+**      Format             Purpose                              Line
+**      --------------------------------------------------------------------
+**      y = arccos(x);     Inverse cosine                        43
+**      y = arcsin(x);     Inverse sine                         100
+**      y = cosh(x);       Hyperbolic cosine                    156
+**      y = sinh(x);       Hyperbolic sine                      193
+**      y = tanh(x);       Hyperbolic tangent                   230
+*/
+
+/*
+**> arccos
+**
+**  Purpose:    Computes the inverse cosine.
+**
+**  Format:     y = arccos(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the angle in radians whose
+**                   cosine is x.
+**
+**  Remarks:    If x is complex, arccos is defined for all values.
+**              if x is real, arccos is defined only for abs(x) <= 1.
+**              If any elements of x are out of this range, the
+**              procedure will terminate with an error message.
+**
+**  Example:    let x = -1  -0.5  0  0.5  1;
+**              y = arccos(x);
+**
+**              x =  -1.000000
+**                   -0.500000
+**                    0.000000
+**                    0.500000
+**                    1.000000
+**
+**              y =   3.141593
+**                    2.094395
+**                    1.570796
+**                    1.047198
+**                    0.000000
+**
+**  Globals:    None
+*/
+
+proc arccos(x);
+    local i,xsml,xsmlmsk,xlrg,xlrgmsk;
+
+    i = sqrt ( -1 );
+
+    if iscplx(x);
+        retp ( -i * ln ( x + i * sqrt ( 1 - x .* x ) ) );
+    elseif abs(x) <= 1;
+        retp( atan2( sqrt(1 - x.*x), x ) );
+    elseif abs(x) > 1;
+        retp( -i * ln ( x + sqrt ( x .* x - 1 ) ) );
+    else;
+        xsmlmsk = abs(x) .<= 1; xlrgmsk = abs(x) .> 1;
+        xsml = x.*xsmlmsk; xlrg = x.*xlrgmsk+xsmlmsk;
+
+        xsml = atan2(sqrt(1 - xsml .* xsml), xsml);
+        xlrg = -i * ln(xlrg + sqrt (xlrg .* xlrg - 1));
+
+        retp(xsml .* xsmlmsk + xlrg .* xlrgmsk);
+    endif;
+endp;
+
+/*
+**> arcsin
+**
+**  Purpose:    Computes the inverse sine.
+**
+**  Format:     y = arcsin(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix, the angle in radians whose sine is x.
+**
+**  Remarks:    If x is complex, arcsin is defined for all values.
+**              if x is real, arcsin is defined only for abs(x) <= 1.
+**              If any elements of x are out of this range, the
+**              procedure will terminate with an error message.
+**
+**  Example:    let x = -1  -0.5  0  0.5  1;
+**              y = arcsin(x);
+**
+**              x =  -1.000000
+**                   -0.500000
+**                    0.000000
+**                    0.500000
+**                    1.000000
+**
+**              y =  -1.570796
+**                   -0.523599
+**                    0.000000
+**                    0.523599
+**                    1.570796
+**
+**  Globals:    None
+*/
+
+proc arcsin(x);
+    local i,xsml,xsmlmsk,xlrg,xlrgmsk;
+
+    i = sqrt ( -1 );
+
+    if iscplx ( x );
+        retp ( -i * ln ( i * x + sqrt ( 1 - x .* x ) ) );
+    elseif abs(x) <= 1;
+        retp( atan2( x, sqrt(1 - x.*x) ) );
+    elseif abs(x) > 1;
+        retp ( -i * ln ( i * x + sqrt ( 1 - x .* x ) ) );
+    else;
+        xsmlmsk = abs(x) .<= 1; xlrgmsk = abs(x) .> 1;
+        xsml = x.*xsmlmsk; xlrg = x.*xlrgmsk+xsmlmsk;
+
+        xsml = atan2( xsml, sqrt(1 - xsml.*xsml) );
+        xlrg = -i * ln ( i * xlrg + sqrt ( 1 - xlrg .* xlrg ) );
+
+        retp(xsml .* xsmlmsk + xlrg .* xlrgmsk);
+    endif;
+endp;
+
+/*
+**> cosh
+**
+**  Purpose:    Computes the hyperbolic cosine.
+**
+**  Format:     y = cosh(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the hyperbolic cosines of
+**                   the elements of x.
+**
+**  Example:     let x = -0.5  -0.25  0  0.25  0.5  1;
+**               x = x * pi;
+**               y = cosh(x);
+**
+**               x =  -1.570796
+**                    -0.785398
+**                     0.000000
+**                     0.785398
+**                     1.570796
+**                     3.141593
+**
+**               y =   2.509178
+**                     1.324609
+**                     1.000000
+**                     1.324609
+**                     2.509178
+**                    11.591953
+**
+**  Globals:    None
+*/
+
+proc cosh(x);
+    retp( (exp(x) + exp(-x))/2 );
+endp;
+
+/*
+**> sinh
+**
+**  Purpose:    Computes the hyperbolic sine.
+**
+**  Format:     y = sinh(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the hyperbolic sines of the
+**                   elements of x.
+**
+**  Example:    let x = -0.5  -0.25  0  0.25  0.5  1;
+**              x = x * pi;
+**              y = sinh(x);
+**
+**              x =  -1.570796
+**                   -0.785398
+**                    0.000000
+**                    0.785398
+**                    1.570796
+**                    3.141593
+**
+**              y =  -2.301299
+**                   -0.868671
+**                    0.000000
+**                    0.868671
+**                    2.301299
+**                   11.548739
+**
+**  Globals:    None
+*/
+
+proc sinh(x);
+    retp( (exp(x) - exp(-x))/2 );
+endp;
+
+/*
+**> tanh
+**
+**  Purpose:    Computes the hyperbolic tangent.
+**
+**  Format:     y = tanh(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the hyperbolic tangents of the
+**                   elements of x.
+**
+**  Example:    let x = -0.5  -0.25  0  0.25  0.5  1;
+**              x = x * pi;
+**              y = tanh(x);
+**
+**              x =  -1.570796
+**                   -0.785398
+**                    0.000000
+**                    0.785398
+**                    1.570796
+**                    3.141593
+**
+**              y =  -0.917152
+**                   -0.655794
+**                    0.000000
+**                    0.655794
+**                    0.917152
+**                    0.996272
+**
+**  Globals:    None
+*/
+
+proc tanh(em);
+    local ep;
+    ep = exp(em);
+    em = exp(-em);
+    retp( (ep-em)./(ep+em) );
+endp;
+
+/*
+**> arctan
+**
+**  Purpose:     Included for backward compatibility.
+**
+*/
+
+proc arctan(x);
+    retp(atan(x));
+endp;
+
+/*
+**> arctan2
+**
+**  Purpose:     Included for backward compatibility.
+**
+*/
+
+proc arctan2(y,x);
+    retp(atan2(y,x));
+endp;
+
+#else
+
+/*
+** ========================================================================
+** ==================== GAUSS-386 real version ============================
+** ========================================================================
+**
+**      Format             Purpose                              Line
+**      --------------------------------------------------------------------
+**      y = ARCCOS(x);     Inverse cosine                       297
+**      y = ARCSIN(x);     Inverse sine                         340
+**      y = COSH(x);       Hyperbolic cosine                    382
+**      y = SINH(x);       Hyperbolic sine                      419
+**      y = TANH(x);       Hyperbolic tangent                   456
+*/
+
+/*
+**  arccos
+**
+**  Purpose:    Computes the inverse cosine.
+**
+**  Format:     y = arccos(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the angle in radians whose
+**                   cosine is x.
+**
+**  Remarks:    arccos is defined only for abs(x) <= 1. If any
+**              elements of x are out of this range, the
+**              procedure will terminate with an error message.
+**
+**  Example:    let x = -1  -0.5  0  0.5  1;
+**              y = arccos(x);
+**
+**              x =  -1.000000
+**                   -0.500000
+**                    0.000000
+**                    0.500000
+**                    1.000000
+**
+**              y =   3.141593
+**                    2.094395
+**                    1.570796
+**                    1.047198
+**                    0.000000
+**
+**  Globals:    None
+*/
+
+proc arccos(x);
+    if abs(x) <= 1;
+        retp( atan2( sqrt(1 - x.*x), x ) );
+    else;
+        errorlog("ARCCOS argument out of range");
+        end;
+    endif;
+endp;
+
+/*
+**  arcsin
+**
+**  Purpose:    Computes the inverse sine.
+**
+**  Format:     y = arcsin(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix, the angle in radians whose sine is x.
+**
+**  Remarks:    arcsin is defined only for abs(x) <= 1. If any
+**              elements of x are not in this range, the procedure
+**              will terminate with an error message.
+**
+**  Example:    let x = -1  -0.5  0  0.5  1;
+**              y = arcsin(x);
+**
+**              x =  -1.000000
+**                   -0.500000
+**                    0.000000
+**                    0.500000
+**                    1.000000
+**
+**              y =  -1.570796
+**                   -0.523599
+**                    0.000000
+**                    0.523599
+**                    1.570796
+**
+**  Globals:    None
+*/
+
+proc arcsin(x);
+    if abs(x) <= 1;
+        retp( atan2( x, sqrt(1 - x.*x) ) );
+    else;
+        errorlog("ARCSIN argument out of range");
+        end;
+    endif;
+endp;
+
+/*
+** COSH
+**
+** Purpose:    Computes the hyperbolic cosine.
+**
+** Format:     y = COSH(x);
+**
+** Input:      x -- NxK matrix
+**
+** Output:     y -- NxK matrix containing the hyperbolic cosines of
+**                  the elements of x
+**
+** Example:     let x = -0.5  -0.25  0  0.25  0.5  1;
+**              x = x * pi;
+**              y = cosh(x);
+**
+**              x =  -1.570796
+**                   -0.785398
+**                    0.000000
+**                    0.785398
+**                    1.570796
+**                    3.141593
+**
+**              y =   2.509178
+**                    1.324609
+**                    1.000000
+**                    1.324609
+**                    2.509178
+**                   11.591953
+**
+** Globals:    None
+*/
+
+proc cosh(x);
+    retp( (exp(x) + exp(-x))/2 );
+endp;
+
+/*
+**  sinh
+**
+**  Purpose:    Computes the hyperbolic sine.
+**
+**  Format:     y = sinh(x);
+**
+**  Input:      x    NxK matrix.
+**
+**  Output:     y    NxK matrix containing the hyperbolic sines of the
+**                   elements of x.
+**
+**  Example:    let x = -0.5  -0.25  0  0.25  0.5  1;
+**              x = x * pi;
+**              y = sinh(x);
+**
+**              x =  -1.570796
+**                   -0.785398
+**                    0.000000
+**                    0.785398
+**                    1.570796
+**                    3.141593
+**
+**              y =  -2.301299
+**                   -0.868671
+**                    0.000000
+**                    0.868671
+**                    2.301299
+**                   11.548739
+**
+**  Globals:    None
+*/
+
+proc sinh(x);
+    retp( (exp(x) - exp(-x))/2 );
+endp;
+
+/*
+** TANH
+**
+** Purpose:    Computes the hyperbolic tangent.
+**
+** Format:     y = TANH(x);
+**
+** Input:      x -- NxK matrix
+**
+** Output:     y -- NxK matrix containing the hyperbolic tangents of the
+**                  elements of x
+**
+** Example:    let x = -0.5  -0.25  0  0.25  0.5  1;
+**             x = x * pi;
+**             y = tanh(x);
+**
+**             x =  -1.570796
+**                  -0.785398
+**                   0.000000
+**                   0.785398
+**                   1.570796
+**                   3.141593
+**
+**             y =  -0.917152
+**                  -0.655794
+**                   0.000000
+**                   0.655794
+**                   0.917152
+**                   0.996272
+**
+** Globals:    None
+*/
+
+proc tanh(em);
+    local ep;
+    ep = exp(em);
+    em = exp(-em);
+    retp( (ep-em)./(ep+em) );
+endp;
+
+/*
+** ARCTAN
+**
+** Purpose:     Included for backward compatibility.
+**
+*/
+
+proc arctan(x);
+    retp(atan(x));
+endp;
+
+/*
+** ARCTAN2
+**
+** Purpose:     Included for backward compatibility.
+**
+*/
+
+proc arctan2(y,x);
+    retp(atan2(y,x));
+endp;
+
+#endif
+

@@ -1,0 +1,99 @@
+/*
+** co.lcg - Optimization with General Nonlinear Constraints
+**
+** (C) Copyright 1994-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+co.dec
+    _co_ver                          : matrix
+    _co_Algorithm                    : matrix
+    _co_ParNames                     : matrix
+    _co_LineSearch                   : matrix
+    _co_FinalHess                    : matrix
+    _co_RandRadius                   : matrix
+    _co_DirTol                       : matrix
+    _co_HessProc                     : matrix
+    _co_GradProc                     : matrix
+    _co_GradMethod                   : matrix
+    _co_GradCheckTol                 : matrix
+    _co_MaxIters                     : matrix
+    _co_IterData                     : matrix
+    _co_UserSearch                   : matrix
+    _co_Delta                        : matrix
+    _co_MaxTry                       : matrix
+    _co_Options                      : matrix
+    _co_Key                          : matrix
+    _co_MaxTime                      : matrix
+    _co_GradStep                     : matrix
+    _co_UserNumGrad                  : matrix
+    _co_UserNumHess                  : matrix
+    _co_Active                       : matrix
+    _co_Select                       : matrix
+    _co_FeasibleTest                 : matrix
+    _co_Switch                       : matrix
+    _co_A                            : matrix
+    _co_B                            : matrix
+    _co_C                            : matrix
+    _co_D                            : matrix
+    _co_EqProc                       : matrix
+    _co_IneqProc                     : matrix
+    _co_Bounds                       : matrix
+    _co_Lagrange                     : matrix
+    _co_EqJacobian                   : matrix
+    _co_IneqJacobian                 : matrix
+    _co_eps2                         : matrix
+    _co_eps3                         : matrix
+    _co_Diagnostic                   : matrix
+    _co_TrustRadius                  : matrix
+    _co_Trust                        : matrix
+
+gradient.dec
+    _grdh                            : matrix
+    _grnum                           : matrix
+    _grsca                           : matrix
+    _grstp                           : matrix
+
+coutil.src
+    _co                              : proc
+    _co_sctu                         : proc
+    _co_feasible                     : proc
+    _co_stepl                        : proc
+    _co_deriv                        : proc
+    _co_gdfd                         : proc
+    _co_gdcd                         : proc
+    _co_hssp                         : proc
+    _co_stepb                        : proc
+    _co_usrsch                       : proc
+    _co_bracket                      : proc
+    _co_brent                        : proc
+    _co_half                         : proc
+    _co_meritFunct                   : proc
+
+cocheck.src
+    _co_check                        : proc
+    _eps                             : proc
+
+co.src
+    co                               : proc
+    coset                            : proc
+    coprt                            : proc
+
+gradient.src
+    gradre                           : proc
+    gradfd                           : proc
+    gradcd                           : proc
+

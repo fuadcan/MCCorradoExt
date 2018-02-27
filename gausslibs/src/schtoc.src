@@ -1,0 +1,155 @@
+/*
+** schtoc.src
+** (C) Copyright 1992-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> schtoc
+**
+**  Purpose:    To reduce any 2x2 blocks on the diagional of the real Schur
+**              matrix returned from schur.  The transformation matrix is
+**              also updated.
+**
+**  Format:     { schc, transc } = schtoc(sch,trans);
+**
+**  Input:      sch      real NxN matrix in Real Schur form.  I.e. upper
+**                       triangular except for possibly 2x2 blocks on the
+**                       diagonal.
+**
+**              trans    real NxN matrix, the associated transformation matrix.
+**
+**  Output:     schc     NxN matrix, possibly complex, strictly upper
+**                       triangular. The diagonal entries are the eigenvalues.
+**
+**              transc   NxN matrix, possible complex, the associated
+**                       transformation matrix.
+**
+**  Remarks:    Other than checking that the inputs are strictly real matrices,
+**              no other checks are made.  If the input matrix sch is already
+**              upper triangular it is not changed.  Small off-diagional
+**              elements are considered to be zero.  See the source code for the
+**              test used.
+**
+**  Example:
+**              { schc, transc } = schtoc(schur(a));
+**
+**              This example calculates the complex Schur form for a real
+**              matrix a.
+**
+**  Globals:    None
+**
+**  See Also:   schur
+**
+*/
+
+Proc (2) = schtoc(sch,t);
+    local i,a,b,c,d,alpha1,alpha2,alpha,p,q,tmp,sqr,
+          u11,u12,u21,u22,norm,s,eps;
+
+    /* check for complex input */
+    if iscplx(sch);
+        if hasimag(sch);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            sch = real(sch);
+        endif;
+    endif;
+    if iscplx(t);
+        if hasimag(t);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            t = real(t);
+        endif;
+    endif;
+
+    eps = 2.3e-16;
+
+    /* calculate norm */
+    norm = sumc(sumc(sch));
+
+    /* look for non-zeros on lower diagonal */
+    i = 1;
+    do until i >= rows(sch);
+        i = i+1;
+        s = abs(sch[i-1,i-1]) + abs(sch[i,i]);
+        if s == 0;
+           s = norm;
+        endif;
+        if abs(sch[i,i-1]) >= s*eps;   /* solve */
+           /* form rotation */
+           /* ref "Introduction to Numerical Analysis", C-E Froberg, */
+           /* Addison-Wesley, 1965 pp 121 */
+           /* and "Matrix Computations", G.H. GOLUB and C.F. Van Loan, */
+           /* John Hopkins University Press, 1983, ISBN 0-946536-05-8 */
+           /* pp. 45 */
+           /* Note sch[i,i-1] never zero from above but check anyway */
+           if abs(sch[i,i-1]) == 0;
+              p = 1; q = 0;
+           else;
+              a = sch[i-1,i-1];
+              b = sch[i-1,i];
+              c = sch[i,i-1];
+              d = sch[i,i];
+              if abs(b) > abs(c);
+                 /* calculate alpha */
+                 sqr = sqrt((d-a)^2+4*b*c);
+                 alpha1 = (d-a+sqr);
+                 alpha2 = (d-a-sqr);
+                 if abs(alpha1) > abs(alpha2);
+                    alpha = alpha1/(2*b);
+                 else;
+                   alpha = alpha2/(2*b);
+                 endif;
+                 p = 1/sqrt(1+abs(alpha^2));
+                 q = alpha*p;
+                 u11 = p;
+                 u12 = -q';
+                 u21 = q;
+                 u22 = p;
+              else;
+                 /* calculate 1/alpha */
+                 sqr = sqrt((d-a)^2 + 4*c*b);
+                 alpha1 = (d-a+sqr);
+                 alpha2 = (d-a-sqr);
+                 if abs(alpha1) > abs(alpha2);
+                    alpha = -alpha1/(2*c);
+                 else;
+                   alpha = -alpha2/(2*c);
+                 endif;
+                 q = 1/sqrt(1+abs(alpha^2));
+                 p = alpha*q;
+                 u11 = p;
+                 u12 = q;
+                 u21 = q;
+                 u22 = -p';
+              endif;
+           endif;
+            /* u = u11 ~ u12 | u21 ~ u22; */
+            /* ut = u11' ~ u21' | u12' ~ u22'; */
+            /* update t to t*u */
+           tmp = t[.,i-1] * u11 + t[.,i]*u21;
+           t[.,i] = t[.,i-1]*u12 + t[.,i]*u22;
+           t[.,i-1] = tmp;
+           /* update sch to u'*sch*u */
+           tmp = sch[.,i-1] * u11 + sch[.,i]*u21;
+           sch[.,i] = sch[.,i-1]*u12 + sch[.,i]*u22;
+           sch[.,i-1] = tmp;
+           tmp = u11'*sch[i-1,.] + u21'*sch[i,.];
+           sch[i,.] = u12'*sch[i-1,.] + u22'*sch[i,.];
+           sch[i-1,.] = tmp;
+        endif;
+    endo;
+    retp(sch,t);
+endp;

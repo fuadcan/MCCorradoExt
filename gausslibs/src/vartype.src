@@ -1,0 +1,49 @@
+/*
+** vartype.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> vartype
+**
+**  Purpose:    Returns a vector of ones and zeros used to
+**              determine if a variable is character or numeric.
+**
+**  Format:     y = vartype(names);
+**
+**  Input:      names    Nx1 character vector of variable names retrieved from
+**                       a data set header file with getname function.
+**
+**  Output:     y        Nx1 vector of ones and zeros, 1 if variable is numeric,
+**                       0 if character.
+**
+**  Remarks:    If a variable name in names is lower case a 0 will be returned
+**              in the corresponding element of the returned vector. Upper
+**              case variable names will return a 1.
+**
+**                 NOTE: This function has been obsoleted by vartypef.  Use
+**              vartypef in programs you write from now on.  The current
+**              version of atog creates files compatible with vartypef.
+**
+**  Globals:    None
+*/
+
+proc vartype(x);
+    local j;
+    j = 1;
+    do until j > rows(x);
+        x[j,1] = (vals("" $+ x[j,1]) <= 96);
+        j = j + 1;
+    endo;
+    retp(x);
+endp;

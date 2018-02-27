@@ -1,0 +1,538 @@
+/*
+** pgraph.dec - Publication Quality Graphics Support.
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** This file contains declarations and help for the global variables used
+** in the GAUSS publication quality graphics.
+
+=======================   Table of contents   ==============================
+
+
+          Axes Control and Scaling .......................... 23
+          Text, Labels, Titles, and Fonts ................... 43
+          Main Curve Lines and Symbols ...................... 63
+          Extra Messages, Symbols, etc ...................... 74
+          Windows, Page, and Plot Control ................... 86
+          Output options ................................... 106
+
+          Quick Reference to Common Globals ................ 119
+
+
+
+Axes Control and Scaling
+
+_paxes         Turn axes on or off
+_pcrop         Control cropping of graphics data outside axes area
+_pcross        Controls where axes intersect
+_pframe        Draw a frame around 2D, 3D plots
+_pgrid         Control major and minor grid lines
+_pxpmax        Control precision of numbers on X axis
+_pypmax        Control precision of numbers on Y axis
+_pzpmax        Control precision of numbers on Z axis
+_pxsci         Control use of scientific notation on X axis
+_pysci         Control use of scientific notation on Y axis
+_pzsci         Control use of scientific notation on Z axis
+_pticout       Control direction of tic marks on axes
+SCALE          Scale X,Y axes on 2-D plots
+SCALE3D        Scale X,Y,Z axes for 3-D plots
+XTICS          Scale X axis and control tic marks
+YTICS          Scale Y axis and control tic marks
+ZTICS          Scale Z axis and control tic marks
+
+Text, Labels, Titles, and Fonts
+
+_plegctl       Set location and size of plot legend
+_plegstr       Specify legend text entries
+_paxht         Control size of axes labels
+_pnumht        Control size of axes numbering
+_pnum          Axes number control and orientation
+_pdate         Date string contents and control
+_ptitlht       Control title size
+XLABEL         X axis label
+YLABEL         Y axis label
+ZLABEL         Z axis label
+TITLE          Specify main title for graph
+ASCLABEL       Define character labels for tic marks
+FONTS          Load fonts for labels, titles, messages and legend
+VIEW           Set 3D observer position in workbox units
+VIEWXYZ        Set 3D observer position in plot coordinates
+VOLUME         Sets length, width, and height ratios of 3D workbox
+
+
+Main Curve Lines and Symbols
+
+_pboxctl       Control box plots
+_plctrl        Control main curve and data symbols
+_pcolor        Control line color for main curves
+_pltype        Control line style for main curves
+_plwidth       Control line thickness for main curves
+_pstype        Control symbol type
+_psymsiz       Control symbol size
+_pzclr         Z level color control for CONTOUR and 3D graphs
+
+Extra Messages, Symbols, Lines, Circles, Arrows, and Error Bars
+
+_parrow        Create arrows
+_parrow3       Create arrows for 3d graphs
+_pline         Plot extra lines and circles
+_pline3d       Plot extra lines for 3d graphs
+_psym          Plot extra symbols
+_psym3d        Plot extra symbols for 3d graphs
+_perrbar       Plot error bars
+_pmsgctl       Control position of message text
+_pmsgstr       Specify additional message text
+
+Windows, Page, and Plot Control
+
+_pagesiz       Control size of graph for printer output
+_pageshf       Shift the graph for printer output
+_pbox          Draw a box (frame) around window using color
+_plotsiz       Control plot area size
+_plotshf       Control plot area position
+_protate       Rotate the graph 90 degrees
+AXMARGIN       Control of axes margins (axes lengths)
+MARGIN         Control graph margins
+BEGWIND        Window initialization procedure
+ENDWIND        End window manipulation, display graphs
+WINDOW         Create tiled windows of equal size
+MAKEWIND       Create window with specified size and position
+SETWIND        Set to specified window number
+NEXTWIND       Set to next available window number
+GETWIND        Get current window number
+SAVEWIN        Save window configuration to a file
+LOADWIN        Load a window configuration from a file
+
+Output options
+_pscreen       Control graphics output to screen
+_psilent       Control final beep
+_pzoom         Specify zoom parameters
+_pcvfile       Name of format conversion file
+_prtfile       Name of output print file
+_ptek          Name of graphics .TKF file
+_pqgedit       Interactive mouse-driven graphics editor (optional)
+_pqgplay       Control whether PQGRUN or PLAY is used
+HARDCOPY       Generate print or conversion file
+SETCNVRT       Create response file for format conversion file
+
+
+********************************************************************************
+                     QUICK REFERENCE FOR COMMON GLOBALS
+********************************************************************************
+
+    _PAXES   Global _PAXES, previously a scalar for turning axes on/off, is
+             now a scalar, 2x1 or 3x1 vector for independent control for
+             each axis.  If a scalar value, the vector will be expanded to
+             that value.
+
+             Examples: _paxes = 0;      - turn off all axes
+                       _paxes = 1;      - turn on all axes
+                       _paxes = {1,0}   - turn X axis, Y off;
+                       _paxes = {0,0,1} - turn Z axis on, X,Y off;
+
+    _PARROW  Draw 2D arrows
+             [M,1]  x starting point
+             [M,2]  y starting point
+             [M,3]  x ending point
+             [M,4]  y ending point
+             [M,5]  length ratio of arrow head to its half width
+             [M,6]  size of arrow head in inches
+             [M,7]  type and number of arrow heads mn.
+                    "m", form of arrow head
+                    "n", location of arrow head
+             [M,8]  color of arrow.  1-15
+             [M,9]  X,Y coordinate units: 1=plot coord, 2=inches
+             [M,10] line type, 1-6
+             [M,11] line thickness.
+
+    Example: _parrow = { 10 10 20 20 5 .2 21 10 1 6 0 }
+
+
+    _PARROW3 Draw 3D arrows
+             [M,1]  x starting point in plot coord.
+             [M,2]  y starting point in plot coord.
+             [M,3]  z starting point in plot coord.
+             [M,4]  x ending point in plot coord.
+             [M,5]  y ending point in plot coord.
+             [M,6]  z ending point in plot coord.
+             [M,7]  length ratio of arrow head to its half width
+             [M,8]  size of arrow head in inches
+             [M,9]  type and number of arrow heads mn.
+                    "m", form of arrow head
+                    "n", location of arrow head
+             [M,10] color of arrow.  1-15
+             [M,11] line type, 1-6
+             [M,12] line thickness.
+             [M,13] Hidden line flag. 1=obscured by surface, 0=Off.
+
+         Example: _parrow3 = { 10 10 10 20 20 20 5 .2 21 10 6 0 0 }
+
+
+    _PBARTYP  Used with procedure BAR, controls bar shade and color.  Each
+              row of this matrix corresponds to each column of bar data.
+
+             [M,1]  Bar shade style.
+
+                    0 - No shade, outline only.
+                    1 - Dots.
+                    2 - Horizontal lines.
+                    3 - Diagonal lines, positive slope.
+                    4 - Diagonal lines, negative slope.
+                    5 - Diagonal crosshatch.
+                    6 - Solid.
+
+             [M,2]  Color for bar set.
+
+         Example:
+
+             @ three columns of bar data (10 bars per column) @
+             y = rndu(10,3);
+             @ shade and color for each column of bar data @
+             _pbartyp = { 0 10, 2 11, 6 12 };
+             bar(0,y);
+
+
+    _PBARWID  Used with BAR, controls the bar width.  A real value between
+             0 and 1.  If this value is positive the bars will overlap each
+             other (default).  If this is negative the bars will be plotted
+             side-by-side.
+
+         Example:
+
+             _pbarwid = -.7;   @ plot the bars side-by-side @
+             bar(0,y);
+
+
+    _PBOX    Draw a border around the window with color and line width.
+
+             _pbox should be a scalar 0 or a 3x1 vector.
+
+              [1]   if 1 draw box
+              [2]   line color
+              [3]   line width
+
+
+         Example:
+        _pbox = 0;         - turn off window border (default)
+        _pbox = { 1, 10, 4 } - window border with color 10 and line width 4
+
+
+    _PERRBAR Draw error bar
+             [M,1]  x location in plot coordinates
+             [M,2]  left end of error bar
+             [M,3]  right end of error bar
+             [M,4]  y location in plot coordinates
+             [M,5]  bottom of error bar
+             [M,6]  top of error bar
+             [M,7]  line type (1-6)
+             [M,8]  color (1-15)
+             [M,9]  line thickness.
+
+         Example: _perrbar = { 100 90 110 50 48 52 6 10 0 }
+
+
+    _PLEGCTL Create Plot Legend, used in conjuntion with _PLEGSTR.
+             [1]  X,Y coordinate units: 1=plot coord, 2=inches, 3=Tek pixels
+             [2]  Legend text font size. 1 <= size <= 9.
+             [3]  X coordinate of lower left corner of legend box
+             [4]  Y coordinate of lower left corner of legend box
+
+         Example: _plegctl = { 1 4 10 20 }
+
+
+    _PLCTRL  Control main curve and frequency of symbols on main curves.
+               < 0  draw symbols only every _plctrl points, no lines.
+               = 0  draw line only, no symbols.
+               > 0  draw line and symbols every _plctrl points.
+
+         Examples:
+             _plctrl =  -1;  @ symbol on all points, no curve drawn     @
+             _plctrl = -10;  @ symbol every 10 points, no curve drawn   @
+             _plctrl =   1;  @ symbol at all points, draw curves also   @
+             _plctrl =  10;  @ symbol every 10 points, draw curves also @
+
+
+    _PLINE   Draw lines, Circles, or Radii.
+             [M,1]   Item type and coordinate system
+                       1  Line in plot coordinates
+                       2  Line in inch coordinates
+                       3  Line in pixel coordinates
+                       4  Circle in plot coordinates
+                       5  Circle in inch coordinates
+                       6  Radius in plot coordinates
+                       7  Radius in inch coordinates
+             [N,2]   line type, 1-6
+             [N,3-7] coordinates and dimensions
+
+                 ( 1 ) Line in plot coordinates.
+                       [N,3] x starting point in plot coordinates
+                       [N,4] y starting point in plot coordinates
+                       [N,5] x ending point in plot coordinates
+                       [N,6] y ending point in plot coordinates
+                       [N,7] 0=continuation, 1=begin new curve
+                 ( 2 ) Line in inch coordinates
+                       [N,3] x starting point in inches
+                       [N,4] y starting point in inches
+                       [N,5] x ending point in inches
+                       [N,6] y ending point in inches
+                       [N,7] 0=continuation, 1=begin new curve
+                 ( 3 ) Line in pixel coordinates
+                       [N,3] x starting point in pixels
+                       [N,4] y starting point in pixels
+                       [N,5] x ending point in pixels
+                       [N,6] y ending point in pixels
+                       [N,7] 0=continuation, 1=begin new curve
+                 ( 4 ) Circle in plot coordinates
+                       [N,3] x center of circle in plot coordinates
+                       [N,4] y center of circle in plot coordinates
+                       [N,5] radius in plot coordinates
+                       [N,6] starting point of arc in radians
+                       [N,7] ending point of arc in radians
+                 ( 5 ) Circle in inches
+                       [N,3] x center of circle in inches
+                       [N,4] y center of circle in inches
+                       [N,5] radius in inches
+                       [N,6] starting point of arc in radian
+                       [N,7] ending point of arc in radians
+                 ( 6 ) Radius in plot coordinates
+                       [N,3] x center of circle in plot coordinates
+                       [N,4] y center of circle in plot coordinates
+                       [N,5] beginning point of radius in plot coord.
+                       [N,6] ending point of radius
+                       [N,7] angle in radians
+                 ( 7 ) Radius in inches
+                       [N,3] x center of circle in inches
+                       [N,4] y center of circle in inches
+                       [N,5] beginning point of radius in inches
+                       [N,6] ending point of radius
+                       [N,7] angle in radians
+             [N,8]   color 1-15
+             [N,9]   line thickness
+
+         Examples:
+
+         Draw a solid, red line in plot coordinates:
+             _pline = { 1 6 10 20 100 200 1 4 0 }
+
+         Draw a thick, solid, red line in inches:
+             _pline = { 2 6 1.0 2.0 3.0 4.5 1 4 5 }
+
+         Draw a thick, dashed, green circle in inches centered at 1,2
+         with a radius of 1.5":
+             _pline = { 5 1 1.0 2.0 1.5 0 6.28 2 5 }
+
+
+    _PLINE3D Draw Line in 3D coordinate system
+             [M,1]  x starting location in 3D plot coordinate units
+             [M,2]  y starting location in 3D plot coordinate units
+             [M,3]  z starting location in 3D plot coordinate units
+             [M,4]  x ending location in 3D plot coordinate units
+             [M,5]  y ending location in 3D plot coordinate units
+             [M,6]  z ending location in 3D plot coordinate units
+             [M,7]  color (1-15)
+             [M,8]  line type
+             [M,9]  line thickness
+             [M,10] Hidden line flag. 1=obscured by surface, 0=Off.
+
+         Example: _pline3d = { 10 10 10 20 20 20 10 6 0 0 }
+
+
+    _PMSGCTL Print extra messages.  Message strings specified in _PMSGSTR.
+             [M,1]  x location of message
+             [M,2]  y location of message
+             [M,3]  character height in inches
+             [M,4]  angle in degrees to print string (-180 to 180)
+             [M,5]  X,Y coordinate units: 1=plot coord, 2=inches
+             [M,6]  color
+             [M,7]  line thickness.
+
+         Example: _pmsgctl = { 10 20 .12 0 1 10 0,
+                               10 30 .12 0 1 10 0 }
+
+
+    _PMSGSTR Message strings corresponding to _pmsgctl.  Strings are
+             separated by a null byte ("\000")
+
+         Example: _pmsgstr = "First message\000Second message"
+
+
+    _PNUM    Global _PNUM, previously a scalar for turning axes number
+             labels on/off, is now a scalar, 2x1 or 3x1 vector for
+             independent control for each axis. If scalar, the vector will
+             be expanded to that value.
+
+             Examples:
+             _pnum = 0;      - turn off numbers for all axes
+             _pnum = 1;      - turn on numbers for all axes
+             _pnum = {1,0}   - turn on numbers for X axis, off for Y
+             _pnum = {0,0,1} - turn on numbers for Z axis, off for X,Y
+
+
+    _PSYM    Plot Extra Symbols
+             [M,1]  x location
+             [M,2]  y location
+             [M,3]  symbol type (1-16)
+             [M,4]  symbol height (see _PSYMSIZ below)
+             [M,5]  symbol color (1-15)
+             [M,6]  X,Y coordinate units: 1=plot coord, 2=inches
+             [M,7]  line thickness.
+
+         Example: _psym = { 10 20 1 5 10 1 0 }
+
+
+    _PSYMSIZ Size of symbols on main curve.  The symbols have been
+             redefined in higher resolution for better quality laser
+             printer output.  The default value is 3.5.
+
+
+    _PSYM3D  Plot Extra Symbols on 3D Graph
+             [M,1]  x location in plot coordinate units
+             [M,2]  y location in plot coordinate units
+             [M,3]  z location in plot coordinate units
+             [M,4]  symbol type (1-16)
+             [M,5]  symbol height
+             [M,6]  symbol color (1-15)
+             [M,7]  line thickness.
+
+         Example: _psym3d = { 10 20 1 5 10 1 0 }
+
+
+    _PTEK    Name the Tektronix formatted graphics file.
+             If this is set to a null string, no file will be created.
+             Otherwise set this to the desired name for the graphics file.
+             You should include .TKF within the filename.
+
+         Examples:
+             _ptek = "test.tkf";  * name the graphics file test.tkf *
+             _ptek = "";          * do not create a graphics file   *
+*/
+
+/* version number */
+declare matrix _pqg_ver = { 3, 6, 5 };
+
+/* global common to all graph types */
+declare matrix _pagedim = { 9.0, 6.85546875 };
+declare matrix _pappend = 0;
+declare matrix _parrow = 0;
+declare matrix _parrow3 = 0;
+declare matrix _pascx = 0;
+declare matrix _pascy = 0;
+declare matrix _paxes = 1;
+declare matrix _paxht = 0;
+declare matrix _paxmarx = 0;
+declare matrix _pbox = 0;
+declare matrix _pcrop = { 1 1 1 1 1 };
+declare matrix _pcolor = 0;
+declare matrix _pcross = 0;
+declare matrix _pcwin = 0;
+declare matrix _pncwin = 0;
+declare matrix _pcsel = { 10 11 12 13 14 9 15 };
+declare matrix _perrbar = 0;
+declare matrix _pfonts = { "simplex" };
+declare matrix _pframe = { 1,1 };
+declare matrix _pgrid = 0;
+declare matrix _plctrl = 0;
+declare matrix _pline = 0;
+declare matrix _plotsiz = 0;
+declare matrix _plotshf = 0;
+declare matrix _pageshf = 0;
+declare matrix _pagesiz = 0;
+declare matrix _plegctl = 0;
+declare matrix _plsel = { 6 1 2 3 4 5 };
+declare matrix _pltype = 0;
+declare matrix _plwidth = 0;
+declare matrix _pmargin = { 0 0 0 0 };
+declare matrix _pmcolor = 15;
+declare matrix _pmsgctl = 0;
+declare matrix _pnotify = 1;
+declare matrix _pnum = 1;
+declare matrix _pnumht = 0;
+declare matrix _protate = 0;
+declare matrix _pqgplay = 0;
+declare matrix _pqgtype = 0;
+declare matrix _pscreen = 1;
+declare matrix _pinbegwind = 0;
+declare matrix _psilent = 1;
+declare matrix _pssel = { 1 2 3 4 5 6 7 8 };
+declare matrix _pstype = 0;
+declare matrix _psym = 0;
+declare matrix _psymsiz = 3.5;
+declare matrix _ptitlht = 0;
+declare matrix _pworld = 0;
+declare matrix _pxpmax = 12;
+declare matrix _pxscale = 0;
+declare matrix _pypmax = 12;
+declare matrix _pyscale = 0;
+declare matrix _pwindmx = 0;
+declare matrix _pwindno = 0;
+declare matrix _pfirstw = 0;
+declare matrix _pxmem = 0;
+declare matrix _pxsci = 4;
+declare matrix _pysci = 4;
+declare matrix _pzsci = 4;
+declare matrix _pzclr = 13;
+declare matrix _pzoom = { 0 5 5 };
+#ifUNIX
+declare string _pvwr = "ghostview";
+declare string _pvwrflags = "-seascape";
+declare string _pvwrmode = "m";
+#else
+declare string _pvwr = "vwr.exe";
+declare string _pvwrflags = "";
+declare string _pvwrmode = "s";
+#endif
+declare string _pcmdlin = "";
+declare string _pcvfile = "";
+declare string _pdate = "\201GAUSS    ";
+declare string _phard = "";
+declare string _plegstr = "";
+declare string _pmsgstr = "";
+declare string _prtfile = "";
+declare string _ptek = "graphic.tkf";
+declare string _ptitle = "";
+declare string _pxfmt = "";
+declare string _pxlabel = "";
+declare string _pyfmt = "";
+declare string _pylabel = "";
+declare matrix _pqgedit = 0;
+
+declare matrix _pmnr = { 1 2 5 10, 1 2 10 20, 1 2 5 10, 1 5 10 10, 1 2 5 10 };
+declare matrix _pmjr = { 1 2 4 5 10 };
+declare matrix _poptic = 16;
+declare matrix _pmtic = 8;
+
+/* bar globals */
+declare matrix _pbarwid = 0.5;
+declare matrix _pbartyp = { 6 7 };
+
+/* box globals */
+declare matrix _pboxctl = { .25 10 1 };
+declare matrix _pboxlim = 0;
+
+/* 3d globals */
+declare matrix _pbox3d = 0;
+declare matrix _psym3d = 0;
+declare matrix _pline3d = 0;
+declare matrix _psurf = { 0, 7 };
+declare matrix _pview = { 1, -4, -3, 3 };
+declare matrix _pvolume = 0;
+declare matrix _pticout = 0;
+declare string _pzlabel = "";
+declare matrix _pzpmax = 12;
+declare matrix _pzscale = 0;
+declare string _pzfmt = "";
+
+/* contour globals */
+declare matrix _plev = 0;
+

@@ -1,0 +1,212 @@
+/*
+** setdif.src
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                        Line
+** =========================================================================
+** y = setdif(v1,v2,type);                                         23
+** y = setdifsa(sv1,sv2);                                         148
+*/
+
+/*
+**> setdif
+**
+**  Purpose:    Returns the unique elements in one vector that are not present
+**              in a second vector.
+**
+**  Format:     y = setdif(v1,v2,type);
+**
+**  Input:      v1     Nx1 vector.
+**
+**              v2     Mx1 vector.
+**
+**              type   scalar, type of data.
+**
+**                          0   character, case sensitive
+**                          1   numeric
+**                          2   character, case insensitive
+**
+**
+**  Output:     y      Lx1 vector containing all unique values that are in v1
+**                     and are not in v2, sorted in ascending order.
+**
+**  Remarks:    Place smaller vector first for fastest operation.
+**
+**              When there are a lot of duplicates it is faster to
+**              remove them first with unique before calling this function.
+**
+**  Globals:    None
+**
+**  Example:    let v1 = mary jane linda john;
+**              let v2 = mary sally;
+**              type = 0;
+**              y = setdif(v1,v2,type);
+**
+**              y =   JANE
+**                    JOHN
+**                   LINDA
+*/
+
+proc setdif(v1,v2,typ);
+    local v,n1,v1i,i,n,mask1,ms,e,idx;
+
+    if type(v1) == 13;
+        v1 = 0 $+ v1;
+    endif;
+    if type(v2) == 13;
+        v2 = 0 $+ v2;
+    endif;
+
+    /* check for complex input */
+    if iscplx(v1);
+        if hasimag(v1);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v1 = real(v1);
+        endif;
+    endif;
+
+    if iscplx(v2);
+        if hasimag(v2);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v2 = real(v2);
+        endif;
+    endif;
+
+    v = miss(0,0);          /* will hold result; initialize to missing  */
+    n1 = rows(v1);
+    i = 1;
+    if typ < 2;
+        do until i > n1;
+            v1i = v1[i,1];
+            if (v1i $/= v2);
+                v = v|v1i;      /* if no match, add to diff set */
+            endif;
+            i = i + 1;
+        endo;
+    else;
+        do until i > n1;
+            v1i = v1[i,1];
+            if (lower(v1i) $/= lower(v2));
+                v = v|v1i;      /* if no match, add to diff set */
+            endif;
+            i = i + 1;
+        endo;
+    endif;
+    ndpclex;        /* clear exceptions */
+    n = rows(v);    /* number of elements in v, including M in first element */
+    if n == 1;      /* no diffs */
+        retp( v );          /* done -- if no diffs then M is returned  */
+    elseif n == 2;          /* 1 element in diff -- no dups possible  */
+        retp( v[2,1] );     /* return second element */
+    else;           /* check for duplicates */
+        v = trimr(v,1,0);           /* trim the M from 1st element  */
+        /* == remove duplicates == */
+        /* sort the result */
+        if typ == 1;        /* numeric */
+            v = sortc(v,1);
+        elseif typ == 0;    /* character, case sensitive */
+            v = sortcc(v,1);
+        else;               /* character, case insensitive */
+            v = submat(sortcc(lower(v)~v,1),0,2);
+        endif;
+        mask1 = trimr(v,0,1).$==trimr(v,1,0);       /* find successive
+                                                    :: matches
+                                                    */
+        if mask1 == 0;      /* all 0's -- no duplicates */
+            retp( v );      /* done */
+        elseif mask1 == 1;          /* all 1's -- all duplicates */
+            retp( v[1,1] );         /* return first element only */
+        else;
+        /* compute indices of all except "runs" of equal elements */
+            ms = (mask1|0) - (0|mask1);     /* 1's denote begin, -1's end,
+                                            :: 0's otherwise
+                                            */
+            e = (ms .== 1) .or (ms .== 0 .and (mask1|0) .== 0);
+                /* indices */
+            idx = packr( seqa(1,1,n-1) + (miss(.not e,1) ) );
+            retp( submat(v,idx,0) );
+        endif;
+    endif;
+endp;
+
+/*
+**> setdifsa
+**
+**  Purpose:    Returns the unique elements in one string vector that are not present
+**              in a second string vector.
+**
+**  Format:     sy = setdifsa(sv1,sv2);
+**
+**  Input:      sv1     Nx1 or 1xN string vector.
+**
+**              sv2     Mx1 or 1xM string vector.
+**
+**  Output:     sy      Lx1 vector containing all unique values that are in sv1
+**                      and are not in sv2, sorted in ascending order.
+**
+**  Remarks:    Place smaller vector first for fastest operation.
+**
+**              When there are a lot of duplicates it is faster to
+**              remove them first with unique before calling this function.
+**
+**  Globals:    None
+**
+**  Example:    sv1 = { "mary", "jane", "linda", "john" };
+**              sv2 = { "mary", "sally" };
+**              sy = setdifsa(sv1,sv2);
+**
+**              sy =   jane
+**                     john
+**                    linda
+*/
+
+proc (1) = setdifsa(sv1,sv2);
+    local sv,vi,nrows1;
+
+    if rows(sv1) == 1;
+        if cols(sv1) > 1;
+            sv1 = sv1';
+        endif;
+    endif;
+
+    if rows(sv2) == 1;
+        if cols(sv2) > 1;
+            sv2 = sv2';
+        endif;
+    endif;
+
+    sv = {};
+    nrows1 = rows(sv1);
+
+    for i (1, nrows1, 1);
+        vi = sv1[i];
+
+        // if it's not found in the second vector, add it
+        if (vi $/= sv2);
+
+            // only if it hasn't previously been added
+            if (vi $/= sv);
+                sv = sv $| vi;
+            endif;
+
+        endif;
+    endfor;
+
+    retp(sortcc(sv,1));
+endp;

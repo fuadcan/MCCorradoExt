@@ -1,0 +1,2047 @@
+/*
+** maxfast.src
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+#include maxlik.ext
+
+
+
+proc(11) = _fastmax( dataset,var,lfct,start,
+       Lmaxalgr,
+       Lmaxlnsch,
+       Lmaxcovp,
+       Lmaxgdmd,
+       Lmaxgrdh,
+       Lmaxdelta,
+       Lmaxextrp,
+       Lmaxgdprc,
+       Lmaxgtol,
+       Lmaxhsprc,
+       Lmaxintrp,
+       Lmaxmiter,
+       Lmaxmtime,
+       Lmaxmxtry,
+       Lmaxnobs,
+       Lmaxrteps,
+       Lmaxoption,
+       Lmaxswch,
+       LmaxActive,
+       Lmax_dat,
+       Lmax_dsn,
+       LLaltnam,
+       LLweight );
+
+    local Lmaxfhess, Lmaxhsvcp, LmaxCpvcp, Lmaxitdta;
+    local oldfmt,x,g,s,h,iter,ky,old,vof,x0,d,fhandle,parnms,bksteps,dx,
+        algrm,stepm,covpm,gradm,outm,algr0,step0,covp0,grad0,out0, pg,k0,
+        k1,k2,lr,lf,ll,np,tme,f0,smallval,relgrad,stout,tstart,w0,w1,w2,
+        w3,w4,w5,w6,w7,w9,w10,h0,h1,ds,start1, ttime,isctu,mask,fmt,rz,
+        omat,row,vof1,it,rteps,oldt,dfct,x1,ib,dd,relgrad1,wgts,dum,skip,
+        cpmeth,y,htype,vofs, vnames,vindx,ret,idat,m0,beta,tmpop,ldiag,ok,
+        oaw,obw,vv,wnl,dontStop,indFct,grdprc,hsprc,g0,jsw,ksw,msw,isw,hfct;
+
+    local lfct:proc;
+
+    clear bksteps,s,dfct,fhandle,h,iter,skip,idat,beta;
+    start = vec(start);
+    Lmaxfhess = { . };
+    Lmaxitdta = { .,.,. };
+    Lmaxcpvcp = { . };
+    Lmaxhsvcp = { . };
+    dx = 1;
+    isctu = 1;
+    pg = 1;
+    smallval = 1e-15;
+    isw = 1;
+    ksw = 1;
+    msw = 1;
+
+    algrm = { STEEP, BFGS, DFP, NEWTON, BHHH, PRCG, BFGS-SC, DFP-SC, NR };
+    algr0 = { 1, 2, 3, 4, 5, 6, 7, 8, 4 };
+    stepm = { 1.0, STEPBT, HALF, BRENT, BHHHSTEP, 1, ONE, GOLDEN };
+    step0 = { 1, 2, 3, 4, 5, 1, 1, 4 };
+    covpm = { NOCOVP, INFO, XPROD, HETCON, NOCOV, HESS, QML };
+    covp0 = { 0, 1, 2, 3, 0, 1, 3 };
+    gradm = { CENTRAL, FORWARD };
+    grad0 = { 0, 1 };
+
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+    Lmaxalgr = _ml_check(Lmaxoption,Lmaxalgr,algrm,algr0,2);
+    Lmaxlnsch = _ml_check(Lmaxoption,Lmaxlnsch,stepm,step0,2);
+    Lmaxcovp = _ml_check(Lmaxoption,Lmaxcovp,covpm,covp0,1);
+    Lmaxgdmd = _ml_check(Lmaxoption,Lmaxgdmd,gradm,grad0,1);
+
+    if lmaxgdprc /= 0;
+        grdprc = &_fast_grdusr;
+    elseif lmaxgdmd == 0;
+        grdprc = &_fast_grdcd;
+    else;
+        grdprc = &_fast_grdfd;
+    endif;
+    local grdprc:proc;
+
+    if lmaxhsprc /= 0;
+        hsprc = &_fast_hsusr;
+        hfct = &lfct;
+    elseif lmaxgdprc /= 0;
+        if lmaxgdmd == 0;
+            hsprc = &_fast_hsgdcd;
+        else;
+            hsprc = &_fast_hsgdfd;
+        endif;
+        hfct = lmaxgdprc;
+    else;
+        hsprc = &_fast_hssp;
+        hfct = &lfct;
+    endif;
+    local hsprc:proc;
+
+    if not scalmiss(Lmaxswch);
+        if rows(Lmaxswch) < 4;
+            if cols(Lmaxswch) == 1;
+                Lmaxswch = Lmaxswch[1,1];
+                Lmaxswch = Lmaxswch | .001 | 10 | .001;
+            else;
+                Lmaxswch = Lmaxswch[1,.];
+                Lmaxswch = Lmaxswch | (.001~.001) | (10~10) | (.001~.001);
+            endif;
+        endif;
+    endif;
+
+
+    if type(var) == 13;
+        var = stof(var);
+    endif;
+
+    if type(LLweight) == 13;
+        LLweight = stof(LLweight);
+    endif;
+
+    if scalmiss(Lmax_dat) and dataset $== "";
+        if not trapchk(4);
+            errorlog "dataset could not be found";
+        endif;
+        retp(start,error(0),error(0),error(0),34,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+    elseif type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        Lmax_dsn = "" $+ dataset;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(start,error(0),error(0),error(0),34,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+        endif;
+        if var $== 0;
+            vindx = 0;
+        else;
+            { vnames,vindx } = indices(dataset,var);
+        endif;
+        if not(LLweight $== 0);
+            if rows(LLweight) == 1;
+                { dum, wgts } = indices(dataset,LLweight);
+                if scalmiss(wgts);
+                    if not trapchk(4);
+                        errorlog "weights could not be found in "$+dataset;
+                    endif;
+                    retp(start,error(0),error(0),error(0),12,Lmaxfhess,Lmaxitdta,
+                               Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+                endif;
+                Lmaxnobs = 0;
+            else;
+                wgts = LLweight;
+                if rows(wgts) /= rowsf(fhandle);
+                    if not trapchk(4);
+                        errorlog "weight vector not conformable";
+                    endif;
+                    retp(start,error(0),error(0),error(0),12,Lmaxfhess,Lmaxitdta,
+                                   Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+                endif;
+                Lmaxnobs = sumc(wgts);
+            endif;
+        else;
+            wgts = 0;
+            Lmaxnobs = rowsf(fhandle);
+        endif;
+        k1 = getnr(6,rows(var));
+
+        if k1 >= rowsf(fhandle);
+            call seekr(fhandle,1);
+            dataset = {};
+
+            k1 = getnr(6,colsf(fhandle));
+            do until eof(fhandle);
+                y = readr(fhandle,k1);
+                dataset = dataset|y[.,vindx];
+                if not(LLweight $== 0) and rows(LLweight) == 1;
+                    Lmaxnobs = Lmaxnobs + sumc(y[.,wgts]);
+                endif;
+            endo;
+            clear y;
+            if LLweight $== 0 or rows(LLweight) /= 1;
+                Lmaxnobs = rows(dataset);
+            endif;
+            if fhandle > 0;
+                fhandle = close(fhandle);
+            endif;
+        else;
+            errorlog "ERROR: entire dataset must be storable in RAM for"\
+                     " Fast Maxlik";
+            retp(start,error(0),error(0),error(0),12,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+        endif;
+
+    elseif type(dataset) == 6;
+        if LLaltnam[1] $/= "" and var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,indcv(var,LLweight)];
+                Lmaxnobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,indcv(var,LLaltnam)];
+        elseif var $/= "";
+            if not(LLweight == 0) and rows(LLweight) == 1;
+                wgts = dataset[.,LLweight];
+                Lmaxnobs = sumc(wgts);
+            endif;
+            dataset = dataset[.,var];
+        endif;
+        if not(LLweight == 0) and rows(LLweight) > 1;
+            wgts = LLweight;
+            Lmaxnobs = sumc(wgts);
+        else;
+            wgts = 0;
+            Lmaxnobs = rows(dataset);
+        endif;
+
+        vindx = 0;
+    else;
+
+        if rows(Lmax_dat) == 1;
+            if dataset $== "";
+                dataset = Lmax_dsn;
+            endif;
+
+            open fhandle = ^dataset;
+            if fhandle == -1;
+                if not trapchk(4);
+                    errorlog dataset $+ " could not be opened";
+                endif;
+                retp(start,error(0),error(0),error(0),34,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+            endif;
+            if var $== "";
+                vindx = 0;
+            else;
+                { vnames,vindx } = indices(dataset,var);
+            endif;
+            if not(LLweight $== 0);
+                if rows(LLweight) == 1;
+                    { dum, wgts } = indices(dataset,LLweight);
+                    if scalmiss(wgts);
+                        if not trapchk(4);
+                            errorlog "weights could not be found in "$+dataset;
+                        endif;
+                        retp(start,error(0),error(0),error(0),12,Lmaxfhess,
+                           Lmaxitdta,Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+                    endif;
+                    Lmaxnobs = 0;
+                else;
+                    wgts = LLweight;
+                    if rows(wgts) /= rowsf(fhandle);
+                        if not trapchk(4);
+                            errorlog "weight vector not conformable";
+                        endif;
+                        retp(start,error(0),error(0),error(0),12,Lmaxfhess,
+                          Lmaxitdta,Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+                    endif;
+                    Lmaxnobs = sumc(wgts);
+                endif;
+            else;
+                wgts = 0;
+                Lmaxnobs = rowsf(fhandle);
+            endif;
+            k1 = getnr(6,rows(var));
+
+            if k1 >= rowsf(fhandle);
+                call seekr(fhandle,1);
+                dataset = {};
+
+                k1 = getnr(6,colsf(fhandle));
+                do until eof(fhandle);
+                    y = readr(fhandle,k1);
+                    dataset = dataset|y[.,vindx];
+                    if not(LLweight $== 0) and rows(LLweight) == 1;
+                        Lmaxnobs = Lmaxnobs + sumc(y[.,wgts]);
+                    endif;
+                endo;
+                clear y;
+                if LLweight $== 0 or rows(LLweight) /= 1;
+                    Lmaxnobs = rows(dataset);
+                endif;
+                if fhandle > 0;
+                    fhandle = close(fhandle);
+                endif;
+            else;
+                errorlog "ERROR: dataset too large";
+                retp(start,error(0),error(0),error(0),12,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+            endif;
+
+        else;
+
+            dataset = Lmax_dat[.,var];
+            if not(LLweight $/= 0) and rows(LLweight) == 1;
+                wgts = dataset[.,LLweight];
+                Lmaxnobs = sumc(wgts);
+            elseif not(LLweight $/= 0) and rows(LLweight) > 1;
+                wgts = LLweight;
+                Lmaxnobs = sumc(wgts);
+            else;
+                wgts = 0;
+                Lmaxnobs = rows(dataset);
+            endif;
+            vindx = 0;
+        endif;
+
+    endif;
+    clear LLweight;
+
+    x0 = start;
+    start1 = start + (start .== 0) * 1e200;
+    x0 = packr(miss(start1.*(LmaxActive ./= 0),0));
+    x0 = x0 .* (x0 ./= 1e200);
+    if not(LmaxActive == 1);
+        LmaxActive = (LmaxActive .== 0).*(start+1e-200);
+        ib = packr(miss(seqa(1,1,rows(LmaxActive)).*(LmaxActive .== 0),0));
+        dd = trimr(design(ib|rows(LmaxActive)),0,1)';
+        if wgts == 0;
+            indFct = 2;
+        else;
+            indFct = 3;
+        endif;
+    else;
+        ib = 0;
+        dd = 1;
+        LmaxActive = 0;
+        if wgts == 0;
+            indFct = 0;
+        else;
+            indFct = 1;
+        endif;
+    endif;
+
+
+@**************************************************************************@
+@                     BEGIN OPTIMIZATION                                   @
+@**************************************************************************@
+    tstart = date;
+
+    if indFct == 0;  /* no weights or active */
+         vof = sumc(packr(-lfct(x0,dataset)));
+    elseif indFct == 1;  /* weights but no active */
+         vof = sumc(packr(-wgts.*lfct(x0,dataset)));
+    elseif indFct == 2;    /* active but no wgts */
+         vof = sumc(packr(-lfct(dd*x0+LmaxActive,dataset)));
+    else;   /* weights and active */
+         vof = sumc(packr(-wgts.*lfct(dd*x0+LmaxActive,dataset)));
+    endif;
+
+    if scalInfNanMiss(vof);
+        if not trapchk(4);
+            if not trapchk(4);
+                errorlog "ERROR:  function cannot be computed at initial pa"\
+                    "rameter values";
+            endif;
+        endif;
+        retp(start,error(0),error(0),error(0),8,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+    endif;
+
+    np = rows(x0);          /* Number of parameters to estimate */
+
+    g0 = grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,lmaxactive,
+                           dd,wgts,indFct);
+    if isInfNanMiss(g0);
+        dontStop = 1;
+    else;
+        dontStop = 0;
+    endif;
+    g = sumc(packr(g0));
+    if indFct >= 2 and lmaxgdprc /= 0;
+        g = g[ib];
+    endif;
+    clear g0;
+
+    if scalInfNanMiss(g);
+        if not trapchk(4);
+            if not trapchk(4);
+                errorlog "gradient function failed at initial values";
+            endif;
+        endif;
+
+        retp(start,-vof,dd*g+LmaxActive,error(0),7,Lmaxfhess,Lmaxitdta,
+                    Lmaxcpvcp,Lmaxhsvcp,Lmaxnobs,Lmax_dsn);
+
+    endif;
+
+    if not dontStop;
+        relgrad = (abs(g).*maxc(abs(x0)'|ones(1,rows(x0))))/maxc(abs(vof)|1);
+        if abs(g) < smallval or relgrad < Lmaxgtol or Lmaxmiter == 0;
+            x = x0;
+            if Lmaxmiter == 0;
+                ret = error(2);
+            else;
+                ret = error(0);
+            endif;
+            ttime = date;
+            if Lmaxcovp == 0;
+                h = error(0);
+            endif;
+            goto A98;
+        endif;
+    endif;
+
+    if Lmaxalgr == 1 or Lmaxalgr == 6;
+        h = 1;
+    elseif Lmaxalgr == 4;
+
+        h = hsprc(hfct,x0,dataset,lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                  lmaxactive,dd,ib,wgts,indFct);
+
+    elseif Lmaxalgr == 5;
+
+        h = moment(grdprc(hfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct),1);
+        h = h[ib,ib];
+
+    else;
+
+        h = eye(np)*maxc(sqrt(abs(vof))|1);
+
+    endif;
+
+    ttime = date;
+
+A0:
+
+/* ********* Start of iteration loop ********** */
+    iter = iter + 1;
+
+    f0 = vof;
+    tstart = date;
+
+    if Lmaxalgr == 1;
+        d = -g;
+    elseif Lmaxalgr == 2;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -cholsol(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+            d = -cholsol(g,h);
+        endif;
+    elseif Lmaxalgr == 3;
+        d = -h'h*g;
+    elseif Lmaxalgr == 4;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -solpd(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            local q1, q2;
+            if Lmaxdelta /= 0;
+                { q1,q2 } = eigrs2(h);
+                q1 = q1 + Lmaxdelta - minc(q1);
+                oldt = trapchk(1);
+                trap 1,1;
+                d = solpd(g,q2*diagrv(eye(rows(q1)),q1)*q2');
+                trap oldt,1;
+            endif;
+            if Lmaxdelta == 0 or scalmiss(d);
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+                oldt = trapchk(1);
+                trap 1,1;
+                d = -solpd(g,h);
+                trap oldt,1;
+            endif;
+        endif;
+    elseif Lmaxalgr == 5;
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -solpd(g,h);
+        trap oldt,1;
+        if scalmiss(d);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        endif;
+    elseif Lmaxalgr == 6;
+        d = -g + beta;
+    elseif Lmaxalgr == 7;
+        d = -h*h'*g;
+    elseif Lmaxalgr == 8;
+        d = -h*h'*g;
+    endif;
+
+    { s,bksteps } = _fast_stepl(g,vof,x0,d,&lfct,Lmaxlnsch,
+        Lmaxintrp,Lmaxextrp,dataset,
+        Lmaxmxtry,LmaxActive,dd,wgts,indFct);
+
+    if not scalmiss(s);
+
+        if indFct == 0;  /* no weights or active */
+             vof1 = sumc(packr(-lfct((x0+s*d),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             vof1 = sumc(packr(-wgts.*lfct((x0+s*d),dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             vof1 = sumc(packr(-lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             vof1 = sumc(packr(-wgts.*lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+        endif;
+
+        if scalInfNanMiss(vof1);
+            s = error(0);
+        endif;
+    else;
+        vof1 = 0;
+    endif;
+
+    if scalmiss(s) or vof1 > vof;
+        if Lmaxrteps;
+            s = 1;
+            vof1 = vof + 1;
+            vofs = 1e200;
+            ds = 1;
+            for it(1,Lmaxmxtry,1);
+                if vof1 <= vof;
+                    break;
+                endif;
+                rteps = 10^trunc(log(meanc(abs(g)))-log(Lmaxnobs)) * Lmaxrteps;
+                if _max_RandType;
+                    { rz, _max_state } = rndLCu(rows(d),1,_max_state);
+                else;
+                    { rz, _max_state } = rndKMu(rows(d),1,_max_state);
+                endif;
+                d = rteps*(2*rz-1).*x0;
+
+                if indFct == 0;  /* no weights or active */
+                     vof1 = sumc(packr(-lfct((x0+d),dataset)));
+                elseif indFct == 1;  /* weights but no active */
+                     vof1 = sumc(packr(-wgts.*lfct((x0+d),dataset)));
+                elseif indFct == 2;    /* active but no wgts */
+                     vof1 = sumc(packr(-lfct(dd*(x0+d)+LmaxActive,dataset)));
+                else;   /* weights and active */
+                     vof1 = sumc(packr(-wgts.*lfct(dd*(x0+d)+LmaxActive,dataset)));
+                endif;
+
+                if scalInfNanMiss(vof1);
+                    vof1 = vofs;
+                    d = ds;
+                elseif vof1 < vofs;
+                    vofs = vof1;
+                    ds = d;
+                endif;
+            endfor;
+            if vof1 > vof;
+                vof1 = vofs;
+                d = ds;
+            endif;
+                if scalInfNanMiss(vof1);
+                ret = error(3);
+                x = x0;
+                goto A98;
+            endif;
+            if Lmaxalgr == 4 or Lmaxalgr == 5;
+                isctu = 1;
+            elseif Lmaxalgr == 6;
+                beta = 0;
+                isctu = 0;
+            else;
+                h = eye(np)*maxc(sqrt(abs(vof1))|1);
+                isctu = 0;
+            endif;
+        else;
+            if not trapchk(4);
+                if scalerr(s) == 6;
+                    if not trapchk(4);
+                        errorlog "step length calculation failed";
+                    endif;
+                elseif scalerr(s) == 3;
+                    if not trapchk(4);
+                        errorlog "function calculation failed";
+                    endif;
+                endif;
+            endif;
+            x = x0;
+            ret = error(6);
+            goto A98;
+        endif;
+    endif;
+
+    dx = s*d;
+    x = x0 + dx;
+    x0 = x;
+    vof = vof1;
+
+    if isctu;
+        { g,h,beta,dontstop } = _fast_sctu(x,vof,smallval,g,h,dx,d,s,&lfct,&grdprc,
+            &hsprc,hfct,Lmaxgdprc,Lmaxhsprc,dataset,Lmaxalgr,Lmaxgrdh,
+            LmaxActive,dd,ib,wgts,indFct);
+
+        if lmaxalgr == 2;
+            Lmaxfhess = h'h;
+        elseif lmaxalgr == 3;
+            Lmaxfhess = invpd(h'h);
+        elseif lmaxalgr == 7 or lmaxalgr == 8;
+            Lmaxfhess = h*h';
+        else;
+            Lmaxfhess = h;
+        endif;
+
+        if scalmiss(g);
+            ret = error(4);
+            goto A98;
+        elseif scalmiss(h);
+            h = eye(np)*maxc(sqrt(abs(vof))|1);
+        endif;
+    else;
+
+        g0 = grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct);
+        if isInfNanMiss(g0);
+            dontStop = 1;
+        else;
+            dontStop = 0;
+        endif;
+        g = sumc(packr(g0));
+        if indFct >= 2 and lmaxgdprc /= 0;
+            g = g[ib];
+        endif;
+        clear g0;
+
+        if scalInfNanMiss(g);
+            if not trapchk(4);
+                if not trapchk(4);
+                    errorlog "gradient calculation failed";
+                endif;
+            endif;
+            ret = error(4);
+            goto A98;
+        endif;
+        isctu = 1;
+    endif;
+
+    tme = ethsec(ttime,date)/6000;
+    if iter >= Lmaxmiter or tme > Lmaxmtime;
+        if iter >= Lmaxmiter;
+            ret = error(2);
+        elseif tme > Lmaxmtime;
+            ret = error(11);
+        else;
+            ret = error(0);
+        endif;
+        goto A98;
+    endif;
+
+@  test for convergence  @
+
+    dfct = f0-vof;
+    if not dontStop;
+        relgrad = (abs(g).*maxc(abs(x0)'|ones(1,rows(x0))))/maxc(abs(vof)|1);
+        if abs(g) < smallval or relgrad < Lmaxgtol;
+            ret = error(0);
+            goto A98;
+        endif;
+    endif;
+
+    if not scalmiss(Lmaxswch);
+        jsw = 0;
+        if ksw >= Lmaxswch[3,isw];
+            jsw = 1;
+        elseif dfct < Lmaxswch[2,isw] or s < Lmaxswch[4,isw];
+            msw = msw + 1;
+            if msw > 5;
+                jsw = 1;
+                msw = 1;
+            else;
+                jsw = 0;
+            endif;
+        endif;
+
+        if jsw;
+            if cols(Lmaxswch) == 2;
+                if isw == 1;
+                    isw = 2;
+                else;
+                    isw = 1;
+                endif;
+            endif;
+
+            if lmaxalgr == 2;
+                h = h'h;
+            elseif lmaxalgr == 3;
+                h = invpd(h'h);
+            elseif lmaxalgr == 7 or lmaxalgr == 8;
+                h = h*h';
+            endif;
+
+            Lmaxalgr = Lmaxswch[1,isw];
+
+            trap 1,1;
+            if lmaxalgr == 2;
+                h = chol(h);
+            elseif lmaxalgr == 3;
+                h = chol(invpd(h));
+            elseif lmaxalgr == 7 or lmaxalgr == 8;
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+            trap oldt,1;
+            if scalmiss(h);
+                h = eye(np)*maxc(sqrt(abs(vof))|1);
+            endif;
+
+            jsw = 0;
+            ksw = 1;
+        else;
+            ksw = ksw + 1;
+        endif;
+    endif;
+
+
+    goto A0;
+
+
+
+A98:
+
+    tme = ethsec(ttime,date)/6000;
+    /* ******************** End of iteration loop ****************** */
+
+    local ib0,ib1;
+    if not(LmaxActive == 1);
+        g = sumc(grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct));
+        ib0 = ib;
+        x0 = dd*x0+LmaxActive;
+        ib1 = rows(x0);
+        ib = 0;
+        dd = 1;
+        LmaxActive = 0;
+        if wgts == 0;
+            indFct = 0;
+        else;
+            indFct = 1;
+        endif;
+    else;
+        ib0 = 0;
+    endif;
+
+    ok = scalerr(ret) <= 2 or scalerr(ret) == 11;
+    if Lmaxcovp == 0 and ok;
+        if Lmaxalgr == 2;
+            oldt = trapchk(1);
+            trap 1,1;
+            h = cholsol(eye(rows(h)),h);
+            trap oldt,1;
+        elseif Lmaxalgr == 3;
+            h = h'h;
+        elseif Lmaxalgr == 4 or Lmaxalgr == 5;
+            oldt = trapchk(1);
+            trap 1,1;
+            if not(lmaxActive == 1);
+                h = solpd(eye(rows(h)),h);
+            else;
+                h = solpd(eye(rows(ib0)),h[ib0,ib0]);
+            endif;
+            trap oldt,1;
+        elseif Lmaxalgr == 7;
+            h = h*h';
+        elseif Lmaxalgr == 8;
+            h = h*h';
+        endif;
+        if Lmaxalgr == 1 or Lmaxalgr == 6;
+                        /* if steepest descent or PRCG and Lmaxcovp=
+                        :: 0
+                        */
+            h = {.};      /* then set covariance matrix to missing  */
+            cpmeth = 0 $+ "NOCOVP";
+        elseif Lmaxalgr == 4;
+            cpmeth = 0 $+ "HESS";
+        elseif Lmaxalgr == 5;
+            cpmeth = 0 $+ "XPROD";
+        else;
+            cpmeth = 0 $+ "SECANT";
+        endif;
+    elseif Lmaxcovp == 1 and ok;
+
+        h = hsprc(hfct,x0,dataset,lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                  lmaxactive,dd,ib,wgts,indFct);
+
+        if scalmiss(h);
+            cpmeth = "NOTPD";
+            h = error(0);
+            Lmaxhsvcp = error(0);
+        else;
+            cpmeth = "HESS";
+            oldt = trapchk(1);
+            trap 1,1;
+            if not(lmaxActive == 1);
+                h = solpd(eye(rows(h)),h);
+            else;
+                h = solpd(eye(rows(ib0)),h[ib0,ib0]);
+            endif;
+            trap oldt,1;
+            if scalmiss(h);
+                if not trapchk(4);
+                    if not trapchk(4);
+                        errorlog "Hessian calculation failed";
+                    endif;
+                endif;
+                h = error(0);
+            endif;
+            Lmaxhsvcp = h;
+        endif;
+    elseif Lmaxcovp == 2 and ok;
+
+        if _max_qmlProc /= 0;
+            h = moment(grdprc(&lfct,x0,dataset,lmaxgrdh,_max_qmlProc,
+                  lmaxactive,dd,wgts,indFct),1);
+        else;
+            h = moment(grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct),1);
+        endif;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        if not(lmaxActive == 1);
+            h = solpd(eye(rows(h)),h);
+        else;
+            h = solpd(eye(rows(ib0)),h[ib0,ib0]);
+        endif;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if not trapchk(4);
+                    errorlog "Cross-Product calculation failed";
+                endif;
+            endif;
+            h = error(0);
+            cpmeth = "NOTPD";
+        else;
+            cpmeth = "XPROD";
+        endif;
+    elseif Lmaxcovp == 3 and ok;
+
+        m0 = moment(grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct),1);
+
+        h0 = hsprc(hfct,x0,dataset,lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                  lmaxactive,dd,ib,wgts,indFct);
+
+        oldt = trapchk(1);
+        trap 1,1;
+        if not(lmaxActive == 1);
+            h = solpd(eye(rows(m0)),m0);
+        else;
+            h = solpd(eye(rows(ib0)),m0[ib0,ib0]);
+        endif;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if not trapchk(4);
+                    errorlog "Cross-Product calculation failed";
+                endif;
+            endif;
+            h = error(0);
+        endif;
+        Lmaxcpvcp = h;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        if not(lmaxActive == 1);
+            h = solpd(eye(rows(h0)),h0);
+        else;
+            h = solpd(eye(rows(ib0)),h0[ib0,ib0]);
+        endif;
+        trap oldt,1;
+        if scalmiss(h);
+            if not trapchk(4);
+                if not trapchk(4);
+                    errorlog "Hessian calculation failed";
+                endif;
+            endif;
+            h = error(0);
+        endif;
+        Lmaxhsvcp = h;
+
+        if scalmiss(Lmaxcpvcp) and not scalmiss(Lmaxhsvcp);
+            cpmeth = "HESS";
+            h = Lmaxcpvcp;
+        elseif not scalmiss(Lmaxcpvcp) and scalmiss(Lmaxhsvcp);
+            cpmeth = "XPROD";
+            h = Lmaxhsvcp;
+        elseif scalmiss(Lmaxcpvcp) and scalmiss(Lmaxhsvcp);
+            cpmeth = "NOTPD";
+            h = error(0);
+        else;
+            cpmeth = "QML";
+            h = Lmaxhsvcp*m0*Lmaxhsvcp;
+        endif;
+    else;
+        cpmeth = "NOCOVP";
+    endif;
+
+    if ib0 /= 0;
+        if Lmaxcovp /= 0;
+/*            ib0 = setdif(seqa(1,1,ib1),ib0,1); */
+            if not scalmiss(h);
+                h1 = h;
+                h = miss(zeros(ib1,ib1),0);
+                h[ib0,ib0] = h1[ib0,ib0];
+            endif;
+            if not scalmiss(Lmaxcpvcp);
+                h1 = Lmaxcpvcp;
+                Lmaxcpvcp = miss(zeros(ib1,ib1),0);
+                Lmaxcpvcp[ib0,ib0] = h1[ib0,ib0];
+            endif;
+            if not scalmiss(Lmaxhsvcp);
+                h1 = Lmaxhsvcp;
+                Lmaxhsvcp = miss(zeros(ib1,ib1),0);
+                Lmaxhsvcp[ib0,ib0] = h1[ib0,ib0];
+            endif;
+        endif;
+/*
+        g = sumc(grdprc(&lfct,x0,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct))';
+*/
+    endif;
+    Lmaxitdta = iter|tme|cpmeth;
+
+    if scalmiss(ret);
+        ret = scalerr(ret);
+    else;
+        ret = 99;
+    endif;
+
+    ndpclex;
+    call ndpcntrl(old,0xffff);
+
+    retp(x0,-vof/lmaxnobs,g,h,ret,Lmaxfhess,Lmaxitdta,Lmaxcpvcp,Lmaxhsvcp,
+            Lmaxnobs,Lmax_dsn);
+
+endp;
+
+
+
+
+
+
+
+
+
+proc(4) = _fast_sctu(x,vof,smallval,g,h,dx,d,s,&lfct,&grdprc,&hsprc,hfct,lmaxgdprc,
+    lmaxhsprc,dataset,Lmaxalgr,Lmaxgrdh,LmaxActive,dd,ib,wgts,indFct);
+
+    local v1, g0, h1, w1, beta, oldt,ds,g1;
+    local hsprc:proc,lfct:proc,grdprc:proc;
+
+    clear beta,ds;
+    h1 = h;
+    /* --- Gradient at x --- */
+    g0 = g;
+
+
+    g1 = grdprc(&lfct,x,dataset,lmaxgrdh,lmaxgdprc,lmaxactive,dd,wgts,indFct);
+    if isInfNanMiss(g1);
+        ds = 1;
+    else;
+        ds = 0;
+    endif;
+    g = sumc(packr(g1));
+    if indFct >= 2 and lmaxgdprc /= 0;
+        g = g[ib];
+    endif;
+
+    if scalInfNanMiss(g);
+        if not trapchk(4);
+            errorlog "gradient calculation failed";
+        endif;
+        retp(g,h,0,ds);
+    endif;
+
+    if abs(g) < smallval;
+        retp(g,h1,0,ds);
+    endif;
+
+    /* -- Secant Update for Inverse Hessian --- */
+
+    if Lmaxalgr == 1;       /* STEEP */
+
+        retp(g,0,0,ds);
+
+    elseif Lmaxalgr == 2;           /* BFGS update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0/sqrt(-g0'd));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+        endif;
+
+    elseif Lmaxalgr == 3;           /* DFP update */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+            v1 = dx'*h*dx;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,(dx'h)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+        endif;
+
+    elseif Lmaxalgr == 4;           /* NEWTON-RAPHSON */
+
+
+        h1 = hsprc(hfct,x,dataset,lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                  lmaxactive,dd,ib,wgts,indFct);
+ /*       h1 = h1[ib,ib]; */
+
+        if scalInfNanMiss(h1);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        endif;
+
+    elseif Lmaxalgr == 5;           /* BHHH */
+
+        h = moment(grdprc(hfct,x,dataset,lmaxgrdh,lmaxgdprc,
+                  lmaxactive,dd,wgts,indFct),1);
+
+        if scalInfNanMiss(h1);
+            if not trapchk(4);
+                errorlog "Cross-Product matrix failed to invert - set to id"\
+                    "entity";
+            endif;
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        endif;
+    elseif Lmaxalgr == 6;           /* scaled BFGS */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            w1 = sqrt(-v1/(g0'd))/s;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(w1*h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,g0*w1);
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+            trap oldt,1;
+        endif;
+
+    elseif Lmaxalgr == 7;           /* scaled DFP */
+
+        v1 = g'dx - g0'dx;
+        if (v1 < 1e-22);
+            h1 = eye(rows(x))*maxc(sqrt(abs(vof))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = cholup(h,(g-g0)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+            v1 = dx'*h*dx;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = choldn(h1,(dx'h)/sqrt(v1));
+            trap oldt,1;
+            if scalmiss(h1);
+                retp(g,error(0),beta,ds);
+            endif;
+        endif;
+    else;
+        h1 = 1;
+        v1 = g0'*g0;
+        beta = (g'g/v1)*dx - (g0'g/v1)*d;
+    endif;
+
+    retp(g,h1,beta,ds);
+endp;
+
+
+
+proc(2) = _fast_stepl(g,vof,x0,d,&lfct,step,intrp,extrp,
+    dataset,mxtry,LmaxActive,dd,wgts,indFct);
+
+    local s, rs, ret, bksteps;
+    local lfct:proc;
+
+    clear ret;
+    bksteps = -1;
+    if step == 2;
+
+        if indFct == 0;  /* no weights or active */
+             rs = sumc(packr(-lfct((x0+d),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             rs = sumc(packr(-wgts.*lfct((x0+d),dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             rs = sumc(packr(-lfct(dd*(x0+d)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             rs = sumc(packr(-wgts.*lfct(dd*(x0+d)+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+
+
+        { s,ret,bksteps } = _fast_stepbt(rs,g,vof,x0,d,mxtry,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+
+    elseif step == 3;
+
+        { s,ret,bksteps } = _fast_half(vof,x0,d,mxtry,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+    elseif step == 4;
+
+        { s,ret,bksteps } = _fast_brent(vof,x0,d,1e-5,mxtry,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+    elseif step == 5;
+
+        { s,ret,bksteps } = _fast_bhhhstp(vof,x0,d,g,mxtry,intrp,extrp,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+    else;
+
+        s = 1;
+        if indFct == 0;  /* no weights or active */
+             rs = sumc(packr(-lfct((x0+d),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             rs = sumc(packr(-wgts.*lfct((x0+d),dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             rs = sumc(packr(-lfct(dd*(x0+d)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             rs = sumc(packr(-wgts.*lfct(dd*(x0+d)+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(rs);
+            retp(error(3),bksteps);
+        endif;
+
+        if rs > vof;
+            ret = 1;
+        endif;
+    endif;
+
+    if ret == 1;    /* not successful */
+
+        { s,ret,bksteps } = _fast_brent(vof,x0,d,1e-5,mxtry,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+    endif;
+
+    if ret == 1;    /* still not successful */
+
+        { s,ret,bksteps } = _fast_half(vof,x0,d,mxtry,&lfct,
+            dataset,LmaxActive,dd,wgts,indFct);
+
+    endif;
+
+    if ret == 1;
+        s = error(6);
+    endif;
+
+    retp(s,bksteps);
+endp;
+
+
+
+
+proc(3) = _fast_bhhhstp(vof0,x0,d,g,mxtry,intrp,extrp,lfct,
+    dataset,LmaxActive,dd,wgts,indFct);
+
+    local lambda,delta,dg,up,down,upfact,downfact,vof,x,vofmin,lambmin,
+        ll,factor,iter,converge,itermax,w;
+    local lfct:proc;
+
+/* ---------- INITIALIZATIONS --------------------------------------------*/
+    itermax = mxtry;
+    delta = intrp;
+    factor = extrp;
+    clear iter,up,down;
+    dg = d'g;
+    downfact = dg*delta;
+    upfact = dg*(1-delta);
+    lambda = 1;
+    vofmin = vof0;
+    lambmin = 0;
+    converge = 1;
+
+/* ----------------- Iteration Loop ----------------------------------------*/
+
+    for iter(1,itermax,1);
+        x = x0+lambda*d;
+
+        if indFct == 0;  /* no weights or active */
+             vof = sumc(packr(-lfct(x,dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             vof = sumc(packr(-wgts.*lfct(x,dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             vof = sumc(packr(-lfct(dd*x+LmaxActive,dataset)));
+        else;   /* weights and active */
+             vof = sumc(packr(-wgts.*lfct(dd*x+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(vof);
+            retp(error(3),1,iter);
+        endif;
+
+        if vof < vofmin;
+            lambmin = lambda;
+            vofmin = vof;
+        endif;
+
+        if (vof-vof0) > downfact*lambda;
+            down = 1;
+            if up;
+                factor = factor^0.618;
+                up = 0;
+            endif;
+            ll = lambda/factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        elseif (vof-vof0) < upfact*lambda;
+            up = 1;
+            if down;
+                factor = factor^0.618;
+                down = 0;
+            endif;
+            ll = lambda*factor;
+            if ll > lambmin;
+                lambda = ll;
+            endif;
+        else;
+            converge = 0;
+            break;
+        endif;
+
+    endfor;
+
+    retp(lambda,converge,iter);
+endp;
+
+
+
+
+proc(3) = _fast_stepbt(r1,g,vof,x0,d,mxtry,lfct,dataset,
+    LmaxActive,dd,wgts,indFct);
+
+    local delta,ub,lb,ret,i,cdelta,dg,s,g1,r2,rs,sprev,s2prev,
+        tt,rprev,r2prev,sprev2,s2prev2,sp2,dsprev,vv,zz,ab,a,b,qv;
+    local lfct:proc;
+    local x,y,w;
+
+/* --------------------- Initializations -------------------------  */
+    delta = 1e-4;           /* This can be changed, and doing so may help  */
+            /* speed convergence -- it must remain within the interval  */
+            /* (0,1/2) */
+    ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+    lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+
+    ret = 1;        /* If 0, then satisfactory value found; else 1.  */
+    i = 0;          /* This counts # of backsteps taken. */
+
+    cdelta = 1-delta;
+
+    dg = d'*g;
+
+        /* ------------------- Try s=1 -------------------------- */
+    s = 1;
+    tt = s*dg;
+    g1 = r1/tt-vof/tt;
+
+    if g1>=delta;
+        if r1 > vof;
+            retp(s,1,0);
+        else;
+            retp(s,0,0);
+        endif;
+    endif;
+
+    i = 1;
+    s = -dg/(2*(r1-vof-dg));
+    s = maxc(s|lb);
+
+    if indFct == 0;  /* no weights or active */
+         r2 = sumc(packr(-lfct((x0+s*d),dataset)));
+    elseif indFct == 1;  /* weights but no active */
+         r2 = sumc(packr(-wgts.*lfct((x0+s*d),dataset)));
+    elseif indFct == 2;    /* active but no wgts */
+         r2 = sumc(packr(-lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+    else;   /* weights and active */
+         r2 = sumc(packr(-wgts.*lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+    endif;
+    if scalInfNanMiss(r2);
+        retp(error(3),1,i);
+    endif;
+
+
+    tt = s*dg;
+    g1 = r2/tt-vof/tt;
+
+    if g1>=delta and g1<=cdelta;
+        if r2 > vof;
+            retp(s,1,1);
+        else;
+            retp(s,0,1);
+        endif;
+    endif;
+    sprev = s;
+    s2prev = 1;
+    rprev = r2;
+    r2prev = r1;
+    rs = r2;
+
+    for i(2,mxtry,1);
+
+        sprev2 = sprev*sprev;
+        s2prev2 = s2prev*s2prev;
+        sp2 = sprev2~s2prev2;
+        dsprev = sprev-s2prev;
+
+        vv = (1~-1|-s2prev~sprev);
+        vv = vv./sp2;
+        zz = (rprev-vof-dg*sprev)|(r2prev-vof-dg*s2prev);
+        ab = (1/dsprev)*vv*zz;
+        a = ab[1,1];
+        b = ab[2,1];
+
+        if a == 0;          /* Cubic is actually a Quadratic in this case. */
+            s = -dg/(2*b);
+        else;
+            qv = b*b - 3*a*dg;
+            if qv < 0;
+                if rs > vof;
+                    retp(s,1,i);
+                else;
+                    retp(s,ret,i);
+                endif;
+            endif;          /* terminate if not real root */
+            tt = 3*a;
+            s = -b/tt + sqrt(qv)/tt;
+        endif;
+
+        if s > ub*sprev;
+            s = ub*sprev;
+        elseif s < lb*sprev;
+            s = lb*sprev;
+        endif;
+
+        if indFct == 0;  /* no weights or active */
+             rs = sumc(packr(-lfct((x0+s*d),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             rs = sumc(packr(-wgts.*lfct((x0+s*d),dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             rs = sumc(packr(-lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             rs = sumc(packr(-wgts.*lfct(dd*(x0+s*d)+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(rs);
+            retp(error(3),1,i);
+        endif;
+
+        tt = s*dg;
+        g1 = rs/tt-vof/tt;
+
+        if g1>=delta and g1<=cdelta;
+            if rs > vof;
+                retp(s,1,i);
+            else;
+                retp(s,0,i);
+            endif;
+        endif;
+
+        s2prev = sprev;
+        sprev = s;
+        r2prev = rprev;
+        rprev = rs;
+    endfor;
+
+    if rs > vof;
+        retp(s,1,i);
+    else;
+        retp(s,ret,i);
+    endif;
+
+endp;
+
+
+proc(2) = _fast_bracket(f0,x,d,lfct,dataset,mxtry,LmaxActive,dd,wgts,indFct);
+
+    local g,r,l0,l1,f1,l2,f2,try;
+    local t,y;
+    local lfct:proc;
+
+    g = 0.5*sqrt(5) - 0.5;
+    r = 1 - g;
+    l0 = 0;
+    l1 = g;
+
+    if indFct == 0;  /* no weights or active */
+         f1 = sumc(packr(-lfct((x+l1*d),dataset)));
+    elseif indFct == 1;  /* weights but no active */
+         f1 = sumc(packr(-wgts.*lfct((x+l1*d),dataset)));
+    elseif indFct == 2;    /* active but no wgts */
+         f1 = sumc(packr(-lfct(dd*(x+l1*d)+LmaxActive,dataset)));
+    else;   /* weights and active */
+         f1 = sumc(packr(-wgts.*lfct(dd*(x+l1*d)+LmaxActive,dataset)));
+    endif;
+
+    if scalInfNanMiss(f1);
+        retp(error(0),error(0));
+    endif;
+
+    for try(1,mxtry,1);
+
+        if (f1 < f0);
+            l2 = l1 + r*(l1 - l0);
+
+            if indFct == 0;  /* no weights or active */
+                 f2 = sumc(packr(-lfct((x+l2*d),dataset)));
+            elseif indFct == 1;  /* weights but no active */
+                 f2 = sumc(packr(-wgts.*lfct((x+l2*d),dataset)));
+            elseif indFct == 2;    /* active but no wgts */
+                 f2 = sumc(packr(-lfct(dd*(x+l2*d)+LmaxActive,dataset)));
+            else;   /* weights and active */
+                 f2 = sumc(packr(-wgts.*lfct(dd*(x+l2*d)+LmaxActive,dataset)));
+            endif;
+            if scalInfNanMiss(f2);
+                retp(error(0),error(0));
+            endif;
+
+            if (f2 < f1);
+                l0 = l1;
+                f0 = f1;
+                l1 = l2;
+                f1 = f2;
+            else;
+                retp(l0,l2);
+            endif;
+        else;
+            l2 = l0 + g*(l1 - l0);
+
+            if indFct == 0;  /* no weights or active */
+                 f2 = sumc(packr(-lfct((x+l2*d),dataset)));
+            elseif indFct == 1;  /* weights but no active */
+                 f2 = sumc(packr(-wgts.*lfct((x+l2*d),dataset)));
+            elseif indFct == 2;    /* active but no wgts */
+                 f2 = sumc(packr(-lfct(dd*(x+l2*d)+LmaxActive,dataset)));
+            else;   /* weights and active */
+                 f2 = sumc(packr(-wgts.*lfct(dd*(x+l2*d)+LmaxActive,dataset)));
+            endif;
+            if scalInfNanMiss(f2);
+                retp(error(0),error(0));
+            endif;
+
+            if (f2 > f0);
+                retp(l0,l2);
+            else;
+                retp(l0,l1);
+            endif;
+        endif;
+    endfor;
+    retp(error(0),error(0));
+endp;
+
+proc(3) = _fast_brent(vof,x0,d0,tol,mxtry,&lfct,dataset,
+                  LmaxActive,dd,wgts,indFct);
+
+    local ax,cx,iter;
+    local a,b,c,d,e,xm,p,q,r,tol1,t2,u,v,w,fu,fv,fw,fx,x,tol3;
+    local f,y;
+    local lfct:proc;
+
+    c = 0.5*(3 - sqrt(5));
+
+    { ax,cx } = _fast_bracket(vof,x0,d0,&lfct,dataset,mxtry,LmaxActive,dd,wgts,indFct);
+
+    if scalmiss(ax);
+        retp(ax,1,0);
+    endif;
+
+    a = minc(ax|cx);
+    b = maxc(ax|cx);
+    v = a + c*(b - a);
+    w = v;
+    x = v;
+    e = 0;
+    fx = vof;
+    fv = fx;
+    fw = fx;
+    tol3 = tol/3;
+    iter = 1;
+    for it(1,mxtry,1);
+        xm = 0.5*(a + b);
+        tol1 = _max_eps2*abs(x) + tol3;
+        t2 = 2*tol1;
+        if (abs(x - xm) <= (t2 - .5*(b - a)));
+            retp(x,0,iter);
+        endif;
+        clear p,q,r;
+        if abs(e) <= tol1;
+            goto A40;
+        endif;
+        r = (x-w)*(fx-fv);
+        q = (x-v)*(fx-fw);
+        p = (x-v)*q - (x-w)*r;
+        q = 2*(q-r);
+        if q <= 0;
+            q = -q;
+        else;
+            p = -p;
+        endif;
+        r = e;
+        e = d;
+        if (abs(p) >= abs(.5*q*r));
+            goto A40;
+        endif;
+        if (p <= q*(a-x));
+            goto A40;
+        endif;
+        if (p >= q*(b-x));
+            goto A40;
+        endif;
+        d = p/q;
+        u = x + d;
+        if ((u-a) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        if ((b-u) < t2);
+            if (xm - x) > 0;
+                d = tol1;
+            else;
+                d = - tol1;
+            endif;
+        endif;
+        goto A50;
+    A40:
+
+        if x < xm;
+            e = b-x;
+        else;
+            e = a-x;
+        endif;
+        d = c*e;
+    A50:
+
+        if abs(d) >= tol1;
+            u = x + d;
+        elseif d >= 0;
+            u = x + tol1;
+        else;
+            u = x - tol1;
+        endif;
+
+        if indFct == 0;  /* no weights or active */
+             fu = sumc(packr(-lfct((x0+u*d0),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             fu = sumc(packr(-wgts.*lfct((x0+u*d0),dataset)));
+        elseif indFct == 2;    /* active but no wgts */
+             fu = sumc(packr(-lfct(dd*(x0+u*d0)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             fu = sumc(packr(-wgts.*lfct(dd*(x0+u*d0)+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(fu);
+            retp(error(3),1,iter);
+        endif;
+
+        if fu <= fx;
+            if u >= x;
+                a = x;
+            else;
+                b = x;
+            endif;
+            v = w;
+            fv = fw;
+            w = x;
+            fw = fx;
+            x = u;
+            fx = fu;
+        else;
+            if u >= x;
+                b = u;
+            else;
+                a = u;
+            endif;
+            if (fu <= fw) or (w == x);
+                v = w;
+                fv = fw;
+                w = u;
+                fw = fu;
+            elseif (fu <= fv) or (v == x) or (v == w);
+                v = u;
+                fv = fu;
+            endif;
+        endif;
+        iter = iter + 1;
+    endfor;
+    retp(error(6),1,iter);
+endp;
+
+proc(3) = _fast_half(f,x,d,mxtry,lfct,dataset,LmaxActive,dd,wgts,indFct);
+    local ax,cx,bksteps,f1,t,y,w;
+    local lfct:proc;
+
+    bksteps = 0;
+    { ax,cx } = _fast_bracket(f,x,d,&lfct,dataset,mxtry,LmaxActive,dd,wgts,indFct);
+
+    if scalmiss(cx);
+        retp(error(0),1,bksteps);
+    endif;
+    for bksteps(1,mxtry,1);
+        cx = ax + .5*(cx - ax);
+
+        if indFct == 0;  /* no weights or active */
+             f1 = sumc(packr(-lfct((x+cx*d),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             f1 = sumc(packr(-wgts.*lfct((x+cx*d),dataset)));
+        elseif indFct == 2;    /* active but no wghts */
+             f1 = sumc(packr(-lfct(dd*(x+cx*d)+LmaxActive,dataset)));
+        else;
+             f1 = sumc(packr(-wgts.*lfct(dd*(x+cx*d)+LmaxActive,dataset)));
+        endif;
+        if scalInfNanMiss(f1);
+            retp(error(0),1,bksteps);
+        endif;
+
+        if f1 < f;
+            retp(cx,0,bksteps);
+        endif;
+    endfor;
+    retp(error(0),1,bksteps);
+
+endp;
+
+
+
+proc _fast_grdusr(lfct,x0,dataset,Lmaxgrdh,lmaxgdprc,
+             LmaxActive,dd,wgts,indFct);
+
+    local g;
+    local lmaxgdprc:proc;
+
+    if indFct == 0;  /* no weights or active */
+         g = lmaxgdprc(x0,dataset);
+    elseif indFct == 1;  /* weights but no active */
+         g = wgts.*lmaxgdprc(x0,dataset);
+    elseif indFct == 2;    /* active but no wgts */
+         g = lmaxgdprc(dd*x0+LmaxActive,dataset);
+    else;   /* weights and active */
+         g = wgts.*lmaxgdprc(dd*x0+LmaxActive,dataset);
+    endif;
+    retp(-g);
+
+endp;
+
+
+
+proc _fast_grdfd(lfct,x0,dataset,Lmaxgrdh,lmaxgdprc,
+             LmaxActive,dd,wgts,indFct);
+    local k, grdd, dh, ax0, xdh, arg, dax0, f0;
+    local lfct:proc;
+
+    k = rows(x0);
+    if indFct == 0;  /* no weights or active */
+         f0 = lfct(x0,dataset);
+    elseif indFct == 1;  /* weights but no active */
+         f0 = wgts.*lfct(x0,dataset);
+    elseif indFct == 2;    /* active but no wgts */
+         f0 = lfct(dd*x0+LmaxActive,dataset);
+    else;   /* weights and active */
+         f0 = wgts.*lfct(dd*x0+LmaxActive,dataset);
+    endif;
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    grdd = zeros(rows(f0),k);
+    for i(1,k,1);
+
+        if indFct == 0;  /* no weights or active */
+             grdd[.,i] = lfct(submat(arg,0,i),dataset);
+        elseif indFct == 1;  /* weights but no active */
+             grdd[.,i] = wgts.*lfct(submat(arg,0,i),dataset);
+        elseif indFct == 2;    /* active but no wghts */
+             grdd[.,i] = lfct(dd*submat(arg,0,i)+LmaxActive,dataset);
+        else;   /* weights and active */
+             grdd[.,i] = wgts.*lfct(dd*submat(arg,0,i)+LmaxActive,dataset);
+        endif;
+
+    endfor;
+
+    retp(-(grdd-f0)./(dh'));
+endp;
+
+proc _fast_grdcd(lfct,x0,dataset,Lmaxgrdh,lmaxgdprc,
+             LmaxActive,dd,wgts,indFct);
+    local k;
+    local lfct:proc;
+    local z,ax0,dax0,dh,xdh,argplus,argminus,grdd;
+
+    k = rows(x0);
+    ax0 = abs(x0);
+
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x0,k,k)',xdh);
+    argminus = diagrv(reshape(x0,k,k)',x0-dh);
+
+    local g0;
+    if indFct == 0;  /* no weights or active */
+         g0 = lfct(argplus[.,1],dataset) - lfct(argminus[.,1],dataset);
+    elseif indFct == 1;  /* weights but no active */
+         g0 = wgts.*(lfct(argplus[.,1],dataset) - lfct(argminus[.,1],dataset));
+    elseif indFct == 2;    /* active but no wghts */
+         g0 = lfct(dd*argplus[.,1]+LmaxActive,dataset) -
+                lfct(dd*argminus[.,1]+LmaxActive,dataset);
+    else;   /* weights and active */
+         g0 = wgts.*(lfct(dd*argplus[.,1]+LmaxActive,dataset) -
+               lfct(dd*argminus[.,1]+LmaxActive,dataset));
+    endif;
+    grdd = zeros(rows(g0),k);
+
+    for i(1,k,1);
+        if i == 1;
+             grdd[.,i] = g0;
+        else;
+            if indFct == 0;  /* no weights or active */
+                 grdd[.,i] = lfct(argplus[.,i],dataset) - lfct(argminus[.,i],dataset);
+            elseif indFct == 1;  /* weights but no active */
+                 grdd[.,i] = wgts.*(lfct(argplus[.,i],dataset) - lfct(argminus[.,i],dataset));
+            elseif indFct == 2;    /* active but no wghts */
+                 grdd[.,i] = lfct(dd*argplus[.,i]+LmaxActive,dataset) -
+                        lfct(dd*argminus[.,i]+LmaxActive,dataset);
+            else;   /* weights and active */
+                 grdd[.,i] = wgts.*(lfct(dd*argplus[.,i]+LmaxActive,dataset) -
+                       lfct(dd*argminus[.,i]+LmaxActive,dataset));
+            endif;
+        endif;
+    endfor;
+    retp(-grdd./(2*dh'));
+endp;
+
+proc _fast_hsgdfd(grdfct,x0,dataset,Lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                    LmaxActive,dd,ib,wgts,indFct);
+
+    local k, grdd, dh, ax0, xdh, arg, dax0, h0, g0;
+    local lmaxgdprc:proc;
+
+    k = rows(x0);
+    if indFct == 0;  /* no weights or active */
+         g0 = sumc(packr(lmaxgdprc(x0,dataset)));
+    elseif indFct == 1;  /* weights but no active */
+         g0 = sumc(packr(wgts.*lmaxgdprc(x0,dataset)));
+    elseif indFct == 2;    /* active but no wgts */
+         g0 = sumc(packr(lmaxgdprc(dd*x0+LmaxActive,dataset)));
+    else;   /* weights and active */
+         g0 = sumc(packr(wgts.*lmaxgdprc(dd*x0+LmaxActive,dataset)));
+    endif;
+
+    grdd = zeros(k,k);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    arg = diagrv(reshape(x0,k,k)',xdh);
+
+    for i(1,k,1);
+
+        if indFct == 0;  /* no weights or active */
+             grdd[.,i] = sumc(packr(lmaxgdprc(submat(arg,0,i),dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             grdd[.,i] = sumc(packr(wgts.*lmaxgdprc(submat(arg,0,i),dataset)));
+        elseif indFct == 2;    /* active but no wghts */
+             grdd[.,i] = sumc(packr(lmaxgdprc(dd*submat(arg,0,i)+LmaxActive,dataset)));
+        else;   /* weights and active */
+             grdd[.,i] = sumc(packr(wgts.*lmaxgdprc(dd*submat(arg,0,i)+LmaxActive,dataset)));
+        endif;
+
+    endfor;
+
+    retp(-(grdd-g0)./(dh'));
+endp;
+
+proc _fast_hsgdcd(grdfct,x0,dataset,Lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                    LmaxActive,dd,ib,wgts,indFct);
+
+    local k,ax0,dax0,dh,xdh,argplus,argminus,grdd,h0,z;
+    local grdfct:proc;
+    k = rows(x0);
+    ax0 = abs(x0);
+
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1];
+        elseif Lmaxgrdh[.,1] /= 0;
+            dh = Lmaxgrdh[.,1]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps2*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;     /* This increases precision slightly */
+    argplus = diagrv(reshape(x0,k,k)',xdh);
+    argminus = diagrv(reshape(x0,k,k)',x0-dh);
+
+    grdd = zeros(k,k);
+    for i(1,k,1);
+        if indFct == 0;  /* no weights or active */
+             grdd[.,i] = sumc(packr(grdfct(argplus[.,i],dataset) - grdfct(argminus[.,i],dataset)));
+        elseif indFct == 1;  /* weights but no active */
+             grdd[.,i] = sumc(packr(wgts.*(grdfct(argplus[.,i],dataset) - grdfct(argminus[.,i],dataset))));
+        elseif indFct == 2;    /* active but no wghts */
+             z = sumc(packr(grdfct(dd*argplus[.,i]+LmaxActive,dataset) -
+                    grdfct(dd*argminus[.,i]+LmaxActive,dataset)));
+             grdd[.,i] = z[ib];
+        else;   /* weights and active */
+             z = sumc(packr(wgts.*(grdfct(dd*argplus[.,i]+LmaxActive,dataset) -
+                   grdfct(dd*argminus[.,i]+LmaxActive,dataset))));
+             grdd[.,i] = z[ib];
+        endif;
+    endfor;
+    retp(-grdd./(2*dh'));
+
+endp;
+
+
+proc _fast_hsusr(lfct,x0,dataset,Lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                      LmaxActive,dd,ib,wgts,indFct);
+
+    local lmaxhsprc:proc,h;
+
+    if indFct == 0;  /* no weights or active */
+         h = -lmaxhsprc(x0,dataset);
+    elseif indFct == 1;  /* weights but no active */
+         h = -wgts.*lmaxhsprc(x0,dataset);
+    elseif indFct == 2;    /* active but no wgts */
+         h = -lmaxhsprc(dd*x0+LmaxActive,dataset);
+    else;   /* weights and active */
+         h = -wgts.*lmaxhsprc(dd*x0+LmaxActive,dataset);
+    endif;
+
+    retp(h[ib,ib]);
+endp;
+
+
+proc _fast_hssp(lfct,x0,dataset,Lmaxgrdh,lmaxgdprc,lmaxhsprc,
+                      LmaxActive,dd,ib,wgts,indFct);
+    local k, hss, grdd, ax0, dax0, dh, xdh, ee, f0, i, j;
+    local lfct:proc;
+    local w,t1,t2,z,v;
+
+
+    if indFct == 0;  /* no weights or active */
+         f0 = lfct(x0,dataset);
+         k = rows(x0);
+    elseif indFct == 1;  /* weights but no active */
+         f0 = wgts.*lfct(x0,dataset);
+         k = rows(x0);
+    elseif indFct == 2;    /* active but no wgts */
+         f0 = lfct(dd*x0+LmaxActive,dataset);
+         k = rows(dd);
+    else;   /* weights and active */
+         f0 = wgts.*lfct(dd*x0+LmaxActive,dataset);
+         k = rows(dd);
+    endif;
+
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    if not scalmiss(Lmaxgrdh) and cols(Lmaxgrdh) > 1;
+        if rows(Lmaxgrdh) == rows(x0) and Lmaxgrdh[.,2] /= 0;
+            dh = Lmaxgrdh[.,2];
+        elseif Lmaxgrdh[.,2] /= 0;
+            dh = Lmaxgrdh[.,2]*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        else;
+            dh = _max_eps3*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+        endif;
+    else;
+        dh = _max_eps3*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+    endif;
+
+    xdh = x0+dh;
+    dh = xdh-x0;    /* This increases precision slightly */
+    ee = eye(k).*dh;
+
+    grdd = zeros(rows(f0),k);
+    for i(1,k,1);
+        if indFct == 0;  /* no weights or active */
+             grdd[.,i] = lfct(x0+ee[.,i],dataset);
+        elseif indFct == 1;  /* weights but no active */
+             grdd[.,i] = wgts.*lfct(x0+ee[.,i],dataset);
+        elseif indFct == 2;    /* active but no wghts */
+             grdd[.,i] = lfct(dd*x0+ee[.,i]+LmaxActive,dataset);
+        else;   /* weights and active */
+             grdd[.,i] = wgts.*lfct(dd*x0+ee[.,i]+LmaxActive,dataset);
+        endif;
+    endfor;
+
+    /* Compute "double" forward step */
+    hss = zeros(k,k);
+    for i(1,k,1);
+        for j(i,k,1);
+            if indFct == 0;  /* no weights or active */
+                 v = lfct(x0+ee[.,i]+ee[.,j],dataset);
+            elseif indFct == 1;  /* weights but no active */
+                 v = wgts.*lfct(x0+ee[.,i]+ee[.,j],dataset);
+            elseif indFct == 2;    /* active but no wghts */
+                 v = lfct(dd*(x0+ee[.,i]+ee[.,j])+LmaxActive,dataset);
+            else;   /* weights and active */
+                 v = wgts.*lfct(dd*(x0+ee[.,i]+ee[.,j])+LmaxActive,dataset);
+            endif;
+            hss[i,j] = sumc(packr((v-grdd[.,i]-grdd[.,j] + f0) ./ (dh[i] * dh[j])));
+            if i /= j;
+                hss[j,i] = hss[i,j];
+            endif;
+        endfor;
+    endfor;
+
+    retp(-hss[ib,ib]);
+endp;
+
+

@@ -1,0 +1,409 @@
+/*
+** gdttools.src
+** (C) Copyright 2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**                  Format                                  Line
+** ========================================================================
+**
+**/
+
+#include gdttools.ext
+
+proc (0) = _gdt_printvar(tag, data, vtype, maxrow);
+    local rowstr, n, maxlen, fmt, field, prec, c, str;
+
+    if rows(data) == 0;
+        print;
+        print tag " = {}";
+        retp();
+    endif;
+
+    if maxrow and maxrow < rows(data);
+        data = data[1:maxrow];
+    endif;
+
+    n = rows(data);
+    maxlen = log(n)+1;
+    maxlen = maxlen*2+6;
+
+    print;
+    print tag " =";
+
+    if vtype == 1;
+
+        if scalmiss(packr(data));
+            field = 4;
+            prec = 0;
+            fmt = "%*.*f ";
+            c = 10;
+        elseif data == round(data);
+            field = log(maxc(packr(data)))+2;
+            prec = 0;
+            fmt = "%*.*f ";
+
+            if field > 7;
+                c = 5;
+            else;
+                c = 10;
+            endif;
+        else;
+            field = log(maxc(packr(data)))+12;
+            prec = 8;
+            fmt = "%*.*g ";
+            c = 5;
+        endif;
+
+        for i (1, rows(data), 1);
+
+            if not (i-1) % c;
+                print;
+
+                if i+(c-1) > rows(data);
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(rows(data), "%*.*f]  ", 1, 0);
+                else;
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(i+(c-1), "%*.*f]  ", 1, 0);
+                endif;
+
+                print rowstr$+chrs(reshape(vals(" "),maxlen-strlen(rowstr), 1));;
+            endif;
+
+            print ftos(data[i], fmt, field, prec);;
+        endfor;
+
+    elseif vtype == 0;
+
+        c = 10;
+        field = maxc(strlen(data));
+
+        for i (1, rows(data), 1);
+
+            if not (i-1) % c;
+                print;
+
+                if i+(c-1) > rows(data);
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(rows(data), "%*.*f]  ", 1, 0);
+                else;
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(i+(c-1), "%*.*f]  ", 1, 0);
+                endif;
+
+                print rowstr$+chrs(reshape(vals(" "),maxlen-strlen(rowstr), 1));;
+            endif;
+
+            str = "'"$+data[i]$+"'";
+            print str$+chrs(reshape(vals(" "),(field+3)-strlen(str), 1))$+"";;
+        endfor;
+
+    elseif vtype == 2; // date type
+
+        if data / 1000000 * 1000000 == data;   // contains no time information
+            field = 11;
+            c = 5;
+        elseif data < 1000000;    // contains no date information
+            field = 9;
+            c = 10;
+        else;
+            field = 20;
+            c = 5;
+        endif;
+
+        for i (1, rows(data), 1);
+
+            if not (i-1) % c;
+                print;
+
+                if i+(c-1) > rows(data);
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(rows(data), "%*.*f]  ", 1, 0);
+                else;
+                    rowstr = "["$+ftos(i, "%*.*f:", 1, 0)$+ftos(i+(c-1), "%*.*f]  ", 1, 0);
+                endif;
+
+                print rowstr$+chrs(reshape(vals(" "),maxlen-strlen(rowstr), 1));;
+            endif;
+
+            if field == 11;
+                str = dttostr(data[i], "YYYY-MO-DD");
+            elseif field == 9;
+                str = dttostr(data[i], "HH:MI:SS");
+            else;
+                str = dttostr(data[i], "YYYY-MO-DD HH:MI:SS");
+            endif;
+
+            print str[1]$+chrs(reshape(vals(" "),field-strlen(str[1]), 1))$+" ";;
+        endfor;
+
+    endif;
+
+    print;
+endp;
+
+proc _gdt_dstat(x, deletion);
+    local i,k,tobs,valid,var,mean,std,max,min,missing,sum,
+        sumsq,vtype;
+
+    tobs = rows(x);
+    k = cols(x);
+
+
+    if tobs == 0;
+        retp(99);
+    endif;
+
+    missing = zeros(k,1);
+
+    if deletion == 1;         /* listwise deletion */
+        x = packr(x);
+
+        if scalmiss(x);
+            local mv;
+            mv = error(0);
+            retp(mv|mv|mv|mv|mv|0|tobs);
+        endif;
+
+        min = minc(x);
+        max = maxc(x);
+        valid = rows(x);
+    elseif deletion == 2;     /* pairwise deletion */
+        i = 1;
+
+        do until i > k;
+            missing[i] = missing[i] + counts(x[.,i],error(0));
+            i = i+1;
+        endo;
+
+        min = minc(missrv(x,__INFp));
+        max = maxc(missrv(x,__INFn));
+        valid = rows(x) - missing;
+        x = missrv(x,0);
+    else;
+        min = minc(x);
+        max = maxc(x);
+        valid = rows(x);
+    endif;
+
+    sum = sumc(x);
+    sumsq = sumc(x.*x);
+    mean = sum./valid;
+    var = (sumsq-valid.*(mean.*mean))./( valid + (valid .== 1) - 1);
+    var = maxc(var'|zeros(1,rows(var)));
+    std = sqrt(var);
+    missing = tobs - valid;
+    vtype = 1;
+    mean = missex(mean,(.not vtype));
+    var = missex(var,valid.==1);
+    var = missex(var,(.not vtype));
+    var = missex(var,var .== 0);
+    std = missex(std,(.not vtype));
+    std = missex(std,std .== 0);
+    min = missex(min,(.not vtype));
+    max = missex(max,(.not vtype));
+
+    retp(mean|std|var|min|max|valid|missing);
+endp;
+
+proc _gdt_mergebydat(infile1,ind1,infile2,ind2,outfile,keytyp);
+    local oldname,vartypes,type1,type2,err,f1,f2,fout,name1,name2,b1,b2,invar1,invar2,varnames,ws;
+    clear f1,f2,fout,err;
+
+    open f1 = ^infile1;
+
+    if f1==-1;
+        retp(1);
+    endif;
+    if iscplxf(f1);
+        f1 = close(f1);
+        retp(19);
+    endif;
+
+    open f2 = ^infile2;
+
+    if f2==-1;
+        f1 = close(f1);
+        retp(2);
+    endif;
+    if iscplxf(f2);
+        f1 = close(f1);
+        f2 = close(f2);
+        retp(22);
+    endif;
+
+    invar1 = seqa(1,1,colsf(f1));           /* File 1 variable indices  */
+    invar2 = seqa(1,1,colsf(f2));           /* File 2 variable indices  */
+
+    invar2 = packr(miss(invar2, ind2));
+
+    name1 = getnamef(f1);
+    name2 = getnamef(f2);
+    type1 = vartypef(f1);
+    type2 = vartypef(f2);
+
+    name2 = name2[invar2];
+    type2 = type2[invar2];
+
+    for i2 (1,rows(name2),1);
+        for i1 (1,rows(name1),1);
+            if lower(name2[i2]) $== lower(name1[i1]);
+                oldname = name2[i2];
+                if strlen(name2[i2]) > 30;
+                    name2[i2] = "changed_variable_name_" $+ ftos(i2, "%*.*f", 1, 0);
+                else;
+                    name2[i2] = name2[i2] $+ "_2";
+                endif;
+
+                print oldname " renamed to " name2[i2];
+                break;
+            endif;
+        endfor;
+    endfor;
+
+    varnames = name1$|name2;
+    vartypes = type1|type2;
+
+        /* The assumption being made below is that all the variables from
+        :: both input files will be included in the output file and the type
+        :: of the data will follow the file with the largest type. The key
+        :: variable will be output from only one file.
+        */
+
+    if keytyp==2 and (typef(f1) /= 8 or typef(f2) /= 8);
+        errorlog "WARNING - Sort is character type, dataset not double precis"\
+            "ion.";
+    endif;
+
+    create fout = ^outfile with ^varnames,0,maxc(typef(f1)|typef(f2),vartypes);
+
+    if fout==-1;
+        f1 = close(f1);
+        f2 = close(f2);
+        retp(3);
+    endif;
+
+    b1 = submat(readr(f1,1),1,invar1);
+    b2 = submat(readr(f2,1),1,0);
+
+    ws = 1;         /* is set to 1 inside loop if write is successful  */
+
+    /* ------------------ merge loop ------------------ */
+
+    if keytyp==2;
+        gosub charkey;
+    else;
+        gosub numkey;
+    endif;
+
+finish:
+
+    if err;
+        goto writerr;
+    endif;
+
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    retp(0);
+
+writerr:
+
+    call close(f1);
+    call close(f2);
+    call close(fout);
+    retp(9);
+
+/* ======================================================================== */
+/* -------------------------- Subroutines Follow -------------------------- */
+/* ======================================================================== */
+
+/* =============================== */
+/* ===== Numeric Key Merge ======= */
+/* =============================== */
+
+numkey:
+
+    do while ws;    /* do while write successful */
+        if b1[ind1] == b2[ind2];
+                /* key column from file 2 is dropped here */
+            ws = writer(fout,b1~b2[invar2]);
+
+            if eof(f1) or eof(f2);
+                return;
+            endif;
+
+            b1 = submat(readr(f1,1),1,invar1);
+            b2 = submat(readr(f2,1),1,0);
+        elseif b1[ind1] > b2[ind2];
+            if eof(f2);
+                return;
+            endif;
+            b2 = submat(readr(f2,1),1,0);
+        else;
+            if eof(f1);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+        endif;
+    endo;
+    err = 1;
+    return;
+
+/* =============================== */
+/* ==== Character Key Merge ====== */
+/* =============================== */
+
+charkey:
+
+    do while ws;    /* do while write successful */
+        if b1[1,1] $== b2[1,1];
+                /* NOTE - key column from file 2 is dropped here */
+            ws = writer(fout,b1~b2[1,2:cols(b2)]);
+            if eof(f1) or eof(f2);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+            b2 = submat(readr(f2,1),1,invar2);
+        elseif b1[1,1] $> b2[1,1];
+            if eof(f2);
+                return;
+            endif;
+            b2 = submat(readr(f2,1),1,invar2);
+        else;
+            if eof(f1);
+                return;
+            endif;
+            b1 = submat(readr(f1,1),1,invar1);
+        endif;
+    endo;
+    err = 1;
+    return;
+/* ======================= End of Subroutines =========================== */
+
+endp;
+
+proc (2) = _gdt_sample_vector(obs, sample, seed, replace);
+    local rv, trv;
+
+    if replace;
+        { rv, seed } = rndKMu(sample, 1, seed);
+        retp(ceil(rv*obs), seed);
+    else;
+        rv = {};
+
+        do while rows(rv) < sample;
+            { trv, seed } = rndKMu(sample-rows(rv), 1, seed);
+            rv = unique(rv|ceil(trv*obs), 1);
+        endo;
+
+        retp(rv, seed);
+    endif;
+endp;
+

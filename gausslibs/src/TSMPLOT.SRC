@@ -1,0 +1,310 @@
+/*
+** tsmPlot.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  call BasisPlot(B,L);          Plot the tiling of time-frequency plane  18
+**
+**  call wPlot(w,L,cn);           Wavelet decomposition coefficients plot  31
+**
+**  call wpkPlot(pkt,cn);         Wavelet Packet table plot                48
+**
+*/
+
+
+/*
+** BasisPlot
+**
+** Purpose: Plot the tiling of time-frequency plane
+**
+** Format:  call BasisPlot(B,L);
+**
+** Input:   B - Nb*1 vector, the basis B of the wavelet packet
+**          L - scalar, scale value
+**
+*/
+
+
+/*
+** wPlot
+**
+** Purpose: Wavelet decomposition coefficients plot
+**
+** Format:  call wPlot(w,L,cn);
+**
+** Input:   w - N*1 vector, the wavelet coefficients
+**          L - scalar, the level of multiresolution
+**         cn - N*1 vector, indicates the plotted coefficients
+**
+** Globals:  _wline - scalar (default = 0), line thickness
+**          _wcolor - L*1 vector (default = 0), color of each resolution
+**
+*/
+
+
+/*
+** wpkPlot
+**
+** Purpose: Wavelet Packet table plot
+**
+** Format:  call wpkPlot(pkt,cn);
+**
+** Input:   w - N*L vector, the wavelet packet table
+**         cn - N*L vector, indicates the plotted coefficients
+**
+** Globals:  _wline - scalar (default = 0), line thickness
+**          _wcolor - L*1 vector (default = 0), color of each resolution
+**           _wgrid - scalar 1 for grid line, 0 otherwise
+**
+*/
+
+
+/*
+** wPlot
+*/
+
+proc (0) = wPlot(w,L,cn);
+  local N,N2,deb,np,i,w_,cn_,h,x,mw;
+  local z,y1,y2,pl,sc1,sc2;
+  local err,M,z1,z2;
+
+  N = rows(w);
+
+  if ismiss(w);
+    ERRORLOG "error: w contains missing values.";
+    retp;
+  endif;
+
+  err = _int_power2(w);
+
+  if err == 1;
+    retp;
+  endif;
+
+  M = floor(ln(N/4)/ln(2)+1)+1;
+
+  if L > M or L < 0;
+    ERRORLOG "error: Incorrect level L parameter.";
+    retp;
+  endif;
+
+
+  if L == 0;
+    L = M;
+  endif;
+
+  N2 = N/2;
+  deb = N2+1;
+  np = N2;
+
+  if cn == 1;
+    cn = ones(N,1);
+  endif;
+
+  if (rows(cn) /= N) or (cols(cn) /= 1);
+    ERRORLOG "error: Wrong size format of the cn vector.";
+    retp;
+  endif;
+
+  _pline = {};
+
+  if rows(_wcolor) /= L;
+    _wcolor = 0;
+  endif;
+
+  i = 1;
+  do until i > L;
+
+    w_ = w[deb:deb+np-1];
+    cn_ = cn[deb:deb+np-1];
+    cn_ = cn_./=0;
+    h = N2/np;
+    x = seqa(ceil(h/2),h,np);
+    mw = maxc(abs(w_));
+    w_ = w_/(2*mw);
+    w_ = w_.*cn_;
+
+    z = ones(np,1);
+    y1 = z*i;
+    y2 = y1+w_;
+
+    if _wcolor  == 0;
+      z1 = 7*z;
+    else;
+      z1 = _wcolor[i]*z;
+    endif;
+
+    if _wline  == 0;
+      z2 = zeros(np,1);
+    else;
+      z2 = _wline*z;
+    endif;
+
+
+    pl = (z.*(1~6))~x~y1~x~y2~z~z1~z2;
+    _pline = _pline|pl;
+
+    np = np/2;
+    deb = deb - np;
+    i = i+1;
+
+  endo;
+
+  sc1 = 1|N2;
+  sc2 = 0|(L+1);
+  scale(sc1,sc2);
+  ylabel("Level of resolution");
+
+  retp;
+endp;
+
+
+/*
+** wpkPlot
+*/
+
+proc (0) = wpkPlot(pkt,cn);
+  local N,L,x,z,y1,y2,i,pkt_,cn_,z1,z2,sc1,sc2,pl,N_;
+
+  N = rows(pkt);
+  L = cols(pkt);
+
+  if ismiss(pkt);
+    ERRORLOG "error: pkt contains missing values.";
+    retp;
+  endif;
+
+  if cn == 1;
+    cn = ones(N,L);
+  endif;
+
+  if (rows(cn) /= N) or (cols(cn) /= L);
+    ERRORLOG "error: Wrong size format of the cn matrix.";
+    retp;
+  endif;
+
+  if rows(_wcolor) /= L;
+    _wcolor = 0;
+  endif;
+
+  _pline = {};
+
+  x = seqa(1,1,N);
+  z = ones(N,1);
+
+  i = 1;
+  do until i > L;
+
+    pkt_ = pkt[.,i];
+    cn_ = cn[.,i];
+    cn_ = cn_./=zeros(N,1);
+    pkt_ = pkt_/(2*maxc(abs(pkt_)));
+    pkt_ = pkt_.*cn_;
+
+    y1 = z*i;
+    y2 = y1+pkt_;
+
+    if _wcolor  == 0;
+      z1 = 7*z;
+    else;
+      z1 = _wcolor[i]*z;
+    endif;
+
+    if _wline == 0;
+      z2 = zeros(N,1);
+    else;
+      z2 = _wline*z;
+    endif;
+
+    pl = (z.*(1~6))~x~y1~x~y2~z~z1~z2;
+    _pline = _pline|pl;
+
+    i = i+1;
+
+  endo;
+
+  if _wgrid == 1;
+
+    i = 1;
+    do until i > L;
+      N_ = N*(2^-i);
+      z = ones(2^i-1,1);
+      x = seqa(N_,N_,2^i-1);
+      y1 = i*z;
+      y2 = (i+1)*z;
+      z1 = 7*z;
+      z2 = 0*z;
+
+      pl = (z.*(1~3))~x~y1~x~y2~z~z1~z2;
+      _pline = _pline|pl;
+
+      i = i + 1;
+    endo;
+
+  endif;
+
+  sc1 = 1|N;
+  sc2 = 0|(L+1);
+  scale(sc1,sc2);
+  ylabel("Level of resolution");
+
+  retp;
+endp;
+
+
+/*
+** BasisPlot
+*/
+
+proc (0) = BasisPlot(B,L);
+  local Nb,T,F,N,Y1,Y2;
+  local i,X1,X2,Xa,Xb,Y1_,Y2_,Ya,Yb,z,pl;
+
+  if L == 0;
+    L = maxc(B);
+  endif;
+
+  Nb = rows(B);
+
+  _pline = {};
+
+  T = 2^(B-L);
+  F = 2^(-B);
+  N = 1./T;
+
+  Y1 = cumsumc(0|F);
+  Y2 = trimr(Y1,1,0);
+  Y1 = trimr(Y1,0,1);
+
+  i = 1;
+  do until i > Nb;
+
+    X1 = seqa(0,T[i],N[i]);
+    X2 = T[i] + X1;
+
+    Xa = X1|X2|X2|X1;
+    Xb = X2|X2|X1|X1;
+
+    Y1_ = Y1[i]*ones(N[i],1);
+    Y2_ = Y2[i]*ones(N[i],1);
+
+    Ya = Y1_|Y1_|Y2_|Y2_;
+    Yb = Y1_|Y2_|Y2_|Y1_;
+
+    z = ones(4*N[i],1);
+
+    pl = z.*(1~3)~Xa~Ya~Xb~Yb~z.*(1~7~0);
+
+    _pline = _pline|pl;
+
+    i = i + 1;
+
+  endo;
+
+  scale(0|1,0|1);
+  xlabel("Time");
+  ylabel("Frequency");
+
+endp;

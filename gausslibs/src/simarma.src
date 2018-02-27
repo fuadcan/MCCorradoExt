@@ -1,0 +1,129 @@
+/*
+** simarma.src - Simulated ARMA Time Series Models.
+** (C) Copyright 1994-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> simarma
+**
+**  Purpose: Simulate ARMA time series.
+**
+**  Format:   y = simarma(b,p,q,const,n,k,std,seed);
+**
+**  Input:   b   (P+Q)x1 vector of AR and MA parameter values.
+**           q   scalar, number of moving average (MA) parameters.
+**           p   scalar, number of autoregressive (AR) parameters.
+**       const   scalar if a constant, or NxM matrix, if constant includes time
+**               trends or constants with structural breaks.
+**           n   scalar, number of observations.
+**           k   scalar, number of series to generate.
+**         std   scalar, the value of the standard deviation.
+**        seed   scalar, if  0 < seed < 2^31-1. If the value of the seed is
+**               is outside of this range, then no seed is used. The value of
+**               the seed initializes the random number generator.
+**
+**  Output:  y   NxK matrix, K univariate ARMA time series of length N.
+**
+**  Remarks: If your simulation is large or if your available memory is limited,
+**           make several calls to SIMARMA during a simulation.  Keep in mind
+**           that there is some overhead computing starting values with the
+**           right multivariate distribution.
+*/
+
+proc simarma(b,p,q,const,n,k,std,seed);
+    local e,y,g,j,cov,phi,theta,rmax,c,a,h,kmin,i;
+
+    if rows(b) /= p+q;
+        errorlog "ERROR: The size of the parameter vector must equal the"\
+         " number of";
+        errorlog "       autoregressive and moving average terms.";
+        end;
+    endif;
+    if (seed le 0) or (seed ge 2^31-1);
+        e = rndn(n+p+q,k)*std;
+    else;
+        e = rndns(n+p+q,k,seed)*std;
+    endif;
+    if rows(const) /= 1;
+        if rows(const) lt n;
+            errorlog "ERROR:  The rows of the constant terms are less than n";
+            end;
+        endif;
+        const = sumc(const');
+    endif;
+    if q == 0;
+        if p == 1;
+            y = trimr(recserar(e[1:n+1,.],sqrt(1/(1-b[1]^2)).*e[1,.],
+                            b[1]*ones(1,k)),p,0);
+        else;
+            g = tautocov(b,p,q);
+            e[1:p,.] = chol(toeplitz(g[1:p]))'e[1:p,.];
+            y = trimr(recserar(e,e[1:p,.],b.*ones(p,k)),p,0);
+        endif;
+    elseif p == 0 and q > 0;
+        y = zeros(n,k);
+        j=1; do while j le k;
+            y[.,j] = conv(1|-b,e[.,j],q+1,n+q);
+        j=j+1; endo;
+    elseif p > 0 and q > 0;
+        g = tautocov(b,p,q);
+        cov = zeros(p+q,p+q);
+        phi = -1|b[1:p];
+        theta = -1|b[p+1:p+q];
+        rmax = maxc(p|q);
+        c = zeros(q+1,1);
+        a = zeros(rmax+1,rmax+1);
+        c[1] = 1;
+        h=1; j=1; do while h <= q;
+            kmin = minc(p|h);
+            if (p gt 0) and (h le p);
+                c[h+1] = -theta[h+1] + phi[2:kmin+1]'rev(c[1:kmin]);
+            elseif (p gt 0) and (h gt p);
+                c[h+1] = -theta[h+1] + phi[2:kmin+1]'rev(c[j+1:kmin+j]);
+                j=j+1;
+            elseif (p == 0);
+                c[h+1] = -theta[h+1];
+            endif;
+        h=h+1; endo;
+        i=1; do while i le p+q;
+            j=i; do while j le p+q;
+                if i == j;
+                    if i le p;
+                        cov[i,j] = g[1];
+                    else;
+                        cov[i,j] = 1;
+                    endif;
+                else;
+                    if (i le p) and (j le p);
+                        cov[i,j] = g[j-i+1];
+                    else;
+                        if (i-p le 0) and (i-p ge j-p-q);
+                            cov[i,j] = c[i-j+q+1];
+                        endif;
+                    endif;
+                endif;
+            j=j+1; endo;
+        i=i+1; endo;
+        e[1:p+q,.] = chol(cov)'e[1:p+q,.];
+        j=1; do while j le k;
+            e[1+p:n+p,j] = conv(1|-b[p+1:p+q],e[p+1:n+p+q,j],1+q,n+q);
+        j=j+1; endo;
+        y = trimr(recserar(zeros(p,k)|e[1+p:n+p,.],e[1:p,.],
+                        b[1:p].*ones(p,k)),p,0);
+    else;
+        y = e;
+    endif;
+retp(y+const);
+endp;
+

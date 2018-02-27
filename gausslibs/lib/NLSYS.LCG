@@ -1,0 +1,39 @@
+/*
+** nlsys.lcg - Nonlinear Systems of Equations Library
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+nlsys.dec
+    _nlalgr  : matrix
+    _nlajac  : matrix
+    _nlstjc  : matrix
+    _nltypf  : matrix
+    _nltypx  : matrix
+    _nlfdig  : matrix
+    _nlfvtol : matrix
+    _nlstol  : matrix
+    _nlchpf  : matrix
+    _nlmaxit : matrix
+    _nlmtol  : matrix
+    _nlitnum : matrix
+    _nl_x0   : matrix
+    _nl_ver  : matrix
+
+nlsys.src
+    nlsys    : proc
+    _nlsys   : proc
+    _nlnsrch : proc
+    _nlhkstp : proc
+    _hkstp   : proc
+    _nlphi   : proc
+    _nlphip  : proc
+    _norm2   : proc
+    _trustup : proc
+    _nljacob : proc
+    _nleps   : proc
+    nlset    : proc
+    nlprt    : proc
+    _nlterm  : proc
+    cntrstr  : proc
+

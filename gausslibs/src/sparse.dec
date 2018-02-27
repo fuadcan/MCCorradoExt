@@ -1,0 +1,32 @@
+/*
+**  sparse.dec - global declarations for sparse functions
+**
+** (C) Copyright 1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+
+
+
+declare matrix _sparse_Damping = 0;
+declare matrix _sparse_Atol = 0;
+declare matrix _sparse_Btol = 0;
+declare matrix _sparse_CondLimit = 0;
+declare matrix _sparse_NumIters = 0;
+declare matrix _sparse_RetCode = 0;
+declare matrix _sparse_Anorm = 0;
+declare matrix _sparse_Acond = 0;
+declare matrix _sparse_Rnorm = 0;
+declare matrix _sparse_ARnorm = 0;
+declare matrix _sparse_Xnorm = 0;

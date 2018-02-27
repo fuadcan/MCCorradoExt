@@ -1,0 +1,599 @@
+/*
+**  randkm.src - pseudo-random number generators
+**
+** (C) Copyright 2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+** Procedure             Purpose                                         Line
+** --------------------------------------------------------------------------
+** rndKMgam              Gamma pseudo-random numbers                       30
+** rndKMp                Poisson pseudo-random numbers                    135
+** rndKMnb               negative binomial pseudo-random numbers          229
+** rndKMbeta             Beta pseudo-random numbers                       355
+** rndKMvm               von Mises pseudo-random numbers                  482
+**
+*/
+
+/*
+**> rndKMgam
+**
+**  Purpose:  Computes Gamma pseudo-random numbers.
+**
+**  Format:  { x, newstate } = rndKMgam(r, c, alpha, state);
+**
+**  Input:   r       scalar, number of rows of resulting matrix.
+**
+**           c       scalar, number of columns of resulting matrix.
+**
+**           alpha   rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   shape argument for gamma distribution.
+**
+**           state   scalar or 500x1 vector
+**
+**               Scalar case:
+**
+**                   state = starting seed value only. If -1, GAUSS computes
+**                           the starting seed based on the system clock.
+**
+**               500x1 vector case:
+**
+**                   state = the state vector returned from a previous call to
+**                           one of the rndKM random number functions.
+**
+**
+**  Output:  x            rxc matrix, gamma distributed random numbers.
+**
+**           newstate     500x1 vector, the updated state
+**
+**
+**  Remarks:  The properties of the pseudo-random numbers in x are -
+**
+**            E(x) = alpha, Var(x) = alpha
+**            x > 0,  alpha > 0.
+**
+**            To generate gamma(alpha, theta) pseudo-random numbers where theta
+**            is a scale parameter, multiply the result of rndgam by theta.
+**            Thus
+**
+**            z = theta * rndgam(1, 1, alpha);
+**
+**            has the properties
+**
+**            E(z) = alpha * theta, Var(z) = alpha * theta ^ 2
+**            z > 0, alpha > 0, theta > 0.
+**
+**            r and c will be truncated to integers if necessary.
+**
+**            rndKMgam uses a KISS-Monster Algorithm to generate random
+**            numbers. KISS initializes the sequence used in the recur-with-
+**            carry Monster algorithm.
+**
+*/
+
+proc (2) = rndKMgam(rows_x, cols_x, a, state);
+
+    local x, rows_a, cols_a;
+
+    x = zeros(rows_x, cols_x);
+    rows_a = rows(a);
+    cols_a = cols(a);
+
+    if rows_a /= 1 and rows_a /= rows_x;
+        if not trapchk(1);
+            errorlog "rndgam: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_a /= 1 and cols_a /= cols_x;
+        if not trapchk(1);
+            errorlog "rndgam: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (a > 0) and not trapchk(1);
+        errorlog "rndgam:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows(state) /= 500;
+        if rows(state) == 1 and cols(state) == 1;
+            if state == -1;
+                state = timeutc();
+            endif;
+        else;
+            errorlog "Invalid state vector, should be 500x1 or scalar";
+            end;
+        endif;
+
+        state = 0 | state | zeros(498, 1);
+    endif;
+
+    dllcall rndgamdll_KM(state, x, rows_x, cols_x, a, rows_a, cols_a);
+
+    retp(x, state);
+endp;
+
+/*
+**> rndKMp
+**
+**  Purpose:  Computes Poisson pseudo-random numbers
+**
+**  Format:   { x, newstate } = rndKMp(r, c, lambda, state);
+**
+**  Input:    r        scalar, number of rows of resulting matrix.
+**
+**            c        scalar, number of columns of resulting matrix.
+**
+**            lambda   rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                     shape argument for Poisson distribution.
+**
+**            state    scalar or 500x1 vector
+**
+**                Scalar case:
+**
+**                  state = starting seed value only. If -1, GAUSS computes
+**                          the starting seed based on the system clock.
+**
+**                500x1 vector case:
+**
+**                  state = the state vector returned from a previous call to
+**                          one of the rndKM random number functions.
+**
+**
+**  Output:  x            rxc matrix, Poisson distributed random numbers.
+**
+**           newstate     500x1 vector, the updated state
+**
+**
+**  Remarks:  The properties of the pseudo-random numbers in x are -
+**
+**            E(x) = lambda, Var(x) = lambda
+**            x = 0, 1, ....,  lambda > 0.
+**
+**            r and c will be truncated to integers if necessary.
+**
+**            rndKMp uses a KISS-Monster Algorithm to generate random
+**            numbers. KISS initializes the sequence used in the recur-with-
+**            carry Monster algorithm.
+**
+*/
+
+proc (2) = rndKMp(rows_x, cols_x, l, state);
+
+    local x, rows_l, cols_l;
+
+    x = zeros(rows_x, cols_x);
+    rows_l = rows(l);
+    cols_l = cols(l);
+
+    if rows_l /= 1 and rows_l /= rows_x;
+        if not trapchk(1);
+            errorlog "rndp: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0), state);
+        endif;
+    endif;
+
+    if cols_l /= 1 and cols_l /= cols_x;
+        if not trapchk(1);
+            errorlog "rndp: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0), state);
+        endif;
+    endif;
+
+    if not (l > 0) and not trapchk(1);
+        errorlog "rndgam:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows(state) /= 500;
+        if rows(state) == 1 and cols(state) == 1;
+            if state == -1;
+                state = timeutc();
+            endif;
+        else;
+            errorlog "Invalid state vector, should be 500x1 or scalar";
+            end;
+        endif;
+
+        state = 0 | state | zeros(498, 1);
+    endif;
+
+    dllcall rndpdll_KM(state, x, rows_x, cols_x, l, rows_l, cols_l);
+
+    retp(x, state);
+endp;
+
+/*
+**> rndKMnb
+**
+**  Purpose:  Computes negative binomial pseudo-random numbers.
+**
+**  Format:   { x, newstate } = rndKMnb(r, c, k, p, state);
+**
+**  Input:    r      scalar, number of rows of resulting matrix.
+**
+**            c      scalar, number of columns of resulting matrix.
+**
+**            k      rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   "event" argument for negative binomial distribution.
+**
+**            p      rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   "probability" argument for negative binomial distribution.
+**
+**            state  scalar or 500x1 vector
+**
+**                Scalar case:
+**
+**                   state = starting seed value only. If -1, GAUSS computes
+**                           the starting seed based on the system clock.
+**
+**                500x1 vector case:
+**
+**                   state = the state vector returned from a previous call to
+**                           one of the rndKM random number functions.
+**
+**
+**  Output:  x            rxc matrix, negative binomial distributed random
+**                        numbers.
+**
+**           newstate     500x1 vector, the updated state
+**
+**
+**  Remarks:  The properties of the pseudo-random numbers in x are -
+**
+**                      k * p                  k * p
+**            E(x) = --------- , Var(x) = -----------
+**                     (1 - p)              (1 - p)^2
+**
+**            x = 0, 1, ...,   k > 0,  0 < p < 1
+**
+**            r and c will be truncated to integers if necessary.
+**
+**            rndKMnb uses a KISS-Monster Algorithm to generate random
+**            numbers. KISS initializes the sequence used in the recur-with-
+**            carry Monster algorithm.
+**
+*/
+
+proc (2) = rndKMnb(rows_x, cols_x, k, p, state);
+
+    local x, rows_k, cols_k, rows_p, cols_p;
+
+    x = zeros(rows_x, cols_x);
+    rows_k = rows(k);
+    cols_k = cols(k);
+    rows_p = rows(p);
+    cols_p = cols(p);
+
+    if rows_k /= 1 and rows_k /= rows_x;
+        if not trapchk(1);
+            errorlog "rndnb: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_k /= 1 and cols_k /= cols_x;
+        if not trapchk(1);
+            errorlog "rndnb: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (k > 0) and not trapchk(1);
+        errorlog "rndnb:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows_p /= 1 and rows_p /= rows_x;
+        if not trapchk(1);
+            errorlog "rndnb: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_p /= 1 and cols_p /= cols_x;
+        if not trapchk(1);
+            errorlog "rndnb: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (p > 0) and not (p < 1) and not trapchk(1);
+        errorlog "rndnb:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows(state) /= 500;
+        if rows(state) == 1 and cols(state) == 1;
+            if state == -1;
+                state = timeutc();
+            endif;
+        else;
+            errorlog "Invalid state vector, should be 500x1 or scalar";
+            end;
+        endif;
+
+        state = 0 | state | zeros(498, 1);
+    endif;
+
+    dllcall rndnbdll_KM(state, x, rows_x, cols_x, k, rows_k, cols_k, p,
+        rows_p, cols_p);
+
+    retp(x, state);
+endp;
+
+/*
+**> rndKMbeta
+**
+**  Purpose:  Computes beta pseudo-random numbers.
+**
+**  Format:   { x, newstate } = rndKMbeta(r, c, a, b, state);
+**
+**  Input:    r      scalar, number of rows of resulting matrix.
+**
+**            c      scalar, number of columns of resulting matrix.
+**
+**            a      rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   first shape argument for beta distribution.
+**
+**            b      rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   second shape argument for beta distribution.
+**
+**            state  scalar or 500x1 vector
+**
+**                Scalar case:
+**
+**                  state = starting seed value only. If -1, GAUSS computes
+**                          the starting seed based on the system clock.
+**
+**                500x1 vector case:
+**
+**                  state = the state vector returned from a previous call to
+**                          one of the rndKM random number functions.
+**
+**
+**  Output:  x            rxc matrix, beta distributed random numbers.
+**
+**           newstate     500x1 vector, the updated state
+**
+**
+**
+**  Remarks:  The properties of the pseudo-random numbers in x are -
+**
+**                       a                      (a * b)
+**             E(x) = ------- ,   Var(x) = -------------------------
+**                     a + b                (a + b + 1) * (a + b)^2
+**
+**             0 < x < 1,  a > 0,  b > 0
+**
+**            r and c will be truncated to integers if necessary.
+**
+**            rndKMbeta uses a KISS-Monster Algorithm to generate random
+**            numbers. KISS initializes the sequence used in the recur-with-
+**            carry Monster algorithm.
+**
+*/
+
+proc (2) = rndKMbeta(rows_x, cols_x, a, b, state);
+
+    local x, rows_a, cols_a, rows_b, cols_b;
+
+    x = zeros(rows_x, cols_x);
+    rows_a = rows(a);
+    cols_a = cols(a);
+    rows_b = rows(b);
+    cols_b = cols(b);
+
+    if rows_a /= 1 and rows_a /= rows_x;
+        if not trapchk(1);
+            errorlog "rndbeta: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_a /= 1 and cols_a /= cols_x;
+        if not trapchk(1);
+            errorlog "rndbeta: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (a > 0) and not trapchk(1);
+        errorlog "rndbeta:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows_b /= 1 and rows_b /= rows_x;
+        if not trapchk(1);
+            errorlog "rndbeta: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_b /= 1 and cols_b /= cols_x;
+        if not trapchk(1);
+            errorlog "rndbeta: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (b > 0) and not (b < 1) and not trapchk(1);
+        errorlog "rndbeta:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows(state) /= 500;
+        if rows(state) == 1 and cols(state) == 1;
+            if state == -1;
+                state = timeutc();
+            endif;
+        else;
+            errorlog "Invalid state vector, should be 500x1 or scalar";
+            end;
+        endif;
+
+        state = 0 | state | zeros(498, 1);
+    endif;
+
+    dllcall rndbetadll_KM(state, x, rows_x, cols_x, a, rows_a, cols_a, b,
+        rows_b, cols_b);
+
+    retp(x, state);
+endp;
+
+/*
+**> rndKMvm
+**
+**  Purpose:  Computes von Mises pseudo-random numbers.
+**
+**  Format:  { x, newstate } = rndKMvm(r, c, m, k, state);
+**
+**  Input:   r       scalar, number of rows of resulting matrix.
+**
+**           c       scalar, number of columns of resulting matrix.
+**
+**           m       rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   means for vm distribution.
+**
+**           k       rxc matrix, or rx1 vector, or 1xc vector, or scalar,
+**                   shape argument for vm distribution.
+**
+**           state   scalar or 500x1 vector
+**
+**               Scalar case:
+**
+**                   state = starting seed value only. If -1, GAUSS computes
+**                           the starting seed based on the system clock.
+**
+**               500x1 vector case:
+**
+**                   state = the state vector returned from a previous call to
+**                           one of the rndKM random number functions.
+**
+**
+**  Output:  x            rxc matrix, von Mises distributed random numbers.
+**
+**           newstate     500x1 vector, the updated state
+**
+**
+**
+**  Remarks:  r and c will be truncated to integers if necessary.
+**
+**            rndKMvm  uses  a  KISS-Monster Algorithm to generate random
+**            numbers. KISS initializes the sequence used in the recur-
+**            with-carry Monster algorithm.
+*/
+
+proc (2) = rndKMvm(rows_x, cols_x, a, b, state);
+
+    local x, rows_a, cols_a, rows_b, cols_b;
+
+    x = zeros(rows_x, cols_x);
+    rows_a = rows(a);
+    cols_a = cols(a);
+    rows_b = rows(b);
+    cols_b = cols(b);
+
+    if rows_a /= 1 and rows_a /= rows_x;
+        if not trapchk(1);
+            errorlog "rndvm: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_a /= 1 and cols_a /= cols_x;
+        if not trapchk(1);
+            errorlog "rndvm: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (a > 0) and not trapchk(1);
+        errorlog "rndvm:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows_b /= 1 and rows_b /= rows_x;
+        if not trapchk(1);
+            errorlog "rndvm: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if cols_b /= 1 and cols_b /= cols_x;
+        if not trapchk(1);
+            errorlog "rndvm: parameter matrix not conformable";
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    if not (b > 0) and not (b < 1) and not trapchk(1);
+        errorlog "rndvm:  parameter out of bounds";
+        end;
+    endif;
+
+    if rows(state) /= 500;
+        if rows(state) == 1 and cols(state) == 1;
+            if state == -1;
+                state = timeutc();
+            endif;
+        else;
+            errorlog "Invalid state vector, should be 500x1 or scalar";
+            end;
+        endif;
+
+        state = 0 | state | zeros(498, 1);
+    endif;
+
+    dllcall rndvmdll_KM(state, x, rows_x, cols_x, a, rows_a, cols_a, b,
+        rows_b, cols_b);
+
+    retp(x, state);
+endp;
+

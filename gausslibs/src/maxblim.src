@@ -1,0 +1,144 @@
+/*
+** maxblim.src    MAXBlimit  -  bootstrap confidence intervals
+**
+**
+** (C) Copyright 1994-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**   PROC MAXBlimits
+**
+**   FORMAT
+**          cl = MAXBlimits(dataset)
+**
+**   INPUT
+**
+**   dataset - string, name of GAUSS dataset containing bootstrapped
+**                parameters
+**
+**  OUTPUT
+**        cl - K x 2 matrix, lower (first column) and upper (second
+**             column) limits of the selected parameters
+**
+**
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  GLOBALS
+**
+**   _max_Alpha  -  (1-_max_Alpha)% two-tailed limits are computed.
+**                  Default = .05.
+**
+**   _max_Select - L x 1 vector, selection of columns of dataset.
+**                 For example, _max_Select = { 1, 3, 4 }.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+#include maxlik.ext
+
+proc 1 = MAXBlimits(dataset);
+    local fhandle,y0,wt,w1,f,vindx,vnames,k1,cl,i,w,z;
+
+    if type(_max_Select) == 13;
+        _max_Select = stof(_max_Select);
+    endif;
+    if dataset $== "";
+        if not trapchk(4);
+            errorlog dataset $+ " could not be opened";
+        endif;
+        retp(error(0));
+    endif;
+    if type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(error(0));
+        endif;
+
+        call seekr(fhandle,1);
+        if scalmiss(_max_Select) or _max_Select $== 0;
+            vindx = 0;
+            vnames = getname(dataset);
+        else;
+            { vnames,vindx } = indices(dataset,_max_Select);
+        endif;
+
+        dataset = {};
+        k1 = getnr(6,colsf(fhandle));
+        do until eof(fhandle);
+            y0 = readr(fhandle,k1);
+            dataset = dataset | y0[.,vindx];
+        endo;
+        clear y0;
+        if fhandle > 0;
+           fhandle = close(fhandle);
+        endif;
+    else;
+        if not (_max_Select $== 0);
+            dataset = dataset[.,_max_Select];
+            vnames = "PAR_"$+_max_Select;
+        else;
+            vnames = "PAR_"$+seqa(1,1,cols(dataset));
+        endif;
+    endif;
+
+    w = rows(dataset) * abs(_max_Alpha) / 2;
+    if w < 1;
+         if not trapchk(4);
+             w = 2 / abs(_max_Alpha);
+             errorlog "A minimum of "$+ftos(w,"*.*lf",1,0)$+" resamples"\
+                   " required for this alpha level";
+         endif;
+         retp(error(0));
+    endif;
+
+    wt = int(w);
+    if w /= wt;
+       f = w - wt;
+    else;
+       f = 0;
+    endif;
+    w1 = rows(dataset) - w;
+    if w > rows(dataset);
+         if not trapchk(4);
+             errorlog "_max_Alpha too large or too small";
+         endif;
+         retp(error(0));
+    endif;
+
+    cl = zeros(cols(dataset),2);
+    i = 1;
+    do until i > cols(dataset);
+        z = sortc(dataset[.,i],1);
+        if f;
+            cl[i,1] = z[w] + f * (z[w+1] - z[w]);
+            cl[i,2] = z[w1] + (1 - f) * (z[w1+1] - z[w1]);
+        else;
+            cl[i,1] = z[w];
+            cl[i,2] = z[w1+1];
+        endif;
+        i = i + 1;
+    endo;
+
+    retp(cl);
+endp;
+

@@ -1,0 +1,523 @@
+/*
+** integral.src - integration using Gauss-Legendre quadrature.
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** =========================================================================
+**   Procedure     Format                       Purpose               Line
+** =========================================================================
+**   INTQUAD1      y = INTQUAD1(&f,xl);         1-D integraton          29
+**   INTQUAD2      y = INTQUAD2(&f,xl,yl);      2-D integration        136
+**   INTQUAD3      y = INTQUAD3(&f,xl,yl,zl);   3-D integration        310
+** =========================================================================
+*/
+
+#include integral.ext
+
+/*
+**> intquad1
+**
+**  Purpose:    Integrates a specified function using Gauss-Legendre
+**              quadrature. A suite of upper and lower bounds may be
+**              calculated in one procedure call.
+**
+**  Format:     y = intquad1(&f,xl);
+**
+**  Input:      &f   pointer to the procedure containing the function
+**                   to be integrated.
+**
+**              xl   2xN matrix, the limits of x.
+**
+**                   The first row is the upper limit and the second
+**                   row is the lower limit.  N integrations are
+**                   computed.
+**
+**         _intord   scalar, the order of the integration
+**                   2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 40.
+**
+**  Output:     y    Nx1 vector of the estimated integral(s) of f(x)
+**                   evaluated between between the limits given by xl.
+**
+**  Remarks:
+**  The function f must be capable of function values.  intquad1 will
+**  pass to f a vector, and expect a matrix in return.
+**
+**  Example:    proc f(x);
+**                 retp( sin(x) );
+**              endp;
+**
+**              let xl = { 1,
+**                         0 };
+**
+**              _intord = 12;
+**
+**              y = intquad1(&f,xl);
+**
+**              This will integrate the function sin(x) between 0 and 1.
+**
+**  See Also:   intsimp, intquad2, and intquad3
+*/
+
+proc intquad1(&f,xl);
+    local f:proc,diff,e,w,xc,fx,qind;
+
+    let qind = 2 3 4 6 8 12 16 20 24 32 40 1000;
+    qind = minindc(qind .<= _intord)-1;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if qind <= 1;
+        e = _intq2[.,1];
+        w = _intq2[.,2];
+    elseif qind == 2;
+        e = _intq3[.,1];
+        w = _intq3[.,2];
+    elseif qind == 3;
+        e = _intq4[.,1];
+        w = _intq4[.,2];
+    elseif qind == 4;
+        e = _intq6[.,1];
+        w = _intq6[.,2];
+    elseif qind == 5;
+        e = _intq8[.,1];
+        w = _intq8[.,2];
+    elseif qind == 6;
+        e = _intq12[.,1];
+        w = _intq12[.,2];
+    elseif qind == 7;
+        e = _intq16[.,1];
+        w = _intq16[.,2];
+    elseif qind == 8;
+        e = _intq20[.,1];
+        w = _intq20[.,2];
+    elseif qind == 9;
+        e = _intq24[.,1];
+        w = _intq24[.,2];
+    elseif qind == 10;
+        e = _intq32[.,1];
+        w = _intq32[.,2];
+    elseif qind >= 11;
+        e = _intq40[.,1];
+        w = _intq40[.,2];
+    endif;
+
+    if qind > 2;    /* for qind > 2, expand e and w */
+        e = (-rev(e)|e);
+        w = rev(w)|w;
+    endif;
+
+    diff = xl[1,.]' - xl[2,.]';
+    xc = 0.5*( (xl[2,.]'+xl[1,.]')+(diff .* e'));
+    fx = zeros(rows(xc),cols(xc)) + f(xc);
+    fx = ((diff/2).* (fx*w));
+    retp(fx);
+endp;
+
+/*
+**> intquad2
+**
+**  Purpose:    Integrates a specified function using Gauss-Legendre quadrature.
+**              A suite of upper and lower bounds may be calculated
+**              in one procedure call.
+**
+**  Format:     y = intquad2(&f,xl,yl);
+**
+**  Input:    &f     pointer to the procedure containing the
+**                   function to be integrated.
+**
+**            xl     2xN vector, the limits of x.
+**
+**            yl     2xN vector, the limits of y.
+**
+**                   For xl and  yl, the first row is the upper limit and
+**                   the second row is the lower limit.  N integrations are
+**                   computed.
+**
+**        _intord    scalar, the order of the integration
+**                        2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 40.
+**
+**  Output:     y    Nx1 vector of the estimated integral(s) of f(x,y)
+**                   evaluated between between the limits given by xl and yl.
+**
+**
+**  Remarks:
+**  User defined function f must return a vector of function values.
+**  intquad2 will pass to  user defined functions a vector or matrix for
+**  x and y and expect a vector or matrix to be returned. Use the ".*"
+**  and "./" instead of "*" and "/".
+**
+**  intquad2 will expand scalars to the appropriate size.  This means that
+**  functions can be defined to return a scalar constant.  If users write
+**  their functions incorrectly (using "*" instead of ".*", for example),
+**  intquad2 will not compute the expected integral, but the integral of
+**  a constant function.
+**
+**  To integrate over a region which is bounded by functions, rather than
+**  just scalars, use intgrat2.
+**
+**
+**  Example:    proc f(x);
+**                 retp( sin(x+y) );
+**              endp;
+**
+**              let xl = { 1,
+**                         0 };
+**              let yl = { 1,
+**                         0 };
+**
+**              y = intquad2(&f,xl,yl);
+**
+**              This will integrate the function sin(x+y) between
+**              x = 0 and 1, and y = 0 to 1.
+**
+**  See Also:   intquad1, intquad3, and intsimp
+*/
+
+proc intquad2(f,xl,yl);
+     local intrec,result;
+     intrec = 0;
+     result = _intquad2(f,xl,yl,intrec);
+     retp(result);
+endp;
+
+
+proc _intquad2(&f,xl,yl,intrec);
+    local f:proc,diff,e,w,xc,fx,yc,ii,t,qind,chk,n;
+    let qind = 2 3 4 6 8 12 16 20 24 32 40 1000;
+    qind = minindc(qind .<= _intord)-1;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if iscplx(yl);
+        if hasimag(yl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            yl = real(yl);
+        endif;
+    endif;
+
+    if intrec == 0;
+        if rows(xl) /= 2;
+            errorlog "ERROR:  X limit vector must have 2 rows";
+            end;
+        elseif rows(yl) /= 2;
+            errorlog "ERROR:  Y limit vector must have 2 rows";
+            end;
+        else;
+            chk = cols(xl)|cols(yl);
+            n = maxc(chk);
+            if not ((chk .== 1) .or (chk .== n)) == 1;
+                 errorlog "ERROR:  Limit matrices are not conformable.\n";
+                 end;
+            else;
+                xl = zeros(2,n) + xl;
+                yl = zeros(2,n) + yl;
+            endif;
+        endif;
+    endif;
+
+
+    if qind <= 1;
+        e = _intq2[.,1];
+        w = _intq2[.,2];
+    elseif qind == 2;
+        e = _intq3[.,1];
+        w = _intq3[.,2];
+    elseif qind == 3;
+        e = _intq4[.,1];
+        w = _intq4[.,2];
+    elseif qind == 4;
+        e = _intq6[.,1];
+        w = _intq6[.,2];
+    elseif qind == 5;
+        e = _intq8[.,1];
+        w = _intq8[.,2];
+    elseif qind == 6;
+        e = _intq12[.,1];
+        w = _intq12[.,2];
+    elseif qind == 7;
+        e = _intq16[.,1];
+        w = _intq16[.,2];
+    elseif qind == 8;
+        e = _intq20[.,1];
+        w = _intq20[.,2];
+    elseif qind == 9;
+        e = _intq24[.,1];
+        w = _intq24[.,2];
+    elseif qind == 10;
+        e = _intq32[.,1];
+        w = _intq32[.,2];
+    elseif qind >= 11;
+        e = _intq40[.,1];
+        w = _intq40[.,2];
+    endif;
+
+    if qind > 2;    /* for qind > 3, expand e and w */
+        e = (-rev(e)|e);
+        w = rev(w)|w;
+    endif;
+
+    if intrec == 0;
+        intrec = 1;
+        diff = xl[1,.]' - xl[2,.]';
+        xc = 0.5*( (xl[2,.]' + xl[1,.]') + (diff .* e'));
+        fx = _intquad2(&f, xc, yl, intrec);
+        fx = ((diff/2).* (fx*w));
+        intrec = 0;
+        retp(fx);
+    else;
+        xc = xl;
+        diff = yl[1,.]' - yl[2,.]';
+        yc = 0.5*((yl[2,.]' + yl[1,.]') + (diff .* e'));
+        fx = xc;
+        ii = 1;
+        do until ii > cols(xc);
+            T = zeros(rows(yc),cols(yc)) + f(xc[.,ii],yc);
+
+            fx[.,ii] = ((diff/2).*(T*w));
+            ii = ii+1;
+        endo;
+        retp(fx);
+    endif;
+endp;
+
+/*
+**> intquad3
+**
+**  Purpose:    Integrates a specified function using
+**              Gauss-Legendre quadrature.  A suite of upper and
+**              lower bounds may be calculated in one procedure
+**              call.
+**
+**  Format:     y = intquad3(&f,xl,yl,zl);
+**
+**  Input:      &f     pointer to the procedure containing the function to
+**                     be integrated.
+**
+**              xl     2xN matrix, the limits of x.
+**
+**              yl     2xN matrix, the limits of y.
+**
+**              zl     2xN matrix, the limits of z.
+**
+**                     For xl, yl, and zl, the first row is the upper
+**                     limit and the second row is the lower limit.  N
+**                     integrations are computed.
+**
+**         _intord     scalar, the order of the integration.  _intord
+**                     may be set to 2, 3, 4, 6, 8, 12, 16, 20, 24,
+**                     32 or 40.
+**
+**  Output:      y     Nx1 vector of the estimated integral(s) of f(x,y,z)
+**                     evaluated between the limits given by xl, yl and zl.
+**
+**
+**  Remarks:
+**
+**  User defined function f must return a vector of function values.
+**  intquad3 will pass to  user defined functions a vector or matrix for
+**  x and y and expect a vector or matrix to be returned. Use the ".*"
+**  and "./" instead of "*" and "/".
+**
+**  intquad3 will expand scalars to the appropriate size.  This means that
+**  functions can be defined to return a scalar constant.  If users write
+**  their functions incorrectly (using "*" instead of ".*", for example),
+**  intquad3 will not compute the expected integral, but the integral of
+**  a constant function.
+**
+**  To integrate over a region which is bounded by functions, rather than
+**  just scalars, use intgrat3.
+**
+**  Example:    proc f(x,y,z);
+**                 retp( x.*y.*z );
+**              endp;
+**
+**              let xl = { 1,
+**                         0 };
+**              let yl = { 1,
+**                         0 };
+**              let zl = { 1,
+**                         0 };
+**
+**              y = intquad3(&f,xl,yl,zl);
+**
+**              This will integrate the function sin(x+y+z) between
+**              x = 0 and 1, y = 0 to 1, and z = 0 to 1.
+**
+**  See Also:   intquad1, intquad2, and intsimp
+*/
+
+proc intquad3(f,xl,yl,zl);
+    local intrec,result;
+    intrec = 0;
+    result = _intquad3(f,xl,yl,zl,intrec);
+    retp(result);
+endp;
+
+
+
+proc _intquad3(&f,xl,yl,zl,intrec);
+    local f:proc,diff,e,w,xc,fx,yc,zc,ii,t,qind,chk,n;
+    let qind = 2 3 4 6 8 12 16 20 24 32 40 1000;
+    qind = minindc(qind .<= _intord) -1;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if iscplx(yl);
+        if hasimag(yl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            yl = real(yl);
+        endif;
+    endif;
+
+    if iscplx(zl);
+        if hasimag(zl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            zl = real(zl);
+        endif;
+    endif;
+
+    if intrec == 0;
+        if rows(xl) /= 2;
+            errorlog "ERROR:  X limit vector must have 2 rows";
+            end;
+        elseif (rows(yl) /= 2);
+            errorlog "ERROR:  Y limit vector must have 2 rows";
+            end;
+        elseif (rows(zl) /= 2);
+            errorlog "ERROR:  Z limit vector must have 2 rows";
+            end;
+        else;
+            chk = cols(xl)|cols(yl)|cols(zl);
+            n = maxc(chk);
+            if not ((chk .== 1) .or (chk .== n)) == 1;
+                 errorlog "ERROR:  Limit matrices are not conformable.\n";
+                 end;
+            else;
+                xl = zeros(2,n) + xl;
+                yl = zeros(2,n) + yl;
+                zl = zeros(2,n) + zl;
+            endif;
+        endif;
+    endif;
+
+    if qind <= 1;
+        e = _intq2[.,1];
+        w = _intq2[.,2];
+    elseif qind == 2;
+        e = _intq3[.,1];
+        w = _intq3[.,2];
+    elseif qind == 3;
+        e = _intq4[.,1];
+        w = _intq4[.,2];
+    elseif qind == 4;
+        e = _intq6[.,1];
+        w = _intq6[.,2];
+    elseif qind == 5;
+        e = _intq8[.,1];
+        w = _intq8[.,2];
+    elseif qind == 6;
+        e = _intq12[.,1];
+        w = _intq12[.,2];
+    elseif qind == 7;
+        e = _intq16[.,1];
+        w = _intq16[.,2];
+    elseif qind == 8;
+        e = _intq20[.,1];
+        w = _intq20[.,2];
+    elseif qind == 9;
+        e = _intq24[.,1];
+        w = _intq24[.,2];
+    elseif qind == 10;
+        e = _intq32[.,1];
+        w = _intq32[.,2];
+    elseif qind >= 11;
+        e = _intq40[.,1];
+        w = _intq40[.,2];
+    endif;
+
+    if qind > 2;    /* for qind > 3, expand e and w */
+        e = (-rev(e)|e);
+        w = rev(w)|w;
+    endif;
+
+    if intrec <= 1;
+        if intrec == 0 ;
+            diff = xl[1,.]' - xl[2,.]';
+            intrec = 1;
+            xc = 0.5*( (xl[2,.]'+xl[1,.]')+(diff .* e'));
+            fx = _intquad3(&f,xc,yl,zl,intrec);
+            fx = ((diff/2).* (fx*w));
+            intrec = 0;
+            retp(fx);
+        else;
+            intrec = 2;
+            xc = xl;
+            diff = yl[1,.]' - yl[2,.]';
+            yc = (0.5*((yl[2,.]' + yl[1,.]')+diff .* e'));
+            fx = xc;
+            ii = 1;
+            do until ii > cols(yc);
+                t = _intquad3(&f,xc[.,ii],yc,zl,intrec);
+                fx[.,ii] = ((diff/2).*(T*w));
+                ii = ii+1;
+            endo;
+            retp(fx);
+        endif;
+    else;
+        xc = xl;
+        yc = yl;
+        diff = zl[1,.]' - zl[2,.]';
+        zc = 0.5*((zl[2,.]'+zl[1,.]')+( diff .* e'));
+        fx = yc;    /* Initialize */
+        ii = 1;
+        do until ii > cols(yc);
+            t = zeros(rows(zc),cols(zc)) +
+                                   f(xc*ones(1,cols(yc)),yc[.,ii],zc);
+            fx[.,ii] = ((diff/2).*(t*w));
+            ii = ii+1;
+        endo;
+        retp(fx);
+    endif;
+    retp(fx);
+endp;

@@ -1,0 +1,14 @@
+True model is not cointegrated.
+PCB statistic for cointegration
+Autoregressive parameter =       0.94460272 
+PCB T*(alpha - 1); 5% critical value =       -6.4864583       -15.096000 
+PCB t-statistic; 5% critical value   =       -1.7168285       -2.8198000 
+Accept null of no-cointegration.
+ 
+True model is cointegrated.
+PCB statistic for cointegration
+Autoregressive parameter =     -0.095438514 
+PCB T*(alpha - 1); 5% critical value =       -107.11364       -15.096000 
+PCB t-statistic; 5% critical value   =       -11.111435       -2.8198000 
+Reject null of no-cointegration.
+run fm-give.ex;

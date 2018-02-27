@@ -1,0 +1,53 @@
+/*
+** base10.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> base10
+**
+**  Purpose:    Break number into a number of the form #.####... and
+**              a power of 10.
+**
+**  Format:     { mant,pow } = base10(x);
+**
+**  Input:      x      scalar, number to break down.
+**
+**  Output:     mant   scalar, number in the range -10 < x < 10.
+**
+**              pow    scalar, integer power such that:
+**
+**                     mant * 10^pow == x
+*/
+
+proc (2) = base10(num);
+    local mant,n;
+
+    if iscplx(num);
+        if hasimag(num);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            num = real(num);
+        endif;
+    endif;
+
+    if (num == 0);
+        mant = 0;
+        n = 1;
+        retp(mant,n);
+    endif;
+    n = floor(log(abs(num)));
+    mant = num .* 10^(-n);
+    retp(mant,n);
+endp;

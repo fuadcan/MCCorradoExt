@@ -1,0 +1,311 @@
+/*
+** pwindow.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> begwind
+**
+**  Purpose:    Initialize global window variables.
+**
+**  Format:     begwind;
+**
+**  Input:      None.
+**
+**  Remarks:    This procedure must be called before any other window
+**              functions are called.
+**
+**  See Also:   endwind, window, makewind, setwind, nextwind, getwind
+*/
+
+#include pgraph.ext
+
+proc 0 = begwind;
+    _pwindmx = 0;
+    _pwindno = 1;
+    _pagesiz = 0;
+    _pageshf = 0;
+    _pcwin = 0;
+    _pncwin = 0;
+    _pdate = "";    /* No date as a default when using windows */
+    _pappend = 0;   /* First graph will be created rather than appended */
+    _pfirstw = 0;   /* First window flag, 0=no windows have been drawn */
+
+    if _pinbegwind > 0;
+        errorlog "Warning: possible nested call to begwind encountered.";
+        errorlog " ";
+        errorlog "   This could be a nested call to begwind or the";
+        errorlog "   previous run was terminated between begwind and endwind.";
+        errorlog " ";
+        errorlog "   To eliminate this warning for programs that regularly";
+        errorlog "   terminate between begwind and endwind, use:";
+        errorlog " ";
+        errorlog "       graphinit;";
+        errorlog " ";
+        errorlog "   before the first call to begwind at the top of your";
+        errorlog "   program in place of graphset. Use graphset as usual";
+        errorlog "   in other places.";
+        errorlog " ";
+    endif;
+
+    _pinbegwind = 1; /* Skip call to the viewer until endwind */
+endp;
+
+/*
+**> endwind
+**
+**  Purpose:    End window manipulation, display graphs.
+**
+**  Format:     endwind;
+**
+**  Input:      None.
+**
+**  See Also:   begwind, window, makewind, setwind, nextwind, getwind
+*/
+
+proc 0 = endwind;
+
+    if _pscreen == 1;
+        rerun;
+    endif;
+
+    _pinbegwind = 0;
+    _pwindmx = 0;
+    _pwindno = 1;
+    _pappend = 0;
+    _pagesiz = 0;
+    _pageshf = 0;
+    _pfirstw = 0;
+    _pcwin   = 0;
+    _pncwin  = 0;
+endp;
+
+/*
+**> window
+**
+**  Purpose:    Partition the screen into tiled windows of equal size.
+**
+**  Format:     window(row,col,typ);
+**
+**  Input:      row    Number of rows of windows.
+**
+**              col    Number of columns of windows.
+**
+**              typ    Window attribute type.  If this value is 1, the
+**                     windows will have a transparent attribute, if 0 the
+**                     windows will have a non-transparent (blanked) attribute.
+**
+**  Remarks:    The windows will be numbered from 1 to (row x col) beginning
+**              from the left topmost window and moving right.  The current
+**              window is set to 1 immediately after calling this function.
+**
+**              See the makewind function for a description of transparent
+**              and non-transparent windows.
+
+**  See Also:   begwind, endwind, makewind, setwind, nextwind, getwind
+*/
+
+proc 0 = window(row,col,typ);
+    local xsize,ysize,xshft,yshft,n,tmp;
+
+    if row <= 0;
+        row = 1;
+    endif;
+
+    if col <= 0;
+        col = 1;
+    endif;
+
+    n = 1;
+    do while n <= (row*col);
+        xsize = _pagedim[1] / col;
+        ysize = _pagedim[2] / row;
+        tmp = (n-1) / col;
+        xshft = ( tmp - int(tmp) ) * _pagedim[1];
+        yshft = _pagedim[2] - ( int(tmp) * ysize ) - ysize;
+        makewind(xsize,ysize,xshft,yshft,typ);
+        n = n + 1;
+    endo;
+endp;
+
+/*
+**> makewind
+**
+**  Purpose:    Create a window of specific size and position and add to list
+**              of current windows.
+**
+**  Format:     makewind(xsize,ysize,xshft,yshft,typ);
+**
+**  Input:      xsize    Horizontal size of the window in inches.
+**
+**              ysize    Vertical size of the window in inches.
+**
+**              xshft    Horizontal shift from left edge of screen in inches.
+**
+**              yshft    Vertical shift from bottom edge of screen in inches.
+**
+**              typ      Window attribute type.  If this value is 1, the
+**                       windows will have a transparent attribute, if 0 the
+**                       windows will have a normal (non-transparent) attribute.
+**
+**  Remarks:    If the newly created window overlapps any windows previously
+**              created, those windows will be clipped to accomodate the new
+**              one.  This causes the new window to be the topmost window on
+**              the screen.  This also sets the newly created window to be the
+**              current one.
+**
+**              Also note that when this procedure is used when rotating the
+**              graphs, the passed parameters are scaled appropriately to the
+**              newly oriented page.  This better accomodates the user but the
+**              size and shift values are not in true inches when printed.
+**
+**              Transparent and Non-transparent windows:
+**              A window is normally blanked.  That is, the area on the page
+**              where it will reside is blanked and is also clipped to
+**              accomodate any windows overlapping it.  A transparent window
+**              is one which does no clipping to accomodate windows which
+**              overlap it, and other windows will not be clipped to
+**              accomodate it.
+
+**  See Also:   begwind, endwind, window, setwind, nextwind, getwind
+*/
+
+proc 0 = makewind(xsize,ysize,xshft,yshft,typ);
+    if xsize == 0 or xsize > _pagedim[1];
+        xsize = _pagedim[1];
+    endif;
+    if ysize == 0 or ysize > _pagedim[2];
+        ysize = _pagedim[2];
+    endif;
+    if cols(_pwindmx) > 1;
+        _pwindmx = _pwindmx | (xsize ~ ysize ~ xshft ~ yshft ~ typ);
+    else;
+        _pwindmx = xsize ~ ysize ~ xshft ~ yshft ~ typ;
+    endif;
+endp;
+
+/*
+**> setwind
+**
+**  Purpose:    Set the current window to previously created window number.
+**
+**  Format:     setwind(n);
+**
+**  Input:      n    Window number of a previously created window.
+**
+**  See Also:   begwind, endwind, window, makewind, nextwind, getwind
+*/
+
+proc 0 = setwind(n);
+    if cols(_pwindmx) < 5;
+        errorlog "Error. Procedure window must be called before setwind.";
+        end;
+    endif;
+    _pwindno = n;
+/*
+    if _pwindno > rows(_pwindmx);
+        errorlog "Error. Window index out of range.";
+        end;
+    endif;
+*/
+endp;
+
+/*
+**> nextwind
+**
+**  Purpose:    Set the current window to next available window.
+**
+**  Format:     nextwind;
+**
+**  Input:      None.
+**
+**  See Also:   begwind, endwind, window, makewind, setwind, getwind
+*/
+
+proc 0 = nextwind;
+    local windno;
+    windno = getwind;
+    setwind(windno+1);
+endp;
+
+/*
+**> getwind
+**
+**  Purpose:    Retrieve the current window number.
+**
+**  Format:     n = getwind;
+**
+**  Input:      None.
+**
+**  Output:     n    Current window number.
+**
+**  See Also:   begwind, endwind, window, makewind, setwind, nextwind
+*/
+
+proc 1 = getwind;
+    retp(_pwindno);
+endp;
+
+/*
+**> savewind
+**
+**  Purpose:    Save the current window configuration to a file.
+**
+**  Format:     err = savewin(namstr);
+**
+**  Input:      namstr   Name of file to be saved as.
+**
+**  Output:     err      Warning value, 0 if sucessful.  1 if window matrix
+**                       is invalid.  Note that the file is written in either
+**                       case.
+**
+**  See Also:   loadwin
+*/
+
+proc 1 = savewind(name);
+    local errval;
+    errval = 0;
+    if cols(_pwindmx) == 1;
+        errval = 1;
+    endif;
+    save ^name = _pwindmx;
+    retp(errval);
+endp;
+
+/*
+**> loadwind
+**
+**  Purpose:    Load a previously saved window configuration.
+**
+**  Format:     err = loadwin(namstr);
+**
+**  Input:      namstr  Name of file to be loaded.
+**
+**  Output:     err     Warning value, 0 if sucessful.  1 if window matrix
+**                      is invalid.  Note that the current window configuration
+**                      will be overwritten in either case.
+**
+**  See Also:   savewind
+*/
+
+proc 1 = loadwind(name);
+    local errval;
+    errval = 0;
+    load _pwindmx = ^name;
+    if cols(_pwindmx) == 1;
+        errval = 1;
+    endif;
+    retp(errval);
+endp;
+
+

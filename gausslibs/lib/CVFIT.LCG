@@ -1,0 +1,63 @@
+/*
+** cvfit.lcg - Nonlinear Least Squares Estimation
+** (C) Copyright 1994-1995 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+
+cvfit.dec
+    _cv_ver                          : matrix
+    _cv_active                       : matrix
+    _cv_coefficient                  : matrix
+    _cv_covmatrix                    : matrix
+    _cv_criterion                    : matrix
+    _cv_descmethod                   : matrix
+    _cv_gradinc                      : matrix
+    _cv_gradmethod                   : matrix
+    _cv_gradproc                     : matrix
+    _cv_hessmatrix                   : matrix
+    _cv_infomatrix                   : matrix
+    _cv_iterdata                     : matrix
+    _cv_iterinfo                     : matrix
+    _cv_key                          : matrix
+    _cv_maxiter                      : matrix
+    _cv_maxtime                      : matrix
+    _cv_maxtry                       : matrix
+    _cv_numlag                       : matrix
+    _cv_numobs                       : matrix
+    _cv_parname                      : matrix
+    _cv_relgradtol                   : matrix
+    _cv_rocc                         : matrix
+    _cv_crosstab                     : matrix
+    _cv_cutpoint                     : matrix
+    _cv_increment                    : matrix
+    _cv_center                       : matrix
+    _cv_width                        : matrix
+    _cv_numsample                    : matrix
+    _cv_numcat                       : matrix
+    _cv_dsn                          : string
+    _cv_dat                          : matrix
+    _cv_row                          : matrix
+
+cvfit.src
+    curvefit                         : proc
+    _curvefit                        : proc
+    comp                             : proc
+    _cvgrdfd                         : proc
+    _cvgrdcd                         : proc
+    _cvhssp                          : proc
+    curvefitprt                      : proc
+    curvefitset                      : proc
+    curvefitclr                      : proc
+
+cvboot.src
+    curveboot                        : proc
+    _rnd1                            : proc
+
+cvhist.src
+    curvehist                        : proc
+    _rnd                             : proc
+
+cvprof.src
+    curveprofile                     : proc
+

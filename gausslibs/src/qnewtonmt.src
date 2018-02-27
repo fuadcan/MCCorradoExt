@@ -1,0 +1,697 @@
+/*
+**  qnewtonmt.src    Quasi-Newton minimization
+**
+** (C) Copyright 1996-1997  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**  Format                             Purpose                             Line
+** -------------------------------------------------------------------------------
+**  out  = QNewtonmt(&fct,par,data,c);  minimizes an arbitary function         27
+**  c = QNewtonmtControlCreate;         creates QNewtonmtControl structure    660
+**  c = QNewtonmtOutCreate;             creates QNewtonmtOut structure        681
+*/
+
+
+/* >proc QNewtonmt
+**
+**  Format:    out = QNewtonmt(&fct,par,data,c);
+**
+**
+**  Input:    &fct      pointer to a procedure that computes the function to
+**                      be minimized.  This procedure must have two input
+**                      arguments, an instance of a PV structure containing
+**                      the parameters, and an instance of a DS structure
+**                      containing data if any.  It must return the value
+**                      of the function evaluated at the parameter values.
+**
+**            par       an instance of a PV structure. The par instance is
+**                      passed to the user-provided procedure pointed to by
+**                      &fct.  par is constructed using the "pvPack"
+**                      functions
+**
+**            data      an array of instances of a DS structure. This array is
+**                      passed to the user-provided pointed by &fct to be used
+**                      in the objective function. QNewton does not
+**                      look at this structure.  Each instance contains the
+**                      the following members which can be set in whatever way
+**                      that is convenient for computing the objective function:
+**
+**                      data1[i].dataMatrix  NxK matrix, data matrix.
+**
+**                      data1[i].dataArray   NxKxL.. array, data array.
+**
+**                      data1[i].vnames      string array, variable names (optional).
+**
+**                      data1[i].dsname      string, data name (optional).
+**
+**                      data1[i].type        scalar, type of data (optional).
+**
+**
+**
+**             c        an instance of an QNewtonControl structure.  Normally an
+**                      instance is initialized by calling QNewtonControlCreate
+**                      and members of this instance can be set to other values
+**                      by the user.  For an instance named c, the members are:
+**
+**                      c1.CovType scalar, if 1, ML covariance matrix,
+**                            else if 2, QML covariance matrix is computed.
+**                            Default is 0, no covariance matrix.
+**
+**                      c1.GradProc  scalar, pointer to a procedure
+**                           that computes the gradient of the function with
+**                           respect to the parameters. Default = {.}, i.e.,
+**                           no gradient procedure has been provided.
+**
+**                      c1.MaxIters  scalar, maximum number of iterations.
+**                           Default = 1e+5.
+**
+**                      c1.MaxTries  scalar, maximum number of attemps in
+**                           random search.  Default = 100.
+**
+**                      c1.relGradTol  scalar, convergence tolerance for
+**                           gradient of estimated coefficients. Default = 1e-5.
+**                           When this criterion has been satisifed QNewtonmt
+**                           exits the iterations.
+**
+**                      c1.randRadius  scalar, If zero, no random search is
+**                           attempted.  If nonzero, it is the radius of the
+**                           random search.  Default = .001.
+**
+**                      c1.output scalar, if nonzero, results are printed.
+**                           Default = 0.
+**
+**                      c1.PrintIters  scalar, if nonzero, prints iteration
+**                           information.  Default = 0.
+**
+**                      c1.disableKey  scalar, if nonzero, keyboard input disabled
+**
+**
+**  Output:   out       an instance of an QNewtonmtOut structure. For an
+**                      instance named out, the members are:
+**
+**                      out.par    instance of a PV structure containing the
+**                           parameter estimates will be placed in the member
+**                           matrix out.par.
+**
+**                      out.fct    scalar, function evaluated at x
+**
+**                      out.retcode    scalar, return code:
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**                         8   function complex
+**
+**                      out.moment  KxK matrix, covariance matrix of parameters,
+**                            if c.covType > 0.
+**
+**                      out.hessian KxK matrix, matrix of second derivatives
+**                             of objective function with respect to parameters
+**
+**  Remarks:  There is one required user-provided procedure, the one computing
+**            the objective function to be minimized, and another optional
+**            functions, the gradient of the objective function.
+**
+**            These functions have one input argument that is an
+**            instance of type struct PV and a second argument that is an
+**            instance of type struct DS.  On input to the call to
+**            QNewtonmt, the first argument contains starting values
+**            for the parameters and the second argument any required
+**            data.  The data are passed in a separate argument because
+**            the structure in the first argument will be copied as it
+**            is passed through procedure calls which would be very costly
+**            if it contained large data matrices.  Since QNewtonmt makes
+**            no changes to the second argument it will be passed by
+**            pointer thus saving time because its contents aren't copied.
+**
+**            The PV structures are set up using the PV pack procedures,
+**            pvPack,  pvPackm,  pvPacks, and pvPacksm.  These procedures allow
+**            for setting up a parameter vector in a variety of ways.
+**
+**            For example, we might have the following objective function for
+**            fitting a nonlinear curve to data:
+**
+**                     proc Micherlitz(struct PV par1, struct DS data1);
+**                          local p0,e,s2,x,y;
+**                          p0 = pvUnpack(par1,"parameters");
+**                          y = data1.dataMatrix[.,1];
+**                          x = data1.dataMatrix[.,2];
+**                          e = y - p0[1] - p0[2]*exp(-p0[3] * x);
+**                          retp(-lnpdfmvn(e,e'e/rows(e));
+**                     endp;
+**
+**            In this example the dependent and independent variables are passed
+**            to the procedure as the first and second columns of a data matrix
+**            stored in a single DS structure.  Alternatively these two columns
+**            of data can be entered into a vector of DS structures one for each
+**            column of data:
+**
+**            If the objective function is the negative of a proper log-likelihood,
+**            and if c.covType is set to 1, the covariance matrix of the parameters
+**            is computed and returned in out.moment, and standard errors, t-statistics
+**            and probabilities are printed if c.output = 1.
+**
+**            if the objective function returns the negative of a vector of log-
+**            likelihoods, and if c.covType is set to 2, the quasi-maximum likelihood
+**            (QML) covariance matrix of the parameters is computed.
+**
+**  Example:
+**            The following is a complete example for estimating the parameters
+**            of the Micherlitz equation in data on the parameters and where an
+**            optional gradient procedure has been provided
+**
+**               #include QNewtonmt.sdf
+**
+**                    struct DS d0;
+**                    d0 = dsCreate;
+**
+**                    y =   3.183|
+**                          3.059|
+**                          2.871|
+**                          2.622|
+**                          2.541|
+**                          2.184|
+**                          2.110|
+**                          2.075|
+**                          2.018|
+**                          1.903|
+**                          1.770|
+**                          1.762|
+**                          1.550;
+**
+**                     x = seqa(1,1,13);
+**
+**                     d0.dataMatrix = y~x;
+**
+**                     struct QNewtonmtControl c0;
+**                     c0 = QNewtonmtControlCreate;
+**                     c0.output = 1;  /* print results */
+**                     c0.covType = 1; /* compute moment matrix */
+**                                     /* of parameters */
+**
+**                     struct PV par1;
+**                     par1 = pvCreate;
+**                     par1 = pvPack(par1,1|1|0,"parameters");
+**
+**                     struct QNewtonmt out1;
+**                     out1 = QNewtonmt(&Micherlitz,par1,d0,c0);
+**
+**
+**                     proc Micherlitz(struct PV par1, struct DS data1);
+**                          local p0,e,s2,x,y;
+**                          p0 = pvUnpack(par1,"parameters");
+**                          y = data1.dataMatrix[.,1];
+**                          x = data1.dataMatrix[.,2];
+**                          e = y - p0[1] - p0[2]*exp(-p0[3] * x);
+**                          retp(-lnpdfmvn(e,e'e/rows(e));
+**                     endp;
+**
+**
+*/
+
+#include qnewtonmt.sdf
+
+
+proc QNewtonmt(fnct,struct PV par0, struct DS data, struct QNewtonmtControl c);
+
+
+    local j,h,g0,g1,d,f0,f1,f2,oldt,np,relgrad,ky,gproc,vv,zz,iter,
+          delta,ub,lb,cdelta,dg,s,tt,sprev,s2prev,rprev,r2prev,
+          rteps,ab,a,b,sprev2,s2prev2,sp2,dsprev,qv,w1,v1,dx,maxtry,
+          fnct:proc,t0,t1,rv,sd0,lbl,m0,s0a,s0b,s1a,s1b,s2,x0,sd,ts,pr;
+
+
+    if rows(c.output) == 0;
+        c.output = 0;
+    endif;
+    if rows(c.maxIters) == 0;
+        c.maxIters = 5000;
+    endif;
+    if rows(c.relGradTol) == 0;
+        c.relGradTol = 1e-5;
+    endif;
+    if rows(c.printIters) == 0;
+       c.printIters = 0;
+    endif;
+    if rows(c.randRadius) == 0;
+        c.randRadius = .01;
+    endif;
+    if rows(c.covType) == 0;
+       c.covType = 0;
+    endif;
+    if rows(c.seed) == 0;
+        sd0 = 345678;
+    else;
+        sd0 = c.seed;
+    endif;
+
+    vv = ones(2,2);
+    vv[1,2] = -1;
+    zz = zeros(2,1);
+    sp2 = zeros(1,2);
+    MaxTry = 100;
+
+    if c.gradproc /= 0;
+        gproc = c.gradproc;
+        local gproc:proc;
+    endif;
+
+    if c.printiters > 0 or c.output > 0;
+        lbl = pvGetParNames(par0);
+        m0 = 0;
+        for i(1,rows(lbl),1);
+            m0 = maxc(m0 | strlen(lbl[i]) );
+        endfor;
+        m0 = m0 + 5;
+        if c.covType > 0;
+            s0a =  "Parameters"$+chrs(32*ones(1,m0-8))$+"Estimate    Stand. Err.    T-stat.    Prob.    Gradient";
+            s1a = chrs(45*ones(1,maxc(strlen(s0a)+3|65)));
+        else;
+            s0b =  "Parameters"$+chrs(32*ones(1,m0-8))$+"Estimate     Gradient";
+            s1b = chrs(45*ones(1,maxc(strlen(s0b)+7|40)));
+        endif;
+        s2 = ""$+chrs(32*ones(1,m0-strlen(lbl[1])));
+        for i(2,rows(lbl),1);
+            s2 = s2 $| chrs(32*ones(1,m0-strlen(lbl[i])));
+        endfor;
+    endif;
+
+    struct QNewtonmtOut out;
+    out = QNewtonmtOutCreate;
+
+    np = pvLength(par0);
+    f0 = sumc(fnct(par0,data));
+
+    if scalinfnanmiss(f0);
+        out.fct = f0;
+        out.par = par0;
+        out.retcode = 3;
+        retp(out);
+    endif;
+
+    if c.gradProc /= 0;
+        g0 = sumc(gproc(par0,data));
+        if ismiss(g0);
+             g0 = missrv(g0,0) + sumc(gradMTm(&fnct,par0,data,g0 .== error(0)));
+        endif;
+    else;
+        g0 = sumc(gradMT(&fnct,par0,data));
+    endif;
+    if scalinfnanmiss(g0);
+        out.fct = f0;
+        out.par = par0;
+        out.grad = g0;
+        out.retcode = 4;
+        retp(out);
+    endif;
+
+    h = eye(np)*maxc(sqrt(abs(f0))|1);
+
+    x0 = pvGetParVector(par0);
+    out.retcode = 2;
+
+    if c.output;
+        t0 = hsec;
+    endif;
+
+    iter = 1; do until iter > c.maxiters;
+
+        /*  new direction */
+
+        oldt = trapchk(1);
+        trap 1,1;
+        d = -cholsol(g0,h);
+        trap oldt,1;
+        if scalmiss(d);
+            h = eye(np)*maxc(sqrt(abs(f0))|1);
+            d = -g0 / maxc(sqrt(abs(f0))|1);
+        endif;
+
+        /* choose step length */
+
+
+        delta = 1e-4;   /* must be in (0,1/2) interval */
+        ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+        lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+        cdelta = 1 - delta;
+        dg = d' * g0;
+        s = 1;
+        tt = s * dg;
+        f1 = sumc(fnct(pvPutParVector(par0,x0+d),data));
+        if scalinfnanmiss(g0);
+            out.retcode = 3;
+            break;
+        endif;
+
+        if (f1 / tt - f0 / tt) < delta;
+
+            s = maxc(-dg / (2 * (f1 - f0 - dg)) | lb);
+            f2 = sumc(fnct(pvPutParVector(par0,x0+s*d),data));
+            if scalinfnanmiss(f2);
+                out.retcode = 6;
+                break;
+            endif;
+
+            tt = s * dg;
+            w1 = f2 / tt - f0 / tt;
+
+            if w1 < delta or w1 > cdelta;
+
+                sprev = s;
+                s2prev = 1;
+                rprev = f2;
+                r2prev = f1;
+                for j(1,40,1);   /*  maxtries = 40 */
+                    sprev2 = sprev * sprev;
+                    s2prev2 = s2prev * s2prev;
+                    sp2[1,1] = sprev2;
+                    sp2[1,2] = s2prev2;
+                    dsprev = sprev - s2prev;
+
+                    vv[2,1] = -s2prev;
+                    vv[2,2] = sprev;
+                    vv = vv./sp2;
+
+                    zz[1] = rprev - f0 - dg * sprev;
+                    zz[2] = r2prev - f0 - dg * s2prev;
+                    ab = (1 / dsprev) * vv * zz;
+                    a = ab[1,1];
+                    b = ab[2,1];
+
+                    if a == 0;
+                        s = -dg / (2 * b);
+                    else;
+                        qv = b * b - 3 * a * dg;
+                        if qv < 0;
+                            break;
+                        endif;          /* terminate if not real root */
+                        tt = 3 * a;
+                        s = -b / tt + sqrt(qv) / tt;
+                    endif;
+
+                    if s > ub * sprev;
+                        s = ub * sprev;
+                    elseif s < lb * sprev;
+                        s = lb * sprev;
+                    endif;
+
+                    f1 = sumc(fnct(pvPutParVector(par0,x0+s*d),data));
+                    if scalinfnanmiss(f1);
+                         s = error(0);
+                         break;
+                    endif;
+                    tt = s * dg;
+                    w1 = f1 / tt - f0 / tt;
+
+                    if w1 >= delta and w1 <= cdelta;
+                        break;
+                    endif;
+
+                    s2prev = sprev;
+                    sprev = s;
+                    r2prev = rprev;
+                    rprev = f1;
+                endfor;
+            else;
+                 f1 = f2;
+            endif;
+
+        endif;
+
+        if scalmiss(s);
+            j = 1;
+            f1 = 1e250;
+            do while f1 > f0;
+                rteps = 10^trunc(log(meanc(abs(g0)))) * c.randRadius;
+                { rv,sd0 } = rndKMu(np,1,sd0);
+                d = rteps*(2*rv-1).*x0;
+                f1 = sumc(fnct(pvPutParVector(par0,x0+d),data));
+                if scalinfnanmiss(f1);
+                    f1 = 1e250;
+                    d = 1;
+                endif;
+                j = j + 1;
+                if j > MaxTry;
+                    break;
+                endif;
+            endo;
+            x0 = x0 + d;
+            f0 = f1;
+        else;
+            dx = s * d;
+            x0 = x0 + dx;
+            f0 = f1;
+        endif;
+        par0 = pvPutParVector(par0,x0);
+
+        if c.gradProc /= 0;
+            g1 = sumc(gproc(par0,data));
+            if ismiss(g1);
+                 g1 = missrv(g1,0) + sumc(gradMTm(&fnct,par0,data,g1 .== error(0)));
+            endif;
+        else;
+            g1 = sumc(gradMT(&fnct,par0,data));
+        endif;
+        if scalinfnanmiss(g1);
+            g0 = g1;
+            out.retcode = 4;
+            break;
+        endif;
+
+        relgrad = (abs(g1).*maxc(abs(x0)'|ones(1,np)))/maxc(abs(f0)|1);
+
+        if c.printiters;
+
+            print;
+            print;
+            print s1b;
+            print " iter "$+ftos(iter-1,"%*.*lf",1,0);;
+
+            if scalmiss(s);
+                print "  random search";;
+            endif;
+            print "     function "$+ftos(f0,"*.*lf",10,5);
+            if not scalmiss(s);
+                print "          step length "$+ftos(s,"*.*lf",10,5);
+            else;
+                print;
+            endif;
+            print s1b;
+            print s0b;
+            print;
+            for i(1,rows(x0),1);
+                print lbl[i];;
+                print s2[i];;
+                print ftos(x0[i],"%*.*lf",10,5);;
+                print ftos(g0[i],"%*.*lf",14,5);
+            endfor;
+            print /flush "";
+        endif;
+
+        if abs(g1) < machEpsilon or relgrad < c.relGradTol;
+            g0 = g1;
+            out.retcode = 0;
+            break;
+        endif;
+
+        /* BFGS update */
+
+        v1 = g1'dx - g0'dx;
+        if (v1 < 1e-22);
+            h = eye(np)*maxc(sqrt(abs(f0))|1);
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h = cholup(h,(g1-g0)/sqrt(v1));
+            trap oldt,1;
+            if not scalmiss(h);
+                oldt = trapchk(1);
+                trap 1,1;
+                h = choldn(h,g0/sqrt(-g0'd));
+                trap oldt,1;
+             endif;
+            if scalmiss(h);
+                h = eye(np)*maxc(sqrt(abs(f0))|1);
+             endif;
+        endif;
+
+        g0 = g1;
+        ky = key;
+        do while ky;
+            if upper(chrs(ky)) $== "C";
+                out.retcode = 1;
+            elseif upper(chrs(ky)) $== "P" or upper(chrs(ky)) $== "O";
+                c.printiters = 1 - c.printiters;
+            endif;
+            ky = key;
+        endo;
+        if out.retcode == 1;
+            break;
+        endif;
+
+    iter = iter + 1; endo;
+
+    t1 = hsec;
+    out.fct = f0;
+    out.par = par0;
+    out.hessian = h'h;
+    out.grad = g0;
+
+    if not scalmiss(out.retcode) and c.covType > 0;
+
+        if c.gradProc /= 0;
+            h = hessMTg(&gproc,par0,data);
+            if ismiss(h);
+                 h = missrv(h,0) + hessMTm(&fnct,par0,data,h .== error(0));
+            endif;
+        else;
+            h = hessMT(&fnct,par0,data);
+        endif;
+        if not scalmiss(h);
+            out.hessian = h;
+        endif;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        out.moment = invpd(h);
+        trap oldt,1;
+
+        if c.covType == 2 and not scalmiss(out.moment);
+            if c.gradProc /= 0;
+                g1 = gproc(par0,data);
+                if ismiss(g1);
+                     g1 = missrv(g1,0) + gradMTm(&fnct,par0,data,g1 .== error(0));
+                endif;
+            else;
+                g1 = gradMT(&fnct,par0,data);
+            endif;
+            out.moment = out.moment * moment(g1,0) * out.moment;
+        endif;
+
+    endif;
+
+    if c.output > 0;
+
+        print;
+        print "return code = " ftos(out.retcode,"%*.*lf",4,0);
+        if out.retcode == 0;
+           print "normal convergence";
+        elseif out.retcode == 1;
+           print "forced termination";
+        elseif out.retcode == 2;
+           print "maximum number of iterations exceeded";
+        elseif out.retcode == 3;
+           print "function calculation failed";
+        elseif out.retcode == 4;
+           print "gradient calculation failed";
+        elseif out.retcode == 5;
+           print "Hessian calculation failed";
+        elseif out.retcode == 6;
+           print "line search failed";
+        elseif out.retcode == 7;
+           print "function complex";
+        endif;
+        print;
+        if c.covType > 0;
+            if not scalmiss(out.moment);
+                sd = sqrt(diag(out.moment));
+                ts = x0 ./ sd;
+                pr = 2*cdftc(ts,1);
+                if c.covType == 1;
+                   print "Maximum likelihood standard errors";
+                else;
+                   print "Quasi-maximum likelihood standard errors";
+                endif;
+            else;
+                print "Calculation of covariance matrix of parameters failed";
+            endif;
+        endif;
+        print "Value of objective function " ftos(out.fct,"%*.*lf",12,6);
+        if c.covType > 0;
+            print s1a;
+            print s0a;
+        else;
+            print s1b;
+            print s0b;
+        endif;
+        print;
+        x0 = pvGetParVector(out.par);
+        for i(1,rows(x0),1);
+            print lbl[i];;
+            print s2[i];;
+            print ftos(x0[i],"%*.*lf",10,5);;
+            if c.covType > 0 and not scalmiss(out.moment);
+                print ftos(sd[i],"%*.*lf",12,5);;
+                print ftos(ts[i],"%*.*lf",12,5);;
+                print ftos(pr[i],"%*.*lf",12,5);;
+            endif;
+            print ftos(g0[i],"%*.*lf",12,5);
+        endfor;
+        print;
+        print "Number of iterations    " ftos(iter,"%*.*lf",5,0);
+        print "Minutes to convergence  " ftos((t1-t0)/6000,"%*.*lf",10,5);
+    elseif c.printIters;
+        print;
+    endif;
+    retp(out);
+
+endp;
+
+
+
+
+/*
+**> QNewtonmtOutCreate
+**
+**  Purpose:   creates default QNewtonmtOut structure
+**
+**  Format:    c = QNewtonmtOutCreate;
+**
+**  Output:    c    instance of QNewtonmtOutStructure with
+**                  members set to default values
+*/
+
+
+
+proc QNewtonmtOutCreate;
+  struct QNewtonmtOut out;
+  out.fct = 0;
+  retp(out);
+endp;
+
+
+
+/*
+**> QNewtonmtControlCreate
+**
+**  Purpose:   creates default QNewtonmtControl structure
+**
+**  Format:    c = QNewtonmtControlCreate;
+**
+**  Output:    c    instance of QNewtonmtControlStructure with
+**                  members set to default values
+*/
+
+
+proc QNewtonmtControlCreate;
+   struct QNewtonmtControl c;
+   c.gradProc = 0;
+   retp(c);
+endp;

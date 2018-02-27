@@ -1,0 +1,284 @@
+/*
+** supreme2.src - Poisson Regression Model with Unobserved Variables
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> supreme2
+**
+**  Format:     { bg,vc,llik } = supreme2(dataset,dep1,dep2,ind1,ind2,ind3);
+**
+**  Input:
+**      dataset   name of Gauss dataset or name of matrix in memory
+**      dep1      first dependent variable name or column number
+**      dep2      second dependent variable name or column number
+**      ind1      vector of independent variable names or column numbers
+**                for first unobserved dependent variable or 0 for none
+**      ind2      vector of independent variable names or column numbers
+**                for second unobserved dependent variable or 0 for none
+**      ind3      vector of independent variable names or column numbers
+**                for third unobserved dependent variable or 0 for none
+**      (NOTE: include variables for ind1 and ind2 and 0 for ind3 to get
+**             a version of the SUPREME estimator, two mean vectors and a
+**             scalar dispersion parameter.)
+**
+**  Output:
+**      b      vector of effect parameters that maximize the likelihood
+**             on top of parameter(s) corresponding to vind.
+**             PARAMETERIZATION: b=b1|b2|b3;
+**                 lambda1 = exp(ind1*b1),   E(dep1)=lambda1+lambda3
+**                 lambda2 = exp(ind2*b2),   E(dep2)=lambda2+lambda3
+**                 lambda3 = exp(ind3*b3)
+**      vc     variance-covariance matrix of b
+**      llik   value of the log-likelihood at the maximum
+**
+**  Globals:
+**    _cn_Inference      MAXLIK for maximum likelihood estimates
+**                       BOOT for bootstrapped estimates
+**                       PROFILE for likelihood profile and profile t traces
+**
+**      _cn_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = vector stored in _cn_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      __output    1 = print output to screen (default),
+**                  0 = do not print to screen
+**
+**
+**  Other Globals:
+**      see MAXLIK.
+**
+**  Example:
+**      let dep1=USconfl;
+**      let dep2=SOVconfl;
+**      let ind1=USmil gnp;
+**      let ind2=SOVmil;
+**      let ind3=PresElen;
+**      dataset="sample";
+**      call supreme2(dataset,dep1,dep2,ind1,ind2,ind3);
+**
+**  References:
+**      Gary King. 1989. "Event Count Models for International Relations:
+**      Generalizations and Applications," INTERNATIONAL STUDIES QUARTERLY.
+**      (forthcoming, June), Section 6.
+**
+**      Gary King, 1989. "A Seemingly Unrelated Poisson Regression Model,"
+**      SOCIOLOGICAL METHODS AND RESEARCH. 17, 3 (February): 235-255.
+*/
+
+#include maxlik.ext
+#include gauss.ext
+#include count.ext
+
+proc _cn_svsup2(dataset,dep1,dep2,ind1,ind2,ind3);
+    local res,b0,b1,b2,b,pars;
+    pars = 3;
+    if _cn_Start==0;
+        if ind1==0;
+            b0 = 0;
+        else;
+            b0 = lols(dataset,dep1,ind1);
+            pars = pars+rows(ind1);
+        endif;
+        if ind2==0;
+            b1 = 0;
+        else;
+            b1 = lols(dataset,dep2,ind2);
+            pars = pars+rows(ind2);
+        endif;
+        if ind3==0;
+            b2 = 0;
+        else;
+            b2 = lols(dataset,dep1,ind3);
+            pars = pars+rows(ind3);
+        endif;
+        b = b0|b1|b2;
+    elseif _cn_Start==1;
+        b = _cn_StartValues;
+    elseif _cn_Start==2;
+        b = rndu(pars,1)-0.5;
+    elseif _cn_Start==3;
+        b = zeros(pars,1);
+    else;
+        b = _cn_Start;
+        if rows(b)/=pars;
+            errorlog "rows(_cn_Start) is wrong.\g";
+            end;
+        endif;
+    endif;
+    retp(b);
+endp;
+
+proc _cn_taysa(x,j);
+    local k,rj,res;
+    if cols(x)/=1;
+        "tays error, x=";
+        x;
+        stop;
+    endif;
+    rj = rows(j);
+    res = zeros(rj,1);
+    if maxc(j)<=1000;
+        res = ((x*ones(rj,1)).^j)./j!;
+    else;
+        k = 1;
+        do while k<=rj;
+            if j[k,1]==0;
+                res[k,1] = 1;
+            else;
+                res[k,1] = prodc(x./seqa(1,1,j[k,1]));
+            endif;
+            k = k+1;
+        endo;
+    endif;
+    retp(res);
+endp;
+
+proc _cn_lisup2(b,dta);
+    local i,res,b1,b2,b3,t,boundy,boundn,penalty,miny,j,e1,e2,e3,y1,y2,
+        x1,x2,x3,cx1,cx2,cx3,n,yx;
+
+    y1 = dta[.,1];
+    n = rows(y1);
+    y2 = dta[.,2];
+    x1 = ones(n,1);
+    if _cn_c1/=0;
+        x1 = x1~dta[.,_cn_c1];
+    endif;
+    x2 = ones(n,1);
+    if _cn_c2/=0;
+        x2 = x2~dta[.,_cn_c2];
+    endif;
+    x3 = ones(n,1);
+    if _cn_c3/=0;
+        x3 = x3~dta[.,_cn_c3];
+    endif;
+    cx1 = cols(x1);
+    cx2 = cols(x2);
+    cx3 = cols(x3);
+
+    b1 = trimr(b,0,cx2+cx3);
+    b2 = trimr(b,cx1,cx3);
+    b3 = trimr(b,cx1+cx2,0);
+    res = zeros(n,1);
+    i = 1;
+    do while i<=n;
+        miny = minc(y1[i,1]|y2[i,1]);
+        j = seqa(0,1,miny+1);
+        e1 = exp(x1[i,.]*b1);
+        e2 = exp(x2[i,.]*b2);
+        e3 = exp(x3[i,.]*b3);
+        res[i] = sumc(_cn_taysa(e3,j).*_cn_taysa(e1,y1[i,1]-j).*
+                       _cn_taysa(e2,y2[i,1]-j));
+        i = i+1;
+    endo;
+    res = -exp(x1*b1)-exp(x2*b2)-exp(x3*b3)+ln(res);
+    retp(res);
+endp;
+
+proc 3 = supreme2(dataset,dep1,dep2,ind1,ind2,ind3);
+    local b,logl,g,vc,vars,st,ret;
+    clearg _cn_c1,_cn_c2,_cn_c3;
+    _max_CovPar = 3;
+    _cn_fn = dataset;
+    if (dep1$==0) or (dep2$==0);
+        errorlog "DEP1 and DEP2 must = variable name or number";
+        end;
+    endif;
+    if ((type(dataset)/=13) and ((maxc(ind1)>cols(dataset)) or (maxc(ind2)
+        >cols(dataset)) or (maxc(ind3)>cols(dataset)) or
+        (dep1>cols(dataset)) or (dep2>cols(dataset)) ) );
+        errorlog "If DATASET=matrix, DEP1,DEP2,IND1,IND2,IND3 must be column";
+        "                  numbers of the input matrix.\g";
+        end;
+    endif;
+    if ind1==0;
+        _cn_c1 = 0;
+    else;
+        _cn_c1 = seqa(3,1,rows(ind1));
+        vars = ind1;
+    endif;
+    if ind2==0;
+        _cn_c2 = 0;
+    else;
+        _cn_c2 = seqa(rows(vars)+1,1,rows(ind2));
+        vars = vars|ind2;
+    endif;
+    if ind3==0;
+        _cn_c3 = 0;
+    else;
+        _cn_c3 = seqa(rows(vars)+1,1,rows(ind3));
+        vars = vars|ind3;
+    endif;
+
+    st = _cn_svsup2(dataset,dep1,dep2,ind1,ind2,ind3);
+    if __title $== "";
+       __title = "Poisson Regression Model with Unobserved Dependent"\
+                 " Variables";
+    endif;
+    local infm,inf0,lcInf;
+    infm = { MAXLIK, BOOT };
+    inf0 = { 1, 2 };
+    LcInf = _ml_check(_cn_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,g,vc,ret } = maxlik(dataset,vars,&_cn_lisup2,st);
+    elseif LcInf == 2;
+        { b,logl,g,vc,ret } = maxboot(dataset,vars,&_cn_lisup2,st);
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+    if type(dataset)==13;
+        vars = "beta1";
+        if ind1/=0;
+            vars = vars|ind1;
+        endif;
+        vars = vars|"beta2";
+        if ind2/=0;
+            vars = vars|ind2;
+        endif;
+        vars = vars|"beta3";
+        if ind3/=0;
+            vars = vars|ind3;
+        endif;
+    else;
+        vars = "beta1";
+        if ind1/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind1),1))$+_cn_ftosm(ind1,2));
+        endif;
+        vars = vars|"beta2";
+        if ind2/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind2),1))$+_cn_ftosm(ind2,2));
+        endif;
+        vars = vars|"beta3";
+        if ind3/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind3),1))$+_cn_ftosm(ind3,2));
+        endif;
+    endif;
+    _cn_vr = vars;
+    _cn_dp = dep1|dep2;
+    ndpclex;
+    retp(b,vc,logl*_max_NumObs);
+endp;
+

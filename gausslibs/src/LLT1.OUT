@@ -1,0 +1,48 @@
+
+Total observations:                                           61  
+Usable observations:                                          59  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                           56  
+Value of the maximized log-likelihood function:       -273.00725  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+sig_eta        21.732567        3.864839         5.623149        0.000001
+sig_zeta        1.601397        0.826497         1.937572        0.057725
+sig_epsi        7.112369        5.288299         1.344926        0.184071
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+
+Total observations:                                           61  
+Usable observations:                                          59  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                           56  
+Value of the maximized log-likelihood function:       -273.00725  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+sig_eta        21.734710        3.865931         5.622116        0.000001
+sig_zeta        1.600854        0.826261         1.937468        0.057738
+sig_epsi        7.109229        5.292989         1.343141        0.184645
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                           61  
+Usable observations:                                          59  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                           56  
+Value of the maximized log-likelihood function:       -273.00725  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+sig_eta        21.732567        3.864839         5.623149        0.000001
+sig_zeta        1.601397        0.826497         1.937572        0.057725
+sig_epsi        7.112369        5.288299         1.344926        0.184071
+
+Covariance matrix: inverse of the negative Hessian.
+edit;

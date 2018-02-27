@@ -1,0 +1,974 @@
+/*
+** cmlclim.src     CMLClimits - confidence limits by inversion of
+**                              Wald statistic
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> CMLClimits
+**
+**  Purpose:    Computes confidence limits by inversion of the Wald statistic.
+**
+**  Format:     cl = CMLClimits(b,vc)
+**
+**  Input:      b     Kx1 vector, parameter estimates.
+**
+**              vc    KxK matrix, covariance matrix of estimates.
+**
+**  Output:     cl    Kx2 matrix, lower (first column) and upper (second
+**                    column) limits of the selected parameters.
+**
+**
+**  Globals:   _cml_Alpha    (1-_cml_Alpha)% two-tailed limits are computed.
+**                           Default = .95
+**
+**             _cml_NumObs   scalar, number of observations.  Must be set.
+**
+**             _cml_Select   Lx1 vector, selection of columns of dataset.
+**                           For example, _cml_Select = { 1, 3, 4 }.
+*/
+
+#include cml.ext
+
+proc (1) = cmlclimits(coefs,h);
+    local oldt,cl,np,tv,lv,lv1,i,k,phi0,phi1,phi2,f0,f1,f2,iter,in,
+        im,ff,ff0,select,outp,LLoutput,ltst,hi,sde;
+
+    outp = 0;
+    LLoutput = 0;
+#ifUNIX
+    if __output;
+        output off;
+        print;
+        print "Calculating confidence limits.....";
+        print;
+        print "To toggle output to screen, press O";
+        output on;
+        outp = 1;
+        LLoutput = 1;
+    endif;
+#ELSE
+    if __output;
+        printdos "Calculating confidence limits.....";
+        printdos "To toggle output to screen, press O";
+        if __output > 2;
+            outp = 1;
+            LLoutput = 1;
+        else;
+            outp = __output;
+            LLoutput = __output;
+        endif;
+    endif;
+#ENDIF
+
+    if _cml_NumObs == 0;
+        errorlog "ERROR: _cml_NumObs not set";
+        if not trapchk(4);
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    coefs = vec(real(coefs));
+    h = real(h);
+    if rows(coefs) /= rows(h);
+        errorlog "parameter vector not conformable to covariance matrix";
+        if not trapchk(4);
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if cols(h) /= rows(h);
+        errorlog "covariance matrix not square";
+        if not trapchk(4);
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if scalmiss(_cml_Select) or _cml_Select == 0;
+        select = seqa(1,1,rows(coefs));
+    else;
+        if maxc(_cml_Select) > rows(coefs) or minc(_cml_Select) < 1;
+            errorlog "error in selection vector";
+            if not trapchk(4);
+                end;
+            else;
+                retp(error(0));
+            endif;
+        else;
+            select = _cml_Select;
+        endif;
+    endif;
+
+    im = abs(diag(h));
+    im = im .< 1e-8 .or im .== error(0);
+    sde = sqrt(diag(h).*(1-im));
+    if sumc(im);
+        np = rows(coefs);
+        in = packr(miss((1-im).*seqa(1,1,rows(im)),0));     /* good rows in h */
+        im = packr(miss(im.*seqa(1,1,rows(im)),0));         /* rows =
+                                                            :: = zeros in h
+                                                            */
+        if scalmiss(in);
+            errorlog "ERROR:  no parameters left after deleting zero ro"\
+                    "ws and columns";
+            if not trapchk(4);
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+        h = h[in,in];
+    else;
+        in = 0;     /* all rows good */
+        np = 0;
+    endif;
+
+    oldt = trapchk(1);
+    trap 1,1;
+    hi = solpd(eye(rows(h)),h);
+    trap oldt,1;
+    if scalmiss(hi);
+        local r0,e0,a0,a1,a2,k1;
+        { r0,e0 } = qre(h);
+        k1 = sumc(abs(diag(r0)) .> 1e-8);
+        if k1 == rows(h);
+            hi = cholsol(eye(k1),r0);
+        else;
+            a0 = utrisol(r0[1:k1,k1+1:rows(r0)],r0[1:k1,1:k1]);
+            if not scalmiss(a0);
+                a1 = cholsol(eye(k1),r0[1:k1,1:k1]);
+                if not scalmiss(a1);
+                    a2 = a1*a0;
+                    h = (a1~a2)|(a2'~a0'*a2);
+                    hi = h[e0[e0],e0[e0]];
+                else;
+                    hi = error(0);
+                endif;
+            else;
+                hi = error(0);
+            endif;
+        endif;
+    endif;
+
+    if scalmiss(hi);
+        errorlog "ERROR: covariance matrix of parameters failed to invert";
+        if not trapchk(4);
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+    if not(in == 0);
+        h = hi;
+        hi = zeros(np,np);
+        hi[in,in] = h;
+    endif;
+
+    cl = miss(zeros(rows(coefs),2),0);
+
+    tv = cdftci(0.5*_cml_Alpha,_cml_NumObs-rows(coefs));
+    lv = tv * tv;
+
+    lv1 = cdftci(_cml_Alpha,_cml_NumObs-rows(coefs))^2;
+
+    i = 0;
+    do until i == rows(select);
+        i = i + 1;
+
+        if not in $== 0;
+            if scalmiss(indnv(i,in));
+                continue;
+            endif;
+        endif;
+
+/* lower bound */
+
+        { ff, phi0 } = _cl_set(select[i],coefs,tv*sde[i],-1);
+        if scalmiss(phi0);
+                errorlog "ERROR: starting value calculation failed";
+            if not trapchk(4);
+                end;
+            else;
+                goto A1;
+            endif;
+        endif;
+
+        f0 = _cl_quad(hi,coefs,phi0,select[i],1,outp);
+        if scalmiss(f0);
+            errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+            if not trapchk(4);
+                end;
+            else;
+                goto A1;
+            endif;
+        endif;
+        ltst = _cl_test(select[i],coefs,tv*sde[i],phi0,-1,lv,lv1);
+        if abs(f0-ltst) < __tol;
+            cl[select[i],1] = phi0;
+            goto A1;
+        endif;
+        if coefs[select[i]] /= 0;
+            k = .01 * 10^trunc(log(abs(coefs[select[i]])));
+        else;
+            k = .01;
+        endif;
+        phi1 = phi0 + maxc(k|k*abs(phi0));
+
+        f1 = _cl_quad(hi,coefs,phi1,select[i],1,outp);
+        if scalmiss(f1);
+            errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+            if not trapchk(4);
+                end;
+            else;
+                goto A1;
+            endif;
+        endif;
+        ltst = _cl_test(select[i],coefs,tv*sde[i],phi0,-1,lv,lv1);
+        if abs(f0-ltst) < __tol;
+            cl[select[i],1] = phi1;
+            goto A1;
+        endif;
+
+        ff0 = 0;
+        iter = 0;
+        do until iter > _cml_MaxIters;
+            iter = iter + 1;
+
+            if f1 == f0;
+                cl[select[i],1] = phi0;
+                break;
+            endif;
+
+            phi2 = (phi1 * (lv - f0) - phi0 * (lv - f1)) / (f1 - f0);
+            do while phi2 > coefs[select[i]];
+                phi2 = 0.5 * (minc(phi1|phi0) + phi2);
+            endo;
+
+            ltst = _cl_test(select[i],coefs,tv*sde[i],phi2,-1,lv,lv1);
+            if ltst /= lv;
+                phi2 = (phi1 * (ltst - f0) - phi0 * (ltst - f1)) / (f1 - f0);
+            endif;
+
+            { ff, phi2 } = _cl_set(select[i],coefs,coefs[select[i]]-phi2,-1);
+            if ff0 and ff;
+                cl[select[i],1] = phi2;
+                break;
+            else;
+                ff0 = 1;
+                ff = 0;
+            endif;
+
+            f2 = _cl_quad(hi,coefs,phi2,select[i],1,outp);
+            if scalmiss(f2);
+                errorlog "lower confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                if not trapchk(4);
+                    end;
+                else;
+                    break;
+                endif;
+            endif;
+            ltst = _cl_test(select[i],coefs,tv*sde[i],phi2,-1,lv,lv1);
+            if abs(f2-ltst) < __tol;
+                cl[select[i],1] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+        endo;
+
+    A1:
+
+/* upper bound */
+
+        { ff, phi0 } = _cl_set(select[i],coefs,tv*sde[i],1);
+        if scalmiss(phi0);
+            errorlog "ERROR: starting value calculation failed";
+            if not trapchk(4);
+                end;
+            else;
+                continue;
+            endif;
+        endif;
+
+        f0 = _cl_quad(hi,coefs,phi0,select[i],-1,outp);
+        if scalmiss(f0);
+            errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+            if not trapchk(4);
+                end;
+            else;
+                continue;
+            endif;
+        endif;
+        ltst = _cl_test(select[i],coefs,tv*sde[i],phi0,1,lv,lv1);
+        if abs(f0-ltst) < __tol;
+            cl[select[i],2] = phi0;
+            continue;
+        endif;
+
+        if coefs[select[i]] /= 0;
+            k = .01 * 10^trunc(log(abs(coefs[select[i]])));
+        else;
+            k = .01;
+        endif;
+        phi1 = phi0 - maxc(k|k*abs(phi0));
+        f1 = _cl_quad(hi,coefs,phi1,select[i],-1,outp);
+        if scalmiss(f1);
+            errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+            if not trapchk(4);
+                end;
+            else;
+                continue;
+            endif;
+        endif;
+        ltst = _cl_test(select[i],coefs,tv*sde[i],phi1,1,lv,lv1);
+        if abs(f1-ltst) < __tol;
+            cl[select[i],2] = phi1;
+            continue;
+        endif;
+
+        ff0 = 0;
+        iter = 1;
+        do until iter > _cml_MaxIters;
+            iter = iter + 1;
+
+            if f0 == f1;
+                cl[select[i],2] = phi0;
+                break;
+            endif;
+            phi2 = (phi1 * (lv - f0) - phi0 * (lv - f1)) / (f1 - f0);
+            do while phi2 < coefs[select[i]];
+                phi2 = 0.5 * (minc(phi1|phi0) + phi2);
+            endo;
+
+            ltst = _cl_test(select[i],coefs,tv*sde[i],phi2,1,lv,lv1);
+            if ltst /= lv;
+                phi2 = (phi1 * (ltst - f0) - phi0 * (ltst - f1)) / (f1 - f0);
+            endif;
+
+            { ff, phi2 } = _cl_set(select[i],coefs,phi2-coefs[select[i]],1);
+            if ff0 and ff;
+                cl[select[i],2] = phi2;
+                break;
+            else;
+                ff0 = 1;
+                ff = 0;
+            endif;
+            f2 = _cl_quad(hi,coefs,phi2,select[i],-1,outp);
+            if scalmiss(f2);
+                errorlog "upper confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                if not trapchk(4);
+                    end;
+                else;
+                    break;
+                endif;
+            endif;
+            ltst = _cl_test(select[i],coefs,tv*sde[i],phi2,1,lv,lv1);
+            if abs(f2-ltst) < __tol;
+                cl[select[i],2] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+        endo;
+    endo;
+
+    retp(cl);
+endp;
+
+
+proc _cl_test(n,x,d,phi,a,lv,lv1);
+    local ineqproc;
+
+if _cml_InfCorr;
+
+    x[n] = phi + a * d;
+    if not scalmiss(_cml_C);
+        if not ((_cml_C * x - _cml_D) >= 0);
+            retp(lv1);
+        endif;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        if rows(_cml_Bounds) == 1;
+            if not(x[n] >= _cml_Bounds[1,1]);
+               retp(lv1);
+            endif;
+            if not (x[n] <= _cml_Bounds[1,2]);
+                retp(lv1);
+            endif;
+        else;
+            if not(x[n] >= _cml_Bounds[n,1]);
+                retp(lv1);
+            endif;
+            if not(x[n] <= _cml_Bounds[n,2]);
+                retp(lv1);
+            endif;
+        endif;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        IneqProc = _cml_IneqProc;
+        local ineqproc:proc;
+        if not(ineqproc(x) >= 0);
+            retp(lv1);
+        endif;
+    endif;
+
+endif;
+
+    retp(lv);
+endp;
+
+
+proc(2) = _cl_set(n,x,d,a);
+    local t,ineqproc,ineqjacob,g,ff,i,j,iter,df;
+    clear ff;
+    x[n] = x[n] + a * d;
+    if not scalmiss(_cml_C);
+        t = _cml_C * x - _cml_D;
+        if not (t >= 0);
+            i = minindc(t);
+            j = packr(miss(seqa(1,1,rows(x)),n));
+            x[n] = (_cml_D[i] - _cml_C[i,j]*x[j]) / _cml_C[i,n];
+            t = _cml_C * x - _cml_D;
+            ff = 1;
+        endif;
+    endif;
+    if not scalmiss(_cml_Bounds);
+        if rows(_cml_Bounds) == 1;
+            if x[n] < _cml_Bounds[1,1];
+                x[n] = _cml_Bounds[1,1];
+                ff = 1;
+            endif;
+            if x[n] > _cml_Bounds[1,2];
+                x[n] = _cml_Bounds[1,2];
+                ff = 1;
+            endif;
+        else;
+            if x[n] < _cml_Bounds[n,1];
+                x[n] = _cml_Bounds[n,1];
+                ff = 1;
+            endif;
+            if x[n] > _cml_Bounds[n,2];
+                x[n] = _cml_Bounds[n,2];
+                ff = 1;
+            endif;
+        endif;
+    endif;
+    if not scalmiss(_cml_IneqProc);
+        IneqProc = _cml_IneqProc;
+        local ineqproc:proc;
+        t = ineqproc(x);
+        if not(t >= 0);
+            if not scalmiss(_cml_IneqJacobian);
+                ineqjacob = _cml_IneqJacobian;
+                local ineqjacob:proc;
+            endif;
+            df = 10;
+            iter = 1;
+            do until df < 1e-4 or iter > 10;
+                if not scalmiss(_cml_IneqJacobian);
+                    g = ineqjacob(x);
+                else;
+                    g = gradp(&IneqProc,x);
+                endif;
+                i = minindc(t);
+                if g[i,n] < 1e-3;
+                    break;
+                endif;
+                df = t[i] / g[i,n];
+                x[n] = x[n] - df;
+                t = ineqproc(x);
+                iter = iter + 1;
+            endo;
+            ff = 1;
+        endif;
+    endif;
+    retp(ff,x[n]);
+endp;
+
+
+
+proc(1) = _cl_quad(hssi,coefs,phi,eta,sgn,outp);
+
+    /* ------- LOCALS ----------- */
+    local x,g,s,h,iter,ky,old,vof,dfct,f0,dx,x0,
+        k1,np,ttime,oldfmt,LLoutput,title;
+
+    local numeq,qp_m,qp_t,qp_xl,qp_xu,qp_ret,qp_maxit,lagr1,
+        lagr2, qp_a,qp_b,qp_d,qp_lql,bksteps;
+    local numNlinEqC,numNlinIneqC,eqproc,ineqproc,eqjacob,ineqjacob;
+
+    clear lagr1,lagr2,qp_ret;
+    clear s,dfct,f0,h,iter;
+    clear numNlinEqC,numNlinIneqC;
+
+    dx = 1;
+
+    LLoutput = 0;
+
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+    qp_maxit = 1000;
+    qp_d = .01*coefs;
+    qp_t = 1e+256*ones(rows(coefs),1);
+
+    qp_m = 1;
+    numeq = 1;
+
+    if not scalmiss(_cml_A);
+        qp_m = qp_m + rows(_cml_A);
+        numEq = numEq + rows(_cml_A);
+    endif;
+
+    if not scalmiss(_cml_C);
+        qp_m = qp_m + rows(_cml_C);
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        eqproc = _cml_EqProc;
+        local eqproc:proc;
+        numNlinEqC = rows(EqProc(coefs));
+        qp_m = qp_m + numNlinEqC;
+        numEq = numEq + numNlinEqC;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        ineqproc = _cml_IneqProc;
+        local ineqproc:proc;
+        numNlinIneqC = rows(IneqProc(coefs));
+        qp_m = qp_m + numNlinIneqC;
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        if cols(_cml_Bounds) /= 2 or (rows(_cml_Bounds) /= rows(coefs) and
+            rows(_cml_Bounds) /= 1);
+            if not trapchk(4);
+                errorlog "ERROR:  _cml_Bounds is not correctly defined";
+            endif;
+            call ndpcntrl(old,0xffff);
+            retp(error(0));
+        endif;
+    endif;
+
+    if not scalmiss(_cml_EqJacobian);
+        eqjacob = _cml_EqJacobian;
+        local eqjacob:proc;
+    endif;
+
+    if not scalmiss(_cml_IneqJacobian);
+        ineqjacob = _cml_IneqJacobian;
+        local ineqjacob:proc;
+    endif;
+
+    x0 = coefs;
+    x0[eta] = phi;
+
+    qp_d = .1 * x0;
+
+/****************************************************************************/
+/*                     BEGIN OPTIMIZATION                                   */
+/****************************************************************************/
+    np = rows(x0);          /* Number of parameters to estimate */
+
+    vof = _cl_fnct(x0,coefs,hssi);
+
+    if scalmiss(vof) or vof == __INFp or vof == __INFn or vof == __INDEFn
+        or vof == __INDEFp;
+        if not trapchk(4);
+            errorlog "ERROR:  CMLLimit failed";
+        endif;
+        call ndpcntrl(old,0xffff);
+        retp(error(0));
+    endif;
+
+    ttime = date;
+
+    g = _cl_grad(x0,coefs,hssi);
+    if scalmiss(g);
+        if not trapchk(4);
+            errorlog "CLIMIT failed";
+        endif;
+        call ndpcntrl(old,0xffff);
+        retp(error(4));
+    endif;
+    h = _cl_hess(hssi);
+    ttime = date;
+
+A0:
+
+/* ********* Start of iteration loop ********** */
+    iter = iter + 1;
+
+    f0 = vof;
+
+A1:
+
+    if LLoutput;
+        if sgn > 0;
+            title = "Lower Limit - Parameter No. "$+
+                   ftos(eta,"%-*.*lf",1,0);
+        else;
+            title = "Upper Limit - Parameter No. "$+
+                   ftos(eta,"%-*.*lf",1,0);
+        endif;
+    endif;
+    if LLoutput == 2;
+        locate 1,10;
+        printdos title;
+        locate 3,12;
+        printdos "Iteration "$+ftos(iter,"%-*.*lf",4,2);
+        locate 4,4;
+        printdos "Change in function "$+ftos(dfct,"%-*.*lE",10,6);
+        locate 5,3;
+        printdos "Smallest direction "$+ftos(minc(qp_d),"%-*.*lE",10,6);
+        locate 6,10;
+        printdos "Step Length "$+ftos(s,"%-*.*lE",10,6);
+        locate 8,3;
+        printdos "To force convergence, press C";
+        locate 9,3;
+        printdos "To toggle screen output, press O";
+    elseif LLoutput;
+        output off;
+        print;
+        print;
+        print title;
+        print;
+        oldfmt = sysstate(19,0);
+        format /ld 4,0;
+        print "           Iteration " iter;
+        format /le 10,6;
+        print "  Change in Function " dfct;
+        print "  Smallest direction " minc(qp_d);
+        print "         Step length " s;
+        print;
+        print "  To force convergence, press C";
+        print "  To toggle screen output, press O";
+
+        call sysstate(19,oldfmt);
+        output on;
+    endif;
+
+
+    qp_a = zeros(1,rows(x0));
+    qp_a[eta] = 1;
+    qp_b = -qp_a*x0 + phi;
+
+    if not scalmiss(_cml_A);
+        qp_a = qp_a | _cml_A;
+        qp_b = qp_b | (-_cml_A*x0 + _cml_B);
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        if not scalmiss(_cml_EqJacobian);
+            qp_a = qp_a | eqjacob(x0);
+        else;
+            qp_a = qp_a | gradp(&EqProc,x0);
+        endif;
+        qp_b = qp_b | -EqProc(x0);
+    endif;
+
+    if not scalmiss(_cml_C);
+        qp_a = qp_a | _cml_C;
+        qp_b = qp_b | -_cml_C*x0 + _cml_D;
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        if not scalmiss(_cml_IneqJacobian);
+            qp_a = qp_a | ineqjacob(x0);
+        else;
+            qp_a = qp_a | gradp(&IneqProc,x0);
+        endif;
+        qp_b = qp_b | -IneqProc(x0);
+    endif;
+
+    if cols(_cml_Bounds) == 2;
+        qp_xl = _cml_Bounds[.,1] - x0;
+        qp_xu = _cml_Bounds[.,2] - x0;
+    else;
+        qp_xl = -qp_t;
+        qp_xu = qp_t;
+    endif;
+    qp_lql = 1;
+
+    { qp_b,qp_xl,qp_xu,qp_d,qp_ret } = _intqpsolvfcn01(h,-g,qp_a,qp_b,
+        qp_xl,qp_xu,qp_d,numeq,qp_maxit,qp_lql);
+
+    if qp_ret /= 0;
+        if not trapchk(4) and qp_ret < 0;
+            errorlog "constraint no. "$+ftos(-qp_ret,"%*.*lf",1,0)$+" incon"\
+                "sistent";
+        endif;
+        call ndpcntrl(old,0xffff);
+        retp(error(0));
+    endif;
+
+    if cols(_cml_Bounds) == 2;
+        k1 = qp_d .< (_cml_Bounds[.,1] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (_cml_Bounds[.,1] - x0);
+        k1 = qp_d .> (_cml_Bounds[.,2] - x0);
+        qp_d = (1 - k1) .* qp_d + k1 .* (_cml_Bounds[.,2] - x0);
+    endif;
+
+/*  test for convergence  */
+
+    if abs(qp_d) < __tol;
+        call ndpcntrl(old,0xffff);
+        retp(_cl_fnct(x0,coefs,hssi));
+    endif;
+
+    ky = 1;
+    if not scalmiss(_cml_A);
+        lagr1 = maxc(abs(qp_b[ky:rows(_cml_A)]));
+        ky = ky + rows(_cml_A);
+    endif;
+
+    if not scalmiss(_cml_EqProc);
+        lagr1 = maxc(lagr1|abs(qp_b[ky:rows(_cml_A)]));
+        ky = ky + numNlinEqC;
+    endif;
+
+    if not scalmiss(_cml_C);
+        lagr2 = maxc(abs(qp_b[ky:ky+rows(_cml_C)-1]));
+        ky = ky + rows(_cml_C);
+    endif;
+
+    if not scalmiss(_cml_IneqProc);
+        lagr2 = maxc(abs(lagr2|qp_b[ky:ky+numNlinIneqC-1]));
+    endif;
+
+    if not scalmiss(_cml_Bounds);
+        lagr2 = maxc(abs(qp_xl|qp_xu|lagr2));
+    endif;
+
+    { s,bksteps } = _cl_stepl(g,x0,qp_d,lagr1,lagr2,_cml_MaxTry,coefs,hssi);
+
+    if scalmiss(s);
+        if not trapchk(4);
+            if scalerr(s) == 6;
+                errorlog "step length calculation failed";
+            elseif scalerr(s) == 3;
+                errorlog "function calculation failed";
+            endif;
+        endif;
+        call ndpcntrl(old,0xffff);
+        retp(error(0));
+    endif;
+
+    dx = s * qp_d;
+    x = x0 + dx;
+    x0 = x;
+
+    if not scalmiss(s);
+        vof = _cl_fnct(x0,coefs,hssi);
+        if vof == __INFp or vof == __INFn or vof == __INDEFn or vof ==
+            __INDEFp;
+            call ndpcntrl(old,0xffff);
+            retp(error(0));
+        endif;
+    endif;
+
+    h = _cl_hess(hssi);
+    g = _cl_grad(x0,coefs,hssi);
+    if scalmiss(g);
+        call ndpcntrl(old,0xffff);
+        retp(error(0));
+    elseif scalmiss(h);
+        h = eye(np)*maxc(sqrt(abs(vof))|1);
+    endif;
+
+    if iter >= _cml_MaxIters;
+        call ndpcntrl(old,0xffff);
+        retp(vof);
+    elseif ethsec(ttime,date)/6000 > _cml_MaxTime;
+        call ndpcntrl(old,0xffff);
+        retp(vof);
+    endif;
+    dfct = f0 - vof;
+
+    ky = key;
+    do while ky;
+        if upper(chrs(ky)) $== "C";
+            call ndpcntrl(old,0xffff);
+            retp(_cl_fnct(x0,coefs,hssi));
+        elseif upper(chrs(ky)) $== "O";
+
+            if outp == 2;
+                if LLoutput == 0;
+                    LLoutput = 2;
+                else;
+                    LLoutput = 0;
+                endif;
+            else;
+                LLoutput = 1 - LLoutput;
+            endif;
+
+        endif;
+        ky = key;
+    endo;
+
+    goto A0;
+
+endp;
+
+proc _cl_feasible(x,l,d);
+    local m0, t, ineqproc;
+    if _cml_FeasibleTest == 0;
+        retp(l);
+    endif;
+
+    m0 = 0;
+    do until m0 > 200;
+        m0 = m0 + 1;
+        t = x + l * d;
+        if not scalmiss(_cml_C);
+            if not((_cml_C*t - _cml_D) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if not scalmiss(_cml_IneqProc);
+            IneqProc = _cml_IneqProc;
+            local ineqproc:proc;
+            if not(IneqProc(t) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if cols(_cml_Bounds) == 2;
+            if not((t - _cml_Bounds[.,1]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+            if not((-t + _cml_Bounds[.,2]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        retp(l);
+    endo;
+    if not trapchk(4);
+        errorlog "feasible step length could not be found";
+    endif;
+    retp(error(0));
+endp;
+
+proc(2) = _cl_stepl(g,x0,d,lagr1,lagr2,Lnlpmxtry,coefs,hssi);
+
+    local s, rs, bksteps, vof;
+
+    bksteps = -1;
+    s = 1;
+
+    vof = _cl_meritFunct(x0,lagr1,lagr2,coefs,hssi);
+
+    s = _cl_feasible(x0,s,d);
+    rs = _cl_meritFunct(x0+s*d,lagr1,lagr2,coefs,hssi);
+    if scalmiss(rs) or rs == __INFp or rs == __INFn or rs == __INDEFn or
+        rs == __INDEFp;
+        retp(error(3),bksteps);
+    endif;
+
+    if rs < vof;
+        retp(1,1);
+    else;
+        bksteps = 0;
+        do until bksteps > Lnlpmxtry;
+            bksteps = bksteps + 1;
+            s = _cl_feasible(x0,.5*s,d);
+            rs = _cl_meritFunct(x0+s*d,lagr1,lagr2,coefs,hssi);
+            if scalmiss(rs) or rs == __INFp or rs == __INFn or rs ==
+                __INDEFn or rs == __INDEFp;
+                retp(error(3),bksteps);
+            endif;
+
+            if rs < vof;
+                retp(s,bksteps);
+            endif;
+        endo;
+    endif;
+    retp(error(0),bksteps);
+endp;
+
+proc _cl_meritFunct(x,lagr1,lagr2,coefs,hssi);
+
+    local f0, zz, eqproc, ineqproc;
+
+    f0 = _cl_fnct(x,coefs,hssi);
+    if lagr1 /= 0;
+        if not scalmiss(_cml_A);
+            f0 = f0 + lagr1 * sumc(abs(_cml_A*x - _cml_B));
+        endif;
+        if not scalmiss(_cml_EqProc);
+            EqProc = _cml_EqProc;
+            local eqproc:proc;
+            f0 = f0 + lagr1 * sumc(abs(EqProc(x)));
+        endif;
+    endif;
+    if lagr2 /= 0;
+        if not scalmiss(_cml_C);
+            zz = _cml_C*x - _cml_D;
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if not scalmiss(_cml_IneqProc);
+            ineqproc = _cml_IneqProc;
+            local ineqproc:proc;
+            zz = IneqProc(x);
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if cols(_cml_Bounds) == 2;
+            zz = x - _cml_Bounds[.,1];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+            zz = -x + _cml_Bounds[.,2];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+    endif;
+    retp(f0);
+endp;
+
+proc _cl_fnct(x0,coefs,hssi);
+    local b;
+    b = x0 - coefs;
+    retp(b'*hssi*b);
+endp;
+
+proc _cl_grad(x0,coefs,hssi);
+    retp(2*hssi*(x0 - coefs));
+endp;
+
+proc _cl_hess(hssi);
+    retp(2*abs(hssi));
+endp;
+

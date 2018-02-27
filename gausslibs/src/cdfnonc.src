@@ -1,0 +1,322 @@
+/*
+** cdfnonc.src - Integrals under noncentral distributions.
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                          Purpose                     Line
+** ===================================================================
+**  y = CDFCHINC(x,v,d);            Noncentral chi-square         25
+**  y = CDFFNC(x,v1,v2,d);          Noncentral F                 113
+**  y = CDFTNC(x,v,d);              Noncentral Student's t       201
+*/
+
+/*
+**> cdfchinc
+**
+**  Purpose:    The integral under noncentral chi-square distribution,
+**              from 0 to x. It can return a vector of values, but the
+**              degrees of freedom and noncentrality parameter must be the
+**              same for all values of x.
+**
+**  Format:     y = cdfchinc(x,v,d);
+**
+**  Input:      x    Nx1 vector, values of upper limits of integrals,
+**                   must be greater than 0.
+**
+**              v    scalar, degrees of freedom, v > 0.
+**
+**              d    scalar, noncentrality parameter, d > 0.
+**
+**                   This is the square root of the noncentrality parameter
+**                   that sometimes goes under the symbol lambda. See Scheffe,
+**                   THE ANALYSIS OF VARIANCE, 1959, app. IV.
+**
+**  Output:     y    Nx1 vector, integrals from 0 to x of noncentral
+**                   chi-square.
+**
+**  Technical
+**  Notes:      1.  Relation to cdfchic:
+**
+**                  cdfchic(x,v) = 1 - cdfchinc(x,v,0);
+**
+**              2.  The formula used is taken from Abramowitz and Stegun,
+**                  HANDBOOK OF MATHEMATICAL FUNCTIONS, National Bureau
+**                  of Standards, 1972, p. 942, formula 26.4.25.
+**
+**              3.  Results verified against the table in SELECTED TABLES IN
+**                  MATHEMATICAL STATISTICS, H. L. Harter & D. B. Owen,
+**                  Markham, 1970, p. 13, for the range of 1 to 100 degrees of
+**                  freedom, d = 0 to 10 (d*d = 0 to 100 in the table), and
+**                  alpha (central chi-square) = 0.001 to 0.100.  Values
+**                  outside of these ranges may require an adjustment in TOL.
+**
+**  Globals:    None
+*/
+
+proc cdfchinc(x,v,d);
+    local g,r,tot,termj,tol,j,nc,lg,jl;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+    if iscplx(d);
+        if hasimag(d);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            d = real(d);
+        endif;
+    endif;
+
+    g = d*d/2;
+    r = exp(-g);
+    tol = 1e-8/r;
+    if tol > 0.5; tol = 0.5; endif;
+    termj = 1 - cdfchic(x,v);
+    tot = termj;
+    j = 1;
+    lg = ln(g);
+    jl = floor(709.78271289338397/lg);
+
+    do while maxc(termj) >= tol and j < jl;
+        termj = prodc(g./seqa(1,1,j)) * (1 - cdfchic(x, v + 2*j));
+        tot = tot + termj;
+        j = j+1;
+    endo;
+
+    do while maxc(termj) >= tol;
+        termj = exp(lg*j - lnfact(j)) * (1 - cdfchic(x, v + 2*j));
+        tot = tot + termj;
+        j = j+1;
+    endo;
+
+    nc = r * tot;
+    retp(nc);
+endp;
+
+/*
+**> cdffnc
+**
+**  Purpose:    The integral under noncentral F distribution, from 0 to x.
+**
+**  Format:     y = cdffnc(x,v1,v2,d);
+**
+**  Input:      x    Nx1 vector, values of upper limits of integrals, x > 0.
+**
+**              v1    scalar, degrees of freedom of numerator, v1 > 0.
+**
+**              v2    scalar, degrees of freedom of denominator, v2 > 0.
+**
+**              d    scalar, noncentrality parameter, d > 0.
+**
+**                   This is the square root of the noncentrality parameter
+**                   that sometimes goes under the symbol lambda. See Scheffe,
+**                   THE ANALYSIS OF VARIANCE, 1959, app. IV.
+**
+**  Output:     y    Nx1 vector of integrals from 0 to x of noncentral F.
+**
+**  Technical
+**  Notes:      1.  Relation to cdffc:
+**
+**                  cdffc(x,v1,v2) = 1 - cdffnc(x,v1,v2,0);
+**
+**              2.  The formula used is taken from Abramowitz and Stegun,
+**                  HANDBOOK OF MATHEMATICAL FUNCTIONS, 1970, p. 947, formula
+**                  26.6.20
+**
+**  Globals:    None
+*/
+
+proc cdffnc(x,v1,v2,d);
+    local g,r,y,tot,v1x,termj,tol,j,nc;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v1);
+        if hasimag(v1);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v1 = real(v1);
+        endif;
+    endif;
+    if iscplx(v2);
+        if hasimag(v2);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v2 = real(v2);
+        endif;
+    endif;
+    if iscplx(d);
+        if hasimag(d);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            d = real(d);
+        endif;
+    endif;
+
+    g = d*d/2;
+    r = exp(-g);
+    v1x = v1*x;
+    y = v1x./(v1x + v2);
+    tol = 1e-8/r;
+    if tol > 0.5; tol = 0.5; endif;
+    termj = cdfbeta(y, v1/2, v2/2);
+    tot = termj;
+    j = 1;
+    do until maxc(termj) < tol;
+        termj = prodc(g./seqa(1,1,j)) * cdfbeta(y, v1/2+j, v2/2);
+        tot = tot + termj;
+        j = j + 1;
+    endo;
+    nc = r * tot;
+    retp(nc);
+endp;
+
+/*
+**> cdftnc
+**
+**  Purpose:    The integral under noncentral student's t distribution, from
+**              negative infinity to x. It can return a vector of values,
+**              but the degrees of freedom and noncentrality parameter
+**              must be the same for all values of x.
+**
+**  Format:     y = cdftnc(x,v,d);
+**
+**  Input:      x    Nx1 vector, values of upper limits of integrals.
+**
+**              v    scalar, degrees of freedom, v > 0.
+**
+**              d    scalar, noncentrality parameter.
+**
+**                   This is the square root of the noncentrality parameter
+**                   that sometimes goes under the symbol lambda. See Scheffe,
+**                   THE ANALYSIS OF VARIANCE, 1959, app. IV.
+**
+**  Output:     y    Nx1 vector, integrals from -infinity to x of
+**                   noncentral t.
+**
+**  Technical
+**  Notes:      1.  Relation to cdftc:
+**
+**                  cdftc(x,v) = 1 - cdftnc(x,v,0);
+**
+**              2.  The formula used is based on the formula in SUGI
+**                  Supplemental Library User's Guide, 1983, SAS Institute,
+**                  page 232 (which is attributed to Johnson and Kotz, 1970).
+**
+**                  The formula used here is a modification of that formula. It
+**                  has been tested against direct numerical integration, and
+**                  against simulation experiments in which noncentral t random
+**                  variates were generated and the cdf found directly.
+**
+**  Globals:    None
+*/
+
+proc cdftnc(x,v,d);
+    local r,tot,termj,tol,j,mask,sign,one,syj,sy,mg,jgt,jgf,jflag;
+
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+    if iscplx(d);
+        if hasimag(d);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            d = real(d);
+        endif;
+    endif;
+
+    if x >= 0;      /* all positive x's */
+        sign = 1;
+    elseif x < 0;           /* all negative x's */
+        sign = -1;
+    else;           /* some positive, some negative x's */
+        mask = (x .>= 0);
+        one = ones(rows(x),1);
+        sign = ((.not mask) .* -one) + ((mask) .* one);
+        clear mask, one;
+    endif;
+
+    r = exp(-d*d/2);
+    sy = sign*(d/sqrt(2));
+    tol = 1e-8/r;
+
+    j = 0;
+    tot = 0;
+    termj = 1;
+    syj = 1;
+    jgt = 1;
+    jgf = sqrt(pi);
+    mg = 1;
+    jflag = 0;
+    if tol > 0.5; tol = 0.5; endif;
+    do until maxc(abs(termj)) < tol;
+
+        termj = (syj / mg) .* (1 - cdffc( (x.*x) / (j+1), j+1, v));
+        tot = tot + sign.*termj;
+
+        j = j + 1;
+
+        if jflag;
+            jgt = jgt*j/2;
+            mg = jgt;
+        else;
+            jgf = jgf*j/2;
+            mg = jgf;
+        endif;
+        syj = syj.*sy;
+
+        jflag = not jflag;
+    endo;
+
+    retp( cdfn(-d) + 0.5 * r * tot );
+endp;

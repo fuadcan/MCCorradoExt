@@ -1,0 +1,9 @@
+/*
+** fcompare.ext - Fuzzy comparison operators.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declaration for procedures DOTFEQ-DOTFNE, FEQ-FNE.
+*/
+
+external matrix _fcmptol;

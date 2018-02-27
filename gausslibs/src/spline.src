@@ -1,0 +1,1361 @@
+/*
+** spline.src     Computes interpolated matrix
+**
+** (C) Copyright 1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**  Format                   Purpose                                    Line
+** --------------------------------------------------------------------------
+**     { u,v,w } = spline2D(x,y,z,sigma,g)   2-D interpolatory spline     27
+**       { u,v } = spline1D(x,y,d,s,Sigma,g)  1-D smoothing spline       123
+*/
+
+
+/*
+**> spline2D
+**
+**  Format:  { u,v,w } = spline2D(x,y,z,sigma,g);
+**
+**  Input:   x       K x 1 vector, x-abscissae (x-axis values).
+**
+**           y       N x 1 vector, y-abscissae (y-axis values).
+**
+**           z       K x N matrix, ordinates (z-axis values).
+**
+**           sigma   scalar, tension factor.
+**
+**           G       scalar, grid size factor.
+**
+**
+**  Output:  u      1 x K*G vector, x-abscissae, regularly spaced.
+**
+**           v      N*G x 1 vector, y-abscissae, regularly spaced.
+**
+**           w      K*G x N*G matrix, interpolated ordinates.
+**
+**
+**  Remarks:
+**
+**    sigma contains the tension factor. This value indicates
+**    the curviness desired. If sigma is nearly zero
+**    (e. g. .001) the resulting surface is approximately the
+**    tensor product of cubic splines.  If sigma is large
+**    (e. g. 50.) the resulting surface is approximately
+**    bi-linear. if sigma equals zero tensor products of
+**    cubic splines result.  A standard value for sigma is
+**    approximately 1.
+**
+**    G is the grid size factor.  It determines the fineness of
+**    the output grid.  For G = 1, the output matrices are
+**    identical to the input matrices.  For G = 2, the output
+**    grid is twice as fine as the input grid, i.e., u will
+**    have twice as many columns as x, and v will have twice as
+**    many rows as y.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+
+declare matrix _spl_i = 1;
+
+
+proc(3) = spline2D(x,y,z,sigma,gridf);
+
+    local zp0,xx,yy,zz,i,j,vv,xxc,yyr;
+
+    if rows(x) /= rows(z) or rows(y) /= cols(z);
+        if not trapchk(1);
+            errorlog "arguments not conformable";
+            end;
+        endif;
+        retp(error(0),error(0),error(0));
+    endif;
+
+    if rows(x) > rows(y);
+        vv = x;
+        x = y;
+        y = vv;
+        z = z';
+        vv = 1;
+    else;
+        vv = 0;
+    endif;
+
+    xxc = floor(gridf*rows(x));
+    yyr = floor(gridf*rows(y));
+
+    zp0 = _spl_surf1(x,y,z,sigma);
+
+    xx = seqa(x[1],(x[rows(x)]-x[1])./(xxc-1),xxc);
+    yy = seqa(y[1],(y[rows(y)]-y[1])./(yyr-1),yyr);
+
+    zz = zeros(xxc,yyr);
+
+    i = 1;
+    do until i > xxc;
+        j = 1;
+        do until j > yyr;
+            zz[i,j] = _spl_surf2(xx[i],yy[j],x,y,z,zp0,sigma);
+            j = j + 1;
+        endo;
+        i = i + 1;
+    endo;
+
+    if vv;
+        retp(yy,xx,zz');
+    else;
+        retp(xx,yy,zz);
+    endif;
+endp;
+
+
+
+
+
+
+
+/*
+**> spline1D
+**
+**  Format:  { u,v } = spline1D(x,y,d,s,sigma,g);
+**
+**  Input:  x      K x 1 vector, x-abscissae (x-axis values).
+**
+**          y      K x 1 vector, y-ordinates (y-axis values).
+**
+**          d      K x 1 vector or scalar, observation weights.
+**
+**          s      scalar, smoothing parameter, if s == 0, curve
+**                 performs an interpolation.  If d contains
+**                 standard deviation estimates, a reasonable
+**                 value for s is K.
+**
+**          sigma  scalar, tension factor.
+**
+**          G      scalar, grid size factor.
+**
+**
+**  Output: u      K*G x 1 vector, x-abscissae, regularly spaced.
+**
+**          v      K*G x 1 vector, interpolated ordinates, regularly spaced.
+**
+**
+**  Remarks:
+**
+**   sigma contains the tension factor. This value indicates
+**   the curviness desired. If sigma is nearly zero
+**   (e. g. .001) the resulting curve is approximately the
+**   tensor product of cubic splines.  If sigma is large
+**   (e. g. 50.) the resulting curve is approximately
+**   bi-linear. if sigma equals zero tensor products of
+**   cubic splines result.  A standard value for sigma is
+**   approximately 1.
+**
+**   G is the grid size factor.  It determines the fineness of
+**   the output grid.  For G = 1, the output matrices are
+**   identical to the input matrices.  For G = 2, the output
+**   grid is twice as fine as the input grid, i.e., u will
+**   have twice as many columns as x, and v will have twice as
+**   many rows as y.
+*/
+
+
+proc(2) = spline1D(x,y,d,s,sigma,gridf);
+
+    local yp0,xx,yy,i,j,xxc,ysp0;
+
+    if rows(x) /= rows(y);
+        if not trapchk(1);
+            errorlog "arguments not conformable";
+            end;
+        endif;
+        retp(error(0),error(0));
+    endif;
+    xxc = floor(gridf*rows(x));
+
+    ysp0 = _spl_curv1(x,y,d,s,sigma);
+
+    if scalerr(ysp0);
+        if not trapchk(4);
+            errorlog "CURVE: spline calculation failed";
+            end;
+        else;
+            retp(error(0),error(0));
+        endif;
+    endif;
+
+    xx = seqa(x[1],(x[rows(x)]-x[1])./(xxc-1),xxc);
+    yy = zeros(xxc,1);
+
+    i = 1;
+    do until i > xxc;
+        yy[i] = _spl_curv2(xx[i],x,y,ysp0,sigma);
+        i = i + 1;
+    endo;
+
+    retp(xx,yy);
+endp;
+
+
+
+
+
+proc _spl_surf1 (x,y,z,sigma);
+
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+
+    local m,n,islpsw,zp,temp,ierr,mm1,m1,mp1,nm1,np1,npm,sigmay,sigmax,
+        dely1,dely2, i,j,c1,c2,c3,delyn,delynm,delx1,delx2,delxm,zxy1ns,
+        zxymns,jbak,jbakp1,delxmm, del1,deli,diag1,sdiag1,diagi,jm1,jp1,
+        npmpj,del2,diag2,diagin,sdiag2,npi,im1,t, ip1,ibak,ibakp1,npibak;
+
+    m = rows(x);
+    n = rows(y);
+    zp = zeros(3*m*n,1);    /* return array */
+    temp = zeros(m+2*n,1);
+
+    mm1 = m - 1;
+    mp1 = m + 1;
+    nm1 = n - 1;
+    np1 = n + 1;
+    npm = n + m;
+    ierr = 0;
+
+    if n <= 1 or m <= 1;
+        ierr = 1;
+        retp(error(0));
+    endif;
+
+    if y[n] <= y[1];
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+/*
+** denormalize tension factor in y-direction
+*/
+
+    sigmay = abs(sigma)*(n-1)/(y[n]-y[1]);
+
+/*
+** obtain y-partial derivatives along y = y(1)
+*/
+
+    dely1 = y[2] - y[1];
+    dely2 = dely1 + dely1;
+
+    if n > 2;
+        dely2 = y[3] - y[1];
+    endif;
+
+    if dely1 <= 0 or dely2 <= dely1;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    { c1, c2, c3 } = _spl_ceez(dely1,dely2,sigmay,n);
+
+    i = 1;
+    do until i > m;
+        zp[_spl_add(i,1,1,m,n)] = c1 * z[i,1] + c2 * z[i,2];
+        i = i + 1;
+    endo;
+
+    if n /= 2;
+        i = 1;
+        do until i > m;
+            zp[_spl_add(i,1,1,m,n)] = zp[_spl_add(i,1,1,m,n)] + c3 * z[i,3];
+            i = i + 1;
+        endo;
+    endif;
+
+/*
+** obtain y-partial derivatives along y = y(n)
+*/
+
+    delyn = y[n] - y[nm1];
+    delynm = delyn + delyn;
+
+    if n > 2;
+        delynm = y[n] - y[n-2];
+    endif;
+
+    if delyn <= 0 or delynm <= delyn;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    { c1, c2, c3 } = _spl_ceez(-delyn,-delynm,sigmay,n);
+
+    i = 1;
+    do until i > m;
+        temp[n+i] = c1 * z[i,n] + c2*z[i,nm1];
+        i = i + 1;
+    endo;
+
+    if n /= 2;
+        i = 1;
+        do until i > m;
+            temp[n+i] = temp[n+i] + c3*z[i,n-2];
+            i = i + 1;
+        endo;
+    endif;
+
+    if x[m] <= x[1];
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+/*
+** denormalize tension factor in x-direction
+*/
+
+    sigmax = abs(sigma) * (m-1) / (x[m]-x[1]);
+
+/*
+** obtain x-partial derivatives along x = x(1)
+*/
+
+    delx1 = x[2] - x[1];
+    delx2 = delx1 + delx1;
+
+    if m > 2;
+        delx2 = x[3] - x[1];
+    endif;
+    if delx1 <= 0 or delx2 <= delx1;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    { c1, c2, c3 } = _spl_ceez(delx1,delx2,sigmax,n);
+
+/*
+** obtain x-y-partial derivative at (x(1),y(1))
+*/
+
+    zp[2*m*n+1] = c1 * zp[1] + c2 * zp[m+1];
+
+    if m > 2;
+        zp[2*m*n+1] = zp[2*m*n+1] + c3 * zp[2*m+1];
+    endif;
+
+/*
+** obtain x-y-partial derivative at (x(1),y(n))
+*/
+
+    zxy1ns = c1 * temp[n+1] + c2 * temp[n+2];
+
+    if m > 2;
+        zxy1ns = zxy1ns + c3 * temp[n+3];
+    endif;
+
+/*
+** obtain x-partial derivative along x = x(m)
+*/
+
+    delxm = x[m] - x[mm1];
+    delxmm = delxm + delxm;
+
+    if m > 2;
+        delxmm = x[m] - x[m-2];
+    endif;
+
+    if delxm <= 0 or delxmm < delxm;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    { c1, c2, c3 } = _spl_ceez(-delxm,-delxmm,sigmax,n);
+
+/*
+** obtain x-y-partial derivative at (x(m),y(1))
+*/
+
+    zp[_spl_add(m,1,3,m,n)] = c1 * zp[_spl_add(m,1,1,m,n)]
+             + c2 * zp[_spl_add(mm1,1,1,m,n)];
+    if m > 2;
+        zp[_spl_add(m,1,3,m,n)] = zp[_spl_add(m,1,3,m,n)]
+              + c3 * zp[_spl_add(m-2,1,1,m,n)];
+    endif;
+
+/*
+** obtain x-y-partial derivative at (x(m),y(n))
+*/
+
+    zxymns = c1 * temp[npm] + c2 * temp[npm-1];
+    if m > 2;
+        zxymns = zxymns + c3 * temp[npm-2];
+    endif;
+
+/*
+** set up right hand sides and tridiagonal system for y-grid
+** perform forward elimination
+*/
+
+    del1 = y[2] - y[1];
+
+    if del1 <= 0;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    deli = 1 / del1;
+    i = 1;
+    do until i > m;
+        zp[_spl_add(i,2,1,m,n)] = deli * (z[i,2] - z[i,1]);
+        i = i + 1;
+    endo;
+
+    zp[_spl_add(1,2,3,m,n)] = deli * (zp[_spl_add(1,2,2,m,n)]
+          - zp[_spl_add(1,1,2,m,n)]);
+    zp[_spl_add(m,2,3,m,n)] = deli * (temp[npm+2] - temp[npm+1]);
+
+    { diag1, sdiag1 } = _spl_terms(sigmay,del1);
+
+    diagi = 1 / diag1;
+    i = 1;
+    do until i > m;
+        zp[_spl_add(i,1,1,m,n)] = diagi * (zp[_spl_add(i,2,1,m,n)]
+                  - zp[_spl_add(i,1,1,m,n)]);
+        i = i + 1;
+    endo;
+
+    zp[_spl_add(1,1,3,m,n)] = diagi * (zp[_spl_add(1,2,3,m,n)]
+             - zp[_spl_add(1,1,3,m,n)]);
+    zp[_spl_add(m,1,3,m,n)] = diagi * (zp[_spl_add(m,2,3,m,n)]
+       - zp[_spl_add(m,1,3,m,n)]);
+    temp[1] = diagi * sdiag1;
+
+    if n /= 2;
+        j = 2;
+        do until j > nm1;
+            jm1 = j - 1;
+            jp1 = j + 1;
+            npmpj = npm + j;
+            del2 = y[jp1] - y[j];
+
+            if del2 <= 0;
+                ierr = 2;
+                retp(error(0));
+            endif;
+
+            deli = 1 / del2;
+            i = 1;
+            do until i > m;
+                zp[_spl_add(i,jp1,1,m,n)] = deli * (z[i,jp1] - z[i,j]);
+                i = i + 1;
+            endo;
+            zp[_spl_add(1,jp1,3,m,n)] = deli * (zp[_spl_add(1,jp1,2,m,n)]
+                - zp[_spl_add(1,
+                j,2,m,n)]);
+            zp[_spl_add(m,jp1,3,m,n)] = deli * (temp[npmpj+1] - temp[npmpj]);
+
+            { diag2, sdiag2 } = _spl_terms(sigmay,del2);
+
+            diagin = 1./(diag1+diag2-sdiag1*temp[jm1]);
+
+            i = 1;
+            do until i > m;
+                zp[_spl_add(i,j,1,m,n)] = diagin*(zp[_spl_add(i,jp1,1,m,n)]
+                     -zp[_spl_add(i,
+                    j,1,m,n)]-sdiag1*zp[_spl_add(i,jm1,1,m,n)]);
+                i = i + 1;
+            endo;
+
+            zp[_spl_add(1,j,3,m,n)] = diagin * (zp[_spl_add(1,jp1,3,m,n)]
+                      - zp[_spl_add(1,
+                j,3,m,n)] - sdiag1*zp[_spl_add(1,jm1,3,m,n)]);
+            zp[_spl_add(m,j,3,m,n)] = diagin * (zp[_spl_add(m,jp1,3,m,n)]
+                   - zp[_spl_add(m,
+                j,3,m,n)] - sdiag1*zp[_spl_add(m,jm1,3,m,n)]);
+            temp[j] = diagin * sdiag2;
+            diag1 = diag2;
+            sdiag1 = sdiag2;
+            j = j + 1;
+        endo;
+
+    endif;
+
+    diagin = 1 / (diag1 - sdiag1 * temp[nm1]);
+    i = 1;
+    do until i > m;
+        npi = n + i;
+        zp[_spl_add(i,n,1,m,n)] = diagin * (temp[npi] - zp[_spl_add(i,n,1,m,n)]
+                - sdiag1 * zp[_spl_add(i,nm1,1,m,n)]);
+        i = i + 1;
+    endo;
+
+    zp[_spl_add(1,n,3,m,n)] = diagin * (zxy1ns - zp[_spl_add(1,n,3,m,n)]
+         - sdiag1 * zp[_spl_add(1,nm1,3,m,n)]);
+    temp[n] = diagin * (zxymns - zp[_spl_add(m,n,3,m,n)] - sdiag1
+        * zp[_spl_add(m,nm1,3,m,n)]);
+
+/*
+** perform back substitution
+*/
+
+    j = 2;
+    do until j > n;
+        jbak = np1 - j;
+        jbakp1 = jbak + 1;
+        t = temp[jbak];
+        i = 1;
+        do until i > m;
+
+            zp[_spl_add(i,jbak,1,m,n)] = zp[_spl_add(i,jbak,1,m,n)]
+              - t * zp[_spl_add(i,jbakp1,1,m,n)];
+            i = i + 1;
+        endo;
+        zp[_spl_add(1,jbak,3,m,n)] = zp[_spl_add(1,jbak,3,m,n)] - t
+                 * zp[_spl_add(1,jbakp1,3,m,n)];
+        temp[jbak] = zp[_spl_add(m,jbak,3,m,n)] - t * temp[jbakp1];
+        j = j + 1;
+    endo;
+
+/*
+** set up right hand sides and tridiagonal system for x-grid
+** perform forward elimination
+*/
+
+    del1 = x[2] - x[1];
+
+    if del1 <= 0;
+        ierr = 2;
+        retp(error(0));
+    endif;
+
+    deli = 1 / del1;
+    j = 1;
+    do until j > n;
+        zp[_spl_add(2,j,2,m,n)] = deli * (z[2,j] - z[1,j]);
+        zp[_spl_add(2,j,3,m,n)] = deli * (zp[_spl_add(2,j,1,m,n)]
+              - zp[_spl_add(1,j,1,m,n)]);
+        j = j + 1;
+    endo;
+
+    { diag1,sdiag1 } = _spl_terms(sigmax,del1);
+
+    diagi = 1 / diag1;
+    j = 1;
+    do until j > n;
+        zp[_spl_add(1,j,2,m,n)] = diagi * (zp[_spl_add(2,j,2,m,n)]
+                   - zp[_spl_add(1,j,2,m,n)]);
+        zp[_spl_add(1,j,3,m,n)] = diagi * (zp[_spl_add(2,j,3,m,n)]
+                   - zp[_spl_add(1,j,3,m,n)]);
+        j = j + 1;
+    endo;
+
+    temp[n+1] = diagi * sdiag1;
+
+    if m /= 2;
+        i = 2;
+        do until i > mm1;
+            im1 = i - 1;
+            ip1 = i + 1;
+            npi = n + i;
+            del2 = x[ip1] - x[i];
+            if del2 <= 0;
+                ierr = 2;
+                retp(error(0));
+            endif;
+            deli = 1 / del2;
+            j = 1;
+            do until j > n;
+                zp[_spl_add(ip1,j,2,m,n)] = deli * (z[ip1,j] - z[i,j]);
+                zp[_spl_add(ip1,j,3,m,n)] = deli * (zp[_spl_add(ip1,j,1,m,n)] -
+                    zp[_spl_add(i,j,1,m,n)]);
+                j = j + 1;
+            endo;
+
+            { diag2,sdiag2 } = _spl_terms(sigmax,del2);
+
+            diagin = 1 / (diag1 + diag2 - sdiag1 * temp[npi-1]);
+
+            j = 1;
+            do until j > n;
+                zp[_spl_add(i,j,2,m,n)] = diagin *
+                     (zp[_spl_add(ip1,j,2,m,n)] -
+                    zp[_spl_add(i,j,2,m,n)] -
+                    sdiag1 * zp[_spl_add(im1,j,2,m,n)]);
+                zp[_spl_add(i,j,3,m,n)] = diagin *
+                   (zp[_spl_add(ip1,j,3,m,n)] -
+                    zp[_spl_add(i,j,3,m,n)] - sdiag1 *
+                    zp[_spl_add(im1,j,3,m,n)]);
+                j = j + 1;
+            endo;
+            temp[npi] = diagin * sdiag2;
+            diag1 = diag2;
+            sdiag1 = sdiag2;
+
+            i = i + 1;
+        endo;
+    endif;
+
+    diagin = 1 / (diag1-sdiag1*temp[npm-1]);
+    j = 1;
+    do until j > n;
+        npmpj = npm + j;
+        zp[_spl_add(m,j,2,m,n)] = diagin * (temp[npmpj]
+              - zp[_spl_add(m,j,2,m,n)] -
+            sdiag1 * zp[_spl_add(mm1,j,2,m,n)]);
+        zp[_spl_add(m,j,3,m,n)] = diagin * (temp[j]
+         - zp[_spl_add(m,j,3,m,n)] -
+            sdiag1 * zp[_spl_add(mm1,j,3,m,n)]);
+        j = j + 1;
+    endo;
+
+/*
+** perform back substitution
+*/
+
+    i = 2;
+    do until i > m;
+
+        ibak = mp1 - i;
+        ibakp1 = ibak + 1;
+        npibak = n + ibak;
+        t = temp[npibak];
+
+        j = 1;
+        do until j > n;
+
+            zp[_spl_add(ibak,j,2,m,n)] =
+                 zp[_spl_add(ibak,j,2,m,n)] -
+                  t * zp[_spl_add(ibakp1,j,2,m,n)];
+            zp[_spl_add(ibak,j,3,m,n)] =
+                 zp[_spl_add(ibak,j,3,m,n)] -
+                  t * zp[_spl_add(ibakp1,j,3,m,n)];
+            j = j + 1;
+        endo;
+        i = i + 1;
+    endo;
+    retp(zp);
+endp;
+
+proc _spl_surf2(xx,yy,x,y,z,zp,sigma);
+
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+
+    local m,n,sigmax,sigmay,jm1,j,i,del1,del2,dels,im1,zim1,zi,zxxim1,zxxi,
+        dummy,sinhm1,sinhm2,sinhms;
+
+    m = rows(x);
+    n = rows(y);
+
+/*
+** denormalize tension factor in x and y direction
+*/
+    sigmax = abs(sigma) * (m - 1) / (x[m] - x[1]);
+    sigmay = abs(sigma) * (n - 1) / (y[n] - y[1]);
+
+/*
+** determine y interval
+*/
+
+    jm1 = _spl_intrvl(yy,y);
+
+    j = jm1 + 1;
+
+/*
+** determine x interval
+*/
+
+    im1 = _spl_intrvl(xx,x);
+    i = im1 + 1;
+    del1 = yy - y[jm1];
+    del2 = y[j] - yy;
+    dels = y[j]-y[jm1];
+
+/*
+** perform four interpolations in y-direction
+*/
+    if sigmay == 0;
+        zim1 = _spl_hermz(z[i-1,j-1],z[i-1,j],zp[_spl_add(i-1,j-1,1,m,n)],
+            zp[_spl_add(i-1,j,1,m,n)],del1,del2,dels);
+        zi = _spl_hermz(z[i,j-1],z[i,j],zp[_spl_add(i,j-1,1,m,n)],
+                  zp[_spl_add(i,j,1,m,n)],del1,del2,dels);
+        zxxim1 = _spl_hermz(zp[_spl_add(i-1,j-1,2,m,n)],
+                 zp[_spl_add(i-1,j,2,m,n)],zp[_spl_add(i-1,j-1,3,m,n)],
+                 zp[_spl_add(i-1,j,3,m,n)],del1,del2,dels);
+        zxxi = _spl_hermz(zp[_spl_add(i,j-1,2,m,n)],zp[_spl_add(i,j,2,m,n)],
+              zp[_spl_add(i,j-1,3,m,n)],zp[_spl_add(i,j,3,m,n)],del1,del2,dels);
+    else;
+
+        { sinhm1,dummy } = _spl_snhcsh(sigmay*del1,-1);
+        { sinhm2,dummy } = _spl_snhcsh(sigmay*del2,-1);
+        { sinhms,dummy } = _spl_snhcsh(sigmay*dels,-1);
+
+        zim1 = _spl_hermnz(z[i-1,j-1],z[i-1,j],zp[_spl_add(i-1,j-1,1,m,n)],
+            zp[_spl_add(i-1,j,1,m,n)],sigmay,del1,del2,dels,sinhm1,sinhm2,
+            sinhms);
+        zi = _spl_hermnz(z[i,j-1],z[i,j],zp[_spl_add(i,j-1,1,m,n)],
+             zp[_spl_add(i,j,1,m,n)],sigmay,del1,del2,dels,sinhm1,
+             sinhm2,sinhms);
+        zxxim1 = _spl_hermnz(zp[_spl_add(i-1,j-1,2,m,n)],
+             zp[_spl_add(i-1,j,2,m,n)],zp[_spl_add(i-1,j-1,3,m,n)],
+             zp[_spl_add(i-1,j,3,m,n)],sigmay, del1,del2,
+            dels,sinhm1,sinhm2,sinhms);
+        zxxi = _spl_hermnz(zp[_spl_add(i,j-1,2,m,n)],zp[_spl_add(i,j,2,m,n)],
+            zp[_spl_add(i,j-1,3,m,n)],zp[_spl_add(i,j,3,m,n)],sigmay, del1,
+             del2,dels,sinhm1,sinhm2,sinhms);
+    endif;
+
+/*
+** perform final interpolation in x-direction
+*/
+    del1 = xx - x[im1];
+    del2 = x[i] - xx;
+    dels = x[i] - x[im1];
+
+    if sigmax == 0;
+        retp(_spl_hermz(zim1,zi,zxxim1,zxxi,del1,del2,dels));
+    endif;
+    { sinhm1,dummy } = _spl_snhcsh(sigmax*del1,-1);
+    { sinhm2,dummy } = _spl_snhcsh(sigmax*del2,-1);
+    { sinhms,dummy } = _spl_snhcsh(sigmax*dels,-1);
+
+    retp(_spl_hermnz(zim1,zi,zxxim1,zxxi,sigmax,del1,del2,dels,
+             sinhm1,sinhm2,sinhms));
+endp;
+
+proc(3) = _spl_ceez (del1,del2,sigma,n);
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+    local del,delp,delm,denom,dummy,coshm1,coshm2,sinhmp,sinhmm;
+
+    if n == 2;
+/*
+** two coefficients
+*/
+        retp(-1/del1,1/del1,0);
+    endif;
+
+    if sigma == 0;
+/*
+** tension .eq. 0.
+*/
+        del = del2 - del1;
+        retp(-(del1+del2)/(del1*del2),del2/(del1*del),-del1/(del2*del));
+    else;
+/*
+** tension .ne. 0.
+*/
+        { dummy,coshm1 } = _spl_snhcsh(sigma*del1,1);
+        { dummy,coshm2 } = _spl_snhcsh(sigma*del2,1);
+        delp = sigma * (del2 + del1) / 2;
+        delm = sigma * (del2 - del1) / 2;
+        { sinhmp,dummy } = _spl_snhcsh(delp,-1);
+        { sinhmm,dummy } = _spl_snhcsh(delm,-1);
+
+        denom = coshm1 * (del2 - del1) - 2 * del1 * delp * delm * (1 +
+            sinhmp) * (1 + sinhmm);
+        retp(2*delp*delm*(1+sinhmp)*(1+sinhmm)/denom,-coshm2/denom,
+            coshm1/denom);
+    endif;
+endp;
+
+proc(2) = _spl_terms(sigma,del);
+/*
+**                                 coded by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+** this subroutine computes the diagonal and superdiagonal
+** terms of the tridiagonal linear system associated with
+** spline under tension interpolation.
+**
+** on input--
+**
+**   sigma contains the tension factor.
+**
+** and
+**
+**   del contains the step size.
+**
+** on output--
+**
+**                sigma*del*cosh(sigma*del) - sinh(sigma*del)
+**   diag = del*--------------------------------------------.
+**                     (sigma*del)**2 * sinh(sigma*del)
+**
+**                   sinh(sigma*del) - sigma*del
+**   sdiag = del*----------------------------------.
+**                (sigma*del)**2 * sinh(sigma*del)
+**
+** and
+**
+**   sigma and del are unaltered.
+**
+** this subroutine references package module _spl_snhcsh.
+*/
+    local sigdel,denom,sinhm,coshm;
+
+    if sigma == 0;
+        retp(del/3,del/6);
+    else;
+        sigdel = sigma * del;
+        { sinhm,coshm } = _spl_snhcsh(sigdel,0);
+        denom = sigma * sigdel * (1 + sinhm);
+        retp((coshm-sinhm)/denom,sinhm/denom);
+    endif;
+
+endp;
+
+proc(2) = _spl_snhcsh(x,isw);
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+    local data,sinhm,coshm,ax,xs,expx;
+
+    local sp13,sp12,sp11,sp10,sp24,sp23,sp22,sp21,sp20,sp33,sp32,sp31,sq32,
+        sq31,sq30,sp43,sp42,sp41,sq42,sq41,sq40,cp4,cp3,cp2,cp1,cp0;
+
+    clear sinhm, coshm;
+    sp13 = .3029390e-5;
+    sp12 = .1975135e-3;
+    sp11 = .8334261e-2;
+    sp10 = .1666665e0;
+    sp24 = .3693467e-7;
+    sp23 = .2459974e-5;
+    sp22 = .2018107e-3;
+    sp21 = .8315072e-2;
+    sp20 = .1667035e0;
+    sp33 = .6666558e-5;
+    sp32 = .6646307e-3;
+    sp31 = .4001477e-1;
+    sq32 = .2037930e-3;
+    sq31 = -.6372739e-1;
+    sq30 = .6017497e1;
+    sp43 = .2311816e-4;
+    sp42 = .2729702e-3;
+    sp41 = .9868757e-1;
+    sq42 = .1776637e-3;
+    sq41 = -.7549779e-1;
+    sq40 = .9110034e1;
+    cp4 = .2982628e-6;
+    cp3 = .2472673e-4;
+    cp2 = .1388967e-2;
+    cp1 = .4166665e-1;
+    cp0 = .5000000e0;
+
+    ax = abs(x);
+    if isw >= 0;
+        if isw > 2;
+            xs = ax * ax;
+            if ax > 2.3;
+                expx = exp(ax);
+                coshm = ( (expx + 1 / expx - xs ) / 2 - 1) / xs;
+                if isw == 3;
+                    sinhm = (expx - 1 / expx) / (ax + ax) - 1;
+                endif;
+            else;
+                coshm = xs*(((cp4*xs+cp3)*xs+cp2)*xs+cp1);
+                if isw == 3;
+                    sinhm = xs * (((sp13 * xs + sp12) * xs + sp11) * xs +
+                        sp10);
+                endif;
+            endif;
+        else;
+            if ax > 2.3;
+                expx = exp(ax);
+                coshm = (expx + 1 / expx) / 2 - 1;
+                if isw == 0;
+                    sinhm = (expx - 1 / expx) / (ax + ax) - 1;
+                endif;
+            else;
+                xs = ax * ax;
+                coshm = xs * ((((cp4 * xs + cp3) * xs + cp2) * xs + cp1) *
+                    xs + cp0);
+                if isw == 0;
+                    sinhm = xs * (((sp13 * xs + sp12) * xs + sp11) * xs +
+                        sp10);
+                endif;
+            endif;
+        endif;
+    else;
+        if ax > 4.45;
+            if ax > 7.65;
+                if ax > 10.1;
+                    sinhm = exp(ax) / (ax + ax) - 1;
+                else;
+                    xs = ax * ax;
+                    sinhm = xs * (((sp43 * xs + sp42) * xs + sp41) * xs +
+                        1) / ((sq42 * xs + sq41) * xs + sq40);
+                endif;
+            else;
+                xs = ax*ax;
+                sinhm = xs * (((sp33 * xs + sp32) * xs + sp31) * xs + 1) /
+                    ((sq32 * xs + sq31) * xs + sq30);
+            endif;
+        else;
+            xs = ax * ax;
+            if ax > 2.3;
+                sinhm = xs * ((((sp24 * xs + sp23) * xs + sp22) * xs +
+                    sp21) * xs + sp20);
+            else;
+                sinhm = xs * (((sp13 * xs + sp12) * xs + sp11) * xs + sp10);
+            endif;
+        endif;
+    endif;
+    retp(sinhm,coshm);
+endp;
+
+proc _spl_intrvl(t,x);
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+*/
+    local n,il,ih,tt;
+    n = rows(x);
+
+    tt = t;
+/*
+** check for illegal i
+*/
+    if _spl_i >= n;
+        _spl_i = n / 2;
+    endif;
+
+/*
+** check old interval and extremes
+*/
+    if tt < x[_spl_i];
+        if tt <= x[2];
+            _spl_i = 1;
+            retp(1);
+        else;
+            il = 2;
+            ih = _spl_i;
+        endif;
+    elseif tt <= x[_spl_i+1];
+        retp(_spl_i);
+    elseif tt >= x[n-1];
+        _spl_i = n - 1;
+        retp(n - 1);
+    else;
+        il = _spl_i + 1;
+        ih = n - 1;
+    endif;
+
+/*
+** binary search loop
+*/
+
+A1:
+
+    _spl_i = (il + ih) / 2;
+    if tt < x[_spl_i];
+        ih = _spl_i;
+    elseif tt > x[_spl_i+1];
+        il = _spl_i + 1;
+    else;
+        retp(_spl_i);
+    endif;
+    goto A1;
+endp;
+
+proc _spl_add(i,j,k,m,n);
+    retp(m*n*(k-1)+n*(i-1)+j);
+endp;
+
+proc _spl_hermz(f1,f2,fp1,fp2,del1,del2,dels);
+/* inline one dimensional cubic spline interpolation */
+    retp((f2 * del1 + f1 * del2) / dels - del1 * del2 * (fp2 * (del1 +
+        dels) + fp1 * (del2 + dels)) / (6.*dels) );
+endp;
+
+proc _spl_hermnz(f1,f2,fp1,fp2,sigmap,del1,del2,dels,sinhm1,sinhm2,sinhms);
+/* inline one dimensional spline under tension interpolation */
+    retp( (f2 * del1 + f1 * del2) / dels + (fp2 * del1 * (sinhm1 - sinhms)
+        + fp1 * del2 * (sinhm2 - sinhms)) / (sigmap * sigmap * dels * (1 +
+        sinhms)) );
+endp;
+
+
+
+
+
+
+proc _spl_curv2 (t,x,y,yp,sigma);
+
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+
+      local im1,i,n,sigmap,del1,del2,dels,sum,dummy,sigdel,ss,s1,s2;
+
+      n = rows(x);
+/*
+** determine interval
+*/
+      im1 = _spl_intrvl(t,x);
+      i = im1 + 1;
+
+/*
+** denormalize tension factor
+*/
+
+      sigmap = abs(sigma) * (n - 1) / (x[n] - x[1]);
+
+/*
+** set up and perform interpolation
+*/
+      del1 = t - x[im1];
+      del2 = x[i] - t;
+      dels = x[i] - x[im1];
+      sum = (y[i] * del1 + y[im1] * del2) / dels;
+      if (sigmap == 0);
+        retp(sum-del1*del2*(yp(i)*
+            (del1+dels)+yp(im1)*(del2+dels))/(6*dels));
+      endif;
+      sigdel = sigmap * dels;
+      { ss,dummy } = _spl_snhcsh(sigdel,-1);
+      { s1,dummy } = _spl_snhcsh(sigmap*del1,-1);
+      { s2,dummy } = _spl_snhcsh(sigmap*del2,-1);
+
+      retp(sum+(yp[i]*del1*(s1-ss)+yp[im1]*del2*(s2-ss))/
+                 (sigdel*sigmap*(1+ss)));
+endp;
+
+
+
+
+proc _spl_curv1(x,y,d,s,sigma);
+
+/*
+**    translated into GAUSS from Fortran by Ronald Schoenberg
+**
+**                    coded into Fortran by alan kaylor cline
+**                           from fitpack -- january 26, 1987
+**                        a curve and surface fitting package
+**                      a product of pleasant valley software
+**                  8603 altus cove, austin, texas 78759, usa
+**
+*/
+      local n,ierr,eps,ys,ysp,td,tsd1,hd,hsd1,hsd2,rd,rsd1,rsd2,v;
+      local f,wim1,wim2,h,p,g,step,sum,sl,su,delyi1,delyi,nm1,ibak,
+         yspim2,rsd2i,alphap,betapp,hsd1p,hdim1,hdi,delxi,rsd1i,tui,wi,
+         delxi1,dim1,di,rdim1,sigmap,nm3,i,alpha,beta,betap,tt;
+
+
+      n = rows(x);
+
+
+      if n < 2;
+          retp(error(1));
+      endif;
+
+      s = abs(s);
+      eps = sqrt(2/n);
+
+      v = zeros(n,1);
+      ysp = zeros(n,1);
+      ierr = 0;
+      p = 0;
+
+      if n == 2;
+          retp(ysp);
+      endif;
+
+      rsd1 = zeros(n,1);
+      rd = zeros(n,1);
+      rsd2 = zeros(n,1);
+      ys = zeros(n,1);
+      tsd1 = zeros(n,1);
+      hsd1 = zeros(n,1);
+      hsd2 = zeros(n,1);
+      td = zeros(n,1);
+      hd = zeros(n,1);
+
+      rdim1 = 0;
+      yspim2 = 0;
+
+/*
+** denormalize tension factor
+*/
+
+      sigmap = abs(sigma) * (n - 1) / (x[n] - x[1]);
+
+/*
+** form t matrix and second differences of y into ys
+*/
+      nm1 = n - 1;
+      nm3 = n - 3;
+      delxi1 = 1;
+      delyi1 = 0;
+      dim1 = 0;
+
+      i = 1;
+      do until i > nm1;
+        delxi = x[i+1] - x[i];
+        if delxi <= 0;
+            retp(error(5));
+        endif;
+        delyi = (y[i+1]-y[i])/delxi;
+        ys[i] = delyi-delyi1;
+        { di,tt } = _spl_terms(sigmap,delxi);
+        tsd1[i+1] = tt;
+        td[i] = di + dim1;
+        hd[i] = -(1/delxi+1/delxi1);
+        hsd1[i+1] = 1/delxi;
+        delxi1 = delxi;
+        delyi1 = delyi;
+        dim1 = di;
+        i = i + 1;
+     endo;
+
+/*
+** calculate lower and upper tolerances
+*/
+
+      sl = s * (1 - eps);
+      su = s * (1 + eps);
+
+      d = vec(d);
+      if rows(d) == 1;
+/*
+** form h matrix - d constant
+*/
+          if d[1] <= 0;
+              retp(error(5));
+          endif;
+          sl = d[1]*d[1]*sl;
+          su = d[1]*d[1]*su;
+          hsd1p = 0;
+          hdim1 = 0;
+          i = 2;
+          do until i > nm1;
+            hdi = hd[i];
+            hd[i] = hsd1[i]*hsd1[i]+hdi*hdi+hsd1[i+1]*hsd1[i+1];
+            hsd2[i] = hsd1[i]*hsd1p;
+            hsd1p = hsd1[i];
+            hsd1[i] = hsd1p*(hdi+hdim1);
+            hdim1 = hdi;
+            i = i + 1;
+          endo;
+     else;
+
+/*
+** form h matrix - d array
+*/
+          if d[1] <= 0 or d[2] <= 0;
+              retp(error(5));
+          endif;
+
+          betapp = 0;
+          betap = 0;
+          alphap = 0;
+
+          i = 2;
+          do until i > nm1;
+            alpha = hd[i]*d[i]*d[i];
+            if d[i+1] <= 0;
+                retp(error(5));
+            endif;
+            beta = hsd1[i+1]*d[i+1]*d[i+1];
+            hd[i] = (hsd1[i] * d[i-1])^2 + alpha * hd[i] + beta * hsd1[i+1];
+            hsd2[i] = hsd1[i]*betapp;
+            hsd1[i] = hsd1[i]*(alpha+alphap);
+            alphap = alpha;
+            betapp = betap;
+            betap = beta;
+            i = i + 1;
+          endo;
+
+      endif;
+/*
+** top of iteration
+** cholesky factorization of p*t+h into r
+*/
+
+A0:
+
+      i = 2;
+      do until i > nm1;
+        rsd2i = hsd2[i];
+        rsd1i = p*tsd1[i]+hsd1[i]-rsd2i*rsd1[i-1];
+        rsd2[i] = rsd2i*rdim1;
+        rdim1 = rd[i-1];
+        rsd1[i] = rsd1i*rdim1;
+        rd[i] = 1/(p*td[i]+hd[i]-rsd1i*rsd1[i]-rsd2i*rsd2[i]);
+        ysp[i] = ys[i]-rsd1[i]*ysp[i-1]-rsd2[i]*yspim2;
+        yspim2 = ysp[i-1];
+        i = i + 1;
+      endo;
+
+/*
+** back solve of r(transpose)* r * ysp = ys
+*/
+
+      ysp[nm1] = rd[nm1]*ysp[nm1];
+      if n /= 3;
+          ibak = 1;
+          do until ibak > nm3;
+              i = nm1 - ibak;
+              ysp[i] = rd[i]*ysp[i]-rsd1[i+1]*ysp[i+1]-rsd2[i+2]*ysp[i+2];
+              ibak = ibak + 1;
+          endo;
+      endif;
+      sum = 0;
+      delyi1 = 0;
+      if rows(d) == 1;
+
+/*
+** calculation of residual norm
+**  - d constant
+*/
+           i = 1;
+           do until i > nm1;
+                delyi = (ysp[i+1]-ysp[i])/(x[i+1]-x[i]);
+                v[i] = delyi-delyi1;
+                sum = sum+v[i]*(delyi-delyi1);
+                delyi1 = delyi;
+                i = i + 1;
+          endo;
+          v[n] = -delyi1;
+
+      else;
+/*
+** calculation of residual norm
+**  - d array
+*/
+          i = 1;
+          do until i > nm1;
+            delyi = (ysp[i+1]-ysp[i])/(x[i+1]-x[i]);
+            v[i] = (delyi-delyi1)*d[i]*d[i];
+            sum = sum+v[i]*(delyi-delyi1);
+            delyi1 = delyi;
+            i = i + 1;
+          endo;
+          v[n] = -delyi1*d[n]*d[n];
+      endif;
+      sum = sum-v[n]*delyi1;
+
+/*
+** test for convergence
+*/
+
+      if sum <= su;
+          goto A1;
+      endif;
+
+/*
+** calculation of newton correction
+*/
+      f = 0;
+      g = 0;
+      wim2 = 0;
+      wim1 = 0;
+
+      i = 2;
+      do until i > nm1;
+        tui = tsd1[i]*ysp[i-1]+td[i]*ysp[i]+tsd1[i+1]*ysp[i+1];
+        wi = tui-rsd1[i]*wim1-rsd2[i]*wim2;
+        f = f + tui * ysp[i];
+        g = g + wi * wi * rd[i];
+        wim2 = wim1;
+        wim1 = wi;
+        i = i + 1;
+      endo;
+
+      h = f - p * g;
+      if h <= 0;
+          goto A1;
+      endif;
+
+/*
+** update p - newton step
+*/
+      step = (sum - sqrt(sum * sl)) / h;
+      if sl /= 0;
+           step = step * sqrt(sum / sl);
+      endif;
+      p = p + step;
+
+      goto A0;
+
+A1:
+
+/*
+** store smoothed y-values and second derivatives
+*/
+      retp(p*ysp);
+endp;
+
+
+
+
+
+
+
+
+
+
+
+proc(3) = spline(x,y,z,sigma,gridf);
+    retp(spline2D(x,y,z,sigma,gridf));
+endp;
+
+
+proc(2) = curve(x,y,d,s,sigma,gridf);
+    retp(spline1D(x,y,d,s,sigma,gridf));
+endp;

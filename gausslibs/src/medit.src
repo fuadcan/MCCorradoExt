@@ -1,0 +1,948 @@
+#ifDLLCALL
+#else
+
+/*
+** medit.src
+** (C) Copyright 1990, 1991, 1992, 1996  FORWARD Computing and Control Pty. Ltd.
+** All Rights Reserved.                             ACN 003 669 994
+** MEDIT V2.02
+**
+**  medit
+**
+**  Purpose:    Full-screen editor for matrices with both character and
+**              numeric elements.
+**
+**  Format:    { y,yv,yfmt } = medit(x,xv,xfmt)
+**
+**  Inputs:     x       LxM matrix to be edited.
+**
+**              xv      scalar, vector or matrix.  xv is first reshaped into a
+**                      1xM vector.  Then the non-zero elements in xv mark the
+**                      respective columns of x as numeric, 0's mark them as
+**                      character.
+**
+**              xfmt    scalar, string or matrix.  xfmt sets the initial column
+**                      formats. If xfmt is a scalar then the default formats of
+**                      " lg " 16 8 for numeric columns and "s " 8 8 for
+**                      character columns are used.  If xfmt is a string then
+**                      the first 8 characters are used and 8 8 add to give the
+**                      global column format.  If xfmt is a matrix it must have
+**                      3 columns and will be reshaped to a Mx3 format matrix
+**                      for use as the column formats.  In all cases the values
+**                      in the xv vector override the formats specified in xfmt.
+**
+**  Outputs:    y       LxM edited matrix.
+**
+**              yv      1xM vector of one and zeros, 1 if the respective column
+**                      of y is numeric, 0 if it is character.
+**
+**              fmt     Mx3 matrix, each row containing format information
+**                      (suitable for use with printfm) for the respective
+**                      column of y.
+**
+**  Remarks:
+**
+**    This function is an option and must be ordered separately.  Initially a
+**    demonstration version of this function is supplied.
+**
+**    The version supplied with GAUSSI only displays the real part of the
+**    matrix if the imaginary part is missing or all zeros.  The display
+**    changes to complex when an edited element has non-zero imaginary part
+**    or a row or column is added with a complex fill value.
+**
+**    Alt-X terminates the editor.  If you are editing an element or executing a
+**    command, first press either Esc to abandon the editing or command.  When
+**    Alt-X is used to terminate the editor the resulting matrix, y, is saved in
+**    the file _medit_x.fmt.  Esc also exits from the editor but the results of
+**    the editing are not returned and the matrix is not saved to the file.  The
+**    original value of the matrix remains unchanged.
+**
+**    The following keys allow you to move around the matrix.
+**
+**      Left           Move one cell left
+**      Right          Move one cell right
+**      Up             Move one cell up
+**      Down           Move one cell down
+**      PgUp           Move one page up
+**      PgDn           Move one page down
+**      Ctrl-Left      Move one page left
+**      Ctrl-Right     Move one page right
+**      Home           Beginning of row
+**      Home Home      Beginning of matrix
+**      End            End of row
+**      End End        End of matrix
+**      Enter          Move on one cell
+**      Backspace      Move back one cell
+**      Ctrl-Enter     Toggle the direction of Enter and Backspace
+**      Alt-G          Goto row and column
+**
+**    The following alternate Wordstar keystrokes are supported.
+**
+**      Ctrl-G       Del             Ctrl-R       PgUp
+**      Ctrl-H       Backspace       Ctrl-C       PgDn
+**      Ctrl-S       Left            Ctrl-A       Ctrl-Left
+**      Ctrl-D       Right           Ctrl-F       Ctrl-Right
+**      Ctrl-E       Up              Ctrl-Q S     Home
+**      Ctrl-X       Down            Ctrl-Q D     End
+**
+**    The operation of the Enter and Backspace keys depends on the Ctrl-Enter
+**    setting.  Ctrl-Enter toggles the direction of movement for Enter from left
+**    to down to no movement.  Backspace moves in the opposite direction to
+**    Enter.  The arrow at the top left of the matrix indicates the current
+**    setting.
+**
+**    Alt-G allows you to jump to any element in the matrix.  Pressing Alt-G
+**    prompts you for the row and column to go to.  Enter the integer row and
+**    column numbers separated by either a space or a comma and then press Enter
+**    to execute the command.  Invalid entries will beep and can be edited.
+**    Pressing Esc will abandon the command.
+**
+**    The following editing keys are available to you when editing a matrix
+**    element.
+**
+**      Left           Move left
+**      Right          Move right
+**      Del            Delete character at cursor
+**      Backspace      Delete character to left of cursor
+**      Home           Move to beginning of input
+**      End            Move to end of input
+**      Enter          Save the new value
+**      Ctrl-Enter     Toggle the direction of movement after Enter
+**      Alt-P          Inserts pi on the input line
+**      Alt-E          Inserts e on the input line
+**      Esc            Abandon editing of the element
+**
+**    The current element is displayed at the top of the screen.  Character
+**    elements are displayed surrounded by " ".  Numeric elements are displayed
+**    in exponential format to full precision.  To edit the current element just
+**    type in the new value.  To save the new value press Enter.  If the value
+**    is valid it will be saved.  Invalid values will beep and can be edited.
+**    Pressing Esc abandons the editing and leaves the element unchanged.
+**
+**    Numbers can be entered in either integer, floating point format or
+**    exponential format.  To enter a missing value in a numeric element just
+**    type . and then press Enter.  If the numeric value entered overflows then
+**    INF with the appropriate sign will be stored.  If the numeric value
+**    entered underflows +0 will be stored.
+**
+**    Complex numbers are of the form  NUMBER +/- NUMBER i  or NUMBER i.
+**    E.g. 0.5 - 1i, . + .i, 5i
+**    Note there must be a number before the i, i.e. 5+i is invalid.
+**    If the complex part is zero it is not displayed by MEDIT or printed by
+**    PRINTFM.
+**
+**    Character elements are limited to 8 characters.  To enter an empty
+**    character string press Space and then Backspace to delete the space and
+**    the press Enter to store the empty string.  All strings are padded to 8
+**    characters with nulls before storing.
+**
+**    The following command keys are available to you when moving around the
+**    matrix.
+**
+**      Alt-H          Help
+**      Esc            Abandon matrix and quit medit
+**      Alt-X          Exit medit. Result saved in _medit_x.fmt
+**      Alt-R          Select rows
+**      Alt-C          Select columns
+**      Alt-V          Set fill value.  Use " " for character fill values
+**      Alt-I or Ins   Insert row, column or block
+**      Alt-F          Format column
+**
+**    The Alt-R and Alt-C commands allow a block of rows or columns to be
+**    selected using any of the cursor movement keys.  The selected block can
+**    then be cut to the scrap buffer using Grey - or copied using Grey + or
+**    the block can be deleted by pressing Del.
+**
+**    The Alt-F command allows the format of the current column to be changed.
+**    Alt-F N sets the default numeric format, Alt-F C sets the default
+**    character format and Alt-F E allows you to edit the column format.  The
+**    variable type vector, yv, and formatting matrix, yfmt, are updated to
+**    reflect the new format.
+**
+**    Using the format editor the column format can be selected as well as the
+**    trailing character, column width and precision.  The format editor is
+**    intelligent and will automatically adjust the column width or precision to
+**    ensure all numbers in the column can be displayed in the selected format.
+**    Very large numbers in the column will cause the decimal format to
+**    automatically switch to an exponential format.
+**
+**    printfm can be used to print the matrix in the format displayed by medit.
+**    e.g.
+**
+**           { x,v,fmt } = medit(x,1,1);
+**           call printfm(x,v,fmt);
+**    Note however that unn's in medit are printed as numbers by GAUSS's
+**    printfm.
+**
+**    The Alt-V sets the fill value to be used for inserting new rows and
+**    columns.  Pressing Alt-V displays the current value and allows a new value
+**    to be entered.  Enclose character values with " ".  Character values must
+**    not exceed 8 characters.  Esc abandons the entry of the new value and
+**    leaves the current fill value unchanged.  The default fill value is the
+**    GAUSS missing value.
+**
+**    The insert commands work with the fill value to insert a new row or column
+**    into the matrix in front of the current cursor position.  The new row or
+**    column is filled with the current fill value.  Alt-I R inserts a new row
+**    and Alt-I C inserts a new column.  For columns the type of the fill value
+**    determines the type of the column.  The Alt-I B command allows a
+**    previously cut or copied block to be inserted in front of the cursor
+**    position.  Ins can be used instead of Alt-I.
+**
+**    If you have a CGA display adaptor and medit is causing snow or flicker
+**    when you page up or page down, then edit the medit.a16, medit.a32 or
+**    medit.i32 file to change CGA to 1.
+**
+**    Example:
+**
+**           { x,v,fmt } = medit(zeros(10,5),1,1);
+**
+**    This example edits an empty matrix and assigns the result to x.  The
+**    second and third arguments are reshaped to the correct size and the column
+**    formats are set to the default numeric format.  These vectors are then
+**    updated by the format commands during the editing and the results assigned
+**    to v and fmt.
+**
+**
+**           { x,v,fmt } = medit(x,1~0,"le");
+**
+**    This example sets all the odd columns of x to a scientific format and sets
+**    all the even columns to the default character format.
+**
+**           def_fmt = "-lf,"~4~3;
+**           { x,v,fmt } = medit(x,1,def_fmt);
+**
+**    This example sets all the columns of x to a numerical decimal format, left
+**    justified with a trailing ','.  It also sets the precision to 3 and the
+**    minimum width to 4.  The necessary width will be automatically
+**    determined by medit.
+**
+**  See Also: printfm, con, editm
+**
+**  Defines:
+**
+**    _med_esz   Size of matrix element in bytes.
+**    _med_isz   Size of integer in bytes.
+**    _med_pad   Padding for matrix alignment and local args.
+**
+**  Globals:
+**
+**    _med_1(), _med_2r(), _med_2c()  support procedures
+*/
+
+/* ---- Uncomment for Demo Version ---- */
+/* #definecs DEMO */
+/* ------------------------------------ */
+
+#ifcplx
+
+    #definecs _MED_ESZ  16
+
+    #ifdef DEMO
+        #definecs MED_SIZE  10945    /* loadsize for DEMO MEDITI.REX */
+    #else
+        #definecs MED_SIZE  10699    /* loadsize for MEDITI.REX */
+    #endif
+
+#else
+
+    #definecs _MED_ESZ  8
+
+    #ifdef DEMO
+        #definecs MED_SIZE  10624    /* loadsize for DEMO MEDIT.REX */
+    #else
+        #definecs MED_SIZE  10371    /* loadsize for MEDIT.REX */
+    #endif
+
+#endif
+
+/*  For suppression of interference on
+**  CGA display adaptors, set CGA to 1
+*/
+
+#definecs CGA       0
+#definecs _MED_ISZ  4
+#definecs _MED_PAD  64
+#definecs MAX_SIZE  536870910  /* maximum matrix size */
+#definecs GXE_SIZE  0          /* no extra memory needed to re-load .REX file */
+
+
+/*
+**  _med_1
+**
+**  Purpose : Calculate the number of matrix elements required for
+**            x = x[i:j,k:l];
+**                  OR
+**            y = 0;
+**            y = x[i:j,k:l];
+**
+**  Format  : size = _med_1(row_idx,col_idx,no_rows,no_cols,same);
+**
+**  Inputs  : row_idx    2x1 vector, indices of row selection
+**                       OR missing value if x[.,k:l] used.
+**            col_idx    2x1 vector, indices of col selection
+**                       OR missing value if x[i:j,.] used.
+**            no_rows    rows(x)  Do NOT use rows(x) or cols(x) as an argument.
+**            no_cols    cols(x)  use temporary variables r=rows(x); c=cols(x);
+**                                and then pass r and c to _med_1().
+**            same       1 if x=x[i:j,k:l]  ie assigning to same matrix.
+**                       0 if y=x[i:j,k:l]  ie assigning to different matrix.
+**
+**  Outputs : size      scalar,  size in number of matrix elements needed for
+**                      the operation.
+**
+*/
+
+Proc(1) = _med_1(row_idx,col_idx,no_rows,no_cols,same);
+        local idx,matr,matc;
+        idx = 0;
+        if not(scalmiss(row_idx));
+           idx = idx + abs(row_idx[2]-row_idx[1]) + 1;
+           matr = abs(row_idx[2]-row_idx[1]) + 1;  /* no rows in result */
+        else;
+           matr = no_rows;
+        endif;
+        if not(scalmiss(col_idx));
+           idx = idx + abs(col_idx[2]-col_idx[1]) + 1;
+           matc = abs(col_idx[2]-col_idx[1]) + 1;  /* no cols in result */
+        else;
+           matc = no_cols;
+        endif;
+        /* add padding for matrix alignment */
+        if same;  /* x = x[i:j,k:l] */
+            retp((matr*matc + idx*(_MED_ISZ/_MED_ESZ) + _MED_PAD));
+        endif;
+        /* else   y = x[i:j,k:l] */
+        retp((2*matr*matc + idx*(_MED_ISZ/_MED_ESZ) + _MED_PAD));
+endp;
+
+/*
+**  _med_2r
+**
+**  Purpose: Calculate the number of matrix elements required for
+**           x = x[i:j,.] | x[k:l,.];
+**
+**  Format:  size = _med1(row1_idx,row2_idx,no_rows,no_cols);
+**
+**  Inputs:   row1_idx    2x1 vector, indices of row selection
+**                         OR missing value if x used instead of x[i:j,.].
+**            row2_idx    2x1 vector, indices of row selection.
+**                         OR missing value if x used instead of x[k:l,.].
+**            no_rows     rows(x)  Do NOT use rows(x) or cols(x) as an argument.
+**            no_cols     cols(x)  use temporary variables r=rows(x); c=cols(x);
+**                              and then pass r and c to _med_2r().
+**
+**  Outputs:  size     scalar,  size in number of matrix elements needed for
+**                     the operation.
+**
+*/
+
+Proc(1) = _med_2r(row1_idx,row2_idx,no_rows,no_cols);
+        local idx,matr1,matr2;
+        idx = 0;
+        if not(scalmiss(row1_idx));
+           idx = idx + abs(row1_idx[2]-row1_idx[1]) + 1;
+           matr1 = abs(row1_idx[2]-row1_idx[1]) + 1;  /* no rows in result 1 */
+        else;
+           matr1 = no_rows;
+        endif;
+        if not(scalmiss(row2_idx));
+           idx = idx + abs(row2_idx[2]-row2_idx[1]) + 1;
+           matr2 = abs(row2_idx[2]-row2_idx[1]) + 1;  /* no rows in result 2 */
+        else;
+           matr2 = no_rows;
+        endif;
+        /* add padding for matrix alignment and factor for safety */
+        retp( (2*no_cols*(matr1+matr2) + idx*(_MED_ISZ/_MED_ESZ) + _MED_PAD));
+endp;
+
+
+/*
+**  _med_2c
+**
+**  Purpose:  Calculate the number of matrix elements required for
+**            x = x[.,i:j] ~ x[.,k:l];
+**
+**  Format:   size = _med1(col1_idx,col2_idx,no_rows,no_cols);
+**
+**  Inputs:   col1_idx  2x1 vector, indices of col selection
+**                     OR missing value if x used instead of x[.,i:j].
+**            col2_idx  2x1 vector, indices of col selection
+**                     OR missing value if x used instead of x[.,k:l].
+**            no_rows  rows(x)  Do NOT use rows(x) or cols(x) as an argument.
+**            no_cols  cols(x)  use temporary variables r=rows(x); c=cols(x);
+**                              and then pass r and c to _med_2c().
+**
+**  Outputs:  size     scalar,  size in number of matrix elements needed for
+**                     the operation.
+**
+*/
+
+Proc(1) = _med_2c(col1_idx,col2_idx,no_rows,no_cols);
+         retp(_med_2r(col1_idx,col2_idx,no_cols,no_rows));
+endp;
+
+
+
+/*
+**  medit
+**
+**  Purpose:  Full Screen Matrix Editor.
+**
+**  Format:   {y,yv,yfmt} = medit(x,v,fmt);
+**
+*/
+
+proc (3) = medit(x,v,fmt);
+    local _miss,     /* missing value */
+        leavfree, TR, TC, BR, BC, CR, CC, bufr, bufc,
+        rc_cut, /* 0 if nothing cut/copied, 1 for rows, 2 for columns */
+        curs_pos, rc_blk, request, fill_val, ent_dir,
+        m_col_v, m_n_fmt, m_c_fmt, scr_pos, old_ctrl, core,
+        r, c, cga, izero, oldimtol, str, msg, max_vals,
+        rc_buf, v_buf, fmt_buf, maxv_buf,  /* scrap buffers */
+        med1; /* code buffer */
+
+    cga = CGA;
+
+    leavfree = 16384;
+
+
+    _miss = miss(1,1);       /* missing value */
+
+    if (type(x) NE 6);
+        errorlog " ERROR : First argument must be a matrix";
+        end;
+    endif;
+    if (type(v) NE 6);
+        errorlog " ERROR : Second argument must be a scalar, vector or matrix";
+        end;
+    endif;
+
+    if (type(fmt) NE 6) AND (type(fmt) NE 13);
+        errorlog " ERROR : Third argument must be a scalar, vector, matrix"\
+            " or string";
+        end;
+    endif;
+
+    r = rows(x);
+    c = cols(x);
+    msg = "";       /* no errors */
+    m_col_v = 5000;         /* must be > 4096 */
+    curs_pos = ones(2,1);
+    scr_pos = zeros(2,1);
+    rc_blk = zeros(2,2);
+    rc_buf = 0;
+    request = 0;    /* initial startup */
+    ent_dir = 0;    /* go right to start */
+    rc_cut = 0;     /* scrap buffer empty */
+
+
+    #ifcplx  /* COMPLEX version */
+        core = floor((coreleft - leavfree) / _MED_ESZ); /* .a16 and .a32 */
+        if (2*r*c + _MED_PAD) GT core;
+            errorlog "Insufficient memory to run MEDIT.  Reduce matrix size.";
+            end;
+        endif;
+        if (imag(x) $== 0);   /* complex part zero or missing */
+            x = complex(x,0);
+            izero = 1;  /* x not complex */
+        else;
+            izero = 0;  /* x complex */
+        endif;
+        if type(fmt) EQ 6;
+            fmt = real(fmt);  /* strip off imaginary part */
+        endif;
+        if type(v) EQ 6;
+            v = real(v);  /* strip off imaginary part */
+        endif;
+    #else
+        izero = 1;
+    #endif
+
+    m_n_fmt = { "lg " 10 3 };
+    m_c_fmt = { "s " 8 8 };
+    if (type(fmt) EQ 13);
+        /* string take first 8 characters */
+        fmt = strsect(fmt,1,8);
+        /* check for "s" if so add m_c_fmt[.,2:3] */
+        /* alse add m_n_fmt[.,2:3] */
+        if strindx(fmt,"s",1) == 0;  /* "s" not found */
+            fmt = (0$+fmt)~m_n_fmt[.,2:3];
+        else;
+            fmt = (0$+fmt)~m_c_fmt[.,2:3];
+        endif;
+    else;           /* fmt a matrix */
+        if (rows(fmt) == 1) and (cols(fmt) == 1);
+        /* scalar use default values */
+            fmt = fmt ~ m_n_fmt[.,2:3];
+        elseif cols(fmt) /= 3;
+            errorlog " ERROR : Wrong size format matrix";
+            end;
+        endif;
+    endif;
+
+
+    #ifcplx  /* complex data */
+        /* missing value or blank to start with  */
+        fill_val = MISS(1,1)~1;
+        fill_val = complex(fill_val,0);
+    #else
+        /* missing value to start with  */
+        fill_val = MISS(1,1)~1;
+    #endif
+
+    if (v $== 0);   /* all columns character */
+        fill_val[2] = 0;  /* make default fill value character */
+    endif;
+
+    /* the values in v take precedence over fmt  */
+    v = reshape(v,1,c);
+
+    core = floor((coreleft - leavfree) / _MED_ESZ);       /* .a16 and .a32 */
+    if (2*3*c + _MED_PAD) > core;
+        errorlog "Insufficient memory to reshape format matrix.";
+        end;
+    endif;
+    if (c*3) GT MAX_SIZE;
+        msg = "Too many columns in matrix.";
+        end;
+    endif;
+    fmt = reshape(fmt,c,3);         /* medit.gxe checks fmt and fixes if
+                                    :: needs be
+                                    */
+    max_vals = reshape(m_col_v,1,c);        /* no max values to start with  */
+
+    old_ctrl = ndpcntrl(0,0);       /* save current ndp setting */
+    call ndpcntrl(0x1332,0xffff);           /* affine,near,64,denormal,
+                                            :: underflow,inexact
+                                            */
+
+    if (2*(MED_SIZE+_MED_PAD)) > ((coreleft-leavfree)/8);  /* use real array */
+        errorlog "Insufficient memory to load MEDIT";
+        end;
+    endif;
+    med1 = zeros(MED_SIZE,1);
+
+    #ifcplx
+        loadexe med1 = mediti.rex;
+    #else
+        loadexe med1 = medit.rex;
+    #endif
+
+core = floor((coreleft - leavfree) / _MED_ESZ);       /* .a16 and .a32 */
+if (r*c + 4*c + _MED_PAD) GT core;  /* not enough space to return results */
+   errorlog "Insufficient memory to run MEDIT.  Reduce matrix size.";
+   end;
+endif;
+
+RE_CALL:      /* start of main loop */
+
+    callexe /r med1(x, r, c, v, fmt, msg, max_vals, curs_pos, scr_pos,
+        rc_blk, request, izero, fill_val, ent_dir, cga);
+
+    msg = "";  /* clear error messages */
+    TR = rc_blk[1,1];
+    TC = rc_blk[1,2];
+    BR = rc_blk[2,1];
+    BC = rc_blk[2,2];
+    CR = curs_pos[1];
+    CC = curs_pos[2];
+    bufr = rows(rc_buf);
+    bufc = cols(rc_buf);
+
+    if (request $== -1);
+        print "Editing Abandoned by user.  Results not saved.";
+        call ndpcntrl(old_ctrl, 0xffff);
+        end;
+    endif;
+
+    if (request $== 0);
+        goto save_mat;
+    endif;
+
+    core = floor((coreleft - leavfree) / _MED_ESZ);       /* .a16 and .a32 */
+
+    if (request $== 1);  /* delete rows memory used is reduced */
+        /* delete all columns */
+        if ((TR LE 1) AND (BR GE r));
+            msg = "Cannot delete entire matrix";
+            goto re_call;
+        endif;
+        gosub CUT_ROWS;       /* cut rows */
+        if strlen(msg) /= 0;
+           msg = "Not enough memory";
+           goto re_call;
+        endif;
+
+    elseif (request $== 2);   /* cut rows memory used unchanged */
+        /* cut all columns */
+        if ((TR LE 1) AND (BR GE r));
+            msg = "Cannot cut entire matrix";
+            goto re_call;
+        endif;
+        clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+        core = floor((coreleft - leavfree) / _MED_ESZ);  /* .a16 and .a32 */
+        if _med_1(TR~BR,_miss,r,c,0) GT core;
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        rc_buf = x[TR:BR,.];
+        rc_cut = 1;         /* have rows in buffer */
+        core = floor((coreleft - leavfree) / _MED_ESZ);  /* .a16 and .a32 */
+        gosub CUT_ROWS;       /* cut rows */
+        if strlen(msg) /= 0;
+           msg = "Not enough memory. Previous scrap buffer cleared.";
+           clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+           goto re_call;
+        endif;
+
+    elseif (request $== 3);  /* copy rows use more memory */
+        /* copy all columns */
+        clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+        core = floor((coreleft - leavfree) / _MED_ESZ);    /* .a16 and .a32 */
+        /* test if enough memory to store result */
+        if ( (BR-TR+1) * c + GXE_SIZE + _MED_PAD) GT core;
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        if _med_1(TR~BR,_miss,r,c,0)  GT core;
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        rc_buf = x[TR:BR,.];
+        rc_cut = 1;         /* have rows in buffer */
+
+    elseif (request $== 4);  /* delete cols memory used reduced */
+        /* delete all rows */
+        if ((TC LE 1) AND (BC GE c));
+            msg = "Cannot delete entire matrix";
+            goto re_call;
+        endif;
+        gosub CUT_COLS;
+        if strlen(msg) /= 0;
+            msg = "Not enough memory";
+            goto re_call;
+        endif;
+
+    elseif (request $== 5); /* cut cols memory used unchanged */
+        /* cut all rows */
+        if ((TC LE 1) AND (BC GE c));
+            msg = "Cannot cut entire matrix";
+            goto re_call;
+        endif;
+        clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+        core = floor((coreleft - leavfree) / _MED_ESZ);    /* .a16 and .a32 */
+        if ( _med_1(_miss,TC~BC,r,c,0)
+             + _med_1(_miss,TC~BC,3,c,0) ) GT core;
+            /* allow for fmt etc */
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        rc_buf = x[.,TC:BC];
+        fmt_buf = fmt[TC:BC,.];
+        v_buf = v[.,TC:BC];
+        maxv_buf = max_vals[.,TC:BC];
+        rc_cut = 2;         /* have cols in buffer */
+        core = floor((coreleft - leavfree) / _MED_ESZ);     /* .a16 and .a32 */
+        gosub CUT_COLS;
+        if strlen(msg) /= 0;
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;
+            goto re_call;
+        endif;
+
+    elseif (request $== 6); /* copy cols memory used increased */
+        /* copy all rows */
+        clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+        core = floor((coreleft - leavfree) / _MED_ESZ);    /* .a16 and .a32 */
+        /* test if enough memory to store result */
+        if ( (BC-TC+1)*(r+1+3+1) + GXE_SIZE + _MED_PAD ) GT core;
+            /* matrix + v_buf + fmt_buf + maxv_buf */
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        if ( _med_1(_miss,TC~BC,r,c,0)
+             + _med_1(_miss,TC~BC,3,c,0) ) GT core;
+            /* allow for fmt etc */
+            msg = "Not enough memory. Previous scrap buffer cleared.";
+            goto re_call;
+        endif;
+        rc_buf = x[.,TC:BC];
+        fmt_buf = fmt[TC:BC,.];
+        v_buf = v[.,TC:BC];
+        maxv_buf = max_vals[.,TC:BC];
+        rc_cut = 2;         /* have cols in buffer */
+
+    elseif (request $== 7);
+        /* insert new row */
+        if ((r+1) * c) GT MAX_SIZE;
+            msg = "Resulting matrix too large";
+            goto re_call;
+        endif;
+        /* add one row */
+        if  ((c + GXE_SIZE + _MED_PAD) GT core) or
+            (((r+1)*c + 4*c - bufc*bufr + _MED_PAD) GT core) ;
+            /* allow for returns */
+            msg = "Not enough memory";
+            goto re_call;
+        endif;
+        if(CR LE 1);       /* put new row at top */
+            if ( (2*1*c) + _med_1(_miss,_miss,r,c,0) ) GT core;
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            x = reshape(fill_val[1],1,c) | x;
+        else;
+            if (_med_1(1~(CR-1),_miss,r,c,0) + 2*1*c + _med_1(CR~r,_miss,r,c,0))
+                    GT core;
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            x = x[1:CR-1,.] | reshape(fill_val[1],1,c) |
+                x[CR:r,.];
+        endif;
+        #ifcplx /* COMPLEX version */
+           if not(imag(fill_val[1]) $== 0);  /* added complex part */
+              izero = 0;  /* x now complex */
+           endif;
+        #endif
+        /* do not change max_vals these are updated by medit.gxe */
+
+    elseif (request $== 8);
+        /* insert new col */
+        if ( (r * (c + 1)) GT MAX_SIZE );           /* matrix */
+            msg = "Resulting matrix too large";
+            goto re_call;
+        endif;
+        if ( ((c+1)*3) GT MAX_SIZE );       /* format */
+            msg = "Resulting format matrix too large";
+            goto re_call;
+        endif;
+        /* add one col */
+        if (( (r+1+3+1) + GXE_SIZE + _MED_PAD) GT core) or
+            ((r*(c+1) + 4*(c+1) - bufc*bufr + _MED_PAD) GT core);
+            /* allow for returns */
+            /* matrix + v_buf + fmt_buf + maxv_buf */
+            msg = "Not enough memory";
+            goto re_call;
+        endif;
+        if(CC LE 1);       /* put new col on left */
+            if ( _med_1(_miss,_miss,r,c,0) + 2*r*1
+                + (_med_1(_miss,_miss,3,c,0) + 2*3*1) )
+                  GT core;     /* allow for fmt */
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            x = reshape(fill_val[1],r,1) ~ x;
+            if (fill_val[2] $== 0);         /* character column */
+                fmt = m_c_fmt | fmt;
+            else;
+                fmt = m_n_fmt | fmt;
+            endif;
+            v = fill_val[2] ~ v;
+            max_vals = m_col_v ~ max_vals;
+        else;
+            /* check memory for x and fmt */
+            if (_med_1(_miss,1~(CC-1),r,c,0) + 2*r*1 +
+                _med_1(_miss,CC~c,r,c,0) +
+                ( _med_1(_miss,1~(CC-1),3,c,0) + 2*3*1 +
+                    _med_1(_miss,CC~c,3,c,0)) )
+                    GT core;
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            x = x[.,1:CC-1] ~ reshape(fill_val[1],r,1) ~ x[.,CC:c];
+            if (fill_val[2] $== 0);         /* character column */
+                fmt = fmt[1:(CC-1),.] | m_c_fmt | fmt[CC:c,.];
+            else;
+                fmt = fmt[1:(CC-1),.] | m_n_fmt | fmt[CC:c,.];
+            endif;
+            v = v[.,1:(CC-1)] ~ fill_val[2] ~ v[.,CC:c];
+            max_vals = max_vals[.,1:(CC-1)] ~ m_col_v ~ max_vals[.,CC:c];
+        endif;
+        #ifcplx /* COMPLEX version */
+           if not(imag(fill_val[1]) $== 0);  /* added complex part */
+              izero = 0;  /* x now complex */
+           endif;
+        #endif
+
+    elseif (request $== 9);
+        /* insert from scrap */
+        if(rc_cut EQ 0);
+            msg = "Scrap buffer empty";
+            goto re_call;
+        endif;
+        if(rc_cut EQ 1);    /* insert rows in front of cursor */
+            if bufc NE cols(x);
+                msg = "Cannot insert row block.  Column dimensions differ.";
+                goto re_call;
+            endif;
+            if  ((r+bufr) * c) GT MAX_SIZE;
+                msg = "Resulting matrix too large";
+                goto re_call;
+            endif;
+            if ((bufr * c + GXE_SIZE + _MED_PAD) GT core) or
+               ( ((r+bufr)*c + 4*c - bufc*bufr + _MED_PAD) GT core);
+                 /* allow for returns */
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            if(CR LE 1);           /* put scrap at top */
+                if (2*bufr*c + _med_1(_miss,_miss,r,c,0)) GT core;
+                    msg = "Not enough memory";
+                    goto re_call;
+                endif;
+                x = rc_buf | x;
+            else;
+                if (_med_1(1~(CR-1),_miss,r,c,0) + 2*bufr*c
+                    + _med_1(CR~r,_miss,r,c,0) ) GT core;
+                    msg = "Not enough memory";
+                    goto re_call;
+                endif;
+                x = x[1:(CR-1),.] | rc_buf | x[CR:r,.];
+            endif;
+        /* this section of code reduces the work in medit.gxe */
+        /* required to update the maximun number in column for "lf" formats */
+            rc_blk[1,1] = CR;             /* new block starts at cursor  */
+            rc_blk[2,1] = CR + bufr-1;    /* end of block */
+            request = 10;           /* inserted row block */
+
+        else;       /* (rc_cut EQ 2); insert cols in front of cursor  */
+            if(bufr NE r);
+                msg = "Cannot insert column block.  Row dimensions differ.";
+                goto re_call;
+            endif;
+            if ( (r * (c+bufc)) GT MAX_SIZE);
+                msg = "Resulting matrix too large";
+                goto re_call;
+            endif;
+            if ( ((c+bufc) * 3) GT MAX_SIZE);
+                msg = "Resulting format matrix too large";
+                goto re_call;
+            endif;
+            if (( bufc*(r+1+3+1) + GXE_SIZE + _MED_PAD) GT core) or
+                ((r*(c+bufc) + 4*(c+bufc) - bufc*bufr + _MED_PAD) GT core);
+                /* matrix + v_buf + fmt_buf + maxv_buf */
+                msg = "Not enough memory";
+                goto re_call;
+            endif;
+            if(CC LE 1);           /* put scrap at left */
+                if ( 2*r*bufc + _med_1(_miss,_miss,r,c,0)
+                   + (2*3*bufc + _med_1(_miss,_miss,3,c,0)) )
+                       GT core;
+                    msg = "Not enough memory";
+                    goto re_call;
+                endif;
+                x = rc_buf ~ x;
+                fmt = fmt_buf | fmt;
+                v = v_buf ~ v;
+                max_vals = maxv_buf ~ max_vals;
+            else;
+                if ( _med_1(_miss,1~(CC-1),r,c,0) + 2*r*bufc
+                      + _med_1(_miss,CC~c,r,c,0)
+                   + (_med_1(_miss,1~(CC-1),3,c,0) + 2*3*bufc
+                       + _med_1(_miss,CC~c,3,c,0))   )
+                         GT core;
+                    msg = "Not enough memory";
+                    goto re_call;
+                endif;
+                x = x[.,1:(CC-1)] ~ rc_buf ~ x[.,CC:c];
+                fmt = fmt[1:(CC-1).,] | fmt_buf |
+                    fmt[CC:c,.];
+                v = v[.,1:(CC-1)] ~ v_buf ~ v[.,CC:c];
+                max_vals = max_vals[.,1:(CC-1)] ~ maxv_buf ~
+                    max_vals[.,CC:c];
+            endif;
+            request = 11;           /* inserted column block */
+        endif;
+    else;
+        msg = "Invalid request";
+        goto re_call;
+    endif;
+    r = rows(x);
+    c = cols(x);
+    goto re_call;           /* loop back to medit */
+
+save_mat:
+    /* jump to here if request is 0 */
+    clear rc_cut,rc_buf,fmt_buf,v_buf,maxv_buf;  /* free memory */
+    #ifcplx  /* COMPLEX version */
+        if izero;  /* x purely real */
+            x = real(x);
+        elseif iscplx(x);
+            oldimtol = sysstate(21,0);
+            if not hasimag(x);
+                x = real(x);
+            endif;
+            call sysstate(21,oldimtol);
+        endif;
+    #endif
+    ndpclex;
+    call ndpcntrl(old_ctrl, 0xffff);
+    /* save edited matrix in _MEDIT_X.FMT on GAUSS save path */
+    str = "_medit_x";
+    print "Saving edited matrix in _MEDIT_X.FMT...";;
+    save ^str = x;
+    print "\rEdited matrix saved in _MEDIT_X.FMT       ";
+    retp(x,v,fmt);
+
+/* Subroutines follow */
+CUT_ROWS:
+        if(TR LE 1);       /* cut first rows */
+            if _med_1(BR+1~r,_miss,r,c,1) GT core;
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[BR+1:r,.];
+        elseif (BR GE r);          /* cut last rows */
+            if _med_1(1~(TR-1),_miss,r,c,1) GT core;
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[1:(TR-1),.];
+        else;
+            if _med_2r(1~(TR-1),(BR+1)~r,r,c) GT core;
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[1:(TR-1),.] | x[(BR+1):r,.];
+        endif;
+return;
+
+CUT_COLS:
+        if(TC LE 1);       /* cut first cols */
+            if _med_1(_miss,(BC+1)~c,maxc(r|3),c,1) GT core;/* allow for fmt */
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[.,BC+1:c];
+            fmt = fmt[BC+1:c,.];
+            v = v[.,BC+1:c];
+            max_vals = max_vals[.,BC+1:c];
+        elseif (BC GE c);          /* cut last cols */
+            if _med_1(_miss,1~(TC-1),maxc(r|3),c,1) GT core; /* allow for fmt */
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[.,1:(TC-1)];
+            fmt = fmt[1:(TC-1),.];
+            v = v[.,1:(TC-1)];
+            max_vals = max_vals[.,1:(TC-1)];
+        else;
+            /* allow for fmt */
+            if _med_2c(1~(TC-1),(BC+1)~c,maxc(r|3),c) GT core;
+                /* allow for fmt */
+                msg = "Not enough memory";
+                return;
+            endif;
+            x = x[.,1:(TC-1)] ~ x[.,(BC+1):c];
+            fmt = fmt[1:(TC-1),.] | fmt[(BC+1):c,.];
+            v = v[.,1:(TC-1)] ~ v[.,(BC+1):c];
+            max_vals = max_vals[.,1:(TC-1)] ~ max_vals[.,(BC+1):c];
+        endif;
+return;
+
+endp;
+
+#endif

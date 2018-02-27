@@ -1,0 +1,10 @@
+Testing d = 0.25
+----------------------------------------
+Likelihood ratio statistic:    0.00155
+p-value:    0.96855
+
+
+Testing d = 0.25 and theta1 = 0.4
+----------------------------------------
+Likelihood ratio statistic:    1.14054
+p-value:    0.56537

@@ -1,0 +1,14 @@
+#ifDLLCALL
+#else
+
+/*
+** parse.dec - String parsing function.
+** (C) Copyright 1991-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definition for procedure PARSE.
+*/
+
+declare matrix _parse;
+
+#endif

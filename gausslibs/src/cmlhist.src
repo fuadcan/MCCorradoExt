@@ -1,0 +1,327 @@
+/*
+** cmlhist.src         CMLhist - generates histograms and surface plots
+**                               from tables of re-sampled coefficients
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> CMLhist
+**
+**  Purpose:  generates histograms and surface plots from tables of
+**            re-sampled coefficients
+**
+**  Format:   { tab, cut } = CMLhist(dataset,pars)
+**
+**  Input:    dataset     string, name of GAUSS dataset containing
+**                        bootstrapped parameters
+**
+**            pars        Kx1 vector,  parameters to be selected from dataset
+**                        If zero, all columns are selected.
+**
+**  Output:   tab         ncatxK matrix, K univariate tabulations of the
+**                        distributions of the bootstrapped parameters
+**                        stored in dataset.
+**
+**            cut         ncatxK vector, cutting points for each column in tab
+**
+**
+**  Globals:
+**
+**      _cml_Increment    Kx1 vector, increments for cutting points, default
+**                        is 2 * _cml_Width * std dev of coefficient /
+**                        _cml_NumCat
+**
+**      _cml_Center       scalar, value of center category in tab
+**                        default is initial coefficient estimate
+**
+**      _cml_Width        scalar, width used in computing _cml_Increment,
+**                        default = 2
+**
+**      _cml_NumCat       scalar, number of categories in tab
+**
+**   see cml.src for description of additional global variables
+**
+**
+**  Remarks:
+**
+**   Three plots are generated for each pair of coefficients selected:
+**   two univariate histograms and a bivariate surface plot
+*/
+
+#include pgraph.ext
+#include cml.ext
+
+proc (2) = CMLhist(dataset,pars);
+    local vindx,vnames,k1,y0,cntr,ttab,title0,oldvwr;
+    local LLoutput,frq,dst,fhandle,ctp,mn,incr,sd,adds,sq,
+          irow,stri,str,strj,i,j,k,l,oaw,vv;
+
+    if type(pars) == 13;
+        pars = stof(pars);
+    else;
+        pars = vec(pars);
+    endif;
+
+    if type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(error(0),error(0));
+        endif;
+
+        if pars $== 0;
+            vindx = 0;
+            vnames = getname(dataset);
+        else;
+            { vnames,vindx } = indices(dataset,pars);
+        endif;
+
+        dataset = {};
+        k1 = getnr(6,colsf(fhandle));
+        call seekr(fhandle,1);
+        do until eof(fhandle);
+            y0 = readr(fhandle,k1);
+            dataset = dataset | y0[.,vindx];
+        endo;
+        clear y0;
+        if fhandle > 0;
+           fhandle = close(fhandle);
+        endif;
+    else;
+        if not (pars $== 0);
+            dataset = dataset[.,pars];
+            vnames = "PAR_"$+pars;
+        else;
+            vnames = "PAR_"$+seqa(1,1,cols(dataset));
+        endif;
+    endif;
+
+    if cols(dataset) == 1;
+        frq = zeros(_cml_NumCat,1);
+    else;
+        frq = zeros(_cml_NumCat*_cml_NumCat,cols(dataset)*(cols(dataset)-1)/2);
+    endif;
+    dst = zeros(_cml_NumCat,cols(dataset));
+
+    ctp = zeros(_cml_NumCat,cols(dataset));
+    sd = stdc(dataset);
+    sd = sd.*(sd .> 1e-16) + ones(rows(sd),1).*(sd .<= 1e-16);
+    mn = meanc(dataset);
+
+    i = 1;
+    do until i > cols(dataset);
+        if rows(_cml_Increment) == cols(dataset);
+             incr = _cml_Increment[i];
+        else;
+             incr = _cml_Increment[1];
+        endif;
+        if rows(_cml_Center) == cols(dataset);
+             cntr = _cml_Center[i];
+        else;
+             cntr = _cml_Center[1];
+        endif;
+        if incr == 0;
+            incr = 2 * _cml_Width * sd[i] / _cml_NumCat;
+            if cntr == 0;
+                str = mn[i] - _cml_Width * sd[i] - incr / 2;
+            else;
+                str = cntr - _cml_Width * sd[i] - incr / 2;
+            endif;
+        else;
+            if cntr == 0;
+                str = mn[i] - incr * (_cml_NumCat - 1) / 2;
+            else;
+                str = cntr - incr * (_cml_NumCat - 1) / 2;
+            endif;
+        endif;
+        ctp[.,i] = seqa(str,incr,_cml_NumCat);
+        i = i + 1;
+    endo;
+
+    adds = zeros(cols(dataset),1);
+    sq = seqa(1,1,_cml_NumCat);
+    irow = 1;
+    do until irow > rows(dataset);
+
+        i = 1;
+        do until i > cols(dataset);
+            if dataset[irow,i] > ctp[_cml_NumCat,i];
+                adds[i] = _cml_NumCat;
+            else;
+                adds[i] = subscat(dataset[irow,i],ctp[.,i],sq);
+            endif;
+            dst[adds[i],i] = dst[adds[i],i] + 1;
+            i = i + 1;
+        endo;
+
+        if cols(dataset) == 1;
+            frq[adds[1]] = frq[adds[1]] + 1;
+        else;
+            k = 1;
+            i = 2;
+            do until i > cols(dataset);
+                j = 1;
+                do while j < i;
+                   l = _cml_NumCat * (adds[i] - 1) + adds[j];
+                   frq[l,k] = frq[l,k] + 1;
+                   j = j + 1;
+                   k = k + 1;
+                endo;
+                i = i + 1;
+           endo;
+        endif;
+
+        irow = irow + 1;
+    endo;
+
+    if __output == 0;
+        retp(dst,ctp);
+    endif;
+
+    oldvwr = setvwrmode("many");
+
+#IFUNIX
+
+    oaw = WinGetActive;
+    if cols(dataset) == 1;
+       vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+       call WinSetActive(WinOpenPQG(vv,"Coefficient 1","Hist"));
+       call bar(ftocv(ctp,6,3),frq);
+    else;
+
+        vv = { 50,100,640,480,40,80,1,6,15,0,0,2,2 };
+
+        i = 1;
+        do until i > cols(dataset);
+            stri = "Coefficient "$+vnames[i];
+            call WinSetActive(WinOpenPQG(vv,stri,"Hist"));
+            xlabel(stri);
+
+            _psurf = { 0, 0 };
+            _pframe = 1;
+            _paxes = 1;
+            call bar(ctp[.,i],
+                 sumc(reshape(frq[.,i],_cml_NumCat,_cml_NumCat)));
+
+            vv[1:2] = vv[1:2] + 10;
+            i = i + 1;
+        endo;
+
+       vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+
+        k = 1;
+        i = 2;
+        do until i > cols(dataset);
+            stri = "Coefficient "$+vnames[i];
+            xlabel(stri);
+
+            j = 1;
+            do while j < i;
+                _pframe = 0;
+                _paxes = 1;
+       /*       xv = -4*ctp[1,j]+3*ctp[_cml_NumCat,j]; */
+                strj = "Coefficients "$+vnames[j]$+" by "$+vnames[i];
+                call WinSetActive(WinOpenPQG(vv,strj,"Surface"));
+                ylabel("Coefficient "$+vnames[j]);
+                call surface(ctp[.,j]',ctp[.,i],
+                             reshape(frq[.,k],_cml_NumCat,_cml_NumCat));
+                vv[1:2] = vv[1:2] + 10;
+                k = k + 1;
+                j = j + 1;
+            endo;
+            i = i + 1;
+        endo;
+    endif;
+    call WinSetActive(oaw);
+
+#ELSE
+
+    if cols(dataset) == 1;
+        call bar(ctp,frq);
+    else;
+        title0 = _ptitle;
+        _ptitle = "";
+        k = 1;
+        i = 2;
+        do until i > cols(dataset);
+            j = 1;
+            do while j < i;
+                ttab = reshape(frq[.,k],_cml_NumCat,_cml_NumCat);
+
+                begwind;
+
+                title("");
+                _pmsgstr = "";
+                _pmsgctl = 0;
+
+                makewind(4.2,3,.2,3.3,0);
+                makewind(4,3.1,.2,.2,0);
+                makewind(4.2,3,4.4,.2,0);
+                makewind(9,6.855,0,0,1);
+
+                xlabel("Coefficient "$+vnames[j]);
+                _psurf = { 0, 0 };
+                _pframe = 1;
+                _paxes = 1;
+                call bar(ctp[.,j],sumc(ttab));
+
+                nextwind;
+                _pframe = 0;
+                _paxes = 1;
+
+                ylabel("Coefficient "$+vnames[i]);
+                call surface(ctp[.,j]',ctp[.,i],ttab);
+
+                nextwind;
+
+                xlabel("Coefficient "$+vnames[i]);
+                ylabel("");
+                _pframe = 1;
+                _paxes = 1;
+                call bar(ctp[.,i],sumc(ttab'));
+
+                nextwind;
+
+                title(title0);
+                xlabel("");
+                _pmsgstr = "Coefficients\000"$+vnames[j]$+" vs. "$+vnames[i];
+                _pmsgctl = { 5 5 .3 0 2 15 5,
+                             5.7 4.55 .2 0 2 15 5 };
+                _paxes = 0;
+                _pframe = 0;
+
+                draw;
+
+                endwind;
+                k = k + 1;
+                j = j + 1;
+            endo;
+            i = i + 1;
+        endo;
+    endif;
+#ENDIF
+    call setvwrmode(oldvwr);
+
+    retp(dst,ctp);
+endp;
+
+
+
+

@@ -1,0 +1,57 @@
+/*
+** design.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> design
+**
+**  Purpose:   Creates a design matrix of 0's and 1's from a column vector of
+**             numbers specifying the columns in which the 1's should be placed.
+**
+**  Format:    y = design(x);
+**
+**  Input:     x    Nx1 vector.
+**
+**  Output:    y    NxK matrix, where K = maxc(x); each row of y will contain
+**                  a single 1, and the rest 0's. The one in the ith row will
+**                  be in the round(x[i,1]) column.
+**
+**  Remarks:   Note that x does not have to contain integers. It will be rounded
+**             to nearest in any case.
+**
+**  Example:   let x = 1 1.2 2 3 4.5;
+**             y = design(x);
+**
+**             The result is:
+**
+**                     1    0    0    0
+**                     1    0    0    0
+**                     0    1    0    0
+**                     0    0    1    0
+**                     0    0    0    1
+*/
+
+proc design(x);
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Matrix must be real.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+    x = round(x);
+    retp(x .== seqa( 1, 1, maxc(x) )' );
+endp;

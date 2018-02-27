@@ -1,0 +1,13 @@
+/*
+** loess.dec - LOESS regression
+** (C) Copyright 1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declarations for loess procedure
+*/
+
+external matrix _loess_Span;
+external matrix _loess_NumEval;
+external matrix _loess_Degree;
+external matrix _loess_WgtType;
+

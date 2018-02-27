@@ -1,0 +1,143 @@
+/*                                                   Rainer Schlittgen,  01. 03. 2001
+**> REGAR 
+**  Purpose: regression with autoxcorrelated errors by approximative
+**           maximum likelihood
+**
+**  Format: {beta,alpha,stdb,stda,corb,cora,sigma2}=regar(y,x,p);
+**
+**  Input : y (n,1) vector, the dependent variable 
+**          x (n,m) matrix, fixed regressors or
+**             1 when a constant is to be included or
+**             0 when no constant is to be included 
+**          p  scalar, order for ar-process for error
+**  Output: beta (m,1) vector of regression coefficients
+**          alpha (p,1) vector, the autoregression coefficients
+**          stdb  (m,1) vector, the standard errors of the regression coefficients
+**          stda  (p,1) vector, the standard errors of the autoregression coefficients
+**          corb  (m,m) matrix, the correlations of the regression coefficients
+**          cora  (p,p) matrix, the correlations of the autoregression coefficients
+**          sigma2 scalar, the error variance
+**
+**  Remarks : Set global variable _iterout_=1 to watch iteration history.
+**            Gram-Schmid orthogonalization is used to obtain GLS estimates of beta
+**  Reference: 
+**  Fuller, W.A. (1996): Introduction to statistical time series;
+**         New York: Wiley             
+**  Brockwell, P.J. and Davis, R.A. (1987): Time series: theory and methods;
+**         New York: Springer
+**   
+*/
+
+PROC (7) = regar(y,x,p);
+
+ LOCAL a,aic,alpha,b,beta,bic,cov,cova,covb,it,j,m,n,pred;
+ LOCAL r,res,sigma2,stda,stdb,xf,yf,z,i;
+ LOCAL g,k,t,th,v;
+
+ n = ROWS(y);
+ m = COLS(x);
+
+ IF x==1; x = ONES(n,1); ENDIF;
+ IF x==0; x = ZEROS(n,1); ENDIF;
+
+ res = y;
+ beta = MISS(0,0);
+
+/**  preliminary regression estimates  **/  
+
+ IF SUMC(VEC(x .NE 0));
+  {beta,res,pred} = OLSQR2(y,x);
+ ENDIF;  
+
+/**  preliminary autoregression estimates  **/  
+  
+  alpha = arest(res,p,"orth");  
+  res = armaresid(res,alpha,0); 
+  
+  IF _iterout_;
+    PRINT "initial estimates: ";
+    PRINT "beta :" beta';
+    PRINT "alpha:" alpha' ;
+  ENDIF;  
+
+  sigma2 = res'*res/(n-p-m);
+  a = ZEROS(p,1);
+  b = ZEROS(m,1);
+  it=0;
+  
+
+ DO UNTIL ((ABS((beta-b)|(alpha-a)) < 0.00001*(ABS(b|a)+0.0001) ) OR (it == 20));
+    it = it + 1;
+    a = alpha;
+    b = beta;
+
+/**  preparing for orthogonal transformation   **/  
+  
+    th = ZEROS(p,p);
+    v  = ZEROS(p+1,1);
+    g  = acovth(alpha,0,sigma2,p);
+    v[1] = g[1];
+    yf = 0;
+    xf = ZEROS(1,m); 
+    t = 0;
+    DO WHILE t<p;
+      t = t+1  ;
+      th[t,t] = g[t+1]/v[1];
+      k = 1;
+      DO WHILE k<t;
+        th[t,t-k] = (g[t-k+1]-(th[t,t-k+1:t].*th[k,1:k])*rev(v[1:k]))/v[k+1] ;
+        k = k+1;
+      ENDO;
+      v[t+1] = v[1] - (th[t,1:t]^2)*rev(v[1:t]);
+      yf = yf|(th[t,t:1]*(y[1:t]-yf[1:t]));
+      xf = xf|(th[t,t:1]*(x[1:t,.]-xf[1:t,.]));
+    ENDO;
+
+/**  orthogonal transformation to obtain GLS estimates  **/ 
+  
+    yf = yf[2:p+1]|CONV(y,(1|-a),p+1,n);
+    xf = xf[2:p+1,.]|CONV(x,(1|-a),p+1,n);
+
+    {beta,res,pred} = OLSQR2(yf,xf);
+    z = tsmat(y-x*beta,p+1);
+    {alpha,res,pred} = OLSQR2(z[.,1],z[.,2:p+1]);
+    sigma2 = res'*res/(n-p-m);
+    
+    IF _iterout_;
+      PRINT "";
+      PRINT "Iteration: " it;
+      PRINT "beta :" beta';
+      PRINT "alpha:" alpha' ;
+    ENDIF;  
+  ENDO;  
+  
+  r = QR(CONV(x,(1|-a),p+1,n));
+  covb = INV(r'*r)*sigma2;
+  r = QR(z[.,2:p+1]);
+  cova = INV(r'*r)*sigma2;
+  stda = SQRT(DIAG(cova));
+  stdb = SQRT(DIAG(covb));
+
+FORMAT 14,8;
+PRINT ""; 
+PRINT  "                                        Standard                    Approx";
+PRINT  "                        Estimate        Error           t-Value     Pr > |t|";
+PRINT "    Variable ";
+ i = 0;
+ DO WHILE i<m;
+  i=i+1;
+  PRINT  i;;" :  ";; beta[i]~stdb[i]~(beta[i]/stdb[i])~(2-2*cdfn(abs(beta[i]/stdb[i]))) ;
+ ENDO; 
+PRINT "    ar-parameter";
+PRINT "    lag ";
+i = 0;
+ DO WHILE i<p;
+  i=i+1;
+  PRINT  i;; " :  ";; alpha[i]~stda[i]~(alpha[i]/stda[i])~(2-2*cdfn(abs(alpha[i]/stda[i]))) ;
+ ENDO; 
+ 
+ RETP(beta,alpha,stdb,stda,covb./(stdb*stdb'),cova./(stda*stda'), sigma2);
+ENDP; 
+
+
+

@@ -1,0 +1,40 @@
+/*
+** count.dec - declarations for globals used in COUNT.
+** (C) Copyright 1988-2005 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+** If you want to edit the initial defaults you should edit
+** both this file and PROC COUNTSET in count.src.
+*/
+
+declare matrix _cn_Start = 0;
+declare matrix _cn_ZeroTruncate = 1;
+declare matrix _cn_Fix = 0;
+declare matrix _cn_Dispersion = 3;
+declare matrix _cn_Censor = 0;
+declare matrix _cn_Precision = 4;
+declare matrix _cn_StartValues = 0;
+declare string _cn_Inference = "MAXLIK";
+
+/* scratch globals - not to be changed by user */
+declare matrix _cn_c1 = 0;
+declare matrix _cn_c2 = 0;
+declare matrix _cn_c3 = 0;
+declare matrix _cn_fn = "";
+declare matrix _cn_dp = "";
+declare matrix _cn_vr = "";
+

@@ -1,0 +1,6 @@
+COINT End User License Agreement
+
+Much effort has been made to free COINT of bugs and to ensure that the program operates as documented.  Further, to the best of the developer's knowledge and belief, the use of COINT  will not result in infringement of any copyright(s) belonging to third parties.  However, the developers, Sam Ouliaris and Peter C. B. Phillips, specifically disclaim all warranties as to COINT, whether expressed, implied or statutory, including without limitation any implied warranties of merchantability, fitness for a particular purpose, functionality, data integrity or protection, or non-infringement of third parties rights.  Further, the authors make no representations or warranties that COINT is free of errors or viruses, or that COINT is suitable for your intended use.  In particular, in no event shall the authors be liable for special, consequential, incidental, indirect or similar damages or losses of any kind arising out of the delivery, performance or use of (or the inability to use) COINT.
+
+COINT is Copyright (1991-2001, by Sam Ouliaris and Peter C. B. Phillips.  All rights reserved.
+

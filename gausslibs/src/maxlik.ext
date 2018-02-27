@@ -1,0 +1,90 @@
+/*
+** maxlik.ext - external declarations for globals used in MAXLIK.
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+external matrix _ml_ver;
+external matrix _max_QmlProc;
+external matrix _max_Options;
+external matrix _max_Algorithm;
+external matrix _max_LineSearch;
+external matrix _max_CovPar;
+external matrix _max_GradMethod;
+external matrix _max_Algorithm;
+external matrix _max_covPar;
+external matrix _max_ParNames;
+external matrix _max_GradTol;
+external matrix _max_HessProc;
+external matrix _max_GradProc;
+external matrix _max_UserNumGrad;
+external matrix _max_UserNumHess;
+external matrix _max_GradMethod;
+external matrix _max_MaxIters;
+external matrix _max_IterData;
+external matrix _max_RandRadius;
+external matrix _max_LineSearch;
+external matrix _max_UserSearch;
+external matrix _max_Extrap;
+external matrix _max_interp;
+external matrix _max_Delta;
+external matrix _max_MaxTry;
+external matrix _max_Lag;
+external matrix _max_NumObs;
+external matrix _max_FinalHess;
+external matrix _max_HessCov;
+external matrix _max_XprodCov;
+external matrix _max_Key;
+external matrix _max_MaxTime;
+external matrix _max_Active;
+external matrix _max_Select;
+external matrix _max_Diagnostic;
+external matrix _max_GradCheckTol;
+external matrix _max_Alpha;
+
+external matrix _max_CrossTab;
+external matrix _max_CutPoint;
+external matrix _max_NumSample;
+external matrix _max_NumCat;
+external matrix _max_Increment;
+external matrix _max_Center;
+external matrix _max_Width;
+
+external matrix _max_Switch;
+external matrix _max_BayesAlpha;
+external matrix _max_PriorProc;
+external string _max_BootFname;
+external matrix _max_Kernel;
+external matrix _max_Smoothing;
+external matrix _max_EndPoints;
+external matrix _max_NumPoints;
+external matrix _max_Truncate;
+external matrix _max_state;
+external matrix _max_RandType;
+
+/* used in GRADIENT.SRC */
+external matrix _max_GradStep;
+
+
+/*  scratch matrices  */
+external string _max_dsn;
+external matrix _max_dat;
+external matrix _max_row;
+external matrix _max_eps2;
+external matrix _max_eps3;

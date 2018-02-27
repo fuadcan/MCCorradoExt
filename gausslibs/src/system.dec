@@ -1,0 +1,12 @@
+/*
+** system.dec - Used by 32-bit version only.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Modify this number to reflect the largest number of elements allowed
+** in any one matrix.  This is the value returned by MAXVEC().
+*/
+
+/* ************************ NEVER use 8190 ************************** */
+
+declare matrix __maxvec = 20000;

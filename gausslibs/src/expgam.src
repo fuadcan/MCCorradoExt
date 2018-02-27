@@ -1,0 +1,231 @@
+/*
+** expgam.src - Exponential Gamma Regression Model
+** (Censoring and Variance Function Optional)
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format:     { bg,vc,llik } = EXPGAM(dataset,dep,ind);
+**
+**  Input:      dataset - string, name of GAUSS data set
+**                                   or
+**                        matrix, data matrix to be used
+**
+**              dep     - dependent variable (duration) name or
+**                        column number
+**              ind     - vector of independent variable names or
+**                        column numbers
+**
+**  Output:
+**      bg    - vector of effect parameters that maximize the likelihood
+**              on top of parameter(s) corresponding to vind.
+**
+**              PARAMETERIZATION: bg=b|g;
+**                                E(Y) = exp(ind*b)
+**                                V(Y) = E(Y)*(1+exp(g))
+**
+**      vc    - variance-covariance matrix of b
+**      llik  - value of the log-likelihood at the maximum
+**
+**  GLOBALS:
+**    _cn_Inference    = MAXLIK for maximum likelihood estimates
+**                     = BOOT for bootstrapped estimates
+**                     = PROFILE for likelihood profile and profile t traces
+**
+**       _cn_Censor      0 = exponential gamma model, no censoring (default),
+**                  symbol = use this variable from dataset to censor.
+**                           Code each row as 0 if censored or 1 if not.
+**                 integer = use this column of input matrix to censor.
+**                           Code each row as 0 if censored or 1 if not.
+**
+**       _cn_Fix        0 = do nothing extra (default)
+**                 symbol = include this variable from a dataset,
+**                          constraining its coefficient to 1.0.
+**                integer = include log of this column of input matrix,
+**                          constraining its coefficient to 1.0.
+**
+**      _cn_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = set to vector stored in _cn_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      __output    1  =  print output to screen (default),
+**                  0  =  do not print to screen
+**
+**      _cn_Dispersion  starting value for scalar dispersion parameter
+**                      (default = 3).
+**
+**  OTHER GLOBALS:
+**      see MAXLIK.
+**
+**  EXAMPLE:
+**      let dep = time;
+**      let ind = age party unem;
+**      dataset = "\\gauss\\prg\\sample";
+**      call expgam(dataset,dep,ind,0);
+**
+*/
+
+#include count.ext
+#include gauss.ext
+#include maxlik.ext
+
+#ifDLLCALL
+#else
+external proc indexcat;
+#endif
+
+proc _cn_sveg(dataset,dep,ind);
+    local res,b0,b,pars;
+    pars = 2;
+    if ind/=0;
+        pars = pars+rows(ind);
+    endif;
+    if _cn_Start==0;
+        if ind==0;
+            b0 = 0;
+        else;
+            b0 = -lols(dataset,dep,ind);
+        endif;
+        res = b0|_cn_Dispersion;
+    elseif _cn_Start==1;
+        b = _cn_StartValues;
+        res = b;
+        if rows(b)/=pars;
+            errorlog "b is the wrong size for _cn_Start\g";
+            end;
+        endif;
+    elseif _cn_Start==2;
+        res = rndu(pars,1)-0.5;
+    elseif _cn_Start==3;
+        res = zeros(pars,1);
+    else;
+        res = _cn_Start;
+        if rows(res)/=pars;
+            errorlog "rows(_cn_Start) is wrong.\g";
+            end;
+        endif;
+    endif;
+    retp(res);
+endp;
+
+proc _cn_lieg(b,dta);
+    local y,n,x,xb,res,g,eg,emg,exb,c,nc,dd;
+    y = dta[.,1];
+    n = rows(y);
+    x = ones(n,1);
+    if ((_cn_Censor/=0) and (cols(dta)>2));
+        x = x~dta[.,2:cols(dta)-1];
+    elseif (_cn_Censor==0) and (cols(dta)>1);
+        x = x~dta[.,2:cols(dta)];
+    endif;
+    dd = ones(n,1);
+    if _cn_Censor/=0;
+        dd = dta[.,cols(dta)];
+    endif;
+
+    nc = indexcat(dd,1);    /* not censored index values */
+    c = indexcat(dd,0);     /* censored index values */
+    g = b[rows(b)];
+    b = trimr(b,0,1);
+    xb = x*b;
+    eg = exp(g);
+    emg = exp(-g);
+    exb = exp(xb);
+    res = -emg.*xb[nc]-emg*g-_cn_lng(emg)+(emg-1)*ln(y[nc])
+          -(y[nc]./(exb[nc].*eg));
+    if scalmiss(c)==0;      /* if no censoring */
+        res = res|(1-cdfgam(emg,y[c]./(exb[c].*eg)));
+    endif;
+    retp(res);
+endp;
+
+proc (3) = expgam(dataset,dep,ind);
+    local b,logl,g,vc,vars,st,ret,cnsr,nv;
+    _max_CovPar = 3;
+    _cn_fn = dataset;
+    cnsr = _cn_Censor;
+    if dep$==0;
+        errorlog "DEP must = variable name or number";
+        end;
+    endif;
+    if ((type(dataset)/=13) and ((maxc(ind)>cols(dataset)) or
+        (dep>cols(dataset))) );
+        errorlog "If DATASET=matrix, DEP and IND must be column numbersof t"\
+            "he input matrix.\g";
+        end;
+    endif;
+    vars = dep;
+    if ind /= 0;
+        vars = vars|ind;
+    endif;
+    if (type(dataset) == 13) and (type(_cn_Censor) == 13);
+        cnsr = indcv(_cn_Censor,getname(dataset));
+    endif;
+
+    st = _cn_sveg(dataset,dep,ind);
+    if __title $== "";
+        if _cn_Censor /= 0;
+            __title = "Censored ";
+        endif;
+        __title = __title $+ "Exponential Gamma Regression Model of Duratio"\
+            "n Data";
+    endif;
+    if _cn_Censor /= 0;
+        vars = vars|cnsr;
+    endif;
+    local infm,inf0,lcInf;
+    infm = { MAXLIK, BOOT };
+    inf0 = { 1, 2 };
+    LcInf = _ml_check(_cn_Inference,1,infm,inf0,1);
+    if LcInf == 1;
+        { b,logl,g,vc,ret } = maxlik(dataset,vars,&_cn_lieg,st);
+    elseif LcInf == 2;
+        { b,logl,g,vc,ret } = maxboot(dataset,vars,&_cn_lieg,st);
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+
+    vars = "beta0";
+    if ind /= 0;
+        if type(dataset)==13 and cols(dataset) >= 2;
+            nv = getname(dataset);
+            nv = rows(nv);
+        else;
+            nv = 1e+15;
+        endif;
+        if round(ind) == ind and ind >= 1 and ind < 131072;
+            if ind > nv;
+                errorlog "ERROR: index of variable out of range: " $+
+                    ftos(ind,"%*.*lf",1,0);
+                end;
+            endif;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind),1))$+_cn_ftosm(ind,2));
+        else;
+            vars = vars|ind;
+        endif;
+    endif;
+    vars = vars|"gamma";
+    _cn_vr = vars;
+    _cn_dp = dep;
+    ndpclex;
+    retp(b,vc,logl*_max_NumObs);
+endp;

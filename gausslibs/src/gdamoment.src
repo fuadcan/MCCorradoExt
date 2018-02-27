@@ -1,0 +1,339 @@
+/*
+** gdamoment.src
+** (C) Copyright 2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**                  Format                                  Line
+** =====================================================================
+**
+**    m = gdamoment(mc0,filename,vars);                       31
+**    m = gdamomentmat(mc0,filename,var,colind);             205
+**    mc0 = momentmtControlCreate;                           354
+**/
+
+#include momentmt.sdf
+
+/*
+**> gdamoment
+**
+**  Purpose:    To compute a moment (X'X) matrix from variables in a 
+**              GAUSS Data Archive.
+**
+**  Format:     m = gdamoment(mc0,filename,vars);
+**
+**  Input:  mc0     an instance of a momentmtControl structure containing 
+**                  the following members:
+** 
+**                    mc0.con -- scalar, default 1.
+**
+**                        1   a constant term will be added, D = K+1.
+**
+**                        0   no constant term will be added, D = K.
+**
+**                    mc0.maxbytes -- scalar, default 1e9. 
+**
+**                        The maximum number of bytes to be read per 
+**                        iteration of the read loop.
+**
+**                    mc0.maxvec -- scalar, default 20000. 
+**
+**                        The largest number of elements allowed in any
+**                        one matrix.
+**
+**                    mc0.miss -- scalar, (default 0)
+**
+**                        0   there are no missing values (fastest).
+**
+**                        1   do listwise deletion, drop an observation
+**                            if any missings occur in it.
+**
+**                        2   do pairwise deletion, This is equivalent to
+**                            setting missings to 0 when calculating m.
+**                            Not generally advised.
+**
+**                     mc0.row -- scalar, (default 0) the number of
+**                        rows to read per iteration of the read loop.
+**
+**                        If 0, the number of rows will be calculated
+**                        internally.
+**
+**  Input:      filename    string, name of GAUSS Data Archive.
+**
+**              vars        Kx1 string array, names of variables
+**                                      or
+**                          Kx1 numeric vector, indices of columns
+**
+**                          These can be any size subset of the variables in
+**                          the GDA, and can be in any order.  If a
+**                          scalar 0 is passed, all variables in the GDA
+**                          will be used.
+**
+**  Output:         m   MxM matrix, where M = K+mc0.con, the moment matrix
+**                      constructed by calculating X'X where X is the data
+**                      with or without a constant vector of ones.
+**
+**                      Error handling is controlled by the low order bit
+**                      of the trap flag.
+**
+**                      TRAP 0     terminate with error message
+**
+**                      TRAP 1     return scalar error code in m
+**
+**                                33  too many missings
+**                                34  file not found
+**
+*/
+
+proc gdamoment(struct momentmtControl mc0,filename,vars);
+    local k,nr,m,indx,dta,vnames,chunk,rind,rowsread,tobs;
+
+    filename = "" $+ filename;
+
+    /* process variables */
+    if (type(vars) == 6);
+        vnames = gdagetnames(filename);
+
+        if (vars == 0);
+            indx = seqa(1,1,rows(vnames));
+        else;
+            indx = vars;
+            vnames = vnames[indx];
+        endif;
+    else;
+        if (vars $== "");
+            vnames = gdagetnames(filename);
+            indx = seqa(1,1,rows(vnames));
+        else;
+            vnames = gdagetnames(filename);
+            indx = indsav(vars,vnames);
+            vnames = vars;
+        endif;
+    endif;
+
+    /* Computation of max number of rows to read at one time */
+    k = rows(indx);
+    if mc0.row;
+        nr = mc0.row;
+    else;
+        nr = floor(minc(mc0.maxbytes/(k*8*3.5)|mc0.maxvec/(k+1)));
+    endif;
+    m = 0;
+    rowsread = 0;
+    tobs = gdaGetOrders(filename,vnames[1]);
+    if (scalerr(tobs));
+        if not trapchk(1);
+            errorlog "Can't open file: " $+ filename;
+            end;
+        else;
+            retp(error(34));
+        endif;
+    endif;
+    tobs = tobs[1];
+    rind = 1;
+    do until (rowsread == tobs);
+        chunk = minc(tobs-rowsread|nr);
+        dta = {};
+        for i (1,k,1);
+            dta = dta~gdaReadSome(filename,vnames[i],rind,chunk);
+        endfor;
+        if mc0.con;
+            dta = ones(rows(dta),1) ~ dta;
+        endif;
+        dta = moment(dta,mc0.miss);
+        if scalmiss(dta);
+            continue;
+        endif;
+        m = m+dta;
+        rowsread = rowsread+chunk;
+        rind = rind+chunk;
+    endo;
+    if cols(m) == 1 and m $== 0;
+        if not trapchk(1);
+            errorlog "Too many missings - no data left after packing";
+        else;
+            retp(error(33));
+        endif;
+    endif;
+    retp(m);
+endp;
+
+/*
+**> gdamomentmat
+**
+**  Purpose:    To compute a moment (X'X) matrix from specified columns of
+**              an NxK variable in a GAUSS Data Archive.
+**
+**  Format:     m = gdamomentmat(mc0,filename,vars,colind);
+**
+**  Input:  mc0     an instance of a momentmtControl structure containing 
+**                  the following members:
+** 
+**                    mc0.con -- scalar, default 1.
+**
+**                        1   a constant term will be added, D = K+1.
+**
+**                        0   no constant term will be added, D = K.
+**
+**                    mc0.maxbytes -- scalar, default 1e9. 
+**
+**                        The maximum number of bytes to be read per 
+**                        iteration of the read loop.
+**
+**                    mc0.maxvec -- scalar, default 20000. 
+**
+**                        The largest number of elements allowed in any
+**                        one matrix.
+**
+**                    mc0.miss -- scalar, (default 0)
+**
+**                        0   there are no missing values (fastest).
+**
+**                        1   do listwise deletion, drop an observation
+**                            if any missings occur in it.
+**
+**                        2   do pairwise deletion, This is equivalent to
+**                            setting missings to 0 when calculating m.
+**                            Not generally advised.
+**
+**                     mc0.row -- scalar, (default 0) the number of
+**                        rows to read per iteration of the read loop.
+**
+**                        If 0, the number of rows will be calculated
+**                        internally.
+**
+**  Input:      filename    string, name of GAUSS Data Archive.
+**
+**              var         scalar, name of variable in the GDA
+**                                      or
+**                          scalar, index of variable in the GDA.
+**
+**              colind      Nx1 vector, indices of columns in the variable
+**                          to be used in computing the moment matrix.
+**
+**                          These can be any size subset of the columns in
+**                          the variable, and can be in any order.  If a
+**                          scalar 0 is passed, all columns will be used.
+**
+**  Output:         m   MxM matrix, where M = K+mc0.con, the moment matrix
+**                      constructed by calculating X'X where X is the data
+**                      with or without a constant vector of ones.
+**
+**                      Error handling is controlled by the low order bit
+**                      of the trap flag.
+**
+**                      TRAP 0     terminate with error message
+**
+**                      TRAP 1     return scalar error code in m
+**
+**                                33  too many missings
+**                                34  file not found
+**
+*/
+
+#include momentmt.sdf
+
+proc gdamomentmat(struct momentmtControl mc0,filename,var,colind);
+    local k,nr,m,indx,dta,vname,chunk,rind,rowsread,tobs;
+
+    filename = "" $+ filename;
+
+    /* process variables */
+    if (type(var) == 6);
+        indx = var;
+        vname = gdaGetName(filename,indx);
+    else;
+        vname = var;
+        indx = gdaGetIndex(filename,vname);
+    endif;
+
+    /* Computation of max number of rows to read at one time */
+    tobs = gdaGetOrders(filename,vname);
+    if (scalerr(tobs));
+        if not trapchk(1);
+            errorlog "Can't open file: " $+ filename;
+            end;
+        else;
+            retp(error(34));
+        endif;
+    endif;
+    k = tobs[2];
+    tobs = tobs[1];
+
+    if (colind == 0);
+        colind = seqa(1,1,k);
+    endif;
+
+    if mc0.row;
+        nr = mc0.row;
+    else;
+        nr = floor(minc(mc0.maxbytes/(k*8*3.5)|mc0.maxvec/(k+1)));
+    endif;
+    m = 0;
+    rowsread = 0;
+    rind = 1|1;
+    do until (rowsread == tobs);
+        chunk = minc(tobs-rowsread|nr);
+        dta = gdaReadSome(filename,vname,rind,chunk|k);
+        if mc0.con;
+            dta = ones(rows(dta),1) ~ dta[.,colind];
+        else;
+            dta = dta[.,colind];
+        endif;
+        dta = moment(dta,mc0.miss);
+        if scalmiss(dta);
+            continue;
+        endif;
+        m = m+dta;
+        rowsread = rowsread+chunk;
+        rind[1] = rind[1]+chunk;
+    endo;
+    if cols(m) == 1 and m $== 0;
+        if not trapchk(1);
+            errorlog "Too many missings - no data left after packing";
+        else;
+            retp(error(33));
+        endif;
+    endif;
+    retp(m);
+endp;
+
+/*
+** momentmtControlCreate
+**
+** Purpose: Sets the members of a momentmtControl structure to default values.
+**
+** Format:  mc1 = momentmtControlCreate;
+**
+** Input:      none
+**
+** Output:     mc1 -- an instance of a momentmtControl structure with its
+**                    members set to default values.  
+**
+** Remarks:  momentmtControlCreate should be called before any call to 
+**           gdamoment or gdamomentmat. 
+**
+*/
+
+proc momentmtControlCreate;
+	struct momentmtControl mc0;
+
+	mc0.con = 1;
+	mc0.miss = 0;
+	mc0.row = 0;
+	mc0.maxvec = 20000; 
+	mc0.maxbytes = 1e9;
+
+	retp(mc0);
+endp;
+

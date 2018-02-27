@@ -1,0 +1,11 @@
+/*
+** svd.dec - Singular value decomposition.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definitions for procedures SVDx, PINV, COND and RANK.
+*/
+
+declare matrix _svdtol  = 1.0e-13;
+declare matrix _svderr  = 0;
+declare matrix _svd;          /* not used by 32-Bit versions */

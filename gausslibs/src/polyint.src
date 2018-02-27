@@ -1,0 +1,115 @@
+/*
+** polyint.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> polyint
+**
+**  Purpose:    Calculates a Nth order polynomial interpolation
+**              or extrapolation of x on y given the vectors XA
+**              and YA and the scalar x.  The procedure uses
+**              Neville's algorithm to determine an up to Nth
+**              order polynomial and an error estimate.
+**
+**  Format:     y = polyint(xa,ya,x);
+**
+**  Input:      xa          Nx1 vector, x values.
+**
+**              ya          Nx1 vector, y values.
+**
+**              x           scalar, x value to solve for.
+**
+**              _poldeg     global scalar, the degree of polynomial
+**                                 required, default 6.
+**
+**  Output:     y         result of interpolation or extrapolation.
+**
+**              _polerr   global scalar, interpolation error.
+**
+**  Remarks:    Polynomials above degree 6 are not likely to
+**              increase the accuracy for most data. Test _polerr
+**              to determine the required _poldeg for your
+**              problem.
+**
+**  Reference:  Press, W.P., Flannery, B.P., Teukolsky, S.A., and
+**              Vettering, W.T., (1986),  Numerical Recipes: The Art of
+**              Scientific Computing,(New York: Cambridge Press)
+**
+**  Globals:    _polerr, _poldeg
+*/
+
+#include poly.ext
+
+proc polyint(xa,ya,x);
+    local nbak,nfor,ns,dif,c,d,m,n,i,ho,hp,w,den,dy,y,yh,yl;
+
+    nbak = int(_poldeg/2)+(_poldeg%2);
+    nfor = int(_poldeg/2);
+    n = rows(xa);
+    dif = abs(x-xa);
+    ns = minindc(dif);
+
+    if (n - 1 <= _poldeg);
+        yl = 1;
+        yh = n;
+    elseif (ns - nbak <= 1);
+        yl = 1;
+        yh = yl + _poldeg;
+    elseif (ns + nfor >= n);
+        yh = n;
+        yl = yh - _poldeg;
+    else;
+        yl = ns - nbak;
+        yh = ns + nfor;
+    endif;
+
+    ya = ya[yl:yh,1];
+    c = ya;
+    d = ya;
+    xa = xa[yl:yh,1];       /* reduce problem */
+
+    n = rows(xa);           /* calculate subproblem */
+    dif = abs(x-xa);
+    ns = minindc(dif);
+    y = ya[ns];
+    ns = ns - 1;    /* new ns */
+
+    m = 1;
+    do until m > n-1;
+        i = 1;
+        do until i > n-m;
+            ho = xa[i] - x;
+            hp = xa[i+m] -x;
+            w = c[i+1] - d[i];
+            den = ho - hp;
+            if(den == 0);
+                retp(-1|-1|-1);
+            endif;
+            den = w/den;
+            d[i] = hp * den;
+            c[i] = ho * den;
+            i = i + 1;
+        endo;
+        if( 2*ns < n - m);
+            dy = c[ns+1];
+        else;
+            dy = d[ns];
+            ns = ns -1;
+        endif;
+        y = y + dy;
+        m = m + 1;
+    endo;
+    _polerr = dy;
+    retp(y);
+endp;

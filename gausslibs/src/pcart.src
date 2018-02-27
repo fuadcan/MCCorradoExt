@@ -1,0 +1,479 @@
+/*
+** pcart.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/*
+** _pcartx()
+** _pcarty()
+** _pcartz()
+** _fontsiz() Font memory size calculation.
+** _pwrscal() Rescale data according to _qxpow and _qypow.
+** _linfilt() Process user line, arrow, and symbol global matrices.
+** _txtfilt() Process user message and text global matrices.
+** _cmnfilt() Process globals common to all graph types.
+** _prngerr   Calculate scaling range error.
+** _setpage() Set up the page parameters.
+** _decreas() Test a matrix to see if it is sequentially decreasing.
+** _range()   Return the difference between maxc and minc of arg.
+*/
+
+#include pgraph.ext
+
+proc 2 = _pcartx(world,x);
+    local x1,x2;
+    if world $== 0 or rows(vec(world)) < 6;
+        x1 = minc(minc(x));
+        x2 = maxc(maxc(x));
+    else;
+        x1 = world[1];
+        x2 = world[2];
+
+        if scalmiss(world[1]);
+            x1 = minc(minc(x));
+        endif;
+        if scalmiss(world[2]);
+            x2 = maxc(maxc(x));
+        endif;
+    endif;
+    retp(x1,x2);
+endp;
+
+proc 2 = _pcarty(world,y);
+    local y1,y2;
+    if world $== 0 or rows(vec(world)) < 6;
+        y1 = minc(minc(y));
+        y2 = maxc(maxc(y));
+    else;
+        y1 = world[3];
+        y2 = world[4];
+
+        if scalmiss(world[3]);
+            y1 = minc(minc(y));
+        endif;
+        if scalmiss(world[4]);
+            y2 = maxc(maxc(y));
+        endif;
+    endif;
+    retp(y1,y2);
+endp;
+
+proc 2 = _pcartz(world,z);
+    local z1,z2;
+    if world $== 0 or rows(vec(world)) < 6;
+        z1 = minc(minc(z));
+        z2 = maxc(maxc(z));
+    else;
+        z1 = world[5];
+        z2 = world[6];
+
+        if scalmiss(world[5]);
+            z1 = minc(minc(z));
+        endif;
+        if scalmiss(world[6]);
+            z2 = maxc(maxc(z));
+        endif;
+    endif;
+    retp(z1,z2);
+endp;
+
+/*
+**  Return size required for specified fonts. _pxmem is a safety buffer
+**  for suspected differences in memory usage between computers.
+*/
+
+proc 3 = _fontsiz();
+    local fntnams,fntsize,fontnum,mem,ind;
+    if cols(_pfonts) /= 1;
+        errorlog "_FONTS must be column vector";
+        end;
+    endif;
+    fontnum = rows(_pfonts);
+    mem = _pxmem;
+    let fntnams = SIMPLEX SIMGRMA MICROB COMPLEX;
+    let fntsize = { 3688, 4375, 8665, 5940 };
+    ind = indcv(_pfonts,fntnams);
+    if ismiss(ind);
+        errorlog "Invalid font name specified";
+        end;
+    endif;
+    retp(fontnum,mem,fntsize[ind]-192);
+endp;
+
+/* Rescale data according to _qxpow and _qypow. */
+proc (3) = _pwrscal(qxpow,qypow,pline,pmsgctl,psym);
+    local temp,logicvec,xymult;
+    if cols(_plegctl) > 1;
+        if _plegctl[1] == 1;        /* if plot coord. */
+            if qxpow;
+                _plegctl[3] = _plegctl[3] * 10^(-qxpow);
+            endif;
+            if qypow;
+                _plegctl[4] = _plegctl[4] * 10^(-qypow);
+            endif;
+        endif;
+    endif;
+    if not pmsgctl == 0;
+        if qxpow or qypow;
+            logicvec = pmsgctl[.,5] .== 1;
+            xymult = logicvec * 10^(-qxpow) ~ logicvec * 10^(-qypow);
+            xymult = xymult + .not xymult;
+            pmsgctl[.,1 2] = pmsgctl[.,1 2] .* xymult;
+        endif;
+    endif;
+    if not psym == 0;
+        if qxpow or qypow;
+        /* scale xy coord. */
+            logicvec = psym[.,6] .== 1;
+            xymult = logicvec * 10^(-qxpow) ~ logicvec * 10^(-qypow);
+            xymult = xymult + .not xymult;
+            psym[.,1 2] = psym[.,1 2] .* xymult;
+        endif;
+    endif;
+    if not pline == 0;
+        if qxpow or qypow;
+            /* scale circles */
+            logicvec = pline[.,1] .== 4;
+            xymult = logicvec * 10^(-qxpow) ~ logicvec * 10^(-qypow);
+            xymult = xymult + .not xymult;
+            pline[.,3 4] = pline[.,3 4] .* xymult;
+            pline[.,5] = pline[.,5] .* xymult[.,1];
+
+            /* scale radii */
+            logicvec = pline[.,1] .== 6;
+            xymult = logicvec * 10^(-qxpow) ~ logicvec * 10^(-qypow);
+            xymult = xymult + .not xymult;
+            xymult = xymult ~ xymult[.,1] ~ xymult[.,1];
+            pline[.,3 4 5 6] = pline[.,3 4 5 6] .* xymult;
+
+            /* scale lines */
+            logicvec = pline[.,1] .== 1;
+            xymult = logicvec * 10^(-qxpow) ~ logicvec * 10^(-qypow);
+            xymult = xymult + .not xymult;
+            pline[.,3 4] = pline[.,3 4] .* xymult;
+            pline[.,5 6] = pline[.,5 6] .* xymult;
+        endif;
+    endif;
+    retp(pline,pmsgctl,psym);
+endp;
+
+/* Process line, arrow, and symbol matrix */
+proc (6) = _linfilt;
+    local pline,linenum,arrow,arrownum,psym,psymnum;
+
+    /* Process line globals */
+    if _pline == 0;
+        pline = 0;
+        linenum = 0;
+    elseif cols(_pline) < 8 or cols(_pline) > 9;
+        errorlog "LINE matrix invalid";
+        end;
+    else;
+        linenum = rows(_pline);
+        pline = _pline;
+    endif;
+    if cols(pline) == 8;
+        pline = pline ~ zeros(linenum,1);
+    endif;
+
+    /* Process 2d parrow globals */
+    if rows(_parrow) == 1 and cols(_parrow) == 1;
+        arrow = 0;
+        arrownum = 0;
+    elseif cols(_parrow) /= 11;
+        errorlog "Wrong number of columns in _parrow matrix";
+        end;
+    else;
+        arrow = _parrow;
+        arrow[.,7] = ftocv(arrow[.,7],2,0);
+        arrownum = rows(arrow);
+    endif;
+
+    /* Process symbol globals */
+    if _psym == 0;
+        psym = 0;
+        psymnum = 0;
+    elseif cols(_psym) < 6 or cols(_psym) > 7;
+        errorlog "PSYM invalid";
+        end;
+    else;
+        psym = _psym;
+        psym[.,3] = psym[.,3]-1;
+        psymnum = rows(_psym);
+    endif;
+    if cols(psym) == 6;
+        psym = psym ~ zeros(psymnum,1);
+    endif;
+
+    if _psymsiz == 0;
+        _psymsiz = 5;
+    endif;
+
+    retp(pline,linenum,arrow,arrownum,psym,psymnum);
+endp;
+
+/* Process message strings and color matrix */
+proc (3) = _txtfilt;
+    local colorq,msgstr,msgnum;
+
+    /* Check for main/axes titles too long */
+    if strlen(_ptitle) >= 180;
+        errorlog "String too long: " $+ _ptitle;
+        end;
+    endif;
+    if strlen(_pxlabel) >= 80;
+        errorlog "String too long: " $+ _pxlabel;
+        end;
+    endif;
+    if strlen(_pylabel) >= 80;
+        errorlog "String too long: " $+ _pylabel;
+        end;
+    endif;
+
+    /* Process message strings */
+    if cols(_pmsgctl) == 1 and rows(_pmsgctl) == 1;
+        msgstr = "";
+        msgnum = 0;
+    elseif cols(_pmsgctl) < 6 or cols(_pmsgctl) > 7;
+        errorlog "Message control matrix invalid";
+        end;
+    else;
+        msgnum = rows(_pmsgctl);
+        if strlen(_pmsgstr);
+            msgstr = _pmsgstr $+ "\000Not Enough Messages!\0Z\0Z\0Z\0Z\0Z";
+        else;
+            msgstr = "";
+        endif;
+    endif;
+    /* add line width if its not there */
+    if cols(_pmsgctl) == 6;
+        _pmsgctl = _pmsgctl ~ zeros(msgnum,1);
+    endif;
+
+    /* Compute color vector */
+    if rows(_pmcolor) == 1 and cols(_pmcolor) == 1;
+        colorq = reshape(_pmcolor,8,1)|0;
+    elseif rows(_pmcolor) /= 9 or cols(_pmcolor) /= 1;
+        errorlog "Invalid color vector";
+    else;
+        colorq = _pmcolor;
+    endif;
+    retp(msgstr,msgnum,colorq);
+endp;
+
+/* Procedure common to both 2d and 3d PQG calls */
+proc 4 = _cmnfilt;
+    local frame,paxes,pnum,gpcpath;
+
+    /* get the GAUSS exe path for the configuration file location */
+    gpcpath = sysstate(2,0);
+
+    /* check for illegal chars in _ptek (e.g. from using '\' instead of '\
+    :: \' in DOS )
+    */
+    if strlen(_ptek);
+
+#IFUNIX
+
+        if not (vals(_ptek) > 34 and vals(_ptek) /= vals("&'()*+,:\059<=>?["\
+            "]^`{|}~")');
+
+#ELSE
+
+            if not (vals(_ptek) > 34 and vals(_ptek) /= vals("&'()*+,/\059<"\
+                "=>?[]^`{|}~")');
+
+#ENDIF
+
+                errorlog "Error - Illegal character found in string _ptek";
+                end;
+            endif;
+
+    /* verify path here, if possible */
+
+        endif;
+
+        if rows(_plegctl) > 1;
+            _plegctl = _plegctl';
+        endif;
+        if cols(_plegctl) == 1;
+            if _plegctl > 0;
+                _plegctl = { 4 4 0 0 };     /* default size and position  */
+            endif;
+        elseif cols(_plegctl) == 2;
+            _plegctl = 4 ~ _plegctl[2] ~ 0 ~ 0;
+        endif;
+        _plegstr = _plegstr $+ "\0";
+
+        if _pframe == 0;
+            frame = 0|0;
+        else;
+            frame = _pframe;
+        endif;
+
+    /* expand axes flag for X,Y,Z axis control */
+        if rows(_paxes) == 1 and cols(_paxes) == 1;
+            paxes = _paxes | _paxes | _paxes;       /* X,Y,Z */
+        else;
+            paxes = reshape(_paxes,3,1);
+        endif;
+
+    /* expand axes number flag for X,Y,Z control */
+        if rows(_pnum) == 1 and cols(_pnum) == 1;
+            pnum = _pnum | _pnum | _pnum;           /* X,Y,Z */
+        else;
+            pnum = reshape(_pnum,3,1);
+        endif;
+
+    /* expand _PBOX to default color and line width */
+        if rows(_pbox) == 1 and cols(_pbox) == 1;
+            if _pbox == 0;
+                _pbox = { 0 0 0 };          /* OFF */
+            else;
+                _pbox = 1 ~ _pbox ~ 0;      /* ON, user color, normal width */
+            endif;
+        else;
+            _pbox = reshape(_pbox,3,1);
+        endif;
+
+        retp(frame,paxes,pnum,gpcpath);
+    endp;
+
+    proc 0 = _prngerr(axis,power,limit);
+        local sign,scale;
+        if power == 0;
+            retp;
+        elseif power > 0;
+            sign = -1;
+        else;
+            sign = 1;
+        endif;
+        scale = 10^((abs(power)-limit)*sign)/10;
+        axis = "    Scale " $+ axis $+ " axis by " $+ ftos(scale,"%*.*le",1,0);
+        errorlog axis;
+    endp;
+
+    proc 0 = _setpage();
+        local nval;
+
+    /* Expand cropping variable if necessary */
+        nval = rows(_pcrop)*cols(_pcrop);
+        if nval == 1;
+            _pcrop = _pcrop~_pcrop~_pcrop~_pcrop~_pcrop;
+        elseif nval /= 5;
+            _pcrop = { 1 1 1 1 1 };
+        endif;
+
+        if _pwindno > rows(_pwindmx);
+            errorlog "Window number out of range.";
+            end;
+        endif;
+
+    /* Extract size, shift values for this graph from window matrix  */
+        if cols(_pwindmx) == 5;
+            _pagesiz = _pwindmx[_pwindno,1] ~ _pwindmx[_pwindno,2];
+            _pageshf = _pwindmx[_pwindno,3] ~ _pwindmx[_pwindno,4];
+            if _pfirstw == 1;
+            /* Append to existing tek file */
+                _pappend = 1;
+            else;
+            /* If we didn't append this time, make sure we do next time  */
+                _pfirstw = 1;
+            endif;
+        endif;
+
+    /* Initialize size and shift values if not set */
+        if _pagesiz == 0;
+            _pagesiz = _pagedim[1] | _pagedim[2];
+        endif;
+        if _pageshf == 0;
+            _pageshf = 0 | 0;
+        endif;
+        if _plotsiz == 0;
+            _plotsiz = _pagedim[1] | _pagedim[2];
+        endif;
+        if _plotshf == 0;
+            _plotshf = 0 | 0;
+        endif;
+
+    /* Clean up window margin values */
+        if rows(_pmargin) /= 4;
+            if cols(_pmargin) == 4;
+                _pmargin = _pmargin';
+            else;
+                errorlog "_pmargin vector invalid.";
+            endif;
+        endif;
+
+    /* Prepare clipping window matrix */
+        if cols(_pwindmx) == 5;
+            if _pwindno == rows(_pwindmx);
+                _pncwin = 0;
+            else;
+            /* add all windows to clip list, omit the one we're drawing in  */
+                _pcwin = seqa(_pwindno,1,rows(_pwindmx)-(_pwindno-1));
+                _pcwin = _pwindmx[packr(miss(_pcwin,getwind)),.];
+
+            /* now remove all windows which have transparent attribute  */
+                _pcwin = packr(missex(_pcwin,(_pcwin[.,5].==1)));
+
+                _pncwin = rows(_pcwin);
+                if ismiss(_pcwin);
+                    _pncwin = 0;
+                endif;
+            endif;
+        endif;
+
+    /* Orient and scale window(s) appropriately if rotate is on */
+        if _protate;
+            _pagesiz = (_pagesiz[1]/9*6.855) | (_pagesiz[2]/6.855*9);
+            _pageshf = (_pageshf[1]/9*6.855) | (_pageshf[2]/6.855*9);
+        /* rescale plotsiz/plotshf only if AXMARGIN was recently called  */
+            if _paxmarx == 1;
+                _plotsiz = (_plotsiz[1]/9*6.855) | (_plotsiz[2]/6.855*9);
+                _plotshf = (_plotshf[1]/9*6.855) | (_plotshf[2]/6.855*9);
+                _paxmarx = 0;
+            endif;
+            if _pncwin > 0;
+                _pcwin[.,1] = _pcwin[.,1]/9*6.855;
+                _pcwin[.,2] = _pcwin[.,2]/6.855*9;
+                _pcwin[.,3] = _pcwin[.,3]/9*6.855;
+                _pcwin[.,4] = _pcwin[.,4]/6.855*9;
+            endif;
+        endif;
+
+        if _ptek $== "";
+            _ptek = "notek";
+        endif;
+
+    endp;
+
+/* Test a matrix/vector to see if it is sequentially decreasing */
+    proc 1 = _decreas(data,n);
+        local sm,res,x;
+        x = data';
+        sm = x - shiftr(x,1,x[.,1]);
+        if sm <= zeros(1,n);
+            res = 1;
+        else;
+            res = 0;
+        endif;
+        retp(res);
+    endp;
+
+    proc _range(x);
+        retp(maxc(maxc(x)) - minc(minc(x)));
+    endp;
+

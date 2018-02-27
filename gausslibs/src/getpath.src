@@ -1,0 +1,144 @@
+/*
+** getpath.src
+** (C) Copyright 1990-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> getpath
+**
+**  Purpose:    Returns an expanded filename including full path.
+**
+**  Format:     fname = getpath(pfname);
+**
+**  Input:      pfname    string, partial filename.
+**
+**  Output:     fname     string, a full path name.
+**
+**  Globals:    None
+*/
+
+proc getpath(fname);
+    local path, delim, i;
+
+#ifDOS
+    delim = "\\";
+
+    if strsect(fname,2,1) $== ":";     /* ------ did we get a drive? ------ */
+        /* --- yes, drive --- */
+        path = cdir(fname);
+        if strsect(fname,3,1) $/= delim;  /* --- is it a relative path? --- */
+            /* --- yes, relative --- */
+            if strlen(path) > 3;
+                path = path $+ delim;
+            endif;
+            if strsect(fname,3,2) $== "..";
+                if strlen(path) > 3;
+                    i = strrindx(path,delim,strlen(path)-1);
+                    if i > 0;
+                        path = strsect(path,1,i) $+ strsect(fname,5,200);
+                    endif;
+                else;
+                    errorlog "ERROR: invalid path";
+                    retp(fname);
+                endif;
+            else;
+                path = path $+ strsect(fname,3,200);
+            endif;
+        else;
+            /* --- no, not relative --- */
+            path = fname;
+        endif;
+    else;
+        /* --- no, drive --- */
+        path = cdir(0);
+        if strsect(fname,1,1) $/= delim;  /* --- is it a relative path? --- */
+            /* --- yes, relative --- */
+            if strlen(path) > 3;
+                path = path $+ delim;
+            endif;
+            if strsect(fname,1,2) $== "..";
+                if strlen(path) > 3;
+                    i = strrindx(path,delim,strlen(path)-1);
+                    if i > 0;
+                        path = strsect(path,1,i) $+ strsect(fname,3,200);
+                    endif;
+                else;
+                    errorlog "ERROR: invalid path";
+                    retp(fname);
+                endif;
+            else;
+                path = path $+ fname;
+            endif;
+        else;
+            /* --- no, not relative --- */
+            path = strsect(path,1,2) $+ fname;
+        endif;
+    endif;
+
+#else
+    delim = "/";
+
+    if strsect(fname,1,1) $== "~";     /* ------ did we get a tilda? ------ */
+
+        /* --- yes, get the home directory --- */
+        path = envget("HOME");
+        if strsect(path,strlen(path),1) $== delim;
+            path = strsect(path,1,strlen(path)-1);
+        endif;
+
+        if strsect(fname,2,1) $== delim;  /* - is it followed by a delim? - */
+            if strsect(fname,3,2) $== "..";   /* --- relative --- */
+                i = strrindx(path,delim,strlen(path));
+                if i > 0;
+                    path = strsect(path,1,i-1) $+ strsect(fname,5,200);
+                else;
+                    errorlog "ERROR: invalid path";
+                    retp(fname);
+                endif;
+            else;
+                path = path $+ strsect(fname,2,200);
+            endif;
+        elseif strlen(fname) > 1;
+            errorlog "ERROR: invalid path";
+            retp(fname);
+        endif;
+    else;   /* --- no tilda --- */
+
+        if strsect(fname,1,1) $== delim; /* absolute path */
+            path = fname;
+
+        else;                            /* relative path */
+            path = cdir(0);
+            if strsect(path,strlen(path),1) $== delim;
+                path = strsect(path,1,strlen(path)-1);
+            endif;
+
+            /* --- yes, relative --- */
+            if strsect(fname,1,2) $== "..";
+                i = strrindx(path,delim,strlen(path));
+                if i > 0;
+                    path = strsect(path,1,i-1) $+ strsect(fname,3,200);
+                else;
+                    errorlog "ERROR: invalid path";
+                    retp(fname);
+                endif;
+            else;
+                path = path $+ delim $+ fname;
+            endif;
+        endif;
+    endif;
+
+#endif;
+
+    retp(path);
+endp;

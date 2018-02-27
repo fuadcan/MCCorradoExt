@@ -1,0 +1,82 @@
+/*
+** tsutil.src
+**
+**
+** (C) Copyright 1994-1998  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> ACF - Computes sample autocorrelations.
+**
+**  Format:  rk = acf(y,k,d);
+**
+**  Input:    y      Nx1 vector, data
+**            k      scalar, maximum number of autocorrelations to compute
+**            d      scalar, order of differencing
+**
+**  Output:  rk      Kx1 vector, sample autocorrelations
+*/
+
+proc acf(y,k,d);
+    local i,t,yd,acov;
+    t = rows(y);
+    i = 1;
+    do while i le d;
+        y = y[2:t] - y[1:t-1];
+        t = rows(y);
+        i = i+1;
+    endo;
+    yd = y - meanc(y);
+    acov = rev(conv(yd,rev(yd),t-k,t));
+    retp(acov[2:k+1,.]./acov[1,.]);
+endp;
+
+
+
+
+/*
+**> PACF    Computes sample partial autocorrelations.
+**
+**  Format  rkk = pacf(y,k,d);
+**
+**  Input     y     Nx1 vector, data
+**            k     scalar, maximum number of partial autocorrelations
+**                  to compute
+**            d     scalar, order of differencing
+**
+**  Output  rkk     Kx1 vector, sample partial autocorrelations
+*/
+
+proc pacf(y,k,d);
+    local a,l,j,r,t;
+    r = acf(y,k,d);
+    a = zeros(k,k);
+    a[1,1] = r[1];
+    t = 1;
+    l = 2;
+    do while l le k;
+        a[l,l] = (r[l]-a[l-1,1:t]*rev(r[1:l-1]))/(1-a[l-1,1:t]*r[1:t]);
+        j = 1;
+        do while j <= t;
+            a[l,j] = a[l-1,j] - a[l,l]*a[l-1,l-j];
+            j = j+1;
+        endo;
+        t = t+1;
+        l = l+1;
+    endo;
+    retp(diag(a));
+endp;
+
+
+

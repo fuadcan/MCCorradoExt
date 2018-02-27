@@ -1,0 +1,47 @@
+/*
+** spfns.src
+** (C) Copyright 2006 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** if you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> spScale
+**
+**  Purpose:  Scale a sparse matrix
+**
+**  Format:  { sp1, rc, cc } = spScale(sp0);
+**
+**  Input:    sp0     NxM sparse matrix
+**
+**  Output:   sp1     NxM scaled sparse matrix
+**
+**            rs      Nx1 vector, row scale factors
+**
+**            cs      Mx1 vector, column scale factors
+*/
+
+
+proc(3) = spScale( sp0 );
+
+     local r1,r2,c1,c2;
+
+     r1 = maxc(abs(sp0'))/10;
+     r2 = minc(abs(sp0'))/10;
+     c1 = maxc(abs(sp0))/10;
+     c2 = minc(abs(sp0))/10;    
+
+     r1 = 10^-ceil(0.5*(log(r1 + (r1 .== 0)) + log(r2 + (r2 .== 0))));     
+     c1 = 10^-ceil(0.5*(log(c1 + (c1 .== 0)) + log(c2 + (c2 .== 0))));
+
+     retp(sp0.*densetosp(r1,0).*densetosp(c1',0),r1,c1);
+
+endp;

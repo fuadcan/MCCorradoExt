@@ -1,0 +1,61 @@
+/*
+** gauss.dec - Global variable definitions for common globals.
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+declare matrix _rtl_ver = { 6, 0, 7 };
+declare matrix __altnam = 0;
+declare matrix __con    = 1;
+declare matrix __ff     = 1;
+declare matrix __fmtcv  = { "*.*s " 8 8 };
+declare matrix __fmtnv  = { "*.*lg " 16 8 };
+declare string __header = "tldvf";
+declare matrix __miss   = 0;
+
+#ifDLLCALL
+declare matrix __output = 1;
+#else
+declare matrix __output = 2;
+#endif
+
+declare matrix __prec   = 3;
+declare matrix __range  = { 0, 0 };
+declare matrix __row    = 0;
+declare matrix __rowfac = 1;
+declare matrix __sort   = 0;
+declare string __title  = "";
+declare matrix __tol    = 1e-5;
+declare matrix __vpad   = 1;
+declare matrix __vtype  = -1;
+declare matrix __weight = 0;
+
+/* for portablity to all platforms,
+** these should be reset in your programs
+** using:
+**
+**        gausset;
+**
+** This will set them to the correct values for
+** the machine you are executing on.
+*/
+
+declare matrix __INFp = 0v7ff0000000000000;   /* __INFp = error("+inf");     */
+declare matrix __INFn = 0vfff0000000000000;   /* __INFn = error("-inf");     */
+declare matrix __INDEFp = 0v7ff8000000000000; /* __INDEFp = error("+indef"); */
+declare matrix __INDEFn = 0vfff8000000000000; /* __INDEFn = error("-indef"); */
+declare matrix __macheps = 2.23e-16;          /* machine epsilon */

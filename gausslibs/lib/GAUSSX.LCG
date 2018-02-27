@@ -1,0 +1,73 @@
+/*  GAUSSX:   This is the gaussx library for GAUSSI; */
+
+gaussx2.src
+  beginx  exectx execp exegx flagr flagw gaussx gsxexe reset recurs setup
+  fileset csrset eigset svdset ergset cls_ csrlin_ csrcol_ scroll_ locate_
+  prntdos_  clrscn
+  
+kalman.src
+  kalman
+
+npex.src
+  npe gskernal foureval
+
+npex.dec                     
+    _npobs  : matrix     
+    _npcv   : matrix     
+    _npmth  : matrix     
+    _npmod  : matrix     
+    _npper  : matrix     
+    _npkrn  : matrix     
+    _nppnt  : matrix
+    _npout  : matrix
+
+cdfmvn.src
+  cdfmvn _pdf
+  
+qdfn.src
+  qdfn incdfn pdfbn pdftn
+
+qdfn.dec
+       _qdfrep  : matrix
+       _qdfrlz  : matrix
+       _qdfmth  : matrix
+       _qdford  : matrix
+
+rndtn.src
+  rndtn cdnval incdfn 
+
+rndtn.dec
+       _rtnrep  : matrix
+       _rtnpnt  : matrix
+
+mnpx.src
+        mnp     : proc
+
+mnpx.dec
+       _mnpsc   : matrix
+       _mnpint  : matrix
+
+neuralx.src
+       ann      : proc
+
+gxprocs.src
+       tobit    : proc
+       poisson  : proc
+       mnl      : proc
+
+garchx.src
+       arch     : proc
+       garch    : proc
+       mgarch   : proc
+       _qdfwt   : proc
+       
+finance.src
+       mcalc    : proc
+       amort    : proc
+       pv       : proc
+       fv       : proc
+       _rval    : proc
+       
+gsxkey.src
+       gx       : keyword
+

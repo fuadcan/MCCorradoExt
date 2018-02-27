@@ -1,0 +1,580 @@
+/*
+** gauss.lcg - Main GAUSS library
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+eig.dec
+    _eigerr                          : matrix
+
+eqsolve.dec
+    _eqs_typicalX                    : matrix
+    _eqs_typicalF                    : matrix
+    _eqs_IterInfo                    : matrix
+    _eqs_JacobianProc                : matrix
+    _eqs_MaxIters                    : matrix
+    _eqs_StepTol                     : matrix
+
+fcompare.dec
+    _fcmptol                         : matrix
+
+flibuff.dec
+
+gauss.dec
+    _rtl_ver                         : matrix
+    __altnam                         : matrix
+    __con                            : matrix
+    __ff                             : matrix
+    __fmtcv                          : matrix
+    __fmtnv                          : matrix
+    __header                         : string
+    __miss                           : matrix
+    __output                         : matrix
+    __prec                           : matrix
+    __range                          : matrix
+    __row                            : matrix
+    __rowfac                         : matrix
+    __sort                           : matrix
+    __title                          : string
+    __tol                            : matrix
+    __vpad                           : matrix
+    __vtype                          : matrix
+    __weight                         : matrix
+    __INFp                           : matrix
+    __INFn                           : matrix
+    __INDEFp                         : matrix
+    __INDEFn                         : matrix
+    __macheps                        : matrix
+
+integral.dec
+    _intord                          : matrix
+    _intrec                          : matrix
+    _intq2                           : matrix
+    _intq3                           : matrix
+    _intq4                           : matrix
+    _intq6                           : matrix
+    _intq8                           : matrix
+    _intq12                          : matrix
+    _intq16                          : matrix
+    _intq20                          : matrix
+    _intq24                          : matrix
+    _intq32                          : matrix
+    _intq40                          : matrix
+
+lncdfn.dec
+    _lncdfn_order                    : matrix
+    _lncdfn_eps                      : matrix
+
+loess.dec
+    _loess_Span                      : matrix
+    _loess_NumEval                   : matrix
+    _loess_Degree                    : matrix
+    _loess_WgtType                   : matrix
+
+ols.dec
+    _olsqtol                         : matrix
+    _olsres                          : matrix
+    _olsrnam                         : string
+
+parse.dec
+
+poly.dec
+    _polerr                          : matrix
+    _poldeg                          : matrix
+
+qnewton.dec
+    _qn_RelGradTol                   : matrix
+    _qn_MaxIters                     : matrix
+    _qn_GradProc                     : matrix
+    _qn_PrintIters                   : matrix
+    _qn_ParNames                     : matrix
+    _qn_RandRadius                   : matrix
+
+qprog.dec
+    _qprog_maxit                     : matrix
+
+qr.dec
+    _orthtol                         : matrix
+    _qrdc                            : matrix
+    _qrsl                            : matrix
+
+sparse.dec
+    _sparse_Damping                  : matrix
+    _sparse_Atol                     : matrix
+    _sparse_Btol                     : matrix
+    _sparse_CondLimit                : matrix
+    _sparse_NumIters                 : matrix
+    _sparse_RetCode                  : matrix
+    _sparse_Anorm                    : matrix
+    _sparse_Acond                    : matrix
+    _sparse_Rnorm                    : matrix
+    _sparse_ARnorm                   : matrix
+    _sparse_Xnorm                    : matrix
+
+sqpsolve.dec
+    _sqp_ParNames                    : matrix
+    _sqp_DirTol                      : matrix
+    _sqp_HessProc                    : matrix
+    _sqp_GradProc                    : matrix
+    _sqp_MaxIters                    : matrix
+    _sqp_PrintIters                  : matrix
+    _sqp_FeasibleTest                : matrix
+    _sqp_RandRadius                  : matrix
+    _sqp_A                           : matrix
+    _sqp_B                           : matrix
+    _sqp_C                           : matrix
+    _sqp_D                           : matrix
+    _sqp_EqProc                      : matrix
+    _sqp_IneqProc                    : matrix
+    _sqp_Bounds                      : matrix
+
+svd.dec
+    _svdtol                          : matrix
+    _svderr                          : matrix
+    _svd                             : matrix
+
+system.dec
+    __maxvec                         : matrix
+
+base10.src
+    base10                           : proc
+
+cdfchii.src
+    cdfchii                          : proc
+    gammaii                          : proc
+    _ginvinc                         : proc
+    _gammaii_1                       : proc
+    _gammaii_2                       : proc
+    _gammaii_4                       : proc
+    _gammaii_3                       : proc
+    _gammaii_5                       : proc
+
+cdfnonc.src
+    cdfchinc                         : proc
+    cdffnc                           : proc
+    cdftnc                           : proc
+
+cmtools.src
+    cmsplit                          : proc
+    cmsplit2                         : proc
+
+coord.src
+    topolar                          : proc
+    tocart                           : proc
+
+corr.src
+    corrm                            : proc
+    corrvc                           : proc
+    corrx                            : proc
+    vcm                              : proc
+    vcx                              : proc
+
+countwts.src
+
+crossprd.src
+    crossprd                         : proc
+
+cumprodc.src
+    cumprodc                         : proc
+
+cumsumc.src
+    cumsumc                          : proc
+
+datalist.src
+    datalist                         : keyword
+    _dtlist                          : proc
+    _dtwrt                           : proc
+    _cntrprt                         : proc
+
+datatran.src
+    code                             : proc
+    delif                            : proc
+    dummybr                          : proc
+    dummydn                          : proc
+    dummy                            : proc
+    missex                           : proc
+    recode                           : proc
+    selif                            : proc
+    substute                         : proc
+
+design.src
+    design                           : proc
+
+dfft.src
+    dfft                             : proc
+
+dffti.src
+    dffti                            : proc
+
+diag.src
+    lowmat                           : proc
+    lowmat1                          : proc
+    upmat                            : proc
+    upmat1                           : proc
+
+dos.src
+
+dstat.src
+    dstat                            : proc
+    _dstatd                          : proc
+    _dstatx                          : proc
+
+eigcg.src
+    eigcg                            : proc
+    eigcg2                           : proc
+
+eigch.src
+    eigch                            : proc
+    eigch2                           : proc
+
+eigrg.src
+    eigrg                            : proc
+    eigrg2                           : proc
+
+eigrs.src
+    eigrs                            : proc
+    eigrs2                           : proc
+
+eqsolve.src
+    eqSolve                          : proc
+    _eqSolve                         : proc
+    _norm2                           : proc
+    _eqs_jacob                       : proc
+    eqSolveSet                       : proc
+
+exctsmpl.src
+    exctsmpl                         : proc
+
+fcompare.src
+    feq                              : proc
+    dotfeq                           : proc
+    fne                              : proc
+    dotfne                           : proc
+    flt                              : proc
+    dotflt                           : proc
+    fgt                              : proc
+    dotfgt                           : proc
+    fle                              : proc
+    dotfle                           : proc
+    fge                              : proc
+    dotfge                           : proc
+
+fftm.src
+    fftm                             : proc
+    fftmi                            : proc
+
+gauss.src
+    getnr                            : proc
+    _cntrlin                         : proc
+    header                           : proc
+    printfmt                         : proc
+    formatnv                         : proc
+    formatcv                         : proc
+    gausset                          : proc
+    chdir                            : keyword
+    shell                            : keyword
+
+getpath.src
+    getpath                          : proc
+
+gradp.src
+    gradp                            : proc
+
+hessp.src
+    hessp                            : proc
+
+indexcat.src
+
+indices.src
+    indices                          : proc
+
+indices2.src
+    indices2                         : proc
+
+integral.src
+    intquad1                         : proc
+    intquad2                         : proc
+    intquad3                         : proc
+
+intgrat.src
+    intgrat2                         : proc
+    intgrat3                         : proc
+
+intrsect.src
+    intrsect                         : proc
+
+intsimp.src
+    intsimp                          : proc
+
+lag.src
+    lag1                             : proc
+    lag                              : proc
+    lagn                             : proc
+
+lncdfn.src
+    lncdfn                           : proc
+    lncdfnc                          : proc
+    lncdfbvn                         : proc
+    cdfmvn                           : proc
+    lncdfmvn                         : proc
+    cdfn2                            : proc
+    lncdfn2                          : proc
+    cdfbvn2                          : proc
+
+lnfact.src
+    lnfact                           : proc
+
+lnpdfn.src
+    lnpdfn                           : proc
+    lnpdfmvn                         : proc
+
+loess.src
+    loess                            : proc
+
+median.src
+    median                           : proc
+
+medit.src
+
+momentd.src
+    momentd                          : proc
+
+nametype.src
+    nametype                         : proc
+
+null.src
+    null                             : proc
+    null1                            : proc
+
+ols.src
+    ols                              : proc
+
+olsqr.src
+    olsqr                            : proc
+    olsqr2                           : proc
+
+optim.src
+    nextn                            : proc
+    nextnevn                         : proc
+    optn                             : proc
+    optnevn                          : proc
+
+parse.src
+
+pause.src
+    pause                            : proc
+
+poly.src
+    polychar                         : proc
+    polyeval                         : proc
+    polymake                         : proc
+    polymult                         : proc
+    polyroot                         : proc
+
+polyint.src
+    polyint                          : proc
+
+polymat.src
+    polymat                          : proc
+
+ppc.src
+    princomp                         : proc
+
+putf.src
+    putf                             : proc
+
+qnewton.src
+    QNewton                          : proc
+    _bfgs                            : proc
+    qnewtonset                       : proc
+
+qprog.src
+    QProg                            : proc
+
+qqr.src
+    qqr                              : proc
+    qqre                             : proc
+    qqrep                            : proc
+    orth                             : proc
+
+qr.src
+    qr                               : proc
+    qre                              : proc
+    qrep                             : proc
+
+qrsol.src
+    qrsol                            : proc
+    qrtsol                           : proc
+
+qtyr.src
+    qtyr                             : proc
+    qtyre                            : proc
+    qtyrep                           : proc
+
+quantile.src
+    quantile                         : proc
+    quantiled                        : proc
+
+qyr.src
+    qyr                              : proc
+    qyre                             : proc
+    qyrep                            : proc
+
+random.src
+    rndgam                           : proc
+    rndp                             : proc
+    rndnb                            : proc
+    rndbeta                          : proc
+    rndvm                            : proc
+
+rangechk.src
+    _rngchk                          : proc
+
+recserrc.src
+    recserrc                         : proc
+
+ribesl.src
+    mbesseli                         : proc
+    mbesseli0                        : proc
+    mbesseli1                        : proc
+    mbesselei                        : proc
+    mbesselei0                       : proc
+    mbesselei1                       : proc
+
+rref.src
+    rref                             : proc
+
+saveload.src
+    loadd                            : proc
+    saved                            : proc
+
+schtoc.src
+    schtoc                           : proc
+
+setdif.src
+    setdif                           : proc
+
+showpath.src
+
+sortd.src
+    intrleav                         : proc
+    mergeby                          : proc
+    sortd                            : proc
+
+sortmc.src
+    sortmc                           : proc
+
+sparse.src
+    sparseSolve                      : proc
+    sparseFD                         : proc
+    sparseFP                         : proc
+    sparseOnes                       : proc
+    isSparse                         : proc
+    sparseEye                        : proc
+    sparseVConcat                    : proc
+    sparseHConcat                    : proc
+    sparseRows                       : proc
+    sparseCols                       : proc
+    sparseNZE                        : proc
+    denseSubmat                      : proc
+    sparseSubmat                     : proc
+    sparseTD                         : proc
+    sparseTrTD                       : proc
+    sparseSet                        : proc
+
+spline.src
+    _spl_i                           : matrix
+    spline2D                         : proc
+    spline1D                         : proc
+    _spl_surf1                       : proc
+    _spl_surf2                       : proc
+    _spl_ceez                        : proc
+    _spl_terms                       : proc
+    _spl_snhcsh                      : proc
+    _spl_intrvl                      : proc
+    _spl_add                         : proc
+    _spl_hermz                       : proc
+    _spl_hermnz                      : proc
+    _spl_curv2                       : proc
+    _spl_curv1                       : proc
+    spline                           : proc
+    curve                            : proc
+
+sqpsolve.src
+    sqpSolve                         : proc
+    _sqpsolve                        : proc
+    _sqp_feasible                    : proc
+    _sqp_meritFunct                  : proc
+    sqpSolveset                      : proc
+
+strput.src
+    strput                           : proc
+
+subscat.src
+
+svd.src
+    svd                              : proc
+    svd1                             : proc
+    svd2                             : proc
+    pinv                             : proc
+    cond                             : proc
+    rank                             : proc
+
+system.src
+    maxvec                           : proc
+
+time.src
+    datestr                          : proc
+    datestrymd                       : proc
+    timestr                          : proc
+    etstr                            : proc
+    etdays                           : proc
+    ethsec                           : proc
+    dayinyr                          : proc
+    _isleap                          : proc
+    _daypryr                         : proc
+    dtvtodt                          : proc
+    dttodtv                          : proc
+    dttoutc                          : proc
+    utctodt                          : proc
+
+toeplitz.src
+    toeplitz                         : proc
+
+token.src
+    token                            : proc
+
+trig.src
+    arccos                           : proc
+    arcsin                           : proc
+    cosh                             : proc
+    sinh                             : proc
+    tanh                             : proc
+    arctan                           : proc
+    arctan2                          : proc
+
+vars.src
+    makevars                         : proc
+    mergevar                         : proc
+    setvars                          : proc
+
+vartype.src
+    vartype                          : proc
+
+vpack.src
+    vput                             : proc
+    vread                            : proc
+    vget                             : proc
+    vlist                            : proc
+    vnamecv                          : proc
+    vtypecv                          : proc
+
+wait.src
+    wait                             : proc
+
+waitc.src
+    waitc                            : proc
+
+x_indcv.src
+    x_indcv                          : proc
+

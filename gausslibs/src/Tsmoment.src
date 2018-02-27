@@ -1,0 +1,425 @@
+/** TSMOMENT.SRC                RAINER SCHLITTGEN, THOMAS NOACK    5.FEB. 1998
+
+
+**      Computation of momentfunctions of time series
+**      allowing for missing values
+**
+**      Procedure                                                   Line
+** __________________________________________________________________________
+**   ACOVE    : autocovariance function of y                             67
+**   ACORE    : autocorrelation function of ts y                         90
+**   CCOV     : crosscovariancefunction of x and y
+**   CCOR     : crosscorrelationfunction of x and y
+**   IACORE   : inverse autocorrelation function
+**   TSMEAN   : mean of  y                                                25
+**   TSMEDIAN : median of y                                               40
+**   TSVAR    : variance of y                                             53
+**   VARDIF   : table of variance ratios for simple and seasonal d.      230
+**   VECCOR   : table of vectorcorrelations                               172
+**   PACFE    : partial autocorrelation function
+**   VARIOGRAM: variogram for unequally spaced series
+**
+*/
+
+/*  
+**  format:  {ac}=acove(x,nlag):  
+**  
+**  input:   x   (n,k)-matrix, k time series of length n
+**           nl  scalar, maximum lag
+**  output : ac  (nl+1,k)-matrix, autocovariances from lag 0 to nlag
+**                         
+*/
+
+PROC 1 = acove(x,nl);
+  LOCAL ac,i,k,m,n,n1,s,y,z;
+    k = COLS(x);
+    n = ROWS(x);
+    IF nl GE n; nl=n-1; ENDIF;
+    m = tsmean(x);
+    n1 = SUMC(x./=MISS(0,0));
+    y = MISSRV(x,m');
+    ac = ZEROS(nl+1,k);
+    i=0;
+    DO WHILE i<k;
+      i=i+1;
+      z = (y[.,i]-m[i])'~ZEROS(1,nl+1);
+      z = RESHAPE(z,nl+1,n+nl);
+      ac[.,i]= z*z[1,.]'./n1[i] ;
+    ENDO;
+ RETP(ac);
+ENDP;
+
+/*  
+**  format:  {ac}=acore(x,nlag):  
+**  
+**  input:   x     (n,k)-matrix  of k time series of length n
+**           nlag  scalar, maximum lag
+**  output : ac  (nlag+1,k)-matrix of autocorrelations from lag 0 to nlag
+**                         
+*/
+
+PROC 1 = acore(x,nl);
+   LOCAL a;
+   a = acove(x,nl);
+   RETP(a./a[1,.]);
+  ENDP;
+
+/*  
+**> iacore
+**
+**  format:  {ia}=iacore(acf,nlag):  
+**  
+**  input:   acf =  (n,1)-vector of autocorrelations r[1],r[2],...,r[n]
+**           nlag  scalar, maximum lag
+**  output : ia  (nlag,1)-vector of inverse autocorrelations from lag 1 to nlag
+**                         
+*/
+
+
+PROC 1 = iacore(acf,m);
+    LOCAL n,c,ar,ia,j;
+    n = ROWS(acf);
+    c = TOEPLITZ(1|acf[1:n-1]);
+    ar = acf/c; c=0;
+    ia=-ar[1:m];
+    j=1;
+    DO WHILE j le m;
+       ia[j]=ia[j] + SUMC(ar[1:n-j].*ar[1+j:n]);
+       j=j+1;
+    ENDO;
+    ia=ia/(1+SUMC(ar.*ar));
+    RETP(ia);
+ENDP;
+
+/*
+**> tsmean
+**  
+**  Format:  m = tsmean(x)  
+**  Input :  y = (n,k) matrix  of k time series of length n
+**  Output:  s = (k,1) vector of means of series
+**
+*/
+
+PROC 1 = tsmean(y);
+  LOCAL i,k,m,x;
+  k=COLS(y);  m=ZEROS(k,1);
+  i=0;
+  DO WHILE i<k;
+    i=i+1;  
+    x = PACKR(y[.,i]);
+    m[i] = MEANC(x);
+    m[i] = m[i] + MEANC(x-m[i]);
+   ENDO;
+ RETP(m);
+ENDP;
+
+/*   
+**> tsmedian
+**  different handling of missings
+**  Format:  m = tsmedian(x)  
+**  Input :  y = (n,k) matrix  of k time series of length n
+**  Output:  s = (k,1) vector of medians of series
+**
+*/
+
+
+PROC 1 = tsmedian(x);
+  LOCAL i,k,m;
+  k=COLS(x);    m=ZEROS(k,1);
+  i=0;
+  DO WHILE i<k;
+    i=i+1;   m[i]=MEDIAN(PACKR(x[.,i]));
+   ENDO;
+ RETP(m);
+ENDP;
+
+/*   
+**> tsvar
+**
+**  Format: {s}=tsvar(y)  
+**  Input :  y = (n,k) matrix  of k time series of length n
+**  Output:  s = (k,1) vector of variances
+**
+*/
+
+PROC 1 = tsvar(y);
+  LOCAL i,k,s,x;
+    k=COLS(y); s=ZEROS(k,1);
+    i=0;
+    DO WHILE i<k;
+     i=i+1;
+     x = PACKR(y[.,i]);
+     s[i] = SUMC((x-tsmean(x))^2)/(ROWS(x)-1); 
+    ENDO;
+ RETP(s);
+ENDP;
+
+
+
+
+/*
+**> vardiff
+**
+**  Format:  vardiff(y,d)
+**  Input :  y = time series
+**           d = seasonal period
+**  Output : Prints a table of variance ratios for determing the proper orders
+**             of differencing of a time series to reach stationarity
+**
+*/
+
+PROC 0 = vardiff(y,d);
+
+LOCAL m,n,sd,vc,y1;
+ vc = ZEROS(4,4);
+ n = ROWS(y);
+ m = MISS(ONES(3,1),1);
+ y1 = y~(m[1]|diff(y,1))~(m[1 2]|diff(y,ONES(2,1)))~(m|diff(y,ONES(3,1)));
+ sd = 0;
+ DO WHILE sd < 4;
+ sd=sd+1;
+ if sd > 1; y1 = diff(y1,d) ; ENDIF;
+   vc[.,sd] = tsvar(y1);
+ ENDO;
+ vc = vc/tsvar(y);
+ vc = SEQA(0,1,4)~vc;
+ vc = (MISS(0,0)~SEQA(0,1,4)')|vc;
+ print "                    TABLE OF VARIANCE RATIOS           ";
+ print "                   seasonal differencing, s="$+FTOS(d,"%-*.*lf",4,0);
+  FORMAT /rd 12,4;
+  PRINT  "    simple d." vc[1,2:5];  
+  PRINT "_________________________________________________________________";
+  PRINT  vc[2:5,.];
+  PRINT "_________________________________________________________________";
+ENDP;
+
+
+/*
+**> veccor
+**
+**  la = VECCOR(x,p,q)
+**     Input : x = time series 
+**             p = maximal order of ar-part (p+1 rows of table)
+**             q = maximal order of ma-part (q+1 columns of table)
+**    Output : la  =  (p+1,q+1)-table of vectorcorrelations
+**
+*/
+
+
+ PROC (1) = veccor(x,p,q);
+
+  LOCAL acf,i,k,m ;
+     acf = acore(x,p+q+1);
+     m = p + q + 3;
+     k = ONES(p+2,p+q+3);     
+     k[2,.] = acf[2]~acf[1:p+q+2]';
+     i = 1;
+     DO WHILE i < p+1;
+       i= i+1;
+       k[i+1,2:m-i+1] = ( k[i,2:m-i+1]^2 - k[i,1:m-i].*k[i,3:m-i+2] )
+                        ./k[i-1,2:m-i+1] ;
+       k[i+1,1]=k[i+1,3];
+     ENDO;
+     k =  (k[2:p+2,3:q+3]./k[2:p+2,2]).*((-1)^SEQA(0,1,p+1)) ;
+    RETP( k );
+  ENDP;
+
+/*   
+**>  veccore             
+**             
+**   Format  {la,st} = veccore(x,p,q);
+**   input : x =  (n,1) vector, the time series
+**           p,q = scalars, maximal orders of ar / ma part of arma-model
+**                 (equal to numbers of rows / columns of vectorcorrelation table) 
+**   output : la = (p+1,q+1)-table of vectorcorrelations 
+**            st = (p+1,q+1)-table of standarddeviations of vectorcorrelations 
+**
+**   Additionally, a table of vectorcorrelations is printet; the
+**   entries are marked, where the confidence interval la+-2*st
+**   does not contain zero.           
+*/
+ 
+ PROC (2) = veccore(reihe,p,q);
+
+  LOCAL a,ac,BNUMB,boot,e,h,i,j,ka,la,lmat,lmatlo,lmathi,m,ma,t,v,x,acf,n,zeile,fmt ;
+    
+    la = veccor(reihe,p,q);
+    n = ROWS(reihe);
+    h = 2*(p+q+1);
+    acf=acove(reihe,h);
+    ma = ldrec(acf[1:h+1]);
+    a = ma[h,1:h]';
+    e = tsmat(reihe,h+1)*(1|-a);
+    e = e-tsmean(e);
+        
+    BNUMB=200;
+    lmat = ZEROS(BNUMB,(p+1)*(q+1));
+    boot=0;
+    DO WHILE boot < BNUMB;
+      boot = boot+1;
+      x = RECSERAR(e[1+TRUNC(RNDU(n-h,1)*(n-h))],reihe[RNDU(1,1)*(n-h)+SEQA(1,1,h)],a);
+      lmat[boot,.] = VECR( veccor(x,p,q) )';
+    ENDO;
+    lmat = RESHAPE(2*STDC(lmat),p+1,q+1);
+    
+    PRINT "                Table of Vectorcorrelations ";
+    PRINT  "  p  \\  q ";
+
+    let fmt[3,3]=  "*.*lf" 4 0 ,"*.*lf" 5 0 ,"*.*lf" 8 0 ; 
+    fmt = fmt[1 2,.]|fmt[3*ONES(COLS(la)-1,1),.];
+    CALL PRINTFM(MISS(0,0)~SEQA(0,1,COLS(la))',1,fmt);
+        PRINT ;
+    zeile=0;
+    LET fmt[2,3]=  "*.*lf" 4 0 , "*.*lf" 8 4 ; 
+    fmt = fmt[1,.]|fmt[2*ONES(COLS(la),1),.];
+    DO WHILE zeile < q+1 ;
+      fmt[2,2]=8;
+      zeile = zeile+1;          
+      CALL PRINTFM(((zeile-1)~la[zeile,.]),1,fmt); 
+      PRINT;  
+      fmt[2,2]=5;
+      CALL PRINTFM( "*".*(0~((la[zeile,.].>lmat[zeile,.])+(la[zeile,.].<-lmat[zeile,.]))),0,fmt); 
+      PRINT;
+     ENDO;
+  RETP( la,lmat/2 );
+ ENDP;
+ 
+/*
+**> PARCORR
+**  determing the partial autocorrelations by Gram-Schmidt orthogonalisation
+**  Format : pc = parcorr(y,m)
+**  Input  : y = (n,1)-vector, the time series
+**           m = scalar, the number of partial autocorrelations to be determined  
+**  Output : pc = (m,1)-vector of partial correlations
+**
+**  Remarks : Use partar(pc) to obtain ar estimates from pc
+**
+**  Reference: Newton,H.J. and Pagano,M. (1983): Computing for Autoregresions;
+**             in: Computer Science and Statistics: The Interface,
+**             J.E.Gentle (ed.), North Holland Publishing Company
+**  
+*/
+
+
+PROC (1) = parcorr(y,m); 
+
+  LOCAL a,k,x,yk;  
+  y = y-MEANC(y);
+  y = y|ZEROS(m,1);
+  x = 0|TRIMR(y,0,1);
+  a = ZEROS(m,1);
+  k=0;
+  DO WHILE k < m;
+    k = k+1;
+    yk = y;
+    a[k] = -(yk'*x)/(x'*x);
+    y = yk + a[k]*x;
+    x = 0|TRIMR(x+a[k]*yk,0,1);
+  ENDO;
+  RETP(-a);  
+ENDP;  
+
+/*
+**> PARBURG
+**  determing the partial autocorrelations by Burg's algorithm
+**  Format : pc = parburg(y,m)
+**  Input  : y = (n,1)-vector, the time series
+**           m = scalar, the number of partial autocorrelations to be determined  
+**  Output : pc = (m,1)-vector of partial correlations
+**
+**  Remarks : Use partar(pc) to obtain Burg's ar estimates from pc
+**
+**  Reference: Newton,H.J. and Pagano,M. (1983): Computing for Autoregressions;
+**             in: Computer Science and Statistics: The Interface,
+**             J.E.Gentle (ed.), North Holland Publishing Company
+**  
+*/
+
+PROC (1) = parburg(y,m);
+
+  LOCAL a,k,x,yk; 
+  y = y-MEANC(y);
+  x = TRIMR(y,0,1);
+  a = ZEROS(m,1);
+  k=0;
+  DO WHILE k < m;
+    k = k+1;
+    yk = TRIMR(y,1,0);
+    a[k] = -2*(yk'*x)/(x'*x+yk'*yk);
+    y = yk + a[k]*x;
+    x = TRIMR(x+a[k]*yk,0,1);
+  ENDO;
+  RETP(-a);
+ ENDP; 
+
+/*
+**> PACFE
+**  determing the partial autocorrelations  from a time series
+**  Format : pc = parcfe(y,m,meth)
+**  Input  : y = (n,1)-vector, the time series
+**           m = scalar, the number of partial autocorrelations to be determined  
+**           meth = string the method to be used:
+**                  "burg" Burg's algorithm, 
+**                  "orth" Orthogonalization;  
+**                   otherwise Levinson Durbin recursion is used  
+**  Output : pc = (m,1)-vector of partial correlations
+**
+**  Remarks : Use partar(pc) to obtain Burg's ar estimates from pc
+**
+**  Reference: Newton,H.J. and Pagano,M. (1983): Computing for Autoregressions;
+**             in: Computer Science and Statistics: The Interface,
+**             J.E.Gentle (ed.), North Holland Publishing Company
+**  
+*/
+
+PROC (1) =  pacfe(y,m,meth);
+   
+   LOCAL a;
+    IF meth $=="burg";
+     a = parburg(y,m);
+    ELSEIF meth $=="orth";
+     a = parcorr(y,m);
+    ELSE;
+     a = ldrec(acore(y,m));
+     a = a[.,m+2];
+    ENDIF; 
+  RETP(a);
+ ENDP;  
+
+/*
+**> VARIOGRAM
+**  determing the variogram from an irregularly sampled time series
+**  Format : pc = variogram(y)
+**  Input  : y = (n,2)-matrix, first column: time
+**                             second column: measurements
+**           mlag = scalar, the maximum lag for which the variogram is computed
+**           tol = scalar, span over which the values of the variogram are averaged
+**                 to get a smoothed version 
+**  Output : pc = (m,1)-vector of partial correlations
+**
+**  Reference:  Diggle, P.J. (1990): Time Series;
+**              Oxford: Clarendon Press
+**              
+*/
+   
+ 
+ PROC (1) = variogram(y,mlag,tol);
+ 
+ LOCAL d1,d2,n,s,t,v,w;
+   d1 = VECH(y[.,1]-y[.,1]');
+   d2 = VECH(0.5*(y[.,2]-y[.,2]')^2);
+   d2 = SELIF(d2,d1.<mlag);
+   d2 = DELIF(d2,d1.==0);
+   d1 = SELIF(d1,d1.<mlag);
+   d1 = DELIF(d1,d1.==0);
+   v = SORTC(d1~d2,1);
+   n = ROWS(v);
+   w = {};
+   t = 1;
+   DO WHILE t < n;
+     s = SELIF(v[t:n,.],v[t:n,1].<=(v[t,1]+tol));
+     w = w|MEANC(s)';
+     t = t+ROWS(s);
+   ENDO;  
+ RETP(w);
+ ENDP;  

@@ -1,0 +1,10 @@
+/*
+** system.ext - Used by 32-bit version only.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This number reflects the largest number of elements allowed in any one
+** matrix.
+*/
+
+external matrix __maxvec;

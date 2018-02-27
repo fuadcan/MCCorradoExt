@@ -1,0 +1,52 @@
+/*
+** simplex.lcg - Linear Programming Library
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+simplex.dec
+    _lpstflg : matrix
+    _lpmin   : matrix
+    _lpcnst  : matrix
+    _lpxcnst : matrix
+    _lpstrtx : matrix
+    _lpsoltn : matrix
+    _lprule  : matrix
+    _lpmaxit : matrix
+    _lpeps1  : matrix
+    _lpeps2  : matrix
+    _lpeps3  : matrix
+    _lpcstol : matrix
+    _lpvrtol : matrix
+    _lpfstol : matrix
+    _lpname  : string
+    _lpax    : matrix
+    _lpdlvar : matrix
+    _lpbasis : matrix
+    _lpitnum : matrix
+    _lpstate : matrix
+    _lpuniq  : matrix
+    _lpx     : matrix
+    _lpqual  : matrix
+    _lp_phse : matrix
+    _lp_cnst : matrix
+    _lp_b    : matrix
+    _lp_out  : matrix
+    _lp_ver  : matrix
+
+simplex.src
+    simplex  : proc
+    errchk   : proc
+    simplex2 : proc
+    cntrstr  : proc
+    lpset    : proc
+
+lpprt.src
+    lpprt    : proc
+    lpview   : proc
+    cnstprt  : proc
+    varprt   : proc
+    genbox   : proc
+    scrnrst  : proc
+    cntrstr  : proc
+

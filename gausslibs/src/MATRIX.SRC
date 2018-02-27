@@ -1,0 +1,385 @@
+/*
+** matrix.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  v = vech_(A);                 vech operator                            35
+**
+**  A = xpnd_(v);                 Expand a column vector into
+**                                a symmetric matrix                       51
+**
+**  K = commutation_(m,n);        Commutation matrix K(m,n)                65
+**
+**  D = duplication_(m);          Duplication matrix D(m)                  80
+**
+**  L = elimination_(m);          Elimination matrix L(m)                  94
+**
+**  Mi = xpnd2(M,i);              Procedure for coding square matrices    108
+**
+**  {RR,r} = Explicit_to_Implicit(CC,c);
+**                                Convert explicit linear restrictions
+**                                C*theta = c to implicit linear
+**                                restrictions theta = R*gamma+r          129
+**
+**  {CC,c} = Implicit_to_Explicit(RR,r);
+**                                Convert implicit linear restrictions
+**                                theta = R*gamma+r to explicit linear
+**                                restrictions C*theta = c                149
+**
+*/
+
+
+/*
+** vech_
+**
+** Purpose: vech operator. It packs the lower triangular portion
+**          of the matrix into a column vector in column-wise order
+**
+** Format:  v = vech_(A);
+**
+** Input:   A - M*M matrix
+**
+** Output:  v - (M*(M+1)/2)*1 vector, the lower triangular portion
+**                                    of the matrix A
+**
+*/
+
+
+/*
+** xpnd_
+**
+** Purpose: Expands a column vector into a symmetric matrix
+**
+** Format:  A = xpnd_(v);
+**
+** Input:   v - K*1 vector
+**
+** Output:  A - M*M matrix with M = (-1+sqrt(1+8K))/2
+**
+*/
+
+
+/*
+** commutation_
+**
+** Purpose: Commutation matrix K(m,n)
+**
+** Format:  K = commutation_(m,n);
+**
+** Input:   m - scalar, the order m of the commutation matrix
+**          n - scalar, the order n of the commutation matrix
+**
+** Output:  K - (M*N)*(M*N) matrix, the commutation matrix K(m,n)
+**
+*/
+
+
+/*
+** duplication_
+**
+** Purpose: Duplication matrix D(m)
+**
+** Format:  D = duplication_(m);
+**
+** Input:   m - scalar, the order of the duplication matrix
+**
+** Output:  D - (M^2)*(M*(M+1)/2) matrix, the duplication matrix D(m)
+**
+*/
+
+
+/*
+** elimination_
+**
+** Purpose: Elimination matrix L(m)
+**
+** Format:  L = elimination_(m);
+**
+** Input:   m - scalar, the order of the elimination matrix
+**
+** Output:  L - (M*(M+1)/2)*(M^2) matrix, the elimination matrix L(m)
+**
+*/
+
+
+/*
+** xpnd2
+**
+** Purpose: Procedure for conding square matrices
+**
+** Format:  Mi = xpnd2(M,i);
+**
+** Input:   M - N*K^2 matrix
+**          i - scalar, index
+**
+** Output: Mi - K*K matrix, the M(i) matrix
+**
+** Remarks: We suppose that the elements of the M(1),...,M(N) square matrices
+**          are ranked in the following way:
+**                       M[i,.] = vec(Mi)';
+**          If Mi contains complex values, we must use the bookkeping transpose
+**          operator .' in place of the transpose operator
+**                       M[i,.] = vec(Mi).';
+*/
+
+
+/*
+** Explicit_to_Implicit
+**
+** Purpose: Convert explicit linear restrictions C*theta = c
+**          to implicit linear restrictions theta = R*gamma+r
+**
+** Format:  {RR,r} = Explicit_to_Implicit(CC,c);
+**
+** Input:   CC - g*k matrix
+**           c - g*1 vector
+**
+** Output:  RR - k*g matrix
+**           r - k*1 vector
+**
+** Remarks: The code is inspired from the procedure convrest
+**          built by Paul Fackler
+**
+*/
+
+
+/*
+** Implicit_to_Explicit
+**
+** Purpose: Convert implicit linear restrictions theta = R*gamma+r
+**          to explicit linear restrictions C*theta = c to
+**
+** Format:  {CC,c} = Implicit_to_Explicit(RR,r);
+**
+** Input:   RR - k*g matrix
+**           r - k*1 vector
+**
+** Output:  CC - g*k matrix
+**           c - g*1 vector
+**
+** Remarks: The code is inspired from the procedure convrest
+**          built by Paul Fackler
+**
+*/
+
+
+/*
+** vech_
+*/
+
+proc vech_(A);
+  local M,v,j,i;
+
+  M = rows(A);
+  v = zeros(M*(M+1)/2,1);
+
+  i = 1;
+  j = 1;
+  do until i>m;
+    v[j:j+M-i] = A[i:M,i];
+    j = j+M-i+1;
+    i = i+1;
+  endo;
+
+  retp(v);
+endp;
+
+
+/*
+** xpnd_
+*/
+
+proc xpnd_(v);
+  local k,M,a,j,i,A_;
+
+  k = rows(v);
+  M = sqrt(1+8*k);
+
+  if M /= trunc(M);
+
+    ERRORLOG "error: Wrong size format of the v vector.";
+    retp(error(0));
+
+  endif;
+
+  M = (-1+M)/2;
+  A = zeros(M,M);
+  i = 1;
+  j = 1;
+  do until i>m;
+    A[i:M,i] = v[j:j+M-i];
+    j = j+M-i+1;
+    i = i+1;
+  endo;
+
+  A_ = lowmat1(A); A_ = A_'; A_ = diagrv(A_,zeros(M,1));
+  A = A+A_;
+  retp(A);
+endp;
+
+
+/*
+** elimination_
+*/
+
+proc  elimination_(m);
+  local p,L,v,i;
+
+  p = m*(m+1)/2;
+  L = zeros(p,m^2);
+
+  v = seqa(1,1,m)' + seqa(0,m,m);
+  v = shiftr(v,seqa(0,-1,m),miss(0,0));
+  v = packr(vecr(v));
+
+  i = 1;
+  do until i>p;
+    L[i,v[i]] = 1;
+    i = i+1;
+  endo;
+
+  retp(L);
+endp;
+
+
+/*
+** duplication_
+*/
+
+proc  duplication_(m);
+  local p,D,v,i;
+
+  p = m*(m+1)/2;
+  D = zeros(m^2,p);
+
+  v = seqa(1,1,p); v = xpnd_(v); v = vec(v);
+
+  i = 1;
+  do until i>m^2;
+    D[i,v[i]] = 1;
+    i = i+1;
+  endo;
+
+  retp(D);
+endp;
+
+
+/*
+** commutation_
+*/
+
+proc  commutation_(m,n);
+  local p,K,v,i;
+
+  p = m*n;
+  K = zeros(p,p);
+
+  v = seqa(1,1,m) + seqa(0,m,n)'; v = vecr(v);
+
+  i = 1;
+  do until i>p;
+    K[i,v[i]] = 1;
+    i = i+1;
+  endo;
+
+  retp(K);
+endp;
+
+
+/*
+** xpnd2
+*/
+
+proc xpnd2(M,i);
+  local N,K2,K,v,Mi;
+
+  N = rows(M);
+
+  K2 = cols(M); K = sqrt(K2);
+
+  if K2 /= K^2;
+    ERRORLOG "error: M does not conform.";
+    retp(error(0));
+  endif;
+
+  if (i <= 0) or (i > N) or (i /= trunc(i));
+    ERRORLOG "error: i does not conform.";
+    retp(error(0));
+  endif;
+
+  v = M[i,.];
+  v = v.';
+  Mi = reshape(v,K,K);
+  Mi = Mi.';
+  retp(Mi);
+endp;
+
+/*
+** Explicit_to_Implicit
+*/
+
+proc (2) = Explicit_to_Implicit(CC,c);
+  local oldtrap,RR,mx,r;
+
+  if ( rows(CC) /= rows(c) ) or ( cols(c) /= 1 ) or ( rows(CC) >= cols(CC) );
+    retp(error(0),error(0));
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  RR = null(CC);
+  trap oldtrap,1;
+  if scalerr(RR);
+    retp(error(0),error(0));
+  endif;
+
+  mx = maxc(abs(RR));
+  mx = mx + (mx.==0);
+  RR = RR./mx';
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  r = pinv(CC'CC)*CC'*c;
+  trap oldtrap,1;
+  if scalerr(r);
+    retp(error(0),error(0));
+  endif;
+
+  retp(RR,r);
+endp;
+
+
+/*
+** Implicit_to_Explicit
+*/
+
+proc (2) = Implicit_to_Explicit(RR,r);
+  local oldtrap,CC,mx,c;
+
+  if ( rows(RR) /= rows(r) ) or ( cols(r) /= 1 ) or ( rows(RR) <= cols(RR) );
+    retp(error(0),error(0));
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  CC = null(RR')';
+  trap oldtrap,1;
+  if scalerr(CC);
+    retp(error(0),error(0));
+  endif;
+
+  mx = maxc(abs(CC'));
+  mx = mx + (mx.==0);
+  CC = CC./mx;
+
+  c = CC*r;
+
+  retp(CC,c);
+endp;
+
+
+
+
+

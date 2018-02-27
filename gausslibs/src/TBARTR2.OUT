@@ -1,0 +1,47 @@
+
+
+          Series Name =  Test Data from an AR(2) + trend model
+          Sample size for this series =     150.0000
+
+
+  RESULTS FROM AN AR(1) & AR(klag) WITH MAINTAINED LINEAR TREND
+
+           Trend degree  =        1.0000
+           AR lag lengths =        1.0000      4.0000
+
+        Estimated coefficients and standard errors 
+
+AR coeff., t-ratio(at 1), st.error  =       0.9619     -1.5860      0.0240
+intercept, t-ratio, st.error        =       0.4612      2.1974      0.2099
+trend degree, trend coeff., t-ratio, st.error  
+      1.0000      1.7840      1.6090      1.1088
+
+
+        Probabilities of stochastic nonstationarity  
+        based on Jeffreys' (_J) and flat (_F) priors 
+
+Prob_J( rho >= 1 )     =       0.3973
+Prob_F( rho >= 1)      =       0.0636
+
+Prob_J( rho >= 0.975 ) =       0.6096
+Prob_F( rho >= 0.975 ) =       0.2948
+
+        Estimated coefficients and standard errors:  
+
+l_r AR coeff., t-ratio(at 1.00), st.error =       0.9465     -2.2849
+      0.0234
+intercept, t-ratio, st.error              =       0.4332      2.1048
+      0.2058
+trend degree, trend coeff., t-ratio, st.error  
+      1.0000      2.4129      2.3099      1.0446
+
+
+        Probabilities of stochastic nonstationarity  
+        based on Jeffreys' (_J) and flat (_F) priors 
+
+Prob_J( rho >= 1 )     =       0.0824
+Prob_F( rho >= 1)      =       0.0148
+
+Prob_J( rho >= 0.975 ) =       0.2320
+Prob_F( rho >= 0.975 ) =       0.1176
+

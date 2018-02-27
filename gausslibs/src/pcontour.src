@@ -1,0 +1,257 @@
+/*
+** pcontour.src - Publication Quality Graphics Support.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> contour
+**
+**  Purpose:    Graphs a contour graph using a matrix of heights.
+**
+**  Format:     contour(x,y,z);
+**
+**  Inputs:     x    1xK vector, the min and max values for the X axis.
+**
+**              y    Nx1 vector, the min and max values for the Y axis.
+**
+**              z    NxK matrix, heights above the X-Y plane.
+**
+**  See Also:   surface, xy, logx, logy, loglog
+*/
+
+#include pgraph.ext
+
+proc 0 = contour(x,y,z);
+    local colorq,xformat,yformat,frame,msgstr,psym,psymnum,msgnum,n,k,sca,
+        gcode,linenum,arrownum,arrow,c,t1,t2,msx,xlab,ylab,gridflag,
+        errbnum,fontnum,pstype,pltype,lev,i,levnum,uselev,zformat,cntlab,
+        pmsgctl,pline,mem,fntsize,pzclr,pnzclr,pnum,paxes,gpcpath;
+    /* ------------------------------------------------------ */
+    local minx,maxx,miny,maxy,qsig,qfield,qxprec,qxpow,qxorig,qxstep,
+        qxmax,qxmint,qlab,qyprec,qypow,qyorig,qystep,qymax,qymint,
+        qzprec,qzorig,qzstep,qzmax,minz,maxz;
+
+    clear xlab,ylab;
+
+    _pqgtype = { 8, 1 };    /* graph type contour, 2d */
+    { frame,paxes,pnum,gpcpath } = _cmnfilt;
+
+    /* ---- test input variables and take appropriate action ---- */
+
+    if rows(z)/2==int(rows(z)/2) or cols(z)/2==int(cols(z)/2);
+        "Contour data must have odd number of rows and columns";
+        end;
+    endif;
+
+    /* test for correct size z matrix */
+    if cols(z)/=cols(x) or rows(z)/=rows(y);
+        "Contour z matrix is not conformable to x and y vector sizes.";
+        end;
+    endif;
+
+    /* test for missings in x or y */
+    if ismiss(x) or ismiss(y);
+        errorlog "ERROR: There are missing values in the data.";
+        end;
+    endif;
+
+    goto g00;
+
+makestru:
+
+        pop msx;
+    c = 1;
+    t1 = 1|0|0|0|0|0|0|0|0|0;
+    do while c<=rows(msx);
+        if strlen(msx[c,1]);
+            t2 = vals(""$+msx[c,1]);
+            t1 = t1|t2|zeros(10-rows(t2),1);
+        else;
+            t1 = t1|zeros(10,1);
+        endif;
+        c = c+1;
+    endo;
+    return(chrs(t1));
+
+g00:
+
+    /* Dimensions of data matrices. */
+    if y==0 and rows(y)==1 and cols(y)==1;
+        n = 0;
+        k = 0;
+    else;
+        k = cols(x);
+        n = rows(y);
+    endif;
+
+    { minx,maxx } = _pcartx(_pworld,x);
+    { miny,maxy } = _pcarty(_pworld,y);
+    { minz,maxz } = _pcartz(_pworld,z);
+
+    { qsig,qfield,qxprec,qxpow,qxorig,qxstep,qxmax,qxmint,qlab } =
+        _paxnum(pnum[1],minx,maxx,_pxsci,_pxscale,_pxpmax);
+
+    { qsig,qfield,qyprec,qypow,qyorig,qystep,qymax,qymint,qlab } =
+        _paxnum(pnum[2],miny,maxy,_pysci,_pyscale,_pypmax);
+
+    { qsig,qfield,qzprec,t2,qzorig,qzstep,qzmax,t2,qlab } =
+        _paxnum(pnum[3],minz,maxz,12,_pzscale,_pzpmax);
+
+    if _plev == 0;
+        uselev = 0;
+        lev = qzorig|qzstep|qzmax;
+        if _pzscale $== 0;
+            cntlab = 1;
+        else;
+            cntlab = _pzscale[4];
+        endif;
+    else;
+        uselev = 1;
+        lev = _plev;
+        cntlab = 1;
+    endif;
+    levnum = rows(lev);
+
+    /* setup z color vector */
+    pzclr = _pzclr;
+    pnzclr = rows(pzclr);
+    if pnzclr > 1;
+        if cols(pzclr) == 1;        /* only colors specified; calc z levels */
+            i = (maxc(maxc(z)) - minc(minc(z))) / pnzclr;
+            pzclr = seqa(minc(minc(z)),i,pnzclr) ~ pzclr;
+        else;       /* both specified; check for missing value */
+            if scalmiss(pzclr[1,1]);
+                pzclr[1,1] = minc(minc(z));
+            endif;
+        endif;
+    elseif pnzclr == 1;
+        if pzclr == 0;
+            pzclr = minc(minc(z)) ~ 10;
+        else;
+            pzclr = minc(minc(z)) ~ pzclr;
+        endif;
+    else;
+        errorlog "Error. Z color matrix invalid.";
+    endif;
+
+    if qxpow;
+        x = x * 10^(-qxpow);
+    endif;
+    if qypow;
+        y = y * 10^(-qypow);
+    endif;
+
+    if not(_pascx $== 0);
+        gosub makestru(_pascx);
+            pop xlab;
+        xformat = 0;
+    elseif strlen(_pxfmt) < 2;
+        xformat = "%1." $+ ftos(qxprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        xformat = lower(_pxfmt);
+    endif;
+
+    if not(_pascy $== 0);
+        gosub makestru(_pascy);
+            pop ylab;
+        yformat = 0;
+    elseif strlen(_pyfmt) < 2;
+        yformat = "%1." $+ ftos(qyprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        yformat = lower(_pyfmt);
+    endif;
+
+    if strlen(_pzfmt) < 2;
+        zformat = "%1." $+ ftos(qzprec,"%*.*lf",1,0) $+ "lf";
+    else;
+        zformat = lower(_pzfmt);
+    endif;
+
+    sca = qxorig|qxstep|qxmax|qyorig|qystep|qymax;
+
+    if cols(_pfonts) /= 1;
+        errorlog "_FONTS must be column vector";
+        end;
+    endif;
+
+    fontnum = rows(_pfonts);
+
+    _setpage();
+
+    if _pstype == 0;
+        pstype = _pssel;
+    else;
+        pstype = _pstype;
+    endif;
+
+    if _pltype == 0;
+        pltype = _plsel;
+    else;
+        pltype = _pltype;
+    endif;
+
+    pstype = reshape(pstype,k,1)-1;
+    pltype = reshape(pltype,k,1);
+
+    { msgstr,msgnum,colorq } = _txtfilt;
+    { pline,linenum,arrow,arrownum,psym,psymnum } = _linfilt;
+
+    if _pgrid $== 0;
+        gridflag = 0|2|qxmint|qymint;
+    else;
+        gridflag = _pgrid[1 2]|qxmint|qymint;
+    endif;
+
+    if rows(_perrbar) == 1 and cols(_perrbar) == 1;
+        errbnum = 0;
+    elseif cols(_perrbar) /= 9;
+        errorlog "Error bar matrix invalid";
+        end;
+    else;
+        errbnum = rows(_perrbar);
+    endif;
+
+    /* a null byte is appended to _plegstr in cmnfilt() */
+    if _plegstr $== "\0";
+        i = 1;
+        _plegstr = "";
+        do while i <= pnzclr;
+            _plegstr = _plegstr $+ ftos(_pzclr[i,1],"%*.*lf",1,_pzpmax)
+                       $+ "\0";
+            i = i + 1;
+        endo;
+    endif;
+
+    { pline,pmsgctl,psym } = _pwrscal(qxpow,qypow,pline,_pmsgctl,psym);
+
+    { fontnum,mem,fntsize } = _fontsiz();
+    mem = mem + ceil( ((k*n*2+k*n/2+4*k*2+4*n*2)+12) / 8 );
+
+    /* pcontour <=> 3 */
+
+    GraphSEv3(x,y,z,lev,levnum,uselev,zformat,cntlab,k,n,sca,
+        _ptitle, pzclr,pnzclr,_pxlabel,_pylabel,_ptek,_pfonts,fontnum,
+        fntsize, _pcross,gridflag,xformat,yformat,_pbox,paxes,msgstr,
+        pmsgctl,msgnum, psym,psymnum,_paxht,_pnumht,_ptitlht,_pagesiz,
+        _pageshf,_plotsiz, _plotshf,_protate,frame,pline,linenum,arrow,
+        arrownum,xlab,ylab,colorq, _pdate,_perrbar,errbnum,qxpow,qypow,
+        pnum,_plegctl,_plegstr,_pnotify,_pappend,_pmargin,_pcwin,_pncwin,
+        _pcrop,_pticout,gpcpath,3);
+
+    clear x,y,z,gcode;
+
+    if _pscreen and _pinbegwind == 0;
+        rerun;
+    endif;
+
+endp;

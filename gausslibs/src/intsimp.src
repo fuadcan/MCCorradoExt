@@ -1,0 +1,133 @@
+/*
+** intsimp.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> intsimp
+**
+**  Purpose:    Integrates a specified function using Simpson's
+**              method with end correction. A single integral is
+**              computed in one function call.
+**
+**  Format:     y = intsimp(&f,xl,tol);
+**
+**  Inputs:     &f    pointer to the procedure containing the function
+**                    to be integrated.
+**
+**              xl    2x1 vector, the limits of x.
+**
+**                    The first element is the upper limit and the second
+**                    element is the lower limit.
+**
+**              tol   scalar,  tolerance to be used in testing for
+**                    convergence.
+**
+**  Output:      y    scalar, the  estimated integral of f(x) between
+**                    x[1] and x[2].
+**
+**  Remarks:
+**  The function f must be capable of function values.  intsimp will
+**  pass to f a vector, and expect a vector in return.  Use ".*" instead
+**  of "*".
+**
+**  Example:    proc f(x);
+**                 retp( sin(x) );
+**              endp;
+**
+**              let xl = { 1,
+**                         0 };
+**
+**              y = intsimp(&f,xl,1E-8);
+**
+**              This will integrate the function between 0 and 1.
+**
+**  See Also:   intquad1, intquad2, and intquad3, intgrat2, intgrat3
+*/
+
+proc intsimp(&f,xl,tol);
+    local f:proc;
+    local sfa,sfb,tfa,area0,sdh,gfa,gfb,sn,iter,sda, sdx,sdxeven,sdxodd,
+        area,endcor, converge;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if iscplx(tol);
+        if hasimag(tol);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            tol = real(tol);
+        endif;
+    endif;
+
+    if xl[1] == xl[2];
+        retp(0);
+    endif;
+    sfa = f(xl[2]);
+    sfb = f(xl[1]);         /* function evaluations at end points */
+    tfa = sfa + sfb;
+    area0 = tfa*(xl[1]-xl[2])/2;    /* use trapezoidal first approx to area */
+
+    sdh = 1e-4;     /* size of dx for computing derivatives */
+    gfa = (sfa-f(xl[2]-sdh))/sdh;           /* derivatives at end points  */
+
+    /* gfb = (sfb-f(xl[1]-sdh))/sdh;    Corrected below 12/15/88 SDJ */
+    gfb = (f(xl[1]+sdh)-sfb)/sdh;
+
+    endcor = gfa-gfb;       /* used for the end correction */
+
+    sn = 16;        /* sn is the initial number of panels used in computing
+                    :: approximation to integral
+                    */
+    iter = 1;
+    sda = 1;
+
+    /* values at initial sn */
+
+    sdx = (xl[1]-xl[2])/sn;         /* width of panels */
+    sdxeven = sumc( f(seqa(xl[2]+2*sdx,2*sdx,(sn/2)-1)) );
+                                            /* compute value of x at
+                                            :: boundaries of even panels
+                                            */
+    sdxodd = sumc( f( seqa(xl[2]+sdx,2*sdx,sn/2)) );
+                                            /* compute value of x at
+                                            :: boundaries of odd panels
+                                            */
+    converge = 0;
+    do until converge or iter > 9;
+        sn = sn*2;          /* double number of panels for this iteration  */
+        sdx = (xl[1]-xl[2])/sn;
+        sdxeven = sdxeven+sdxodd;           /* we do not need to recompute  */
+        sdxodd = sumc( f( seqa(xl[2]+sdx,2*sdx,sn/2)) );
+        /* the following statement computes the Simpson approximation  */
+        area = (7*tfa + 14*sdxeven + 16*sdxodd + sdx*endcor)*(sdx/15);
+        iter = iter+1;
+        sda = (area-area0)/area0;
+        area0 = area;
+        converge = abs(sda) < tol;
+    endo;
+    if iter == 10 and not converge;
+        errorlog "Integral could not be computed to specified tolerance";
+        end;
+    endif;
+    retp(area);
+endp;

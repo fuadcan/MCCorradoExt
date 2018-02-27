@@ -1,0 +1,459 @@
+#ifDLLCALL
+
+/*
+**  lncdfn.src
+**
+** (C) Copyright 1996-2000 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                       Purpose                            line
+** ---------------------------------------------------------------------
+**    y = lncdfn(x)             - log of normal cdf                   33
+**    y = lncdfnc(x)            - log of complement of normal cdf     59
+**    y = lncdfbvn(x1,x2,r)     - log of bivariate normal cdf         87
+**    y = cdfmvn(x,r)           - multivariate normal cdf            130
+**    y = lncdfmvn(x,r)         - log of multivariate normal cdf     181
+**    y = cdfn2(x,dx)           - computes cdfn(x+dx) - cdfn(x)      232
+**    y = lncdfn2(x,dx)         - log of (cdfn(x+dx) - cdfn(x))      294
+**    y = cdfbvn2(h,dh,k,dk,r)  - cdfbvn of bounded rectangle        357
+*/
+
+/*
+**> lncdfn
+**
+**  Purpose:  computes log of normal cdf.
+**
+**  Format:  y = lncdfn(x);
+**
+**  Input:   x    NxK matrix, abscissae.
+**
+**  Output:  y    ln Pr(X < x).
+**
+*/
+
+
+proc lncdfn(x);
+        local rows_x, cols_x;
+
+        rows_x = rows(x);
+        cols_x = cols(x);
+
+        dllcall lncdfndll(x,rows_x,cols_x);
+
+        retp(x);
+endp;
+
+
+/*
+**> lncdfnc
+**
+**  Purpose:  computes log of complement of normal cdf.
+**
+**  Format:  y = lncdfnc(x);
+**
+**  Input:   x    NxK matrix, abscissae.
+**
+**  Output:  y    ln (1 - Pr(X < x)).
+**
+*/
+
+
+proc lncdfnc(x);
+        local rows_x, cols_x;
+
+        rows_x = rows(x);
+        cols_x = cols(x);
+
+        dllcall lncdfncdll(x,rows_x,cols_x);
+
+        retp(x);
+endp;
+
+
+
+
+/*
+**> lncdfbvn
+**
+**  Purpose:  computes log of bivariate normal cdf.
+**
+**  Format:  y = lncdfbvn(x1,x2,r);
+**
+**  Input:   x1     NxK matrix, first abscissae.
+**
+**           x2     LxM matrix, second abscissae, ExE conformable with x1.
+**
+**           r      PxQ matrix, correlation, ExE conformable with x1 and x2.
+**
+**  Output:  y      maxc(N|L|P) x maxc(K|M|Q) matrix, ln Pr(X < x1, X < x2 | r).
+**
+*/
+
+
+proc lncdfbvn(x1,x2,r);
+        local y, r_y, c_y, r_x1, c_x1, r_x2, c_x2, r_r, c_r;
+
+        if type(x1) /= 6 or type(x2) /= 6 or type(r) /= 6;
+            if not trapchk(4);
+                errorlog "LNCDFBVN:  arguments must be matrices";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        { r_y, c_y } = conformed(x1,x2,r);
+        if not r_y;
+            if not trapchk(4);
+                errorlog "LNCDFBVN:  matrices not conformable";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        r_x1 = rows(x1); c_x1 = cols(x1);
+        r_x2 = rows(x2); c_x2 = cols(x2);
+        r_r  = rows(r);  c_r  = cols(r);
+        y = zeros(r_y,c_y);
+        dllcall lncdfbvndll(y,r_y,c_y,x1,r_x1,c_x1,x2,r_x2,c_x2,r,r_r,c_r);
+
+        retp(y);
+endp;
+
+
+
+
+/*
+**> cdfmvn
+**
+**  Purpose:  computes multivariate normal cdf.
+**
+**  Format:  y = cdfmvn(x,r);
+**
+**  Input:   x     KxL matrix.
+**
+**           r     KxK matrix, correlation matrix.
+**
+**  Output:  y     1xL matrix, Pr(X < x | r).
+**
+*/
+
+
+proc cdfmvn(x,r);
+        local k, eps, sde, y, r_x, c_x, work, iwork;
+
+        if rows(x) /= rows(r);
+            if not trapchk(4);
+                errorlog "CDFMVN:  matrices not conformable";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        r_x = rows(x);
+        c_x = cols(x);
+
+        y = zeros(1,c_x);
+
+        if not(diag(r)==1);
+            sde = sqrt(diag(r));
+            r = r ./ sde ./ sde';
+        endif;
+
+        k = _lncdfn_order;
+        eps = _lncdfn_eps;
+
+        work = zeros(5*r_x+2*r_x*r_x,1);
+        iwork = zeros(ceil(3*r_x),1);
+
+        dllcall cdfmvndll(k,eps,y,c_x,x,r_x,r,work,iwork);
+
+        retp(y);
+endp;
+
+
+
+/*
+**> lncdfmvn
+**
+**  Purpose:  computes log of multivariate normal cdf.
+**
+**  Format:  y = lncdfmvn(x,r);
+**
+**  Input:   x     KxL matrix.
+**
+**           r     KxK matrix, correlation matrix.
+**
+**  Output:  y     1xL matrix, ln(Pr(X < x | r)).
+**
+*/
+
+
+proc lncdfmvn(x,r);
+        local k, eps, sde, y, r_x, c_x, work, iwork;
+
+        if rows(x) /= rows(r);
+            if not trapchk(4);
+                errorlog "CDFMVN:  matrices not conformable";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        r_x = rows(x);
+        c_x = cols(x);
+
+        y = zeros(1,c_x);
+
+        if not(diag(r)==1);
+            sde = sqrt(diag(r));
+            r = r ./ sde ./ sde';
+        endif;
+
+        k = _lncdfn_order;
+        eps = _lncdfn_eps;
+
+        work = zeros(ceil(5*r_x+2*r_x*r_x),1);
+        iwork = zeros(3*r_x,1);
+
+        dllcall lncdfmvndll(k,eps,y,c_x,x,r_x,r,work,iwork);
+
+        retp(y);
+endp;
+
+
+
+/*
+**> cdfn2
+**
+**  Purpose:    Returns cdfn(x+dx) - cdfn(x).
+**
+**  Format:     y = cdfn2(x,dx);
+**
+**  Input:      x     MxN real matrix.
+**             dx     PxQ matrix, ExE conformable with x.
+**
+**  Output:     y     maxc(M|P) x maxc(N|Q) matrix, the integral from x to x+dx
+**                    of the normal distribution.
+**
+**  Remarks:    The relative error is:-
+**              For abs(x) <= 1 and abs(dx) <= 1               +/- 1e-14
+**              For 1 < abs(x) < 37 and  abs(dx) < 1/abs(x)    +/- 1e-13
+**              otherwise for
+**                  min(x,x+dx) > -37 and y > 1e-300 +/- 1e-11 or better
+**
+**              A relative error of +/- 1e-14 implies that the answer is
+**              accurate to better than +/- 1 in the 14th digit.
+**
+**  Examples:
+**             0 format /re 25,16
+**             0 cdfn2(1,0.5);
+**                9.1848052662599017e-02
+**             0 cdfn2(20,0.5);
+**                2.7535164718736454e-89
+**             0 cdfn2(20,1e-2);
+**                5.0038115018684521e-90
+**             0 cdfn2(-5,2);
+**                1.3496113800582164e-03
+**             0 cdfn2(-5,0.15);
+**                3.3065580013000255e-07
+**
+**  See Also:   lncdfn2
+*/
+
+
+proc cdfn2(x,dx);
+        local y, rows_y, cols_y, rows_x, cols_x, rows_dx, cols_dx;
+
+        { rows_y, cols_y } = conformed(x,dx,0);
+        if not rows_y;
+            if not trapchk(4);
+                errorlog "CDFN2:  matrices not conformable";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        rows_x = rows(x); cols_x = cols(x);
+        rows_dx = rows(dx); cols_dx = cols(dx);
+        y = zeros(rows_y,cols_y);
+        dllcall cdfn2dll(y,rows_y,cols_y,x,rows_x,cols_x,dx,rows_dx,cols_dx);
+
+        retp(y);
+endp;
+
+
+
+/*
+**> lncdfn2
+**
+**  Purpose:    Returns ln(cdfn(x+dx) - cdfn(x)).
+**
+**  Format:     y = lncdfn2(x,dx);
+**
+**  Input:      x     MxN real matrix.
+**             dx     PxQ matrix, ExE conformable with x.
+**
+**  Output:     y     maxc(M|P) x maxc(N|Q) matrix, the natural log of the
+**                    integral from x to x+dx of the normal distribution.
+**
+**  Remarks:    lncdfn2 uses a series expansion to provide accurate results
+**              for answers near 0
+**
+**              The relative error is:-
+**              For abs(x) <= 1 and abs(dx) <= 1               +/- 1e-14
+**              For 1 < abs(x) < 37 and  abs(dx) < 1/abs(x)    +/- 1e-13
+**              otherwise for
+**                  min(x,x+dx) > -37 and y > -690   +/- 1e-11 or better
+**
+**              A relative error of +/- 1e-14 implies that the answer is
+**              accurate to better than +/- 1 in the 14th digit.
+**
+**  Example:
+**             0 format /re 25,16
+**             0 lncdfn2(-10,29);
+**                -7.6198530241605269e-24
+**             0 lncdfn2(0,1);
+**                -1.0748623268620716e+00
+**             0 lncdfn2(5,1);
+**                -1.5068446096529453e+01
+**
+**  See Also:   cdfn2
+**
+*/
+
+
+
+proc lncdfn2(x,dx);
+        local y, rows_y, cols_y, rows_x, cols_x, rows_dx, cols_dx;
+
+        { rows_y, cols_y } = conformed(x,dx,0);
+        if not rows_y;
+            if not trapchk(4);
+                errorlog "LNCDFN2:  matrices not conformable";
+                end;
+            else;
+                retp(error(0));
+            endif;
+        endif;
+
+        rows_x = rows(x); cols_x = cols(x);
+        rows_dx = rows(dx); cols_dx = cols(dx);
+        y = zeros(rows_y,cols_y);
+        dllcall lncdfn2dll(y,rows_y,cols_y,x,rows_x,cols_x,dx,rows_dx,cols_dx);
+
+        retp(y);
+endp;
+
+
+
+/*
+**> cdfbvn2
+**
+**  Purpose:    Returns cdfbvn of a bounded rectangle.
+**
+**  Format:     y = cdfbvn2(h,dh,k,dk,r);
+**
+**  Input:      h     Nx1 vector, starting points of integration for variable 1
+**              dh    Nx1 vector, increments for variable 1
+**              k     Nx1 vector, starting points of integration for variable 2
+**              dk    Nx1 vector, increments for variable 2
+**              r     Nx1 vector, correlation coefficients between the two
+**                    variables
+**
+**  Output:     y     Nx1 vector, the integral over the rectangle bounded by
+**                    h, h+dh, k, and k+dk of the standardized bivariate
+**                    normal distribution.
+**
+**  Remarks:    Scalar input arguments are okay; they will be expanded to
+**              Nx1 vectors.
+**
+**              cdfbvn2 computes cdfbvn(h+dh,k+dk,r) + cdfbvn(h,k,r) -
+**              cdfbvn(h,k+dk,r) - cdfbvn(h+dh,k,r).
+**
+**              cdfbvn2 computes an error estimate for each set of inputs.
+**              The size of the error depends on the input arguments. If trap 2
+**              is set, a warning message is displayed when the error reaches
+**              0.01*abs(y).
+**
+**              For an estimate of the actual error see cdfbvn2e.
+**
+**  Examples:
+**
+**      format /re 25,16;
+**      cdfbvn2(1,-1,1,-1,0.5);
+**
+**         1.4105101488974692e-001
+**
+**      cdfbvn2(1,-1e-15,1,-1e-15,0.5);
+**
+**         7.3955709864469857e-032
+**
+**      cdfbvn2(1,-1e-45,1,-1e-45,0.5);
+**
+**         0.0000000000000000e+000
+**
+**      trap 2,2;
+**      cdfbvn2(1,-1e-45,1,1e-45,0.5);
+**
+**      WARNING: Dubious accuracy from cdfbvn2:   0.000e+000 +/- 2.8e-060
+**         0.0000000000000000e+000
+**
+** See Also:   cdfbvn2e, lncdfbvn2
+*/
+
+proc cdfbvn2(h,dh,k,dk,r);
+    local x,e;
+
+    { x, e } = cdfbvn2e(h,dh,k,dk,r);
+    if trapchk(2);
+        if not (abs(x) >= 100*e);
+            for i (1,rows(x),1);
+                errorlog "WARNING: Dubious accuracy from cdfbvn2:" $+
+                    ftos(x[i],"   %le",0,3)$+" +/- "$+ftos(e[i],"%le",0,1);
+            endfor;
+        endif;
+    endif;
+
+    retp(x);
+endp;
+
+
+proc (2)=conformed(x,y,z);
+    local r_set,c_set;
+
+    r_set = maxc(rows(x)|rows(y)|rows(z));
+    if ( r_set /= 1 );
+        r_set = r_set | 1;
+        if ((rows(x) /= r_set) or (rows(y) /= r_set) or (rows(z) /= r_set));
+            retp(0,0);
+        endif;
+    endif;
+
+    c_set = maxc(cols(x)|cols(y)|cols(z));
+    if ( c_set /= 1 );
+        c_set = c_set | 1;
+        if ((cols(x) /= c_set) or (cols(y) /= c_set) or (cols(z) /= c_set));
+            retp(0,0);
+        endif;
+    endif;
+
+    retp(r_set[1],c_set[1]);
+endp;
+
+#endif

@@ -1,0 +1,794 @@
+/*        ARIMAFIT.SRC            RAINER SCHLITTGEN, THOMAS NOACK   23.FEB.2001
+**
+**      Programs for time series analysis
+**      ( allowing for missing values )
+**
+**   Procedure                                                             Line
+**   __________________________________________________________________________
+**   1.LDREC      : Levinson Durbin recursion                                35
+**   2.ROOTCHECK  : computing the norms of the roots of a polynomial         54
+**   3.AREST      : estimation of an ar-model                                69
+**   4.ARFIT      : fitting of an ar-model via Yule-Walker                   69 
+**   5.ACOVTH     : theoretical acf of an arma(p,q)-process                 128
+**   6.ARMADHR    : estimating subset arma model via method by
+**                  Durbin-Hannan-Rissanen                                  163
+**   7.ARMAINI    : rough estimation of subset arma model 
+**   8.ARMARESID  : ARMA-residuals
+**   9.MACOEFF    : coefficients of ma representation of arma(p,q) process  261
+**   10.ARSUBFIT  : subset Autoregression                                   294                        223
+**   11.INNOVREC  : estimation of ma coeficients by innovations algorithm   510
+**   12.BPLTEST   : Box-Pierce-Lijung test statistic and p-values
+**   13.PARTAR    : determing ar coefficients from partial autocorrelations  
+** 
+*/
+
+
+/*
+**> ldrec
+**
+**   Levinson-Durbin recursion for determing all coefficients a(i,j),
+**   {mat} = ldrec(acf);
+**   1<=i<=j<=maxlag (=p)
+**   input  : acf is (p+1,1)-vector acov(0),...,acov(p)
+**                              or  1,acor(1),..,acor(p)
+**   output : (p,p+2)-matrix with coefficients in lower triangular,
+**            pacf in the last colum and Q(p) in colum p+1
+**
+*/
+
+PROC (1) = ldrec(acf);
+
+  LOCAL cor,i,mat,p;
+  p = ROWS(acf)-1;
+  mat = ZEROS(p,p+2);
+  cor = TRIMR(acf/acf[1],1,0);
+  mat[1,1] = cor[1];  mat[1,p+1] = 1-cor[1]^2;   mat[1,p+2] = cor[1];
+  i = 1;
+  DO WHILE i < p;
+    mat[i+1,i+1] = (cor[i+1] - mat[i,1:i]*REV(cor[1:i]))/mat[i,p+1];
+    mat[i+1,1:i] = mat[i,1:i]-mat[i+1,i+1]*(REV(mat[i,1:i]'))';
+    mat[i+1,p+2] = mat[i+1,i+1];
+    mat[i+1,p+1] = mat[i,p+1]*(1-mat[i+1,p+2]^2);
+    i = i+1;
+  ENDO;
+ RETP(mat);
+ENDP;
+
+/*
+**> rootcheck
+**
+**    r = rootcheck(a) : computing the norms of the roots of
+**                       1 - a[1]*z -..-  a[p]*z^p = 0
+**                       (non existing coefficients must be set zero)
+*/
+
+PROC 1 = rootcheck(a);
+   RETP(ABS(POLYROOT((-REV(a))|1)));
+ENDP;
+
+
+
+
+/*  
+**> AREST
+**
+**  Format:{alpha}=arest(y,p,meth)
+**  
+**  Input : y     (n,1) vector, the time series
+**          p     scalar, order of AR-model
+**          meth  string, the method to be used: 
+**                "yw" for Yule Walker
+**                "burg" for Burg's estimator 
+**                "orth" via Gram-Scmidt-ortogonalisation for partial correlations  
+**  Output : alpha = (p,1)-vector, the  AR-coefficients
+**
+*/
+
+PROC (1) = arest(y,p,meth);
+
+LOCAL ac,mat,n,y1;
+  n = ROWS(y);
+  y = y-tsmean(y);
+  IF meth $=="yw";
+    ac = acove(taper(y,0.1),p);
+    mat = ldrec(ac);
+    RETP(mat[p,1:p]');
+  ELSEIF meth $=="burg";
+    RETP(partar(parburg(y,p)));
+  ELSEIF meth $=="orth";
+    RETP(partar(parcorr(y,p)));
+  ENDIF;  
+ENDP;
+
+
+/*  
+**> ARFIT
+**
+**  Format:{alpha,acov,aic,bic,res}=arfit(y,pmax,ic,c)
+**  
+**  Input : y    (n,1) vector, the time series
+**          pmax  scalar, maximal order of AR-model
+**          ic   string:  "aic": order selection by minimum aic
+**                        "bic": order selection by minimum bic
+**          c   string: "asymp": asymptotic covariance matrix for coefficients
+**                      "boot" : bootstrap covariance matrix for coefficients
+**  Output : alpha = (p,1)-vector, the  AR-coefficients
+**           acov  = (p,p)-matrix, covariance matrix of coefficients
+**           aic, bic = (pmax,1)-vectors of information criteria for all
+**                      orders <= pmax
+**           res =  (n,1)-vector, the residuals of fitted AR-model
+**
+*/
+
+PROC (5) = arfit(y,pmax,ic,c);
+
+LOCAL  a,a1,ac,AIC,alpha,BIC,bo,ind,mat,n,p,res,resstar,thcov,yb ;
+  n = ROWS(y);
+  y = y-tsmean(y);
+  ac = acove(taper(y,0.1),pmax);
+  mat = ldrec(ac);
+  AIC = LN(mat[.,pmax+1])+2*SEQA(1,1,pmax)/n;
+  BIC = LN(mat[.,pmax+1])+2*SEQA(1,1,pmax)*LN(n)/n;
+  IF ic $=="aic";  p = MININDC(AIC); ENDIF;
+  IF ic $=="bic";  p = MININDC(BIC); ENDIF;
+  alpha =  mat[p,1:p]';
+  res =  CONV(y,1|-alpha,p+1,n);
+  IF c $== "asymp";
+   thcov = acovth(alpha,0,tsvar(res),p-1);
+   IF p>1;
+     thcov = RESHAPE(thcov|thcov[p:2],p,2*p-2);
+     thcov = thcov[.,1:p];
+   ENDIF;
+   a = tsvar(res)*inv(thcov)/n;
+  ENDIF;
+  IF c $== "boot";
+    ind = SEQA(1,1,p);
+    a = ZEROS(500,p);
+    bo=0;
+    resstar = res[1+RNDU(n-p,1)*(n-p)]-MEANC(res);
+    DO WHILE bo < 500;
+       bo = bo+1;
+       yb = y[ind+RNDU(1,1)*(n-p)];
+       yb = yb|RECSERAR(resstar,yb,alpha);
+       a1 = acove(yb,p);
+       a1 = ldrec(a1);
+       a[bo,.] = a1[p,1:p];
+    ENDO;
+    a = (1/500)*MOMENT(a-alpha',0);
+  ENDIF;
+RETP(alpha,a,aic,bic,res);
+ENDP;
+
+
+/*
+**>  ACOVTH
+**
+** format:   thcov = acovth(a,b,s,m);
+**
+**  theoretical acf for lags 0 to m for arma(p,q)-process.
+**    s: variance of error process
+**    a: (p,1) vector of ar-coef.: 1-a[1]B-..-a[p]B^p
+**    b: (q,1) vector of ma-coef.: 1-b[1]B-..-b[q]B^q
+**       use a=0 / b=0 for pure ma- / ar-processes
+**    m : number of lags
+*/
+
+PROC (1)= acovth(a,b,s,m);
+
+   LOCAL a1,ac,b1,c,i,m1,p,q;
+   p=ROWS(a);
+   q=ROWS(b);
+   m1=MAXC(p|(q+1))+1;
+   a1= RESHAPE(1~(-a')~ZEROS(1,m1+p+1),m1,m1+2*p+3);
+   a1[2:m1,(2*p+4):(m1+2*p+2)]=REV(a1[2:m1,(2*p+4):(m1+2*p+2)]')';
+   a1=a1[.,1:m1]+a1[.,(2*p+3):(m1+2*p+2)];
+   c = 1|macoeff(a,b,q);
+   c = RESHAPE(c'~ZEROS(1,q+1),q+1,2*q+1);
+   c = (c[.,1:(q+1)]*(1|-b))|ZEROS(m1-q-1,1);
+   ac = s*(c/a1);
+   i=m1;
+    DO WHILE i <= m;
+      ac=ac|(a'*SUBMAT(ac,SEQA(i,-1,p),1));
+      i=i+1;
+    ENDO;
+  RETP(ac[1:m+1]);
+ENDP;
+
+
+/* 
+**> ARMADHR 
+**
+** Format: {par,stdepar,cor,e,s} = armadhr(y,p_index,q_index);
+**
+** Purpose: Estimates subset ARMA[ar,ma]-model with method of DURBIN as
+**          improved by Hannan and Rissanen.
+**
+** Input:  y = (n,1)-vector, the time series 
+**         p_index = (i,1)-vector, lags which are to be used in the
+**                   autoregressive part of the model or
+**                 = 0 if no ar-part is to be estimated
+**         q_index = (j,1)-vector, lags which are to be used in the
+**                   moving average part of the model or
+**                 = 0  if no ma-part is to be estimated  
+**  Output:  par   = (i+j,1)-vector, the estimated parameters.
+**           stdpar = estimated standard error of estimated parameters
+**           cor = (i+j,i+j)-matrix, correlation matrix of estimated parameters
+**           e = (n-i-j,1)-vector, the estimated residuals.
+**           s = scalar, the estimated error variance
+** Reference: Durbin (1960) Revue Inst. Int. De Statist. ,
+**            Hannan and Rissanen (1980) Biometrika 69, 81-94
+**
+**/
+
+PROC 5 = armadhr(y,p_index,q_index);
+  LOCAL alpha,ar,arnumb,a2,a3,cov,dpar,e,emat,eta,it,k,m,ma,manumb,n;
+  LOCAL p,par,pred,r,sigma0,sigma2,stdpar,theta,ymat,zeta;
+     
+  p_index = SORTC(p_index,1);  ar = MAXC(p_index);   arnumb = ROWS(p_index)*(ar>0);
+  q_index = SORTC(q_index,1);  ma = MAXC(q_index);   manumb = ROWS(q_index)*(ma>0);
+  
+  m = MAXC(ar|ma);
+  n = ROWS(y);
+  y = y-MEANC(y); 
+  ymat = tsmat(y,ar+1);
+  
+/* ols estimates are computed for pure ar models   */
+  
+  IF ar;  ymat = ymat[.,1|(1+p_index)]; ENDIF;
+  IF NOT ma;
+    {par,e,pred} = OLSQR2(ymat[.,1],ymat[.,2:COLS(ymat)]);   
+     sigma2 = e'*e/ROWS(e);  
+     r = QR(ymat[.,2:COLS(ymat)]);
+     cov = sigma2*INVSWP(r'*r);
+     stdpar = SQRT(DIAG(cov));
+     GOTO fin;
+  ENDIF;
+  
+/*  
+    a long autoregression is performed to obtain residuals  
+    when ma term is present   
+*/  
+
+  {par,cov,a2,a3,e} = arfit(y,TRUNC(SQRT(n)),"aic","asymp");
+
+/* up to 5 iterations with improved residuals */
+  
+ sigma0 =-1;
+ sigma2 = 0;
+ it = 0;
+ 
+ DO WHILE ((sigma2-sigma0)^2 > 0.0001) AND it < 5;
+ 
+  sigma0 = sigma2;
+  it = it+1;
+
+  e = take(ZEROS(n,1)|e,-n);
+  emat = TRIMR(tsmat(e,ma),0,1);
+  emat = emat[.,q_index];
+  r = MINC(ROWS(ymat)|ROWS(emat));
+  
+/* ma (and ar) parameters are estimated from a regression  */  
+  
+  k = take(ymat,-r)~take(-emat,-r);
+ 
+  {par,e,pred} = OLSQR2(k[.,1],k[.,2:COLS(k)]);
+
+/* Hannan-Rissanen step to get strongly consistent estimates  */
+  
+  alpha = 0;  
+  IF ar;  
+   alpha = ZEROS(ar,1);
+   alpha[p_index] = par[1:arnumb];
+  ENDIF;
+
+  theta = ZEROS(ma,1);
+  theta[q_index] = TRIMR(par,arnumb,0);
+  
+  e = armaresid(y,alpha,theta);    
+  
+  eta={};
+  IF ar;
+   eta = -RECSERAR(ZEROS(MAXC(ar|ma),1)|e,ZEROS(ar,1),alpha); 
+   eta = take(TRIMR(tsmat(-eta,ar),0,1),-(n-m));
+   eta = eta[.,p_index];
+  ENDIF;  
+  
+  zeta = -RECSERAR(ZEROS(MAXC(ar|ma),1)|e,ZEROS(ma,1),theta); 
+  zeta = take(TRIMR(tsmat(zeta,ma),0,1),-(n-m));
+  zeta = zeta[.,q_index]; 
+   
+  {dpar,e,pred} = OLSQR2(e,eta~zeta);
+  
+  par = par+dpar;
+  
+  IF ar;  
+   alpha[p_index] = par[1:arnumb];
+  ENDIF;
+  theta[q_index] = TRIMR(par,arnumb,0);
+  e = armaresid(y,alpha,theta);
+  
+  sigma2 = e'*e/rows(e);
+  r = QR(eta~zeta);
+  cov = sigma2*INV(r'*r);
+  stdpar = DIAG(cov)^.5;
+
+ ENDO; 
+  
+  fin:
+ 
+ RETP(par,stdpar,cov./(stdpar.*stdpar'),e,sigma2);
+ ENDP;
+
+
+
+/*
+**> MACOEFF
+**
+**  Purpose: computes coefficients of ma representation of
+**            arma(p,q) process for lags 1 to m.
+**  Format: c = macoeff(a,b,m)   
+**                       
+**  Input : a = (p,1) vector of ar-coef.: 1-a[1]B-..-a[p]B^p
+**          b = (q,1) vector of ma-coef.: 1-b[1]B-..-b[q]B^q
+**                  for no ma-part put 0 for b when calling PROC
+**          m = scalar, number of coefficients 
+**  Output: c = (m,1) vector, the ma coefficients
+**
+**  Source : McLeod
+*/
+
+
+PROC (1)= macoeff(a,b,m);
+
+   LOCAL a1,b1,c,i,p;
+   p=ROWS(a);
+   c=ZEROS(p+m,1);  c[p]=1;
+   IF m==0; GOTO fin; ENDIF;
+   a1=REV(a)';  b1=b|ZEROS(m,1);
+   i=1;
+   DO WHILE i<=m;
+     c[i+p]=a1*c[i:(p+i-1)] - b1[i];
+     i=i+1;
+   ENDO;
+ fin:
+ RETP(TRIMR(c,p,0));
+ENDP;
+
+
+
+/*
+**> ARSUBFIT
+**
+**  Format: {lagset,par,cov,res} = arsubfit(y,subset,set2null,maxord)
+**
+**  Input:   y, (nx1)-vector, Zeitreihe
+**           subset, (px1)-vector, vorgegebener 'subset' fÅr Regession,
+**                                 keine weiteren Koeffizienten werden
+**                                 geschÑtzt
+**                              0, sonst
+**         set2null, (jx1)-vector, vorab 'Null-Setzen' der Koeffizienten
+**                                 der Lags aus 'set2null'
+**                              0, sonst
+**           maxord,       scalar, maximale Ordnung des hîchsten Koeffizienten
+**
+**  Output:  lagset, (px1)-vector, subset
+**              par, (px1)-vector, geschÑtzte Parameter
+**              cov, (pxp)-matrix, Var-Cov-Matrix
+**              res, (mx1)-vector, Residuenreihe
+**
+**
+**  Historie:
+**
+**    26.11.97 - erste Version, 0.9a
+**    27.11.97 - Version 0.9b, zusaetzlich Var-Cov-Matrix als Output
+**
+*/
+
+PROC (4) = arsubfit(x,subset,set2null,maxord);
+
+  LOCAL n,xcent,sig0,k,rnull,r,Rmat,a,Rmatp,dk,sigk,theta,nenner,i,indi,
+        kneu,optsubset,sigsubset,p,fertig,zs,rwm,rmod,d,bic,par,optset,
+        res,cov,optsig;
+
+  n=ROWS(x); xcent=x-MEANC(x); sig0=stdc(xcent)^2;
+  k=MAXC(maxord|(MAXC(subset)+1)|(MAXC(set2null)+1)|2);
+  rnull=0;
+
+  @ Yule-Walker-estimates  @
+  r=acore(xcent,k);
+  r=TRIMR(r,1,0);
+  Rmat=TOEPLITZ(1|r[1:k-1]);
+
+  IF subset/=0; set2null=SETDIF(SEQA(1,1,k),subset,1); ENDIF;
+
+  IF set2null/=0;
+     rnull=ROWS(set2null);
+     Rmat = modr(Rmat,set2null);
+     r[set2null]=ZEROS(rnull,1);
+  ENDIF;
+  a=r/Rmat;
+
+  @ sigma^2 bei kompletter Regression (2.8) @
+  Rmatp=TOEPLITZ(acore(xcent,k));
+  IF set2null/=0;  Rmatp = modr(Rmatp,(k+1)-set2null);  ENDIF;
+  dk=DIAG(CHOL(Rmatp));
+  sigk=sig0*dk[k+1]^2;
+
+  @ Thetas (3.4) @
+  theta=ZEROS(k,1);
+  nenner=CUMSUMC((1|(a[1:k-1].*a[1:k-1])) - REV(a.*a));
+  i=0;
+  DO WHILE i < k;
+    i=i+1;
+    IF ISMISS(SETDIF(i,set2null,1));
+       theta[i]=MISS(0,0);
+    ELSE;
+       theta[i]=sigk*a[i]*a[i]/nenner[i];
+    ENDIF;
+  ENDO;
+  @ ...ohne Indizes und Thetas f¸r i \in set2null @
+  theta=SORTC(PACKR(SEQA(1,1,k)~theta),2);
+  indi=theta[.,1];
+  theta=theta[.,2];
+
+  @ 'neues' k bei set2null @
+  kneu=k-rnull;
+
+  @ Regression f¸r 1 <= p <= K , beginnend bei p=K @
+
+  @ 'Optimum-Subset-Matrix' mit dazugeh. sigma^2 fÅr p=k @
+  optsubset=SORTC(indi,1);
+  sigsubset=sigk;
+
+  p=kneu;
+  DO WHILE p > 1;
+     p=p-1;
+     fertig=0;
+     zs=0;
+     @ ********** Entfernen der 'ersten' (k-p) Regressoren ************** @
+     rwm=indi[1:kneu-p];
+     rmod=modr(Rmatp,(k+1)-rwm);
+     dk=DIAG(CHOL(rmod));
+     dk=sig0*dk[k+1]^2;
+     IF (dk - sigk) < theta[kneu-p+1];
+        optsubset=optsubset~(SETDIF(indi,rwm,1)|ZEROS(kneu-p,1));
+        sigsubset=sigsubset|dk;
+     ELSE;
+       @********* Zusatzschritt(e) mit groesserer Regressormenge ********** @
+       rwm=rwm';
+       DO UNTIL fertig;
+          zs=zs+1;
+       @ ** (kneu-p)-elementige Teilmengen aus (kneu-p+zs) Regressoren ** @
+          rwm=permut(rwm,indi[kneu-p+zs]);
+          d=ZEROS(ROWS(rwm),1);
+          i=0;
+          DO WHILE i < ROWS(rwm);
+             i=i+1;
+             rmod=modr(Rmatp,(k+1) - rwm[i,.]');
+             dk=DIAG(CHOL(rmod));
+             d[i]=sig0*dk[k+1]^2;
+          ENDO;
+          @@
+          IF NOT ( (p<2)  OR  ((zs-p) > -1) );
+             IF (MINC(d) - sigk) < theta[kneu+1+zs-p]; fertig=1; ENDIF;
+          ELSE; @ bei p=1 oder 'letztem' Theta @
+             fertig=1;
+          ENDIF;
+       ENDO;
+
+       @ **************************************************************** @
+
+       optset=SETDIF(indi,rwm[MININDC(d),.]',1);
+       optsubset=optsubset~(optset|ZEROS(kneu-p,1));
+       sigsubset=sigsubset|MINC(d);
+
+    ENDIF;
+  ENDO;
+
+  @ ******** BIC-Kriterium ********************************************** @
+
+  p=SEQA(kneu,-1,kneu);
+  bic=n*LN(sigsubset) + LN(n)*p + p.*(1+LN((sig0/sigsubset-1)./p));
+
+  optset=optsubset[.,MININDC(bic)];         @ (3.18) @
+  optset=PACKR(MISS(optset,0));
+  optsig=sigsubset[MININDC(bic)];
+
+  @ ******** FPE_2-Kriterium (2.9) ************************************** @
+
+  @fpe = sigsubset.*(1 + 2*SEQA(kneu,-1,kneu)/n);@
+
+  @optset=optsubset[.,MININDC(fpe)];          (3.18) @
+  @optset=PACKR(MISS(optset2,0));@
+
+  @ *********** Schaetzung der alpha's mit (mod.) Yule-Walker ************ @
+  @ *********** und Varianz-Kovarianz-Matrix **************************** @
+
+  set2null = SETDIF(indi,optset,1);
+  IF NOT ISMISS(set2null);
+     Rmat = modr(Rmat,set2null);
+     r[set2null] = ZEROS(ROWS(set2null),1);
+  ENDIF;
+  a=r/Rmat;
+  a=PACKR(MISS(a,0));
+
+  cov=optsig*INV(sig0*Rmat)/n;
+  cov=cov[optset,optset];
+
+  @ *********** Residuenreihe ****************************************** @
+
+  par=ZEROS(MAXC(optset),1);
+  par[optset]=a;
+  res = CONV(xcent,1|-par,ROWS(par)+1,n);
+
+  RETP(optset,a,cov,res);
+ENDP;
+
+/************** Subroutines ***************************************/
+
+PROC modr(r,j);
+
+ LOCAL d;
+
+ d=DIAG(r); d[j]=ONES(ROWS(j),1);
+ r[j,.]=ZEROS(ROWS(j),ROWS(r));
+ r[.,j]=ZEROS(ROWS(r),ROWS(j));
+
+ RETP(DIAGRV(r,d));
+
+ENDP;
+
+
+PROC permut(x,zusatz);
+
+   LOCAL r,c,rwm,i,per,j,w;
+
+   r=ROWS(x); c=COLS(x); rwm={};
+
+   if r==1;
+     per=DIAGRV(RESHAPE(x~zusatz,c+1,c+1),MISS(ZEROS(c+1,1),0));
+     i=0;
+     DO WHILE i < c+1;
+        i=i+1;
+        rwm=rwm|PACKR(per[i,.]')';
+     ENDO;
+   ELSE;
+     i=0;
+     DO WHILE i < r;
+       i=i+1;
+       per=DIAGRV(RESHAPE(x[i,.]~zusatz,c+1,c+1),MISS(ZEROS(c+1,1),0));
+       j=0;
+       DO WHILE j < ROWS(per);
+         j=j+1;
+         rwm=rwm|PACKR(per[j,.]')';
+       ENDO;
+     ENDO;
+     rwm=SORTMC(rwm,SEQA(1,1,c));
+     w=rwm - (rwm[2:ROWS(rwm),.]|ZEROS(1,c));
+     w=(SUMC(w'.==0).==c);
+     rwm=DELIF(rwm,w);
+   ENDIF;
+   RETP(rwm);
+ENDP;
+
+
+/* 
+**> INNOVREC
+**   
+**   Purpose: estimation of ma[q] coefficients via innovations   
+**            algorithm by Brockwell/Davis 
+**   Format :  {th,v}=innovrec(x,max)
+**   Input  :   x (n,1) vector, the time series
+**              max number of lcoefficients
+**   Output : th = (max,1) vector of coefficients
+**            v scalar, estimated residual variance  
+**
+*/
+
+PROC (2) = innovrec(x,max);
+  LOCAL g,k,t,th,v;
+  th = ZEROS(max,max);
+  v  = ZEROS(max+1,1);
+  g  = acove(x,max);
+  v[1] = g[1];
+  t = 1;
+  DO WHILE t<=max;
+    th[t,t] = g[t+1]/v[1];
+    k = 1;
+    DO WHILE k<t;
+      th[t,t-k] = (g[t-k+1]-(th[t,t-k+1:t].*th[k,1:k])*rev(v[1:k]))/v[k+1] ;
+      k = k+1;
+    ENDO;
+    v[t+1] = v[1] - (th[t,1:t]^2)*rev(v[1:t]);
+    t = t+1  ;
+  ENDO;
+  RETP(-th[max,.]',v[max+1]);
+ENDP;
+
+
+
+
+/* 
+**>  BPLTEST
+**   computing the Box-Pierce-Lijung test statistic and p-values
+**
+**  Format:  lbptest(e,n,par)
+**  Input:   e series of residuals
+**           n scalar, length of series from which e is obtained
+**           par scalar, number of parameters estimated to obtain e
+*/ 
+
+ PROC (0) = bpltest(e,n,par);
+ LOCAL r,lag;
+ r = acore(e, n/4);
+ r = r[2:rows(r)]^2;   
+ r = n*(n+2)*CUMSUMC(r./(n-seqa(1,1,rows(r))));
+ lag = seqa(6,6,rows(r)/6);
+ r = r[lag];
+ PRINT lag~r~CDFCHIC(r,lag-par); 
+ENDP;
+
+ 
+
+/*  
+**> ARMAMLCV
+**
+** Format: {v} = armamlcv(ar,ma);
+**
+** Purpose: Computes asymptotic covariance matrix for  ML estimator
+**          of ARMA[ar,ma]-model.
+**
+**   Input: ar = (px1)-vector, estimates of coefficients of ar part
+**             = 0 if no ar-part
+**          ma = (qx1)-vector, estimates of coefficients of ma part
+**             = 0  if no ma-part
+**  Output:  v = n times the asymptotic variance-covariance matrix of estimates
+**               (that means v/n has to be used as covariance matrix.)
+**
+** Reference:  Godolphin/Unwin (1983) Biometrika 70, 279-84
+**
+**/
+
+
+PROC 1 = armamlcv(ar,ma);
+
+ LOCAL a,b,c,d,e,fab,faai,fbbi,w,v,g,p,q,ar1,ma1;
+  ar=-ar;  ma=-ma;
+  p = ROWS(ar)*(1-(ar==0));
+  q = ROWS(ma)*(1-(ma==0));
+  IF p >= q;
+    a = UPMAT(TOEPLITZ(1|ar[1:p-1]));
+    b = UPMAT(TOEPLITZ(ar[p:1]));
+    IF NOT q ; v = a'a-b'b;  GOTO fin; ENDIF;
+    c = UPMAT(TOEPLITZ(take(1|ma|ZEROS(p,1),p)));
+    d = UPMAT(TOEPLITZ(ZEROS(p-q,1)|REV(ma)));
+    e = UPMAT(TOEPLITZ(take(ma[q:1]|1|ZEROS(p,1),p)));
+    g = INV(b'*d-c'*a);
+    fab = g[.,1:q];
+    faai = a'*a-b'*b;
+    fbbi = c'*c-e'*e;
+    fbbi = fbbi[1:q,1:q];
+    w = fbbi*INV(EYE(q)-fab'*faai*fab*fbbi);
+    v = ZEROS(p+q,p+q);
+    v[1:p,1:p] = faai+faai*fab*w*fab'*faai;
+    v[1:p,p+1:p+q] = -faai*fab*w;
+    v[p+1:p+q,1:p] =  v[1:p,p+1:p+q]';
+    v[p+1:p+q,p+1:p+q] = w;
+  ELSE;
+    ar1 = ma;
+    ma1 = ar;
+    p = ROWS(ar1)*(ar1>0);
+    q = ROWS(ma1)*(ma1>0);
+    a = UPMAT(TOEPLITZ(1|ar1[1:p-1]));
+    b = UPMAT(TOEPLITZ(ar1[p:1]));
+    IF NOT q ; v = a'a-b'b;  GOTO fin; ENDIF;
+    c = UPMAT(TOEPLITZ(take(1|ma1|ZEROS(p,1),p)));
+    d = UPMAT(TOEPLITZ(ZEROS(p-q,1)|REV(ma1)));
+    e = UPMAT(TOEPLITZ(take(ma1[q:1]|1|ZEROS(p,1),p)));
+    g = INV(b'*d-c'*a);
+    fab = g[.,1:q];
+    faai = a'*a-b'*b;
+    fbbi = c'*c-e'*e;
+    fbbi = fbbi[1:q,1:q];
+    w = fbbi*INV(EYE(q)-fab'*faai*fab*fbbi);
+    v = ZEROS(p+q,p+q);
+    v[1:p,1:p] = w;  
+    v[p+1:p+q,1:p] = -faai*fab*w;  
+    v[1:p,p+1:p+q] = v[p+1:p+q,1:p]';
+    v[p+1:p+q,p+1:p+q] = faai+faai*fab*w*fab'*faai;
+  ENDIF;
+  fin:
+  RETP(v);
+ ENDP;
+
+/* 
+**> ARMARESID
+**  
+**  Purpose: computing ARMA residuals for a given series and ar & ma parameters
+**  
+**  Format: e = armaresid(y,alpha,theta)
+**  Input : y = (n,1) vector, the time series
+**          alpha = (p,1) vector of ar coefficients a[1],a[2],...,a[p] 
+**          theta = (q,1) vector of ma coefficients th[1],th[2],...,th[q]
+**  Output: e = (n-max(p,q),1) vector of residuals
+**          e[t] = a[1]y[t-1]+...+a[p]y[t-p]- th[1]e[t-1]-...-th[q]e[t-q]
+**
+*/
+
+PROC armaresid(y,alpha,theta);
+
+  LOCAL i,j,m,n,p,prog,q,res;
+
+  n = ROWS(y);
+  p = ROWS(alpha);
+  q = ROWS(theta);
+  m = MAXC(p|q);
+
+  res = ZEROS(n,1);
+   i = p;
+   DO WHILE i < n;
+      i=i+1;
+      j = MINC(q|(i-1));
+      prog = alpha'*y[i-1:i-p] - theta[1:j]'*res[i-1:i-j];
+      IF ISMISS(y[i]); 
+       y[i] =  prog;
+      ENDIF;  
+        res[i] = y[i] - prog; 
+   ENDO;
+   RETP(res[m+1:n]);
+ ENDP;
+
+
+/*
+**> PARTAR
+**  determing ar coefficients from partial autocorrelations
+**  Format : a = partar(pc)
+**  Input  : pc = (m,1)-vector of partial correlations 
+**  Output : a = (m,1)-vector, the ar coefficients
+**
+**  Remarks : based on Levinson Durbin recursion
+**
+*/
+
+PROC (1) = partar(a);
+  LOCAL alpha,k,p;
+  p = ROWS(a);
+  alpha = a;
+  k = 1;
+  DO WHILE k < p;
+    k = k+1;
+    alpha[1:k-1] = alpha[1:k-1] -a[k]*alpha[k-1:1];
+  ENDO;
+  RETP(alpha);
+ENDP; 
+
+
+/*
+**> PARTARSUB
+**  determing ar coefficients from partial autocorrelations when some 
+**  coefficients are set to zero
+**  Format : a = partarsub(pc,setz)
+**  Input  : pc = (m,1)-vector of partial correlations 
+**           setz = (k,1)-vetor, the lags that are set equal to zero
+**  Output : a = (m,1)-vector, the ar coefficients
+**
+**  Remarks : based on Levinson Durbin recursion
+**
+*/
+
+PROC (1) = partsubar(a,setz);
+  LOCAL alpha,ind,k,p;
+  p = ROWS(a);
+  setz =  SETDIF(SEQA(1,1,p),setz,1);
+  ind = ZEROS(p,1);
+  ind[setz]=ind[setz]+1;
+  
+  alpha = a;
+  k = 1;
+  DO WHILE k < p;
+    k = k+1;
+    alpha[1:k-1] = alpha[1:k-1] -a[k]*alpha[k-1:1];
+    alpha[1:k-1] = alpha[1:k-1].*ind[1:k-1];
+  ENDO;
+  RETP(alpha);
+ENDP;   

@@ -1,0 +1,175 @@
+#ifDOS
+
+/*
+** dos.src - keywords for running various DOS commands and GAUSS utilities
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**          Format                                          Line
+** ========================================================================
+**          DIR cmd;                                          32
+**          COPY cmd;                                         47
+**          XCOPY cmd;                                        62
+**          ATOG386 cmd;                                      80
+**          EQUIP cmd;                                       120
+**          GET cmd;                                         134
+**          LIBLIST cmd;                                     148
+**          PENSET cmd;                                      162
+*/
+
+/*
+**  dir
+**
+**  Purpose:     Hook to dos dir command.
+**
+**  Format:      dir cmd;
+**
+**  Input:       cmd     string containing dir command.
+*/
+
+keyword DIR(cmd);
+    cmd = "DIR " $+ cmd;
+    dos ^cmd;
+endp;
+
+/*
+**  copy
+**
+**  Purpose:     Hook to dos copy command.
+**
+**  Format:      copy cmd;
+**
+**  Input:       cmd     string containing copy command.
+*/
+
+keyword COPY(cmd);
+    cmd = "COPY " $+ cmd;
+    dos ^cmd;
+endp;
+
+/*
+**  xcopy
+**
+**  Purpose:     Hook to dos xcopy command.
+**
+**  Format:      xcopy cmd;
+**
+**  Input:       cmd     string containing xcopy command.
+*/
+
+keyword XCOPY(cmd);
+    cmd = "XCOPY " $+ cmd;
+    dos ^cmd;
+endp;
+
+#ifDLLCALL
+#else
+
+/*
+**  atog386
+**
+**  Purpose:     Hook to atog386 utility.
+**
+**  Format:      atog386 cmd;
+**
+**  Input:       cmd     string, name of atog386 command file.
+**
+**  Output:      none
+*/
+
+keyword ATOG386(cmd);
+    local rexbuff;
+    rexbuff = zeros(8707,1);
+    loadexe rexbuff = xatog.rex;
+    callexe rexbuff(cmd);
+endp;
+
+/*
+**  atog
+**
+**  Purpose:     Hook to atog386 utility (undocumented).
+**
+**  Format:      atog cmd;
+**
+**  Input:       cmd     string, name of atog386 command file.
+**
+**  Output:      none
+*/
+
+keyword ATOG(cmd);
+    local rexbuff;
+    rexbuff = zeros(8707,1);
+    loadexe rexbuff = xatog.rex;
+    callexe rexbuff(cmd);
+endp;
+
+#endif
+
+/*
+**  equip
+**
+**  Purpose:     Hook to GAUSS equip utility.
+**
+**  Format:      equip cmd;
+**
+**  Input:       cmd     string containing equip command.
+*/
+
+keyword EQUIP(cmd);
+    call exec ("EQUIP.EXE", cmd);
+endp;
+
+/*
+**  get
+**
+**  Purpose:     Hook to GAUSS get utility.
+**
+**  Format:      get cmd;
+**
+**  Input:       cmd     string containing get command.
+*/
+
+keyword GET(cmd);
+    call exec ("GET.EXE", cmd);
+endp;
+
+/*
+**  liblist
+**
+**  Purpose:     Hook to GAUSS liblist utility.
+**
+**  Format:      liblist cmd;
+**
+**  Input:       cmd     string containing liblist command.
+*/
+
+keyword LIBLIST(cmd);
+    call exec ("LIBLIST.EXE", cmd);
+endp;
+
+/*
+**  penset
+**
+**  Purpose:     Hook to GAUSS penset utility.
+**
+**  Format:      penset cmd;
+**
+**  Input:       cmd     string containing penset command.
+*/
+
+keyword PENSET(cmd);
+    call exec ("PENSET.EXE", cmd);
+endp;
+
+#endif

@@ -1,0 +1,272 @@
+/*
+**  QUANTILE - computes quantiles of columns of data
+**
+**  (C) Copyright 1996  Aptech Systems, Inc.
+**  All Rights Reserved.
+**
+**  This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+**  SYSTEMS, INC.    This File Header must accompany all files using
+**  any portion, in whole or in part, of this Source Code.   In
+**  addition, the right to create such files is strictly limited by
+**  Section 2.A. of the GAUSS Applications License Agreement
+**  accompanying this Software Product.
+**
+**  If you wish to distribute any portion of the proprietary Source
+**  Code, in whole or in part, you must first obtain written
+**  permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> quantile
+**
+**  Format:   y = quantile(x,e)
+**
+**
+**  Input:    x      NxK matrix of data
+**
+**            e      Lx1 vector, quantile levels or probabilities
+**
+**
+**  Output:   y      LxK matrix, quantiles
+**
+**
+**  Remarks:  Quantile will not succeed if N*minc(e) is less than 1,
+**            or N*maxc(e) is greater than N - 1.  In other words, to
+**            produce a quantile for a level of .001, the input matrix
+**            must have more than 1000 rows.
+**
+**
+**  Example:
+**
+**       rndseed 345567;
+**       x = rndn(1000,4);  /* data */
+**       e = { .025, .5, .975 };  /* quantile levels */
+**
+**       y = quantile(x,e);
+**
+**       print "medians";
+**       print y[2,.];
+**
+**       print;
+**
+**       print "95 percentiles";
+**       print y[1,.];
+**       print y[3,.];
+**
+**
+**
+**       medians
+**             -0.0020     -0.0408     -0.0380     -0.0247
+**
+**       95 percentiles
+**             -1.8677     -1.9894     -2.1474     -1.8747
+**              1.9687      2.0899      1.8576      2.0545
+**
+*/
+
+
+proc quantile(x,e);
+    local w, wt, f, r, i, z;
+
+    if minc(e) < 0 or maxc(e) > 1;
+        errorlog "Inadmissable quantile levels";
+        if not trapchk(1);
+            end;
+        else;
+            retp(error(0));
+        endif;
+    endif;
+
+    w = rows(x) * e;
+    wt = floor(w);
+    f = w - wt;
+
+    if wt == 0 or wt == rows(x);
+         errorlog (maxc(1/minc(e)|1/(1-maxc(e)))) $+ " rows required";
+         if not trapchk(1);
+             end;
+         else;
+             retp(error(0));
+         endif;
+    endif;
+
+    r = zeros(rows(e),cols(x));
+    i = 1;
+    do until i > cols(x);
+        z = sortc(x[.,i],1);
+        r[.,i] = z[wt] + f .* (z[wt+1] - z[wt]);
+        i = i + 1;
+    endo;
+
+    retp(r);
+endp;
+
+
+
+
+/*
+**> quantiled
+**
+**  Format:   y = quantiled(dataset,var,e)
+**
+**
+**  Input:    dataset     string, dataset name, or NxM matrix of data
+**
+**               vars     Kx1 vector or scalar zero.  If Kx1, character
+**                        vector of labels selected for analysis,
+**                        or numeric vector of column numbers in data
+**                        set of variables selected for analysis.
+**                        If scalar zero, all columns are selected.
+**
+**                        If dataset is a matrix, var must be a vector
+**                        of column numbers
+**
+**                  e     Lx1 vector, quantile levels or probabilities
+**
+**
+**  Output:         y     LxK matrix, quantiles
+**
+**
+**  Remarks:  Quantile will not succeed if N*minc(e) is less than 1,
+**            or N*maxc(e) is greater than N - 1.  In other words, to
+**            produce a quantile for a level of .001, the input matrix
+**            must have more than 1000 rows.
+**
+**
+**  Example:
+**
+**       y = quantiled("tobit",e,0);
+**
+**
+**       print "medians";
+**       print y[2,.];
+**
+**       print;
+**
+**       print "95 percentiles";
+**       print y[1,.];
+**       print y[3,.];
+**
+**       medians
+**            0.0000     1.0000    -0.0021    -0.1228
+**
+**       95 percentiles
+**           -1.1198     1.0000    -1.8139    -2.3143
+**            2.3066     1.0000     1.4590     1.6954
+*/
+
+
+proc quantiled(dataset,e,var);
+     local fnm,r,w,wt,f,i,j,NumRows,minnum,ghandle,
+           vindx,k1,fhandle,y,vnames,y0;
+
+     if type(var) == 13;
+         var = stof(var);
+     endif;
+
+     if rows(dataset) == 1;
+         dataset = "" $+ dataset;
+     endif;
+
+     if type(dataset) == 6;
+         retp(quantile(dataset[.,var],e));
+     else;
+
+         fhandle = -1;
+         open fhandle = ^dataset;
+         if fhandle == -1;
+             errorlog dataset $+ " could not be opened";
+             if not trapchk(1);
+                 end;
+             else;
+                 retp(error(0));
+             endif;
+         endif;
+         NumRows = rowsf(fhandle);
+
+         { vnames,vindx } = indices(dataset,var);
+
+         k1 = getnr(6,rows(var));
+         if k1 >= NumRows;
+
+            call seekr(fhandle,1);
+            y0 = {};
+
+            k1 = getnr(6,colsf(fhandle));
+            do until eof(fhandle);
+                y = readr(fhandle,k1);
+                y0 = y0 | y[.,vindx];
+            endo;
+            clear y;
+            if fhandle > 0;
+                fhandle = close(fhandle);
+            endif;
+            retp(quantile(y0,e));
+         else;
+            if vindx == 0;
+                vindx = seqa(1,1,colsf(fhandle));
+            endif;
+
+            if fhandle > 0;
+                fhandle = close(fhandle);
+            endif;
+
+            r = zeros(rows(e),rows(vindx));
+
+            fnm = tempname("","qnt",".tmp");
+            i = 1;
+            do until i > rows(vindx);
+
+                call sortd(dataset,fnm,vnames[i],1);
+
+                open ghandle = ^fnm;
+                j = 1;
+                do until j > rows(e);
+                    w = NumRows * e[j];
+                    wt = floor(w);
+                    f = w - wt;
+
+                    call seekr(ghandle,wt);
+                    y = readr(ghandle,2);
+
+                    r[j,i] = y[1,vindx[i]] +
+                        f * (y[2,vindx[i]] - y[1,vindx[i]]);
+                    j = j + 1;
+                endo;
+                ghandle = close(ghandle);
+                i = i + 1;
+            endo;
+#ifUNIX
+            dos rm ^fnm;
+#else
+            dos delete ^fnm;
+#endif
+            retp(r);
+
+         endif;
+     endif;
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

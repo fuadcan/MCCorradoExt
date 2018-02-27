@@ -1,0 +1,521 @@
+/*
+** ssm.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  G = sgf_SSM(lambda);          Compute the spectral generating function
+**                                of a time-invariant state space model    34
+**
+**  {cr,cv} = SSM_autocov(Ntilde);
+**                                Compute the theoretical autocovariances
+**                                and autocorrelations of a SSM            54
+**
+**  Omega = SSM_fevd(Ntilde);     Compute the forecast error variance
+**                                decomposition matrices of a SSM          75
+**
+**  H = SSM_Hankel(J);            Compute the Hankel matrix
+**                                of a time-invariant state space model    95
+**
+**  {Lambda,Psi,zeta} = SSM_impulse(e,Ntilde);
+**                                Compute the responses to forecast errors
+**                                (and the interim multipliers) of a SSM  109
+**
+**  {Delta,Ksi,zeta} = SSM_orthogonal(e,Ntilde);
+**                                Compute the responses to orthogonal
+**                                impulses (and the interim multipliers)
+**                                of a SSM                                132
+**
+*/
+
+
+/*
+** sgf_SSM
+**
+** Purpose: Compute the spectral generating function of a
+**          time-invariant state space model
+**
+** Format:  G = sgf_arfima(beta,p,q,sigma,lambda);
+**
+** Input: lambda - Nstar*1 vector, the Fourier frequencies lambda_j
+**
+** Output:     G - Nstar*N^2 matrix, the sgf values G(lambda_j)
+**
+** Remarks: The N*N matrices G(lambda_j) are stored in the following way:
+**                       G[j,.] = vec(G(lambda_j)).';
+**          To obtain G(lambda_j), you may use the xpnd2 procedure:
+**                       G(lambda_j) = xpnd2(G,j);
+**
+*/
+
+
+/*
+** SSM_autocov
+**
+** Purpose: Compute the autocovariances and autocorrelations matrices
+**          of a state space model
+**
+** Format:  {cv,cr} = SSM_autocov(Ntilde);
+**
+** Input:  Ntilde - scalar, the maximum order of autocovariances
+**                          and autocorrelations to be computed
+**
+** Output:    cv - (Ntilde+1)*N^2, the autocovariances values
+**            cr - (Ntilde+1)*N^2, the autocorrelations values
+**
+** Remarks: To read the matrices Gamma(i) and R(i), use the xpnd2 command
+**                       Gamma(i) = xpnd2(cv,1+i);
+**                       R(i) = xpnd2(cr,1+i);
+**
+*/
+
+
+/*
+** SSM_fevd
+**
+** Purpose: Compute the forecast error variance decompsition matrices
+**          of a state space model
+**
+** Format:  Omega = SSM_fevd(Ntilde);
+**
+** Input:  Ntilde - scalar, the maximum order of the variance
+**                          decomposition to be computed
+**
+** Output:  Omega - Ntilde*(N*G), the forecast error variance
+**                                decomposition values
+**
+** Remarks: To read the matrices Omega(i), use the reshape command
+**                       Omega(i) = reshape(Onega[i,.]',G,N)';
+**
+*/
+
+
+/*
+** SSM_Hankel
+**
+** Purpose: Compute the Hankel matrix of a time-invariant SSM
+**
+** Format:  H = Hankel(J);
+**
+** Input:   J - scalar, the order of the Hankel matrix
+**
+** Output:  H - (N*J)*(N*J) matrix, the H(j) Hankel matrix
+**
+*/
+
+
+/*
+** SSM_impulse
+**
+** Purpose: Compute the responses to forecast errors (and the interim
+**          multipliers) of a time-invariant state space model
+**
+** Format:  {Lambda,Psi,zeta} = SSM_impulse(e,Ntilde);
+**
+** Input:       e - G*1 vector, the forecast error vector e
+**         Ntilde - scalar, the maximum order of the impulse
+**                          function to be evaluated
+**
+** Output: Lambda - (Ntilde+1)*N, values of the responses
+**            Psi - (Ntilde+1)*N, values of the interim multipliers
+**           zeta - N*1 vector, the long-term dynamic multiplier
+**
+** Remarks: Vectors lambda(i) and Psi(i) are obtained through the instructions
+**                       lambda(i) = Lambda[1+i,.]';
+**                       psi(i) = Psi[1+i,.]';
+**
+*/
+
+
+/*
+** SSM_orthogonal
+**
+** Purpose: Compute the responses to orthogonal impulses (and the interim
+**          multipliers) of a time-invariant state space model
+**
+** Format:  {Delta,Ksi,zeta} = SSM_orthogonal(e,Ntilde);
+**
+** Input:       e - G*1 vector, the orthogonal impulse vector e
+**         Ntilde - scalar, the maximum order of the impulse
+**                          function to be evaluated
+**
+** Output:  Delta - (Ntilde+1)*N, values of the responses
+**            Ksi - (Ntilde+1)*N, values of the interim multipliers
+**           zeta - N*1 vector, the long-term dynamic multiplier
+**
+** Remarks: Vectors delta(i) and ksi(i) are obtained through the instructions
+**                       delta(i) = Delta[1+i,.]';
+**                       ksi(i) = Ksi[1+i,.]';
+**
+*/
+
+
+/*
+** sgf_SSM
+*/
+
+proc (1) = sgf_SSM(lambda);
+  local Z,H,T,R,Q,m,n;
+  local g,l,i,RQR,Im,e,K,Kinv,P,gi,oldtrap;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+
+    ERRORLOG "error: State space model not built.";
+    end;
+
+  endif;
+
+  if _SSM_parameters[1] == 2;
+
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+
+  endif;
+
+  Z = _SSM_Z; H = _SSM_H;
+  T = _SSM_T; R = _SSM_R; Q = _SSM_Q;
+
+  m = _SSM_parameters[3];
+  n = _SSM_parameters[2];
+
+  l = rows(lambda);
+  g = zeros(l,n^2);
+
+  RQR = R*Q*R';
+  Im = eye(m);
+  e = complex(cos(lambda),-sin(lambda));
+
+  i = 1;
+  do until i > l;
+
+    K = Im - T*e[i];
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Kinv = inv(K);
+    trap oldtrap,1;
+    if scalerr(Kinv);
+      ERRORLOG "error: Can't compute the sgf values (verify that the SSM"\
+               " is stable).";
+      retp(error(0));
+    endif;
+
+    P = Z*Kinv;
+    gi = P*RQR*P'+H;
+
+    g[i,.] = vec(gi).';
+
+    i = i + 1;
+  endo;
+
+  retp(g);
+endp;
+
+
+/*
+** SSM_autocov
+*/
+
+proc (2) = SSM_autocov(Ntilde);
+  local Nstar,old,lambda,G,N,cv,cr,i,Gi,cv0,v0,D,Ri;
+
+  /* You can change the value of Nstar */
+
+  Nstar = 128;
+  old = _fourier;
+  _fourier = 0;
+
+  lambda = seqa(0,2*pi/Nstar,Nstar);
+
+  G = sgf_SSM(lambda);
+
+  _fourier = old;
+
+  if G == error(0);
+    retp(error(0),error(0));
+  endif;
+
+  N = sqrt(cols(G));
+
+  cv = zeros(Ntilde+1,N^2);
+  cr = zeros(Ntilde+1,N^2);
+
+  i = 1;
+  do until i > N^2;
+    Gi = real(inverse_fourier(G[.,i]));
+    cv[.,i] = Gi[1:Ntilde+1];
+    i = i + 1;
+  endo;
+
+  /* Autocovariance matrice CV(0) */
+
+  cv0 = xpnd2(cv,1);
+
+  /* Variance matrice V(0) */
+
+  v0 = diag(cv0);
+
+  D = diagrv(eye(N),1./sqrt(miss(v0,0)));
+
+  i = 0;
+  do until i > Ntilde;
+    Gi = xpnd2(cv,i+1);
+    Ri = D*Gi*D;
+    cr[1+i,.] = vec(Ri)';
+    i = i + 1;
+  endo;
+
+  retp(cv,cr);
+endp;
+
+
+/*
+** SSM_Hankel
+*/
+
+proc (1) = SSM_Hankel(J);
+  local N,H,Nstar,old,lambda,G,cv,i,Gi,l;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 2;
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+  endif;
+
+  N = _SSM_parameters[2];
+
+  if (J <= 0) or (J /= trunc(J));
+    ERRORLOG "error: J is a positive integer.";
+    retp(error(0));
+  endif;
+
+  H = zeros(N*J,N*J);
+
+  /* You can change the value of Nstar */
+
+  Nstar = 128;
+  old = _fourier;
+  _fourier = 0;
+
+  lambda = seqa(0,2*pi/Nstar,Nstar);
+
+  G = sgf_SSM(lambda);
+
+  _fourier = old;
+
+  if G == error(0);
+    retp(error(0));
+  endif;
+
+  cv = zeros(2*J-1,N^2);
+
+  i = 1;
+  do until i > N^2;
+    Gi = real(inverse_fourier(G[.,i]));
+    cv[.,i] = Gi[2:2*J];
+    i = i + 1;
+  endo;
+
+  i = 1;
+  do until i > J;
+    l = 1;
+    do until l > J;
+
+      H[1+(i-1)*N:i*N,1+(l-1)*N:l*N] = xpnd2(cv,i+l-1);
+
+      l = l + 1;
+    endo;
+    i = i + 1;
+  endo;
+
+  retp(H);
+endp;
+
+
+/*
+** SSM_impulse
+*/
+
+proc (3) = SSM_impulse(e,Ntilde);
+  local N,Z,d,H,T,c,R,Q,m,g;
+  local Lambda,Psi,Re,Ti,i,zeta,oldtrap;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 2;
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+  endif;
+
+  N = _SSM_parameters[2];
+
+  Z = _SSM_Z; d = _SSM_d; H = _SSM_H;
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+  Lambda = zeros(Ntilde+1,N);
+
+  m = _SSM_parameters[3];
+  g = _SSM_parameters[4];
+
+  if (rows(e) /= g) or (cols(e) /= 1);
+    ERRORLOG "error: Wrong size format of the impulse vector.";
+    retp(error(0));
+  endif;
+
+  Ti = eye(m);
+  Re = R*e;
+
+  Lambda[1,.] = vec(Z*Re)';
+
+  i = 1;
+  do until i > Ntilde;
+    Ti = T*Ti;
+    Lambda[1+i,.] = vec(Z*Ti*Re)';
+    i = i + 1;
+  endo;
+
+  Psi = cumsumc(Lambda);
+
+  Ti = eye(m) - T;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Ti = inv(Ti);
+  trap oldtrap,1;
+  if scalerr(Ti);
+    zeta = error(0);
+  else;
+    zeta = Z*Ti*Re;
+  endif;
+
+  retp(Lambda,Psi,zeta);
+endp;
+
+
+/*
+** SSM_orthogonal
+*/
+
+proc (3) = SSM_orthogonal(e,Ntilde);
+  local N,Z,d,H,T,c,R,Q,m,g;
+  local Pchol,Delta,Ksi,Re,Ti,i,zeta,oldtrap;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 2;
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+  endif;
+
+  N = _SSM_parameters[2];
+
+  Z = _SSM_Z; d = _SSM_d; H = _SSM_H;
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+  Delta = zeros(Ntilde+1,N);
+
+  m = _SSM_parameters[3];
+  g = _SSM_parameters[4];
+
+  if (rows(e) /= g) or (cols(e) /= 1);
+    ERRORLOG "error: Wrong size format of the impulse vector.";
+    retp(error(0));
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Pchol = chol(Q)';
+  trap oldtrap,1;
+  if scalerr(Q);
+    ERRORLOG "error: Q is not a positive definite matrix.";
+    retp(error(0),error(0),error(0));
+  endif;
+
+  Ti = eye(m);
+  Re = R*Pchol*e;
+
+  Delta[1,.] = vec(Z*Re)';
+
+  i = 1;
+  do until i > Ntilde;
+    Ti = T*Ti;
+    Delta[1+i,.] = vec(Z*Ti*Re)';
+    i = i + 1;
+  endo;
+
+  Ksi = cumsumc(Delta);
+
+  Ti = eye(m) - T;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Ti = inv(Ti);
+  trap oldtrap,1;
+  if scalerr(Ti);
+    zeta = error(0);
+  else;
+    zeta = Z*Ti*Re;
+  endif;
+
+  retp(Delta,Ksi,zeta);
+endp;
+
+
+/*
+** SSM_fevd
+*/
+
+proc (1) = SSM_fevd(Ntilde);
+  local N,g,S,i,e,Delta,Ksi,zeta,W,Ws,Omega;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+    ERRORLOG "error: State space model not built.";
+    end;
+  endif;
+
+  if _SSM_parameters[1] == 2;
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+  endif;
+
+  N = _SSM_parameters[2];
+  g = _SSM_parameters[4];
+
+  S = {};
+
+  i = 1;
+  do until i > g;
+    e = zeros(g,1);
+    e[i] = 1;
+    {Delta,Ksi,zeta} = SSM_orthogonal(e,Ntilde-1);
+    S = S~Delta;
+    i = i + 1;
+  endo;
+
+  W = 0;
+  Omega = zeros(Ntilde,N*g);
+
+  i = 1;
+  do until i > Ntilde;
+    Delta = reshape(S[i,.]',g,N)';
+    W = W + Delta^2;
+    Ws = sumc(W');
+    Omega[i,.] = vec(W./Ws)';
+    i = i +1;
+  endo;
+
+  retp(Omega);
+endp;
+
+

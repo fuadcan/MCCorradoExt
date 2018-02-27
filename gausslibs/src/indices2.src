@@ -1,0 +1,176 @@
+/*
+** indices2.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> indices2
+**
+**  Purpose:    To process two sets variable names or indices from
+**              a single file.  The first is a single variable and
+**              the second is a set of variables.  The first must
+**              not occur in the second set and all must be in
+**              the file.
+**
+**  Format:     { name1,indx1,name2,indx2 } = indices2(dataset,var1,var2);
+**
+**  Input:      dataset    string, the name of the data set.
+**
+**              var1       string or scalar, variable name or index.
+**
+**                         This can be either the name of the variable, or
+**                         the column index of the variable.
+**
+**                         if null or 0 the last variable in the data set
+**                         will be used.
+**
+**              var2       Nx1 vector, a character vector of names or a
+**                         numeric vector of column indices.
+**
+**                         if 0, all variables in the data set except the
+**                         one associated with var1 will be selected.
+**
+**  Output:     name1      scalar character matrix containing the name
+**                         of the variable associated with var1.
+**
+**              indx1      scalar, the column index of var1.
+**
+**              name2      Nx1 character vector, the names associated
+**                         with var2.
+**
+**              indx2      Nx1 numeric vector, the column indices of var2.
+**
+**                If errors are encountered a message will be sent to the
+**                error log.  Also, output will contain a scalar error code.
+**                This code appears as missing unless it is translated with
+**                the command scalerr(name1).  The codes are defined as:
+**
+**                       1  data file not found
+**                       2  found undefined variables
+**                       3  first variable is not a single name of index
+**                       4  first variable can not contained in second set
+**
+**  Globals:    None
+*/
+
+proc (4) = indices2(dataset,var1,var2);
+    local t1,i,nvec,kd,indx1,indx2,err,errmsg,f1,flag;
+
+    flag = 0;
+    dataset = "" $+ dataset;
+    open f1 = ^dataset;
+    if f1 == -1;
+        errmsg = "ERROR:  Can't open file " $+ dataset $+ ".";
+        goto errout(1);
+    endif;
+
+    nvec = getname(dataset);
+    kd = rows(nvec);
+
+    if f1 > 0;
+        f1 = close(f1);
+    endif;
+
+    /* process first variable - must be a single name or index */
+    if type(var1) == 13;
+        var1 = stof(var1);
+    endif;
+    if rows(var1) /= 1 or cols(var1) /= 1;
+        errmsg = "ERROR: first variable must be a single name or index";
+        goto errout(3);
+    endif;
+    if round(var1) == var1 and var1 >= 1 and var1 < 131072;
+        if var1 > kd;
+            errmsg = "ERROR: index of first variable out of range: " $+
+                ftos(var1,"%*.*lf",1,0);
+            goto errout(2);
+        endif;
+        indx1 = var1;       /* numeric index used */
+        var1 = nvec[indx1];
+    elseif var1 $== 0;
+        indx1 = kd;
+        var1 = nvec[indx1];
+    else;
+        ndpclex;
+        indx1 = indcv(var1,nvec);
+        if scalmiss(indx1);
+            flag = 1;
+            errmsg = "ERROR: Undefined data set variables:";
+            goto errout(2);
+        endif;
+        var1 = nvec[indx1];
+    endif;
+
+    /* process second set of variables, must not contain the first variable */
+    if type(var2) == 13;
+        var2 = stof(var2);
+    endif;
+    if round(var2) == var2 and var2 >= 1 and var2 < 131072;
+        if var2 > kd;
+            errmsg = "ERROR: index of variable out of range: " $+
+                ftos(var2,"%*.*lf",1,0);
+            goto errout(2);
+        endif;
+        indx2 = var2;       /* numeric index used */
+        var2 = nvec[indx2];
+    elseif var2 $== 0;
+        indx2 = packr(miss(seqa(1,1,kd),indx1));
+        var2 = nvec[indx2];
+    else;
+        indx2 = indcv(var2,nvec);
+        if ismiss(indx2);
+            flag = 2;
+            errmsg = "ERROR: Undefined data set variables:";
+            goto errout(2);
+        endif;
+        var2 = nvec[indx2];
+    endif;
+    if indx2 /= indx1;
+        ndpclex;
+        retp(var1,indx1,var2,indx2);
+    else;
+        errmsg = "ERROR: first variable contained in second set";
+        goto errout(4);
+    endif;
+
+ERROUT:
+
+    pop err;
+    cls;
+    err = error(err);
+    if f1 > 0;
+        f1 = close(f1);
+    endif;
+    ndpclex;
+    if not trapchk(1);
+        errorlog errmsg;
+        print;
+        if flag == 1;
+            format /ro 8,8;
+            errorlog "     " $+ var1;
+        elseif flag == 2;
+            t1 = packr(miss(indx2.$==error(0),0)~var2);
+            var2 = t1[.,2];
+            format /ro 8,8;
+            i = 1;
+            do while i <= rows(var2);
+                errorlog "     " $+ var2[i];
+                i = i+1;
+            endo;
+        endif;
+        print;
+        end;
+    endif;
+    retp(err,err,err,err);
+endp;

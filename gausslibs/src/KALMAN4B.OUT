@@ -1,0 +1,53 @@
+
+Total observations:                                          500  
+Usable observations:                                         500  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          496  
+Value of the maximized log-likelihood function:       -749.25746  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+phi1            0.950310        0.003224       294.805534        0.000000
+theta1          0.624222        0.036183        17.251944        0.000000
+sig_e           1.082830        0.034256        31.610184        0.000000
+sig_u           0.000108        0.179672         0.000599        0.999522
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          500  
+Usable observations:                                         500  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          496  
+Value of the maximized log-likelihood function:      -1094.49697  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+phi1            0.941523        0.016295        57.780123        0.000000
+theta1         -0.066757        4.943701        -0.013503        0.989232
+sig_e           1.803356        8.365025         0.215583        0.829402
+sig_u           0.877913        8.489563         0.103411        0.917679
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+
+Total observations:                                          500  
+Usable observations:                                         500  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          496  
+Value of the maximized log-likelihood function:      -1094.49697  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+phi1            0.941523        0.016295        57.780123        0.000000
+theta1         -0.066757        4.943701        -0.013503        0.989232
+sig_e           1.803356        8.365025         0.215583        0.829402
+sig_u           0.877913        8.489563         0.103411        0.917679
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+run kalman4d.prg;

@@ -1,0 +1,439 @@
+/*
+** vpack.src - General data storage routines
+**
+**
+** (C) Copyright 1988-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**  Format                           Purpose                           Line
+**  ---------------------------------------------------------------------------
+**  dbufnew = vput(dbuf,x,xname);    Inserts a matrix or string        37
+**                                   into a data buffer.
+**  x = vread(dbuf,xname);           Reads a matrix or string          117
+**                                   from a data buffer.
+**  { x,dbufnew } = vget(dbuf,name); Extracts a matrix or string       169
+**                                   from a data buffer.
+**  vlist(dbuf);                     Lists the contents of a           256
+**                                   data buffer.
+**  names = vnamecv(dbuf);           Get names of elements of a        320
+**                                   data buffer.
+**  types = vtypecv(dbuf);           Get types of elements of a        361
+**                                   data buffer.
+*/
+
+/*
+**> vput
+**
+**  Purpose:    Inserts a matrix or string into a data buffer.
+**
+**  Format:     dbufnew = vput(dbuf,x,xname);
+**
+**  Input:      dbuf       Nx1 vector, a data buffer containing various
+**                         strings and matrices.
+**
+**              x          LxM matrix or string, item to be inserted into dbuf.
+**
+**              xname      string, the name of x, will be inserted with x
+**                         into dbuf.
+**
+**  Output:     dbufnew    Kx1 vector, the data buffer after x and xname have
+**                         been inserted.
+**
+**  Remarks:    If dbuf already contains x, the new value of x will replace
+**              the old one.
+**
+**  See Also:   vget, vlist, vread
+*/
+
+proc vput(data,x,name);
+
+    local n,r,c,xm,dtype,off;
+
+    if type(data) == 21 or type(x) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+    if data $== 0;
+        data = error(10001);
+    elseif scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        if lower(data[off+1]) $== lower(name);
+            { xm, data } = vget(data,name);
+            xm = 0;
+            break;
+        endif;
+        off = off+data[off]+5;
+    endo;
+
+    if type(x) == 13;
+        dtype = 13;             /* string */
+    elseif rows(x) == cols(x);
+        if rows(x) == 1;
+            dtype = 1;          /* scalar */
+        elseif x == x';
+            dtype = 3;          /* symmetric matrix */
+        else;
+            dtype = 2;          /* matrix */
+        endif;
+    else;
+        dtype = 2;              /* matrix */
+    endif;
+
+    if dtype == 1;          /* scalar */
+        data = data | 1 | name | 1 | 1 | dtype | x;
+
+    elseif dtype == 2;      /* matrix */
+        r = rows(x);
+        c = cols(x);
+        data = data | r*c | name | r | c | dtype | vecr(x);
+
+    elseif dtype == 3;      /* symmetric matrix */
+        n = rows(x);
+        x = vech(x);
+        data = data | rows(x) | name | n | n | dtype | x;
+
+    elseif dtype == 13;      /* string */
+        xm = stocv(x);
+        data = data | rows(xm) | name | strlen(x) | 1 | dtype | xm;
+    endif;
+    retp( data );
+endp;
+
+
+/*
+**> vread
+**
+**  Purpose:    Reads a matrix or string from a data buffer constructed
+**              with vput.
+**
+**  Format:     x = vread(dbuf,xname);
+**
+**  Input:      dbuf     Nx1 vector, a data buffer containing various
+**                       strings and matrices.
+**
+**              xname    string, the name of the matrix or string to read
+**                       from dbuf.
+**
+**  Output:     x        LxM matrix or string, the item read from dbuf.
+**
+**  Remarks:    vread, unlike vget, does not change the contents of dbuf.
+**              Reading x from dbuf does not remove it from dbuf.
+**
+**  See Also:   vget, vlist, vput
+*/
+
+proc vread(data,name);
+
+    local dtype,off,x;
+
+    if type(data) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+
+    if rows(data) == 1;
+        errorlog "Empty data buffer";
+        end;
+    endif;
+
+    if scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        if lower(data[off+1]) $== lower(name);
+            goto found;
+        endif;
+        off = off+data[off]+5;
+    endo;
+
+    errorlog name $+ " not found";
+    end;
+
+found:
+
+    dtype = data[off+4];
+
+    if dtype == 1;          /* scalar */
+        x = data[off+5];
+
+    elseif dtype == 2;      /* matrix */
+        x = reshape( data[off+5:off+5+data[off]-1], data[off+2], data[off+3] );
+
+    elseif dtype == 3;      /* symmetric matrix */
+        x = xpnd( data[ off+5:off+5+data[off]-1 ] );
+
+    elseif dtype == 13;     /* string */
+        x = cvtos(data[off+5:off+5+data[off]-1]);
+    else;
+        errorlog "Invalid object type";
+        end;
+    endif;
+    retp( x );
+endp;
+
+
+/*
+**> vget
+**
+**  Purpose:    Extracts a matrix or string from a data buffer constructed
+**              with vput.
+**
+**  Format:     {x,dbufnew} = vget(dbuf,name);
+**
+**  Input:      dbuf       Nx1 vector, a data buffer containing various
+**                         strings and matrices.
+**
+**              name       string, the name of the matrix or string to extract
+**                         from dbuf.
+**
+**  Output:     x          LxM matrix or string, the item extracted from dbuf.
+**
+**              dbufnew    Kx1 vector, the remainder of dbuf after x has
+**                         been extracted.
+**
+**  See Also:   vlist, vput, vread
+*/
+
+proc (2) = vget(data,name);
+
+    local dtype,off,x;
+
+    if type(data) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+    if scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        if lower(data[off+1]) $== lower(name);
+            goto found;
+        endif;
+        off = off+data[off]+5;
+    endo;
+
+    errorlog name $+ " not found";
+    end;
+
+found:
+
+    dtype = data[off+4];
+
+    if dtype == 1;          /* scalar */
+        x = data[off+5];
+
+    elseif dtype == 2;      /* matrix */
+        x = reshape( data[off+5:off+5+data[off]-1], data[off+2], data[off+3] );
+
+    elseif dtype == 3;      /* symmetric matrix */
+        x = xpnd( data[ off+5:off+5+data[off]-1 ] );
+
+    elseif dtype == 13;     /* string */
+        x = cvtos(data[off+5:off+5+data[off]-1]);
+    else;
+        errorlog "Invalid object type";
+        end;
+    endif;
+    if off+5+data[off] > rows(data);
+        retp( x, data[ 1:off-1 ] );
+    else;
+        retp( x, data[ 1:off-1 off+5+data[off]:rows(data) ] );
+    endif;
+endp;
+
+
+/*
+**> vlist
+**
+**  Purpose:    Lists the entire contents of a data buffer constructed
+**              with vput.
+**
+**  Format:     vlist(dbuf);
+**
+**  Input:      dbuf    Nx1 vector, a data buffer containing various
+**                      strings and matrices.
+**
+**  Remarks:    vlist list the names of all the strings and matrices stored
+**              in dbuf.
+**
+**  See Also:   vget, vput, vread
+*/
+
+proc (0) = vlist(data);
+
+    local r,c,n,dtype,off;
+
+
+    if type(data) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+
+    if scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    if rows(data) == 1;
+        print "Empty";
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        print ftos(data[off+1],"%-*.*s",16,0);;
+        dtype = data[off+4];
+        if dtype == 1;
+            print "scalar";
+
+        elseif dtype == 2;
+            r = data[off+2];
+            c = data[off+3];
+            if r == 1 or c == 1;
+                r = ftos(r,"%*.*lf",1,0);
+                c = ftos(c,"%*.*lf",1,0);
+                print r "x" c " vector";
+            else;
+                r = ftos(r,"%*.*lf",1,0);
+                c = ftos(c,"%*.*lf",1,0);
+                print r "x" c " matrix";
+            endif;
+
+        elseif dtype == 3;
+            n = ftos(data[off+2],"%*.*lf",1,0);
+            print n "x" n " symmetric matrix";
+
+        elseif dtype == 13;
+            n = data[off+2];
+            n = ftos(n,"%*.*lf",1,0);
+            print n " character string";
+        endif;
+
+        off = off+data[off]+5;
+    endo;
+endp;
+
+/*
+**> vnamecv
+**
+**  Purpose:    Return the names of the elements of a data buffer constructed
+**              with vput.
+**
+**  Format:     cv = vnamecv(dbuf);
+**
+**  Input:      dbuf    Nx1 vector, a data buffer containing various
+**                      strings and matrices.
+**
+**  Output:     cv      Kx1 character vector containing the names of the
+**                      elements of vbuf.
+**
+**  See Also:   vget, vput, vread
+*/
+
+proc vnamecv(data);
+
+    local r,c,n,dtype,off,names;
+
+    if type(data) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+
+    if scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    names = {};
+
+    if rows(data) == 1;
+        retp(names);
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        names = names | ftos(data[off+1],"%-*.*s",16,0);
+        off = off+data[off]+5;
+    endo;
+    retp(names);
+endp;
+
+
+/*
+**> vtypecv
+**
+**  Purpose:    Return the types of the elements of a data buffer constructed
+**              with vput.
+**
+**  Format:     cv = vtypecv(dbuf);
+**
+**  Input:      dbuf    Nx1 vector, a data buffer containing various
+**                      strings and matrices.
+**
+**  Output:     cv      Kx1 character vector containing the types of the
+**                      elements of vbuf.
+**
+**  See Also:   vget, vput, vread
+*/
+
+proc vtypecv(data);
+
+    local r,c,n,dtype,off,types;
+
+    if type(data) == 21;
+         errorlog "input cannot be structures";
+         end;
+    endif;
+
+    if scalerr(data[1]) /= 10001;
+        errorlog "Invalid data buffer";
+        end;
+    endif;
+
+    types = {};
+
+    if rows(data) == 1;
+        retp(types);
+    endif;
+
+    off = 2;
+    do while off < rows(data);
+        dtype = data[off+4];
+        if dtype /= 13;
+            dtype = 6;
+        endif;
+        types = types | dtype;
+        off = off+data[off]+5;
+    endo;
+    retp(types);
+endp;
+
+
+

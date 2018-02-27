@@ -1,0 +1,277 @@
+proc specarma(a,b,sig2,x);
+  local aa,bb,ei;
+  if rows(a')>1;
+    a = toeplitz(a');
+  else;
+    a = a~0;
+    a = toeplitz(a');
+  endif;
+  a = a[rows(a),.];
+  a = ones(cols(x),1)*a;
+  if rows(b')>1;
+    b = toeplitz(b');
+  else;
+    b = b~0;
+    b = toeplitz(b');
+  endif;
+  b  = b[rows(b),.];
+  b  = ones(cols(x),1)*b;
+  ei = complex(cos(x),sin(x));
+  aa = abs(polyeval(ei,a'));
+  aa = (aa .< 0.03 )*0.03 + (aa .> 0.03).*aa;
+  bb = abs(polyeval(ei,b'));
+retp((sig2/(2*pi))*((bb./aa).^2));
+endp;
+
+proc  slrvr(a,b,sig2);
+retp(specarma(a,b,sig2,0)*(2*pi) );
+endp;
+
+proc sarmagrf(a,b,sig2,x);
+local spectrum;
+  spectrum = specarma(a,b,sig2,x);
+  _pdate   = "";
+  _pnum    = 2;
+  _psilent = 1;
+  _ptitlht = 0.32;
+  title( " ARMA(p,q) spectrum" );
+  xy(x',spectrum);
+retp(spectrum);
+endp;
+
+proc(10) = lrvarwx(x,pmax,qmax,_kernel,wx);
+local nn,a1,a2,a3,a4,a5,a6,a7,a8,a9,fail,eps,qse,aic,t,
+      pt,fee,fyy,coeff,psel,qsel,fyy5, fyy8,fyy6,a10,
+      a,b,sig2,fyy1,fyy2,fyy3,fyy4,a11,a12,chek3;
+ nn=rows(x);
+ pt=-1;
+ { aic,pmax,t }
+ = araic(x,pmax,pt);
+ " Value of AR lag 'pmax' reset using AIC = " pmax;
+ {a1,a2,a3,a8,a4,a5,a6,a7,sig2}
+ = armabic2(x,pmax,qmax,pt);
+ coeff= a4;
+ psel = a2;
+ qsel = a3;
+ if psel==0;
+   a=1;
+ else;
+   a    = 1~(-coeff[1:psel]');
+ endif;
+ if qsel>0;
+   b    = 1~coeff[psel+1:psel+qsel]';
+ else;
+   b    = 1~0;
+ endif;
+ fyy1 = specarma(a,b,sig2,wx);
+ {a1,a2,a3,a8,a4,a5,a6,a7,sig2}
+ = armabic3(x,pmax,qmax,pt);
+ coeff= a4;
+ psel = a2;
+ qsel = a3;
+ if psel==0;
+   a=1;
+ else;
+   a    = 1~(-coeff[1:psel]');
+ endif;
+ if qsel>0;
+   b    = 1~coeff[psel+1:psel+qsel]';
+ else;
+   b    = 1~0;
+ endif;
+ fyy4 = specarma(a,b,sig2,wx);
+ chek3 = chekarma(coeff,psel,qsel,pt);
+ if chek3 == 1;
+   { eps,sig2 }
+   = armatr2e(x,psel,qsel,pt,pmax) ;
+ else;
+   { sig2,eps } = ppso(x,psel,qsel,pt,coeff);
+ endif;
+ fee  = dspectra(eps,_kernel,wx)';
+ sig2 = 2*pi;
+ fyy2 = (specarma(a,b,sig2,wx).*fee);
+ fyy3 = dspectra(x,_kernel,wx)';
+ qse  = 0*(qsel==0) + (qsel-1)*(qsel>0);
+ if psel > 0;
+   if abs(sumc(coeff[1:psel])) < 0.90 and abs(sumc(b[2:2+qse]))<0.90;
+      fyy5 = fyy2;
+   else;
+      fyy5 = fyy3;
+   endif;
+ elseif psel == 0 and abs(sumc(b[2:2+qse]))<0.90;
+      fyy5 = fyy2;
+ else;
+      fyy5 = fyy3;
+ endif;
+ {fyy6,a10} = andrewsm(x,_kernel,wx);
+retp(fyy1,fyy2,fyy3,fyy4,fee,a,b,fyy5,fyy6,a10);
+endp;
+
+proc(5) = lrvrwx(x,pmax,qmax,_kernel,wx);
+local f1,f2,f3,f4,f5,f6,fe,a,b,a10;
+ { f1,f2,f3,f4,fe,a,b,f5,f6,a10 }
+ = lrvarwx(x,pmax,qmax,_kernel,wx);
+retp(f1,f4,f3,f5,f6);
+endp;
+
+proc(5) = specwx(x,pmax,qmax,_kernel,wx);
+retp( lrvrwx(x,pmax,qmax,_kernel,wx) );
+endp;
+
+proc(5) = spwxgrf(x,pmax,qmax,_kernel,wx);
+local f1,f2,f3,f4,f5,zz;
+{ f1,f2,f3,f4,f5 }
+= lrvrwx(x,pmax,qmax,_kernel,wx);
+zz = f1~f2~f3~f4~f5;
+title( " Spectral Density estimates ");
+ylabel( " Density" );
+_pdate   = "";
+_pnum    = 2;
+_ptitlht = 0.32;
+_pltype  = {6,3,5,2,1,4};
+_psilent = 1;
+_plegctl = { 2,4,4.2,1.0 };
+_plegstr = " 2-stage ARMA ";
+xy(wx',f1);
+_plegstr = " 3-stage ARMA ";
+xy(wx',f2);
+_plegstr = " kernel estimate";
+xy(wx',f3);
+_plegstr = " Phillips - Lee";
+xy(wx',f4);
+_plegstr = " Andrews - Monahan";
+xy(wx',f5);
+_plegstr = "  2-stage ARMA estimate " $+
+           "\000 3-stage ARMA estimate " $+
+           "\000 kernal estimate " $+
+           "\000 Phillips - Lee " $+
+           "\000 Andrews-Monahan ";
+xy(wx',zz);
+retp(f1,f2,f3,f4,f5);
+endp;
+
+proc(5) = lrvro(x,pmax,qmax,_kernel);
+local f1,f2,f3,f4,f5,a;
+ { f1,f2,f3,f4,f5 }
+ = lrvrwx(x,pmax,qmax,_kernel,0);
+ a = 2*pi;
+retp( a*f1,a*f2,a*f3,a*f4,a*f5 );
+endp;
+
+proc pplee(x,pmax,qmax,_kernel);
+local f1,f2,f3,f4,f5,f6,fe,a,b,a10;
+ { f1,f2,f3,f4,fe,a,b,f5,f6,a10 }
+ = lrvarwx(x,pmax,qmax,_kernel,0);
+retp((2*pi)*f5);
+endp;
+
+proc dspectra(eps,_kernel,wx);
+local e,nn,p,eb,ef,ae,ee,se,ad,a2,jb,lband,j,x,nw,
+      jband,kern,ei,ej,sig,lam,jam,fxx;
+  e  = eps;
+  x  = wx;
+  nn = rows(eps);
+  p  = cols(eps);
+  nw = cols(wx);
+  eb = e[1:nn-1,.];
+  ef = e[2:nn,.];
+  ae = sumc(eb.*ef)./sumc(eb.^2);
+  ee = ef - eb.*ae';
+  se = meanc(ee.^2);
+  ad = sumc((se./((1-ae).^2)).^2);
+  a2 = 4*sumc((ae.*se./((1-ae).^4)).^2)/ad;
+  if _kernel == 1;                               @  Quadratic Spectral @
+    lband = 1.3221*((a2*nn)^.2);
+  elseif _kernel == 2;                           @  Parzen     @
+    lband = 2.6614*((a2*nn)^.2);
+  endif;
+                                                 @ Now estimate Covariances @
+  jb = seqa(1,1,nn-1)/lband;
+  if _kernel == 1;                               @ Quadratic Spectral Kernel @
+    jband = jb*1.2*pi;
+    kern = ((sin(jband)./jband - cos(jband))./(jband.^2))*3;
+  elseif _kernel == 2;                            @  Parzen kernel @
+    kern = (1 - (jb.^2)*6 + (jb.^3)*6).*(jb .<= .5);
+    kern = kern + ((1-jb).^3).*(jb .<=1).*(jb .> .5)*2;
+  endif;
+  ei  = complex(cos(x),sin(x));
+  ej  = complex(cos(-x),sin(-x));
+  sig = (e'e/nn)*ones(1,nw);
+  lam = zeros(1,nw);
+  jam = zeros(1,nw);
+  j   = 1;
+  do while j <=nn-1;
+     lam = lam + (e[1:nn-j,.]'e[1+j:nn,.])*kern[j].*(ej^j)/nn;
+     jam = jam + (e[1:nn-j,.]'e[1+j:nn,.])'*kern[j].*(ei^j)/nn;
+     j = j + 1;
+  endo;
+  fxx = real((sig + lam + jam)/(2*pi));
+retp(fxx);
+endp;
+
+proc resarma(y,psel,qsel,coeff);
+local acoeff,jj,ytemp,bcoeff,eps,start;
+if psel >=1;
+  acoeff = -coeff[1:psel];
+  jj = 1;
+  ytemp = y;
+  do until jj > psel;
+     ytemp = ytemp+lagn(y,jj)*acoeff[jj];
+     jj = jj + 1;
+  endo;
+else;
+  ytemp =y;
+endif;
+if qsel >=1;
+  bcoeff = coeff[psel+1:psel+qsel];
+  ytemp  = missrv(ytemp,0);
+  start  = zeros(qsel,1);
+  eps = recserar(ytemp,start,-bcoeff);
+else;
+  eps = missrv(ytemp,0);
+endif;
+retp(eps);
+endp;
+
+proc(2) = andrewsm(x,_kernel,wx);
+local xlag,a,e,sig,b,fee,fyy;
+  xlag = trimr(lagn(x,1),1,0);
+  x    = trimr(x,1,0);
+  a    = x/xlag;
+  a    = (0.97 <= a )*0.97 + (a < 0.97)*a;
+  e    = x - xlag*a;
+  sig  = 2*pi;
+  fee  = dspectra(e,_kernel,wx)';
+  a    = 1~(-a);
+  b    = 1~0;
+  fyy  = (specarma(a,b,sig,wx).*fee);
+retp(fyy,a);
+endp;
+
+proc  amlrvr(x,_kernel);
+local f,a;
+{ f,a } =andrewsm(x,_kernel,0);
+retp( 2*pi*f );
+endp;
+
+proc(3) = ppzazt(x,pmax,qmax,pt,_kernel,sel);
+ local lx,res,lhat,var,alpha,za,zt,vc,zaam,ztam,vcam,nobs,tmp,
+ so,lrvhat,lrvhat3,lrvram;
+ lx      = detrend(trimr(lagn(x,1),1,0),pt);
+ x       = detrend(trimr(x,1,0),pt);
+ alpha   = x/lx ;
+ res     = x - lx*alpha;
+ if sel == 2;
+    lrvhat  = amlrvr(res,_kernel);
+ else;
+    lrvhat  = pplee(res,pmax,qmax,_kernel);
+ endif;
+ tmp     = 1/(lx'lx) ;
+ nobs    = rows(res) ;
+ so      = res'res/(nobs-1);
+ za      = nobs*((((x'lx)-(nobs/2)*(lrvhat-so))*tmp)-1.00);
+ vc      = lrvhat*tmp ;
+ zt      = (za/nobs)/sqrt(vc);
+retp(alpha,za,zt);
+endp ;
+

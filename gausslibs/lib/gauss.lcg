@@ -1,0 +1,895 @@
+/*
+** GAUSS library file
+**
+** (C) Copyright 1988-2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+
+dataxchn.dec
+    _dxftype                         : string : 27
+    _dxtype                          : matrix : 28
+    _dxwidth                         : matrix : 29
+    _dxprcn                          : matrix : 30
+    _dxwkshdr                        : matrix : 31
+    _dxbuffer                        : matrix : 32
+    _dxprint                         : matrix : 33
+    _dxmiss                          : matrix : 34
+    _dxexver                         : matrix : 35
+    _dxtxdlim                        : matrix : 38
+    _dxaschdr                        : matrix : 39
+
+eig.dec
+    _eigerr                          : matrix : 9
+
+eqsolve.dec
+    _eqs_typicalX                    : matrix : 20
+    _eqs_typicalF                    : matrix : 21
+    _eqs_IterInfo                    : matrix : 22
+    _eqs_JacobianProc                : matrix : 23
+    _eqs_MaxIters                    : matrix : 24
+    _eqs_StepTol                     : matrix : 25
+
+fcompare.dec
+    _fcmptol                         : matrix : 9
+
+finprocs.dec
+    _fin_epsilon                     : matrix : 21
+    _fin_thetaType                   : matrix : 23
+    _fin_holidays                    : matrix : 25
+    _fin_annualTradingDays           : matrix : 27
+
+flibuff.dec
+
+gauss.dec
+    _rtl_ver                         : matrix : 21
+    __altnam                         : matrix : 22
+    __con                            : matrix : 23
+    __ff                             : matrix : 24
+    __fmtcv                          : matrix : 25
+    __fmtnv                          : matrix : 26
+    __header                         : string : 27
+    __miss                           : matrix : 28
+    __output                         : matrix : 31
+    __prec                           : matrix : 36
+    __range                          : matrix : 37
+    __row                            : matrix : 38
+    __rowfac                         : matrix : 39
+    __sort                           : matrix : 40
+    __title                          : string : 41
+    __tol                            : matrix : 42
+    __vpad                           : matrix : 43
+    __vtype                          : matrix : 44
+    __weight                         : matrix : 45
+    __INFp                           : matrix : 57
+    __INFn                           : matrix : 58
+    __INDEFp                         : matrix : 59
+    __INDEFn                         : matrix : 60
+    __macheps                        : matrix : 61
+
+integral.dec
+    _intord                          : matrix : 9
+    _intq2                           : matrix : 11
+    _intq3                           : matrix : 14
+    _intq4                           : matrix : 18
+    _intq6                           : matrix : 21
+    _intq8                           : matrix : 25
+    _intq12                          : matrix : 30
+    _intq16                          : matrix : 37
+    _intq20                          : matrix : 46
+    _intq24                          : matrix : 57
+    _intq32                          : matrix : 70
+    _intq40                          : matrix : 87
+
+lncdfn.dec
+    _lncdfn_order                    : matrix : 20
+    _lncdfn_eps                      : matrix : 21
+
+loess.dec
+    _loess_Span                      : matrix : 9
+    _loess_NumEval                   : matrix : 10
+    _loess_Degree                    : matrix : 11
+    _loess_WgtType                   : matrix : 12
+
+ols.dec
+    _olsqtol                         : matrix : 9
+    _olsres                          : matrix : 10
+    _olsrnam                         : string : 11
+
+parse.dec
+
+poly.dec
+    _polerr                          : matrix : 9
+    _poldeg                          : matrix : 10
+
+qnewton.dec
+    _qn_RelGradTol                   : matrix : 23
+    _qn_MaxIters                     : matrix : 24
+    _qn_GradProc                     : matrix : 25
+    _qn_PrintIters                   : matrix : 26
+    _qn_ParNames                     : matrix : 27
+    _qn_RandRadius                   : matrix : 28
+
+qprog.dec
+    _qprog_maxit                     : matrix : 22
+
+qr.dec
+    _orthtol                         : matrix : 9
+    _qrdc                            : matrix : 10
+    _qrsl                            : matrix : 11
+
+sparse.dec
+    _sparse_Damping                  : matrix : 22
+    _sparse_Atol                     : matrix : 23
+    _sparse_Btol                     : matrix : 24
+    _sparse_CondLimit                : matrix : 25
+    _sparse_NumIters                 : matrix : 26
+    _sparse_RetCode                  : matrix : 27
+    _sparse_Anorm                    : matrix : 28
+    _sparse_Acond                    : matrix : 29
+    _sparse_Rnorm                    : matrix : 30
+    _sparse_ARnorm                   : matrix : 31
+    _sparse_Xnorm                    : matrix : 32
+
+sqpsolve.dec
+    _sqp_ParNames                    : matrix : 25
+    _sqp_DirTol                      : matrix : 26
+    _sqp_HessProc                    : matrix : 27
+    _sqp_GradProc                    : matrix : 28
+    _sqp_MaxIters                    : matrix : 29
+    _sqp_PrintIters                  : matrix : 30
+    _sqp_FeasibleTest                : matrix : 31
+    _sqp_RandRadius                  : matrix : 32
+    _sqp_TrustRadius                 : matrix : 33
+    _sqp_A                           : matrix : 35
+    _sqp_B                           : matrix : 36
+    _sqp_C                           : matrix : 37
+    _sqp_D                           : matrix : 38
+    _sqp_EqProc                      : matrix : 39
+    _sqp_IneqProc                    : matrix : 40
+    _sqp_Bounds                      : matrix : 41
+
+svd.dec
+    _svdtol                          : matrix : 9
+    _svderr                          : matrix : 10
+    _svd                             : matrix : 11
+
+system.dec
+    __maxvec                         : matrix : 12
+
+base10.src
+    base10                           : proc : 33
+
+cdfchii.src
+    cdfchii                          : proc : 47
+    gammaii                          : proc : 75
+    _ginvinc                         : proc : 134
+    _gammaii_1                       : proc : 436
+    _gammaii_2                       : proc : 450
+    _gammaii_4                       : proc : 477
+    _gammaii_3                       : proc : 515
+    _gammaii_5                       : proc : 539
+
+cdfnonc.src
+    cdfchinc                         : proc : 67
+    cdffnc                           : proc : 155
+    cdftnc                           : proc : 250
+
+cmtools.src
+    cmsplit                          : proc : 44
+    cmsplit2                         : proc : 48
+
+combinate.src
+    combinate                        : proc : 65
+    combinated                       : proc : 144
+    numCombinations                  : proc : 220
+    _tcomb_                          : proc : 228
+
+coord.src
+    topolar                          : proc : 20
+    tocart                           : proc : 28
+
+corr.src
+    corrm                            : proc : 39
+    corrvc                           : proc : 101
+    corrx                            : proc : 144
+    vcm                              : proc : 200
+    vcx                              : proc : 260
+
+countwts.src
+
+crossprd.src
+    crossprd                         : proc : 39
+
+cumprodc.src
+    cumprodc                         : proc : 48
+
+cumsumc.src
+    cumsumc                          : proc : 44
+
+datalist.src
+    _sweeppath                       : proc : 46
+    datalist                         : keyword : 71
+    _dtlist                          : proc : 509
+    _dtwrt                           : proc : 790
+    _cntrprt                         : proc : 969
+
+datatran.src
+    code                             : proc : 103
+    dummybr                          : proc : 181
+    dummydn                          : proc : 290
+    dummy                            : proc : 410
+    missex                           : proc : 501
+    recode                           : proc : 582
+    substute                         : proc : 672
+
+dataxchn.src
+    export                           : proc : 142
+    export_e                         : proc : 200
+    exportf                          : proc : 234
+    import                           : proc : 423
+    importf                          : proc : 540
+    dx_setimport                     : proc : 633
+    dx_filetype                      : proc : 687
+    dx_cmnd                          : proc : 769
+    retchk                           : proc : 835
+    dx_fileexist                     : proc : 845
+    dx_makefmt                       : proc : 859
+    dx_setvec                        : proc : 877
+    dx_range                         : proc : 894
+    dx_print                         : proc : 947
+    dx_header                        : proc : 955
+    dx_version                       : proc : 963
+    dx_parse                         : proc : 975
+    isalpha                          : proc : 1165
+    isnumber                         : proc : 1172
+    issymbol                         : proc : 1179
+    strtok                           : proc : 1183
+
+design.src
+    design                           : proc : 45
+
+dfft.src
+    dfft                             : proc : 56
+
+dffti.src
+    dffti                            : proc : 56
+
+diag.src
+    lowmat                           : proc : 64
+    lowmat1                          : proc : 75
+    upmat                            : proc : 127
+    upmat1                           : proc : 138
+
+dos.src
+
+ds.src
+    dsCreate                         : proc : 36
+
+dstat.src
+    dstat                            : proc : 147
+    _dstatd                          : proc : 237
+    _dstatx                          : proc : 381
+
+eigcg.src
+    eigcg                            : proc : 71
+    eigcg2                           : proc : 134
+
+eigch.src
+    eigch                            : proc : 69
+    eigch2                           : proc : 133
+
+eigrg.src
+    eigrg                            : proc : 69
+    eigrg2                           : proc : 131
+
+eigrs.src
+    eigrs                            : proc : 67
+    eigrs2                           : proc : 124
+
+eqsolve.src
+    eqSolve                          : proc : 152
+    _eqSolve                         : proc : 253
+    _eqs_norm2                       : proc : 517
+    _eqs_jacob                       : proc : 524
+    eqSolveSet                       : proc : 556
+
+eqsolvemt.src
+    eqSolvemt                        : proc : 203
+    _eqsmt_norm2                     : proc : 566
+    _eqsmt_jacob                     : proc : 573
+    eqSolvemtControlCreate           : proc : 618
+    eqSolvemtOutCreate               : proc : 640
+
+exctsmpl.src
+    exctsmpl                         : proc : 55
+
+fcompare.src
+    feq                              : proc : 58
+    dotfeq                           : proc : 62
+    fne                              : proc : 66
+    dotfne                           : proc : 70
+    flt                              : proc : 74
+    dotflt                           : proc : 78
+    fgt                              : proc : 82
+    dotfgt                           : proc : 86
+    fle                              : proc : 90
+    dotfle                           : proc : 94
+    fge                              : proc : 98
+    dotfge                           : proc : 102
+
+fftm.src
+    fftm                             : proc : 66
+    fftmi                            : proc : 140
+
+finprocs.src
+    EuropeanBSCall                   : proc : 104
+    EuropeanBSPut                    : proc : 164
+    EuropeanBSCall_ImpVol            : proc : 224
+    EuropeanBSPut_ImpVol             : proc : 340
+    EuropeanBSCall_Greeks            : proc : 459
+    EuropeanBSPut_Greeks             : proc : 545
+    AmericanBSCall                   : proc : 628
+    _Scall_                          : proc : 710
+    AmericanBSPut                    : proc : 780
+    _SPut_                           : proc : 862
+    AmericanBSCall_ImpVol            : proc : 922
+    AmericanBSPut_ImpVol             : proc : 1038
+    AmericanBSCall_Greeks            : proc : 1157
+    AmericanBSPut_Greeks             : proc : 1259
+    EuropeanBinomCall                : proc : 1361
+    EuropeanBinomPut                 : proc : 1446
+    EuropeanBinomCall_ImpVol         : proc : 1536
+    EuropeanBinomPut_ImpVol          : proc : 1661
+    EuropeanBinomCall_Greeks         : proc : 1788
+    EuropeanBinomPut_Greeks          : proc : 1903
+    AmericanBinomCall                : proc : 2011
+    AmericanBinomPut                 : proc : 2111
+    AmericanBinomCall_ImpVol         : proc : 2211
+    AmericanBinomPut_ImpVol          : proc : 2336
+    AmericanBinomCall_Greeks         : proc : 2463
+    AmericanBinomPut_Greeks          : proc : 2574
+
+finutils.src
+    elapsedTradingDays               : proc : 61
+    annualTradingDays                : proc : 101
+    getNextTradingDay                : proc : 134
+    getPreviousTradingDay            : proc : 177
+    getNextWeekDay                   : proc : 215
+    getPreviousWeekDay               : proc : 246
+
+gauss.src
+    getnr                            : proc : 58
+    _cntrlin                         : proc : 120
+    header                           : proc : 136
+    printfmt                         : proc : 277
+    formatnv                         : proc : 331
+    formatcv                         : proc : 363
+    gausset                          : proc : 381
+    chdir                            : keyword : 446
+    shell                            : keyword : 469
+    license_id                       : keyword : 473
+    doswin                           : keyword : 501
+
+getpath.src
+    getpath                          : proc : 30
+
+gradmt.src
+    gradMT                           : proc : 78
+    gradMTm                          : proc : 188
+
+gradp.src
+    gradp                            : proc : 69
+
+hessmt.src
+    hessMT                           : proc : 83
+    hessMTm                          : proc : 195
+    hessMTw                          : proc : 309
+    hessMTmw                         : proc : 427
+    hessMTg                          : proc : 534
+    hessMTgw                         : proc : 650
+
+hessp.src
+    hessp                            : proc : 55
+
+indexcat.src
+
+indices.src
+    indices                          : proc : 51
+    indicesf                         : proc : 176
+    indicesfn                        : proc : 276
+
+indices2.src
+    indices2                         : proc : 67
+
+indsav.src
+    indsav                           : proc : 55
+
+integral.src
+    intquad1                         : proc : 72
+    intquad2                         : proc : 195
+    _intquad2                        : proc : 203
+    intquad3                         : proc : 378
+    _intquad3                        : proc : 387
+
+intgrat.src
+    intgrat2                         : proc : 109
+    _intgrat2                        : proc : 117
+    intgrat3                         : proc : 329
+    _intgrat3                        : proc : 336
+
+intrsect.src
+    intrsect                         : proc : 53
+    intrsectsa                       : proc : 161
+
+intsimp.src
+    intsimp                          : proc : 58
+
+lag.src
+    lag1                             : proc : 40
+    lag                              : proc : 46
+    lagn                             : proc : 74
+
+lapeig.src
+    lapeighi                         : proc : 99
+    lapeighb                         : proc : 214
+    lapeighvi                        : proc : 333
+    lapeighvb                        : proc : 457
+    lapgeigh                         : proc : 564
+    lapgeighv                        : proc : 666
+    lapgeig                          : proc : 746
+    lapgeigv                         : proc : 873
+
+lapschur.src
+    lapgschur                        : proc : 68
+
+lapsvd.src
+    lapsvds                          : proc : 88
+    lapsvdcusv                       : proc : 191
+    lapsvdusv                        : proc : 293
+    lapgsvds                         : proc : 427
+    lapgsvdcst                       : proc : 611
+    lapgsvdst                        : proc : 791
+
+lncdfn.src
+    lncdfn                           : proc : 46
+    lncdfnc                          : proc : 72
+    lncdfbvn                         : proc : 104
+    cdfmvn                           : proc : 154
+    lncdfmvn                         : proc : 205
+    cdfn2                            : proc : 279
+    lncdfn2                          : proc : 342
+    cdfbvn2                          : proc : 420
+    conformed                        : proc : 437
+
+lnfact.src
+    lnfact                           : proc : 60
+
+lnpdfn.src
+    lnpdfn                           : proc : 48
+    lnpdfmvn                         : proc : 69
+    lnpdft                           : proc : 135
+    lnpdfmvt                         : proc : 169
+
+loess.src
+    loess                            : proc : 78
+
+machconst.src
+    machEpsilon                      : proc : 34
+
+median.src
+    median                           : proc : 32
+
+medit.src
+
+momentd.src
+    momentd                          : proc : 81
+
+movingave.src
+    movingave                        : proc : 50
+    movingaveWgt                     : proc : 87
+    movingaveExpwgt                  : proc : 123
+
+nametype.src
+    nametype                         : proc : 41
+
+null.src
+    null                             : proc : 69
+    null1                            : proc : 230
+
+ols.src
+    ols                              : proc : 264
+    _olsx                            : proc : 276
+    _olsd                            : proc : 585
+
+olsqr.src
+    olsqr                            : proc : 63
+    olsqr2                           : proc : 200
+
+optim.src
+    nextn                            : proc : 79
+    nextnevn                         : proc : 170
+    optn                             : proc : 272
+    optnevn                          : proc : 380
+
+parse.src
+
+pause.src
+    pause                            : proc : 26
+
+poly.src
+    polychar                         : proc : 49
+    polyeval                         : proc : 97
+    polymake                         : proc : 156
+    polymult                         : proc : 197
+    polyroot                         : proc : 226
+    polymroot                        : proc : 334
+
+polyint.src
+    polyint                          : proc : 54
+
+polymat.src
+    polymat                          : proc : 41
+
+ppc.src
+    princomp                         : proc : 47
+
+putf.src
+    putf                             : proc : 53
+
+pv.src
+    pvPack                           : proc : 85
+    pvPackm                          : proc : 257
+    pvPacks                          : proc : 425
+    pvPacksm                         : proc : 554
+    pvPacki                          : proc : 679
+    pvPackmi                         : proc : 850
+    pvPacksi                         : proc : 1057
+    pvPacksmi                        : proc : 1207
+    pvList                           : proc : 1322
+    pvLength                         : proc : 1351
+    pvCreate                         : proc : 1380
+
+qnewton.src
+    QNewton                          : proc : 90
+    _bfgs                            : proc : 157
+    qnewtonset                       : proc : 426
+
+qnewtonmt.src
+    QNewtonmt                        : proc : 232
+    QNewtonmtOutCreate               : proc : 673
+    QNewtonmtControlCreate           : proc : 693
+
+qprog.src
+    QProg                            : proc : 89
+
+qqr.src
+    qqr                              : proc : 101
+    qqre                             : proc : 295
+    qqrep                            : proc : 463
+    orth                             : proc : 596
+
+qr.src
+    qr                               : proc : 96
+    qre                              : proc : 257
+    qrep                             : proc : 385
+
+qrsol.src
+    qrsol                            : proc : 54
+    qrtsol                           : proc : 87
+
+qtyr.src
+    qtyr                             : proc : 112
+    qtyre                            : proc : 337
+    qtyrep                           : proc : 515
+
+quantile.src
+    quantile                         : proc : 69
+    quantiled                        : proc : 160
+
+qyr.src
+    qyr                              : proc : 74
+    qyre                             : proc : 243
+    qyrep                            : proc : 436
+
+random.src
+    rndgam                           : proc : 74
+    rndp                             : proc : 118
+    rndnb                            : proc : 169
+    rndbeta                          : proc : 219
+    rndvm                            : proc : 261
+
+randkm.src
+    rndKMgam                         : proc : 85
+    rndKMp                           : proc : 179
+    rndKMnb                          : proc : 280
+    rndKMbeta                        : proc : 407
+    rndKMvm                          : proc : 525
+
+randlc.src
+    rndLCgam                         : proc : 105
+    rndLCp                           : proc : 223
+    rndLCnb                          : proc : 345
+    rndLCbeta                        : proc : 492
+    rndLCvm                          : proc : 632
+
+rangechk.src
+    _rngchk                          : proc : 23
+
+recserrc.src
+    recserrc                         : proc : 54
+
+ribesl.src
+    mbesseli                         : proc : 70
+    mbesseli0                        : proc : 103
+    mbesseli1                        : proc : 140
+    mbesselei                        : proc : 192
+    mbesselei0                       : proc : 225
+    mbesselei1                       : proc : 261
+
+rref.src
+    rref                             : proc : 70
+
+saveload.src
+    loadd                            : proc : 42
+    saved                            : proc : 99
+
+schtoc.src
+    schtoc                           : proc : 55
+
+setdif.src
+    setdif                           : proc : 62
+    setdifsa                         : proc : 179
+
+showpath.src
+
+sortd.src
+    intrleav                         : proc : 64
+    intrleavsa                       : proc : 364
+    mergeby                          : proc : 413
+    mergebysa                        : proc : 650
+    sortd                            : proc : 718
+
+sortmc.src
+    sortmc                           : proc : 37
+    uniquemc                         : proc : 41
+
+sparse.src
+    sparseSolve                      : proc : 159
+    sparseFD                         : proc : 219
+    sparseFP                         : proc : 264
+    sparseOnes                       : proc : 299
+    isSparse                         : proc : 328
+    sparseEye                        : proc : 352
+    sparseVConcat                    : proc : 378
+    sparseHConcat                    : proc : 430
+    sparseRows                       : proc : 481
+    sparseCols                       : proc : 509
+    sparseNZE                        : proc : 537
+    denseSubmat                      : proc : 573
+    sparseSubmat                     : proc : 623
+    sparseTD                         : proc : 698
+    sparseTrTD                       : proc : 751
+    sparseTranspose                  : proc : 803
+    sparseTscalar                    : proc : 848
+    sparseScale                      : proc : 922
+    sparseSet                        : proc : 954
+
+spline.src
+    _spl_i                           : matrix : 71
+    spline2D                         : proc : 74
+    spline1D                         : proc : 175
+    _spl_surf1                       : proc : 215
+    _spl_surf2                       : proc : 656
+    _spl_ceez                        : proc : 751
+    _spl_terms                       : proc : 795
+    _spl_snhcsh                      : proc : 844
+    _spl_intrvl                      : proc : 950
+    _spl_add                         : proc : 1009
+    _spl_hermz                       : proc : 1013
+    _spl_hermnz                      : proc : 1019
+    _spl_curv2                       : proc : 1031
+    _spl_curv1                       : proc : 1082
+    spline                           : proc : 1354
+    curve                            : proc : 1359
+
+sqpsolve.src
+    sqpSolve                         : proc : 219
+    _sqpsolve                        : proc : 307
+    _sqp_feasible                    : proc : 799
+    _sqp_meritFunct                  : proc : 842
+    sqpSolveset                      : proc : 892
+
+sqpsolvemt.src
+    SQPsolveMT                       : proc : 344
+    sqpmt_feasible                   : proc : 1281
+    sqpmt_meritFunct                 : proc : 1324
+    sqpSolveMTlagrangeCreate         : proc : 1384
+    sqpSolveMToutCreate              : proc : 1405
+    sqpSolveMTcontrolCreate          : proc : 1429
+
+strput.src
+    strput                           : proc : 33
+
+subscat.src
+
+svd.src
+    svd                              : proc : 58
+    svd1                             : proc : 109
+    svd2                             : proc : 162
+    pinv                             : proc : 220
+    cond                             : proc : 296
+    rank                             : proc : 349
+
+system.src
+    maxvec                           : proc : 44
+
+time.src
+    datestr                          : proc : 60
+    datestring                       : proc : 88
+    datestrymd                       : proc : 116
+    timestr                          : proc : 145
+    etstr                            : proc : 172
+    etdays                           : proc : 231
+    ethsec                           : proc : 303
+    dayinyr                          : proc : 360
+    _isleap                          : proc : 381
+    _daypryr                         : proc : 393
+    dtvtodt                          : proc : 442
+    dttodtv                          : proc : 496
+    dttoutc                          : proc : 538
+    utctodt                          : proc : 576
+    dtday                            : proc : 623
+    dttime                           : proc : 669
+    dtdate                           : proc : 718
+    todaydt                          : proc : 759
+    timedt                           : proc : 798
+    dayOfWeek                        : proc : 853
+
+toeplitz.src
+    toeplitz                         : proc : 39
+
+token.src
+    token                            : proc : 32
+
+trig.src
+    arccos                           : proc : 77
+    arcsin                           : proc : 133
+    cosh                             : proc : 188
+    sinh                             : proc : 225
+    tanh                             : proc : 262
+    arctan                           : proc : 276
+    arctan2                          : proc : 287
+
+tsutil.src
+    acf                              : proc : 31
+    pacf                             : proc : 61
+
+vars.src
+    makevars                         : proc : 87
+    mergevar                         : proc : 176
+    setvars                          : proc : 282
+
+vartype.src
+    vartype                          : proc : 41
+
+vpack.src
+    vput                             : proc : 60
+    vread                            : proc : 143
+    vget                             : proc : 219
+    vlist                            : proc : 288
+    vnamecv                          : proc : 359
+    vtypecv                          : proc : 406
+
+wait.src
+    wait                             : proc : 28
+
+waitc.src
+    waitc                            : proc : 29
+
+x_indcv.src
+    x_indcv                          : proc : 18
+
+varmaml.src
+    varmares                         : proc : 62
+    varmall                          : proc : 182
+
+xls.src
+    _ss_db                           : matrix : 38
+    XlsReadM                         : proc : 83
+    XlsReadSA                        : proc : 152
+    XlsWrite                         : proc : 223
+    XlsWriteM                        : proc : 273
+    XlsWriteSA                       : proc : 343
+    SpreadSheetReadM                 : proc : 402
+    SpreadSheetReadSA                : proc : 436
+    SpreadSheetWrite                 : proc : 469
+
+gdttools.dec
+    _gdt_impute_data                 : matrix : 17
+
+gdt_impute_ems.src
+    _gdt_impute_ems                  : proc : 47
+    _gdt_impute_ems_help             : proc : 276
+
+gdt_model_arima.src
+    _gdt_model_arima                 : proc : 79
+    _gdt_model_tautocov              : proc : 327
+    _gdt_model_arima_help            : proc : 404
+
+gdt_model_garch.src
+    _gdt_model_garch                 : proc : 84
+    _gdt_model_garch_help            : proc : 315
+
+gdt_model_linear.src
+    _gdt_model_linear                : proc : 75
+    _gdt_model_linear_help           : proc : 268
+
+gdt_model_logit.src
+    _gdt_model_logit                 : proc : 72
+    _gdt_model_logit_help            : proc : 228
+
+gdt_model_ordlogit.src
+    _gdt_model_ordlogit              : proc : 72
+    _gdt_model_ordlogit_help         : proc : 236
+
+gdt_model_ordprobit.src
+    _gdt_model_ordprobit             : proc : 72
+    _gdt_model_ordprobit_help        : proc : 234
+
+gdt_model_probit.src
+    _gdt_model_probit                : proc : 72
+    _gdt_model_probit_help           : proc : 231
+
+gdt_report_freq.src
+    _gdt_report_freq                 : proc : 58
+    _gdt_report_frinit               : proc : 159
+    _gdt_report_frmkcat              : proc : 211
+    _gdt_report_frtable              : proc : 240
+    _gdt_report_frcountch            : proc : 295
+    _gdt_report_frcntchwt            : proc : 304
+    _gdt_report_freqstat             : proc : 318
+    _gdt_report_freq_help            : proc : 536
+
+gdt_report_hist.src
+    _gdt_report_hist                 : proc : 59
+    _gdt_report_hist_help            : proc : 114
+
+gdt_report_scatter.src
+    _gdt_report_scatter              : proc : 59
+    _gdt_report_scatter_help         : proc : 121
+
+gdttools.src
+    _gdt_printvar                    : proc : 24
+    _gdt_dstat                       : proc : 151
+    _gdt_mergebydat                  : proc : 215
+    _gdt_sample_vector               : proc : 392
+
+strfns.src
+    satostrC                         : proc : 35
+    strcombine                       : proc : 90
+    strtriml                         : proc : 146
+    strtrimr                         : proc : 180
+    strtruncl                        : proc : 217
+    strtruncr                        : proc : 271
+
+unionsa.src
+    unionsa                          : proc : 43
+
+uniquesa.src
+    uniquesa                         : proc : 47
+    uniqindxsa                       : proc : 97
+

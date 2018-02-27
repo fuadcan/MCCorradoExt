@@ -1,0 +1,134 @@
+/*
+** eigrs.src - Real symmetric eigenvalues/eigenvectors.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS-386.
+**
+**      Format                                              Line
+** ==============================================================
+**     va = EIGRS(x);                                        28
+**     { va,ve } = EIGRS2(x);                                79
+*/
+
+#include eig.ext
+
+/*
+**> eigrs
+**
+**  Purpose:    To compute the eigenvalues of a real, symmetric matrix.
+**
+**  Format:     va = eigrs(x);
+**
+**  Input:      x    NxN matrix.
+**
+**  Output:     va        Nx1 vector, eigenvalues of x.
+**
+**              _eigerr   global scalar, if all the eigenvalues can
+**                        be determined _eigerr = 0,  otherwise _eigerr is set
+**                        to the index of the eigenvalue that failed.  The
+**                        eigenvalues for indices 1 to _eigerr-1 should be
+**                        correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     set _eigerr and terminate with message.
+**
+**                    TRAP 1     set _eigerr and continue execution.
+**
+**              The eigenvalues are in ascending order.  The eigenvalues for
+**              a real symmetric matrix are always real so this procedure
+**              returns only one vector.
+**
+**              This function is provided for backward compatibility
+**              with previous versions of GAUSS.  It uses an
+**              intrinsic function eig. If portability to the 16-bit
+**              environment is not an issue and you have the complex
+**              version of GAUSS, use the intrinsic function directly.
+**              It is faster and more memory efficient.
+**
+**  Globals:    _eigerr
+**
+**  See Also:   eigrs2, eigcg, eigch, eigrg
+*/
+
+proc eigrs(x);
+    x = eigh(x);
+    if scalerr(x[1]);
+        _eigerr = scalerr(x[1]);
+        x[1] = 0;
+    else;
+        _eigerr = 0;
+    endif;
+    retp(x);
+endp;
+
+/*
+**> eigrs2
+**
+**  Purpose:    To compute eigenvalues and eigenvectors of a real,
+**              symmetric matrix.
+**
+**  Format:     { va,ve } = eigrs2(x);
+**
+**  Input:      x    NxN matrix.
+**
+**  Output:     va   Nx1 vector, eigenvalues of x.
+**
+**              ve   NxN matrix, eigenvectors of x.
+**
+**              _eigerr   global scalar, if all the eigenvalues can
+**                        be determined _eigerr = 0,  otherwise _eigerr is set
+**                        to the index of the eigenvalue that failed.  The
+**                        eigenvalues and eigenvectors for indices 1 to
+**                        _eigerr-1 should be correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     set _eigerr and terminate with message
+**
+**                    TRAP 1     set _eigerr and continue execution
+**
+**              The eigenvalues are in ascending order.  The columns of ve
+**              contain the eigenvectors of x in the same order as the
+**              eigenvalues.  The eigenvectors are orthonormal.
+**
+**              The eigenvalues and eigenvectors for a real symmetric matrix
+**              are always real so this procedure returns only the real parts.
+**
+**              This function is provided for backward compatibility
+**              with previous versions of GAUSS.  It uses an
+**              intrinsic function EIG. If portability to the 16-bit
+**              environment is not an issue and you have the complex
+**              version of GAUSS, use the intrinsic function directly.
+**              It is faster and more memory efficient.
+**
+**  Globals:    _eigerr
+**
+**  See Also:   eigrs, eigcg, eigch, eigrg, complex2
+*/
+
+proc (2) = eigrs2(x);
+    local v;
+    { x,v } = eighv(x);
+    if scalerr(x[1]);
+        _eigerr = scalerr(x[1]);
+        x[1] = 0;
+    else;
+        _eigerr = 0;
+    endif;
+    retp(x,v);
+endp;

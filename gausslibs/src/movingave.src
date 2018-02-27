@@ -1,0 +1,143 @@
+/*
+** movingave.src - LAPACK eigendecomposition procedures
+**
+** (C) Copyright 2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**
+**  Format                           Purpose                             Line
+** -----------------------------------------------------------------------------
+**  y  = movingave(x,d);         moving average                        29
+**  y  = movingaveWgt(x,d,w);    weighted moving average               64
+**  y  = movingaveExpwgt(x,d,p); exonentially weighted moving average 101
+*/
+
+
+/*
+**> movingave
+**
+**  Purpose:    computes moving average of a series
+**
+**  Format:    y = movingave(x,d);
+**
+**  Input:     x     NxK matrix
+**
+**             d     scalar, order of moving average
+**
+**  Output:    y     NxK matrix, filtered series.  The first d-1 rows
+**                    of x are set to missing values.
+**
+**  Remarks:   movingave is essentially a smoothing time series filter.  
+**             The moving average as performed by column and thus it 
+**             treats the NxK matrix as K time series of length N.
+**
+**
+** See Also:   movingaveWgt, movingaveExpwgt
+*/
+
+proc movingave(x,d);
+ 
+   local p,y;
+   p = rows(x) - d + 1;
+   y = sparseTD(sparseFP((ones(p,1)/d~seqa(1,1,p)).*.ones(d,1)~vecr(seqa(1,1,p)+seqa(0,1,d)'),p,rows(x)),x);
+   retp(error(0)*zeros(d-1,cols(x)) | y);
+
+endp;
+
+
+
+
+
+/*
+**> movingaveWgt
+**
+** Purpose:    computes weighted moving average of a series
+**
+**  Format:    y = movingaveWgt(x,d,w);
+**
+**  Input:     x     NxK matrix
+**
+**             d     scalar, order of moving average
+**
+**             w     dx1 vector, weights
+**
+**  Output:    y     NxK matrix, filtered series.  The first d-1 rows
+**                    of x are set to missing values.
+**
+**  Remarks:   movingaveWgt is essentially a smoothing time series filter
+**             with weights. The moving average as performed by column and 
+**             thus it treats the NxK matrix as K time series of length N.
+**
+**
+** See Also:   movingave, movingaveExpwgt
+*/
+
+proc movingaveWgt(x,d,w);
+
+   local p,y;
+   p = rows(x) - d + 1;
+   y = sparseTD(sparseFP((ones(p,1).*.w)~(seqa(1,1,p).*.ones(d,1))~vecr(seqa(1,1,p)+seqa(0,1,d)'),p,rows(x)),x);
+   retp(error(0)*zeros(d-1,cols(x)) | y);
+
+endp;
+
+
+
+
+
+/*
+**> movingaveExpwgt
+**
+**  Purpose:    computes exponentially weighted moving average of a series
+**
+**  Format:    y = movingaveExpwgt(x,d);
+**
+**  Input:     x     NxK matrix
+**
+**             d     scalar, order of moving average
+**
+**  Output:    y     NxK matrix, filtered series.  The first d-1 rows
+**                    of x are set to missing values.
+**
+**  Remarks:   movingaveExpwgt is smoothing time series filter using
+**             exponential weights. The moving average as performed by 
+**             column and thus it treats the NxK matrix as K time series 
+**             of length N.
+**
+**
+** See Also:   movingaveWgt, movingave
+*/
+
+proc movingaveExpwgt(x,d,p);
+
+   local n,y,w,g;
+   n = rows(x) - d + 1;
+//   p = 1 - p;
+   g = 1 + p;
+   w = ones(d,1);
+   for i(2,d,1);
+       g = 1 + p * g;
+       w[i] = p * w[i-1];
+   endfor;
+   w = rev(w/g);
+   y = sparseTD(sparseFP((ones(n,1).*.w)~(seqa(1,1,n).*.ones(d,1))~vecr(seqa(1,1,n)+seqa(0,1,d)'),n,rows(x)),x);
+   retp(error(0)*zeros(d-1,cols(x)) | y);
+
+endp;
+
+
+
+
+

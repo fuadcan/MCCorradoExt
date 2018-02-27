@@ -1,0 +1,43 @@
+
+Total observations:                                          999  
+Usable observations:                                         999  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          995  
+Number of moment conditions:                                   4  
+Value of the criterion function:                         0.00000  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+alpha           0.086036        0.006189        13.902419        0.000000
+beta           -0.769860        0.006472      -118.959634        0.000000
+gamma          -0.024352        0.032422        -0.751113        0.452762
+sigma           0.056331        0.004129        13.643652        0.000000
+
+
+Total observations:                                          999  
+Usable observations:                                         999  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          996  
+Number of moment conditions:                                   4  
+Value of the criterion function:                         0.00070  
+
+
+Hansen's test of overidentifying restrictions:           0.69787  
+p-value:                                                 0.40350  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+alpha           0.086447        0.006170        14.011200        0.000000
+beta           -0.772867        0.005403      -143.044717        0.000000
+gamma           0.000000        0.000000                .               .
+sigma           0.059297        0.001314        45.130607        0.000000
+
+
+
+                 True values       GMM          const. GMM
+   alpha             0.08      0.086036239      0.086447479 
+    beta             -0.8      -0.76985954      -0.77286672 
+   gamma                0     -0.024352455                0 
+   sigma             0.06      0.056330847      0.059297178 

@@ -1,0 +1,1246 @@
+#ifOS2WIN
+
+/*
+** dataxchn.src
+**
+**
+** (C) Copyright 1997-2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                                         Purpose             Line
+** -------------------------------------------------------------------------
+**    y = export(x,fname,namelist);                matrix export        35
+**    y = exportf(dataset,fname,namelist);         data set export      36
+**    { x, namelist } = import(fname,range,sheet); matrix import       295
+**    y = importf(fname,dataset,range,sheet);      data set import     296
+*/
+
+#include dataxchn.ext
+
+/*
+**> export
+**> exportf
+**
+**  Purpose:  Exports a matrix or GAUSS data set to a spreadsheet, database,
+**            or ASCII formatted file.
+**
+**  Format:   y = export(x, fname, namelist);
+**  Format:   y = exportf(dataset, fname, namelist);
+**
+**  Input:   x          NxK matrix of data to be exported.
+**           dataset    string, name of GAUSS data set to be exported.
+**           fname      string, path and filename of target file
+**           namelist   Kx1 character vector of names,
+**                      or scalar 0 (for defaults).
+**
+**  Output:  y          scalar, 1 if successful,
+**                              0 if not.
+**
+**  Globals: _dxftype   string, file type. The file type is normally
+**                      taken from the filename extension; this can be
+**                      overridden by specifying one of the file extensions
+**                      listed below. Set to "" (empty string) to use
+**                      file extensions.
+**
+**           _dxtype    scalar or Kx1 vector, column data type flags:
+**                      1's for numeric data, 0's for character data.
+**                      Use scalar if all columns are the same type.
+**                      Default is scalar 1--all columns numeric.
+**
+**           _dxwidth   scalar or Kx1 vector of spreadsheet column widths
+**                      in characters. Use scalar if all columns have the
+**                      same width. Default is scalar 12.
+**
+**           _dxprcn    scalar or Kx1 vector of spreadsheet column precision
+**                      (number of digits after the decimal). Use scalar if
+**                      all columns have the same precision. Default is 4.
+**
+**           _dxtxdlim  scalar, ASCII value for character that delimits
+**                      fields in ASCII files. (Tab = 9, comma = 44,
+**                      space = 32 (default))
+**
+**           _dxaschdr  scalar, ASCII file column headers flag: 1 - write
+**                      column names as headers, 0 - don't write. Default
+**                      is 0.
+**
+**           _dxwkshdr  scalar, spreadsheet file column headers flag: 1 -
+**                      write column names as headers, 0 - don't write.
+**                      Default is 1.
+**
+**           _dxmiss    scalar, missing value representation. Default is
+**                      standard GAUSS missing value (indefinite NaN).
+**
+**           _dxexver  scalar, Excel format to export: Use 2.1 to write
+**                      Excel 2.1 files. Use 8.0 to write Excel 8.0 files.
+**                      Default is 8.0.
+**
+**           _dxprint   scalar, 1 - print progress messages,
+**                              0 - quiet. Default 1.
+**
+**  Remarks:
+**       The following file types are supported:
+**
+**         "WKS"                  Lotus v1.0
+**         "XLS"                  Excel v2.1 through Excel 8.0
+**         "WQ1"                  Quattro v1.0
+**         "WRK"                  Symphony v1.0
+**         "DB2"                  dBase II
+**         "DBF"                  dBase III
+**         "DB"                   Paradox v3.0
+**         "CSV" "TXT" "ASC"      ASCII character delimited
+**         "PRN"                  ASCII formatted
+**         "DAT"                  GAUSS data set
+**
+**       The number of elements in namelist should conform to the number
+**    of columns in X for a matrix transfer.
+**
+**       For a data set, if namelist = 0, all the vectors will be exported;
+**     otherwise the subset of vectors named in namelist will be exported.
+**
+**       The elements of namelist will be inserted in the first row of each
+**    column, unless _dxaschdr (ASCII files) or _dxwkshdr (spreadsheet files)
+**    is set to 0.
+**
+**       Missing values will be written as blank cells to spreadsheets,
+**    and as _dxmiss to ASCII files.
+**
+**   Examples:
+**            fname = "c:\\temp\\tstdta.xls";
+**            let names = gnp invest consump exports;
+**            call export(x,fname,names);
+**
+**            _dxexver = 8.0;
+**            fname = "c:\\temp\\tstdta.xls";
+**            let names = gnp invest consump exports;
+**            call export(x,fname,names);
+**
+**            fname = "c:\\temp\\tstdta.dbf";
+**            dname = "c:\\gauss\\dat\\mydata.dat";
+**            call exportf(dname,fname,0);
+**
+**      The first example exports a four column matrix (x) to an
+**      Excel 2.1 file. The second example exports x to an
+**      Excel 8.0 file.The third example takes a GAUSS data set and
+**      creates a Dbase file.
+**
+*/
+
+proc export(x, filename, namelist);
+    local info, ftype, fmt, ncases, nvars, ret, errstr, names, _dxcolhdr, msg,tname;
+
+    if (type(x) == 13) ;    /* GAUSS data set */
+        retp(exportf(x,filename,namelist));
+    endif;
+
+   
+   tname = strsect(filename,strlen(filename)-2,3);
+   if (upper(tname) $== "XLS");
+        if (_dxexver == 8);
+            ret = export_e(x,filename,namelist);
+            retp(ret);
+        endif;
+        
+        if (_dxexver /= 2.1);
+            errorlog " ERROR: Set _dxexver to 2.1 or 8.0.\n GAUSS does not recognize other export versions.";
+            retp(0);
+        endif;
+   endif;
+
+
+    call dx_header("GAUSS Data Export Facility");
+    { ftype,_dxcolhdr } = dx_filetype(filename,1);
+    if ismiss(ftype);
+        retp(0);
+    endif;
+    ncases = rows(x);
+    nvars = cols(x);
+    info = ncases | nvars | ftype | _dxtxdlim | _dxcolhdr | _dxmiss;
+    fmt = dx_makefmt(nvars,namelist);
+    names = 0;
+
+    if (ftype == 99) ;      /* GAUSS data set */
+        if saved(x,filename,namelist);
+            retp(1);
+        else;
+            errorlog "Error in creating GAUSS data set";
+            retp(0);
+        endif;
+    endif;
+
+    call dx_print("Begin export... " );
+    if not dx_cmnd("open_w",x,info,fmt,filename,names);
+        retp(0);
+    endif;
+    if not dx_cmnd("write",x,info,fmt,filename,names);
+        retp(0);
+    endif;
+    if not dx_cmnd("close_w",x,info,fmt,filename,names);
+        retp(0);
+    endif;
+    call dx_print("Export completed ");
+
+    retp(1);
+
+endp;
+
+proc export_e(x,fname,namelist);
+local info, ftype, fmt, ncases, nvars, names, ret, errstr, srange,
+        rngtype, bufsz, eofflag, actnobs, nobs, nmiss, ntot, _dxcolhdr,
+        _dxascdlim, retcode, filename, tmp;
+
+ call dx_header("GAUSS Data Export Facility");
+{ ret,errstr } = retchk;
+{ ftype,_dxcolhdr } = dx_filetype(fname,1);
+    ncases = rows(x);
+    nvars = cols(x);
+    tmp = 0;
+/*
+info - vector:
+info = Rows | Cols | filletype | sheet | _dxwkshdr | _dxmiss |
+*/
+    info = ncases | nvars | ftype | _dxtxdlim | _dxwkshdr | _dxmiss;
+    fmt = dx_makefmt(nvars,namelist);
+    names=1;
+
+dllcall export_write(ret, errstr, x, info, fmt, fname, names);
+    if (ret < 0);
+        print ret;
+        errorlog errstr;
+        retp(0);
+    endif;
+
+retp(1); @ successful @
+endp;
+
+
+/**********************************************************************
+**                   GAUSS data set export
+***********************************************************************/
+
+proc exportf(dataset,filename,namelist);
+
+    local info, ftype, fmt, ncases, nvars, ret,nobs, errstr;
+    local x, fixedasc, f1, dtalist, indx, nr, _dxcolhdr;
+
+    call dx_header("GAUSS Data Export Facility");
+    clear x, fixedasc;
+    { ftype,_dxcolhdr } = dx_filetype(filename,1);
+    if ismiss(ftype);
+        retp(0);
+    endif;
+    if ftype == 91;
+        fixedasc = 1;
+    endif;
+    if not dx_fileexist(dataset);
+        retp(0);
+    endif;
+    open f1 = ^dataset;
+    dtalist = getname(dataset);
+
+    if namelist == 0;
+        namelist = dtalist;
+    elseif ismiss(indcv(upper(namelist),dtalist));
+        errorlog "Elements of namelist do not exist on the GAUSS data set";
+        retp(0);
+    endif;
+
+    ncases = rowsf(f1);
+    nvars = rows(namelist);
+    indx = indcv(upper(namelist),dtalist);
+    fmt = dx_makefmt(nvars,namelist);
+    info = ncases | nvars | ftype | _dxtxdlim | _dxcolhdr | _dxmiss;
+    nobs = 0;
+
+    call dx_print("Begin export... " );
+    if not dx_cmnd("open_w",x, info, fmt, filename,0);
+        retp(0);
+    endif;
+    nr = getnr(3,colsf(f1));
+    do until eof(f1);
+        x = readr(f1,nr);
+        x = x[.,indx] ;
+        info[1] = rows(x);
+        nobs = nobs + rows(x);
+        if not dx_cmnd("write",x,info,fmt,filename,0);
+            retp(0);
+        endif;
+    endo;
+
+    f1 = close(f1);
+    if not dx_cmnd("close_w",x,info,fmt,filename,0);
+        retp(0);
+    endif;
+    call dx_print("Export completed ");
+    if _dxprint;
+        print "Number of cases in GAUSS data set:             " ncases;
+        print "Number of cases written to foreign file :     " nobs;
+        print "Number of variables written to foreign file : " nvars;
+    endif;
+
+    retp(1);
+
+endp;
+
+/*
+**> import
+**> importf
+**
+**  Purpose:  Copy data from a spreadsheet, database or ASCII file to
+**            a GAUSS matrix or data set.
+**
+**  Format:   {x,namelist} = import(fname, range, sheet);
+**                      y  = importf(fname,dataset,range, sheet);
+**
+**  Input:   fname      string, path and filename of source file.
+**           dataset    string, path and filename of GAUSS data set.
+**           range      string, range of cells for spreadsheets,
+**                      descriptor for packed ASCII files, or scalar 0.
+**                      Default is 0.
+**           sheet      scalar, page or sheet number. Default is 1.
+**
+**  Output:  x          NxK matrix of data from spreadsheet.
+**           namelist   Kx1 character vector of column names.
+**           y          scalar, 1 if successful, 0 if not.
+**
+**  Globals: _dxftype   string, file type. The file type is normally
+**                      taken from the filename extension; this can be
+**                      overridden by specifying one of the file extensions
+**                      listed below. Set to "" (empty string) to use
+**                      file extensions.
+**
+**           _dxbuffer  Import buffer size in Mbytes. 1 Mbyte is approx
+**                      131000 elements. If the data size exceeds
+**                      this, you should increase _dxbuffer.
+**
+**           _dxtxdlim  For delimited ASCII files, scalar ASCII value
+**                      of the character that delimits fields. (Tab = 9,
+**                      comma = 44, space = 32 (default)). Not used
+**                      in packed ASCII files.
+**
+**           _dxaschdr  scalar, ASCII file column headers flag: 1 - read
+**                      column names as headers, 0 - don't read. Default
+**                      is 0.
+**
+**           _dxwkshdr  scalar, row number of spreadsheet file column
+**                      headers: 0 - no headers. Default is 1.
+**
+**           _dxmiss    scalar, missing value representation. Default is
+**                      standard GAUSS missing value (indefinite NaN).
+**
+**           _dxprint   scalar, 1 - print progress messages (default),
+**                              0 - quiet.
+**
+**  Remarks:
+**       The following file types are supported:
+**
+**         "WKS" "WK1" "WK2"      Lotus v1-v2
+**         "WK3" "WK4" "WK5"      Lotus v3-v5
+**         "XLS"                  Excel v2.1-v8.0
+**         "WQ1" "WQ2" "WB1"      Quattro v1-v6
+**         "WRK"                  Symphony v1.0-1.1
+**         "DB2"                  dBase II
+**         "DBF"                  dBase III/IV, Foxpro, Clipper
+**         "DB"                   Paradox
+**         "CSV" "TXT" "ASC"      ASCII character delimited
+**         "PRN"                  ASCII packed
+**         "DAT"                  GAUSS data set
+**
+**       For spreadsheets, _dxwkshdr indicates the row to use for column
+**       names; for no column names, set _dxwkshdr to 0.
+**
+**       For ASCII files, column names are assumed to exist if _dxaschdr is
+**       set to 1.
+**
+**       Column names will be returned in namelist.
+**
+**       For spreadsheets, range indicates the columns to be imported, and
+**       can be specified in the form "A1..X27" or "A1:X27". A range of 0
+**       imports all data.
+**
+**       For packed ASCII files, range is a descriptor that defines field
+**       name, type, width, and optionally precision. It is a single string
+**       of the form:
+**
+**               name [type] fldspec [name [type] fldspec ...]
+**
+**       where:  name is the column name for the field. You can specify a
+**                  set (e.g., x01-x09); the subsequent type and fldspec
+**                  are applied to all columns in the set.
+**               type is $ for a character field, and blank for a numeric
+**                  field.
+**               fldspec is either a column range (e.g., 5-8), a start
+**                  column and field width (e.g., 5,4 or 5,4.2), or just a
+**                  field width (e.g., 4 or 4.2). If only a field width is
+**                  given, the start column is imputed from the previous
+**                  field. If the field width is specified with a decimal
+**                  (e.g., 4.2) then a decimal point will be inserted that
+**                  many places in from the right edge of the field.
+**
+**       sheet is the spreadsheet page number, and is only supported
+**       for spreadsheet formats. If sheet = 0, the first (possibly only)
+**       page will be imported.
+**
+**       Spreadsheet cells that are #ERR or #N/A will be imported as GAUSS
+**       missing values. Elements (from any format) that have the value
+**       _dxmiss will be imported as GAUSS missing values.
+**
+**   Examples:
+**            fname = "c:\\temp\\tstdta.xls";
+**            range = "a2..g51";
+**            {x,names} = import(fname,range,1);
+**
+**            fname = "c:\\temp\\tstdta.asc";
+**            dname = "c:\\gauss\\dat\\mydata.dat";
+**            call importf(fname,dname,0,0);
+**
+**            fname = "c:\\temp\\tstdta.asc";
+**            schema = "var1 $ 6,2 var2 8-15 var3 18,4.1 gnp 7 cons 6.2
+**                           xs1-xs20 2";
+**            {x,names} = import(fname,schema,0);
+**
+**   The first example shows the creation of a GAUSS matrix x from an
+**   Excel file, using the specified range. In the second example, a
+**   GAUSS data set is created from a space delineated ASCII data set.
+**   In the third example, a GAUSS matrix (x) is created from a packed
+**   ASCII data set, using the descriptor shown.
+**
+*/
+
+proc 2 = import(filename,range,sheet);
+    local info, ftype, fmt, ncases, nvars, names, x, ret, errstr, srange,
+        rngtype, bufsz, eofflag, actnobs, nobs, nmiss, ntot, _dxcolhdr,
+        _dxascdlim, retcode, ret1, errstr1, code, info1;
+
+    { ftype,srange,info,retcode } = dx_setimport(filename,sheet,range);
+
+    if (retcode == 0);
+        retp(0,0);
+    endif;
+
+    if (ftype == 99);       /* GAUSS data set */
+        x = loadd(filename);
+        x = miss(x,_dxmiss);
+        names = getname(filename);
+        call dx_print("Import completed ");
+        retp(x,names);
+    endif;
+
+    bufsz = _dxbuffer*131072;
+    names = zeros(255,1);
+    fmt = srange;
+    nmiss = 0;
+    
+    { ret1 ,errstr1  } = retchk;
+        info1 = 0 | 0 | 7 | sheet | _dxwkshdr | _dxmiss;
+        dllcall import_open(ret1, errstr1, filename, info1, range);
+    code = strsect(errstr1,1,4);
+    if(ret1 < 0);
+        if(stof(code) /= 3274);
+        /* if error except Incompatible Format*/
+            print "Error in read procedure:";
+            errorlog errstr1;
+            retp(0,0);
+        endif;
+    else;       /* if open OK */
+/* CALL THE NEW IMPORT PROCEDURE */
+        x = zeros(info1[1],info1[2]);
+        x = miss(x,0);
+/*        names = zeros(1,info1[2]); */
+        names = zeros(info1[2], 1);
+        { ret1,errstr1 } = retchk;
+        dllcall import_read(ret1, errstr1, filename, x, info1, range, names);
+        if (ret1 < 0);
+            print "Error in read procedure:";
+            errorlog errstr1;
+            retp(0,0);
+        endif;
+        retp(x, names);
+    endif;
+    
+    
+    { ret, errstr } = retchk;
+    dllcall dx_openfile_for_import(ret,errstr,filename,info,names,srange);
+
+
+    nobs = info[1];
+    nvars = info[2];
+    ntot = nobs;
+    if nobs == 0;
+        actnobs = 0;
+        nobs = floor(bufsz/nvars);
+    else;
+        nobs = nobs + 1;
+        actnobs = 1;
+    endif;
+    if (nobs*nvars > bufsz);
+        errorlog "Data size exceeds buffer size: data will be truncated";
+        nobs = floor(bufsz/nvars);
+    endif;
+    ncases = nobs;
+    info[1] = ncases;
+    
+    x = zeros(ncases,nvars);        /* set up x large enough */
+    { ret,errstr } = retchk;
+    dllcall dx_import_read(ret, errstr, x, info);
+    if (ret < 0);
+        errorlog errstr;
+        retp(0,0);
+    endif;
+    if not dx_cmnd("close_r",x,info,fmt,filename,names);
+        retp(0,0);
+    endif;
+    call dx_print("Import completed ");
+    if ftype == 19;
+        call dx_parse(filename,0);
+    endif;          /* clear schema */
+
+    ncases = info[1];       /* actual values read */
+    nvars = info[2];        /* actual values read */
+    eofflag = info[8];
+
+    if (not eofflag) and (not actnobs);
+        errorlog "Warning, data loss: data matrix truncated.\r\l           "\
+            "   Increase _dxbuffer";
+    endif;
+    x = reshape(vecr(x),ncases,nvars);
+    x = miss(x,_dxmiss);
+    if ftype == 19;
+        x = x./(10^_dxprcn)';
+    endif;          /* take care of prcn */
+    nmiss = nmiss + sumc(vec(x) .== miss(0,0));
+    names = names[1:nvars];
+    if (nmiss);
+        call dx_print("Missing values encountered ");
+    endif;
+
+    retp(x,names);
+
+endp;
+
+
+
+/**********************************************************************
+**                   GAUSS data set import
+***********************************************************************/
+
+proc importf(filename,dataset,range,sheet);
+    local info, ftype, fmt, ncases, nvars, names, x, ret, errstr, srange,
+        rngtype, bufsz, eofflag, actnobs, nobs, retcode, _dxcolhdr,
+        _dxascdlim, f1, ncount, ntot, nmaxread, nmiss;
+
+    { ftype,srange,info,retcode } = dx_setimport(filename,sheet,range);
+    if (retcode == 0);
+        retp(0);
+    endif;
+
+    bufsz = _dxbuffer*131072;
+    names = zeros(255,1);
+    nmiss = 0;
+    fmt = srange;
+    { ret,errstr } = retchk;
+    dllcall dx_openfile_for_import(ret,errstr,filename,info,names,srange);
+    if (ret < 0);
+        errorlog errstr;
+        retp(0);
+    endif;
+
+    ntot = info[1];
+    nvars = info[2];
+    nmaxread = floor(bufsz/nvars);
+    ncount = 0;
+    if (ntot == 0);
+        actnobs = 0;
+    else;
+        actnobs = 1;
+        nmaxread = minc(ntot+1|nmaxread);
+    endif;
+    x = zeros(nmaxread,nvars);      /* set up x large enough */
+    names = names[1:nvars];
+
+    create f1 = ^dataset with ^names,0,8;
+    if f1 == -1;
+        errorlog "GAUSS data set: " $+ dataset $+ "  could not be created";
+        retp(0);
+    endif;
+
+    do while 1;
+        info[1] = nmaxread;
+        { ret,errstr } = retchk;
+        dllcall dx_import_read(ret, errstr, x, info);
+        if (ret < 0);
+            errorlog errstr;
+            retp(0);
+        endif;
+        ncases = info[1];           /* actual values read */
+        eofflag = info[8];
+        if (ncases > 0);
+            x = reshape(vecr(x),ncases,nvars);
+            x = miss(x,_dxmiss);
+            if ftype == 19;
+                x = x./(10^_dxprcn)';
+            endif;          /* take care of prcn */
+            ncount = ncount + ncases;
+            nmiss = nmiss + sumc(vec(x) .== miss(0,0));
+            call writer(f1,x);
+        endif;
+        if (eofflag == 1);
+            f1 = close(f1);
+            break;
+        endif;
+    endo;
+    eofflag = info[8];
+
+    if not dx_cmnd("close_r",x,info,fmt,filename,names);
+        retp(0);
+    endif;
+
+    if ftype == 19;
+        call dx_parse(filename,0);
+    endif;          /* clear schema */
+
+    call dx_print("Import completed ");
+    if _dxprint;
+        if (actnobs == 1) and (range $== 0);
+            print "Number of rows in input file:                 " ntot;
+        endif;
+        print "Number of cases written to GAUSS data set:     " ncount;
+        if nmiss > 0;
+            print "Number of missing elements:                   " nmiss;
+        endif;
+        print "Number of variables written to GAUSS data set: " nvars;
+    endif;
+    retp(1);
+
+endp;
+
+/**********************************************************************
+**                   Import processing
+***********************************************************************/
+proc 4 = dx_setimport(filename,sheet,range);
+    local info, ftype, srange, rngtype, eofflag, nobs, nmiss, x,
+        _dxascdlim, _dxcolhdr, ncases, nvars, retcode;
+
+    call dx_header("GAUSS Data Import Facility");
+    if not dx_fileexist(filename);
+        goto errprcs;
+    endif;
+    { ftype, _dxcolhdr } = dx_filetype(filename,0);
+    if ismiss(ftype);
+        goto errprcs;
+    elseif (ftype == 91);           /* formatted input */
+        ftype = 18;
+    endif;
+    sheet = sheet - 1;      /* zero based */
+    if sheet < 0;
+        sheet = 0;
+    endif;
+    _dxascdlim = _dxtxdlim;
+    if (ftype == 18);       /* ASCII file */
+        srange = 0;
+        rngtype = 0;
+        sheet = 0;
+        ftype = dx_parse(filename,range);
+        if ismiss(ftype);
+            goto errprcs;
+        endif;
+    else;
+        { srange,rngtype } = dx_range(range);
+        if (rngtype $== -1);
+            goto errprcs;
+        endif;
+    endif;
+
+    ncases = 0;
+    nvars = 0;
+    x = 0;
+    eofflag = 0;
+    info = ncases | nvars | ftype | sheet| rngtype | _dxascdlim| _dxcolhdr
+        | eofflag ;
+
+    call dx_print("Begin import... " );
+    retcode = 1;
+    retp(ftype,srange,info,retcode);
+
+errprcs:
+
+    retcode = 0;
+    retp(0,0,0,retcode);
+endp;
+
+/**********************************************************************
+**                   Determing file type
+***********************************************************************/
+proc 2 = dx_filetype(fname,exflg);
+    external string _dxftype;
+
+    local exlst, imlst, fmtlist, begindex, exstem,msg, extindx, fmttype,
+        _dxcolhdr, root;
+
+    let imlst =
+        "WKS" "WK1" "WK2"                         @ Lotus v1-v2       @
+        "WK3" "WK4" "WK5"                         @ Lotus v3-v5       @
+        "XLS"                                     @ Excel v2.1-v8.0   @
+        "WQ1" "WQ2" "WB1"                         @ Quattro v1-v6     @
+        "WRK"                                     @ Symphony v1.0-1.1 @
+        "DB2"                                     @ dBase II          @
+        "DBF"                                     @ dBase III/IV      @
+        "DBF"                                     @ FoxPro, Clipper   @
+        "DB"                                      @ Paradox  v3-v5    @
+        "CSV" "TXT" "ASC"                         @ ASCII delimited   @
+        "PRN"                                     @ ASCII formatted   @
+        "DAT" "DHT";                              @ GAUSS data set    @
+
+    let exlst =
+        "WKS" "^^^" "^^^"                         @ Lotus v1          @
+        "^^^" "^^^" "^^^"                         @                   @
+        "XLS"                                     @ Excel v2.1        @
+        "WQ1" "^^^" "^^^"                         @ Quattro v1        @
+        "WRK"                                     @ Symphony v1.0     @
+        "DB2"                                     @ dBase II          @
+        "DBF"                                     @ dBase III         @
+        "^^^"                                     @                   @
+        "DB"                                      @ Paradox v3.0      @
+        "CSV" "TXT" "ASC"                         @ ASCII delimited   @
+        "PRN"                                     @ ASCII formatted   @
+        "DAT" "^^^";                              @ GAUSS data set    @
+
+    let fmtlist = 0 0 0 1 1 1 7 11 11 11
+        15 5 6 6 10 18 18 18 91 99 99 ;
+
+    /* Get extension */
+    if _dxftype $/= "";     /* file type predetermined */
+        exstem = _dxftype;
+    else;
+        begindex = strrindx(fname,".",strlen(fname));
+        if begindex;
+            exstem = strsect(fname,begindex+1,3);
+            root = strsect(fname,1,begindex);
+        else;
+            fmttype = miss(0,0);
+            msg = " No extension was found in filename: " $+ fname ;
+            errorlog msg;
+            retp(error(0),error(0));
+        endif;
+    endif;
+
+/* match extension to file types */
+    if exflg;       /* export flag */
+        extindx = indcv(exstem,exlst);
+    else;
+        extindx = indcv(exstem,imlst);
+    endif;
+    if not ismiss(extindx);
+        fmttype = fmtlist[extindx];
+        _dxcolhdr = _dxwkshdr*(fmttype < 18) + _dxaschdr*(fmttype >= 18);
+    else;
+        fmttype = miss(0,0);
+        msg = " The extension '" $+ exstem $+ "' is not supported ";
+        errorlog msg;
+        _dxcolhdr = 0;
+    endif;
+
+/* *** Temp code for schema*** */
+
+    /* if (fmttype == 18) and (not filesa(root$+"sch") $== ""); fmttype =
+    :: 19; endif;
+    */
+
+    retp(fmttype, _dxcolhdr);
+endp;
+
+/**********************************************************************
+**                   Execute a dataexchange (dx) command
+***********************************************************************/
+
+proc dx_cmnd(cmnd, x, info, fmt, filename, names);
+    /* returns 1 on success, 0 on failure */
+    local ret, errstr, ftype, outfile;
+
+    { ret,errstr } = retchk;
+    ftype = info[3];
+    if (cmnd $== "open_w");
+        if ftype == 91;
+            outfile = filename;
+            output file = ^outfile reset;
+            outwidth 256;
+            screen off;
+            output on;
+            if info[5];
+                call formatcv("-*.*s" ~_dxwidth ~ 8);
+                call printfmt(fmt[.,1]',0);
+                print "";
+            endif;
+            call formatnv("*.*lf" ~_dxwidth ~ _dxprcn);
+        else;
+            dllcall dx_openfile_for_export(ret,errstr,info,fmt,filename);
+        endif;
+
+    elseif (cmnd $== "open_r");
+        dllcall dx_openfile_for_import(ret,errstr,filename,info,names,fmt);
+
+    elseif (cmnd $== "write");
+        if ftype == 91;
+            errstr = "printfmt failed";
+            ret = printfmt(x,1) - 1 ;
+        else;
+            fmt = fmt[.,2];     /* only need type column for this call */
+            dllcall dx_export_write(ret, errstr, x, info, fmt);
+        endif;
+
+    elseif (cmnd $== "read");
+        dllcall dx_import_read(ret, errstr, x, info);
+
+    elseif (cmnd $== "close_w");
+        if ftype == 91;
+            output off;
+            screen on;
+            output file = output.out;
+        endif;
+        dllcall dx_closefile(ret, errstr);
+
+    elseif (cmnd $== "close_r");
+        dllcall dx_closefile(ret, errstr);
+
+    else;
+        ret = -1;
+        errstr = "Program error - dx_command not found";
+    endif;
+
+    if (ret < 0);
+        errorlog errstr;
+        retp(0);
+    else;
+        retp(1);
+    endif;
+
+endp;
+
+/**********************************************************************
+**                   Set up error returns
+***********************************************************************/
+proc 2 = retchk;
+    local ret, errstr;
+    ret = 0;
+    errstr = "                                                                                                                                                                                                                                                                                                                                                 ";
+    retp(ret,errstr);
+endp;
+
+/**********************************************************************
+**                   Check that file exists
+***********************************************************************/
+proc dx_fileexist(filename);
+    local msg;
+    if (not filesa(filename) $== "");
+        retp(1);
+    else;
+        msg = " The file " $+ filename $+ " could not be located ";
+        errorlog msg;
+        retp(0);
+    endif;
+endp;
+
+/**********************************************************************
+**                   Set up spreadsheet format
+***********************************************************************/
+proc dx_makefmt(nvars,namelist);
+    local fmt, dxname;
+    fmt = zeros(nvars,4);
+    let dxname = "Var:";
+    if (namelist == 0) or (rows(namelist) /= nvars);
+        fmt[.,1] = 0 $+ dxname $+ ftocv(seqa(1,1,nvars),1,0);
+    else;
+        fmt[.,1] = namelist;
+    endif;
+    fmt[.,2] = dx_setvec(_dxtype,nvars);
+    fmt[.,3] = dx_setvec(_dxwidth,nvars);
+    fmt[.,4] = dx_setvec(_dxprcn,nvars);
+    retp(fmt);
+endp;
+
+/**********************************************************************
+**                   Format check
+***********************************************************************/
+proc dx_setvec(v,n);
+    local ee, msg;
+    ee = ones(n,1);
+    if (rows(v) == 1) or (rows(v) == n);
+        retp(ee.*v);
+    else;
+        msg = " The number of elements in a descriptor (names, type, width,"\
+            " prcn)\r\l         does not match the number of columns in the"\
+            " export matrix";
+        errorlog msg;
+        retp(ee);
+    endif;
+endp;
+
+/**********************************************************************
+**                   Process range
+***********************************************************************/
+proc 2 = dx_range(r);
+    local s,rn, i, ix, nowtype, newtype, c;
+
+    if (r $== "");
+        retp(r,0);
+    endif;          /* range not specified */
+
+    s = strindx(r,".",1) + strindx(r,":",1) + strindx(r,",",1);
+    if (s == 0);
+        retp(r,1);
+    endif;          /* named range */
+
+    r = upper(r);
+    s = strlen(r);
+    rn = zeros(5,1);
+    ix = 1;
+    i = 1;
+    nowtype = 2;    /* type = 0 - not rec, 1 - num, 2 - char, 3 - delin  */
+    do until i > s;
+        c = vals(strsect(r,i,1));
+        newtype = 1*( (c >= 48) .and (c <= 57) ) + 2*( (c >= 65) .and (c <=
+            90) ) + 3*( (c == 46) .or (c == 58) .or (c == 44));
+        if (newtype /= nowtype);
+            ix = ix + 1;
+            if ix > 5;
+                goto rngmsg;
+            endif;
+            nowtype = newtype;
+        endif;
+        if nowtype == 1;    /* number */
+            rn[ix] = 10*rn[ix] + c - 48;
+        elseif nowtype == 2;        /* character */
+            rn[ix] = 26*rn[ix] + c - 64;
+        elseif nowtype == 0;        /* not recognized */
+            goto rngmsg;    /* syntax error */
+        endif;
+        i = i+1;
+    endo;
+    let ix = 1 2 4 5;
+    rn = rn[ix] -1;
+
+    retp(rn,2);     /* stated range */
+
+rngmsg:
+
+    errorlog "Syntax error with range";
+    retp(0,-1);     /* syntax error */
+
+endp;
+
+/**********************************************************************
+**                   Print routines
+***********************************************************************/
+proc dx_print(msg);
+    if not _dxprint;
+        retp("");
+    endif;
+    print /flush msg;
+    retp("");
+endp;
+
+proc 0 = dx_header(stng);
+    call dx_print("");
+    call dx_print(chrs(ones(75,1)*42));
+    call dx_print( "                          " $+ stng );
+    call dx_print(chrs(ones(75,1)*42));
+    call dx_print("");
+endp;
+
+proc 0 = dx_version();
+    local errmsg, ret;
+    errmsg = chrs(32*ones(1000,1));
+    ret = 0;
+    dllcall version(ret,errmsg);
+    cls;
+    errmsg;
+endp;
+
+/**********************************************************************
+**                   Schema Routines
+***********************************************************************/
+proc dx_parse(fname,range);
+    local fieldno, curcol, delim, name, tok, msg, sch, tval, tchar, t1, t2,
+        tt, stype, strtcol, swidth, root, nstr, ns1, n1, ns2, n2, ns, ss,
+        firstname,lastname, curname, scurcol, rtok, nlen, i,j, f1, str,
+        sindx, spath, filename, froot, slen, schema, eol, schstng, ret,
+        nwrite, prcnlst, prcn, nvars;
+
+    str = range;    /* user defined schema */
+    sindx = strrindx(fname,"\\",-1);
+    spath = strsect(fname,1,sindx);
+    slen = strlen(fname) - sindx;
+    filename = strsect(fname,sindx+1,slen);
+    sindx = strindx(filename,".", 1);
+    froot = strsect(filename,1,sindx-1);
+    schema = spath $+ froot $+ ".sch";
+    ret = 0;
+    dllcall dx_deletefile(ret,schema);
+
+    if str $== 0;
+        retp(18);
+    endif;          /* return ftype (18) */
+
+    eol = "\n";     /* chrs(13|10); */
+    prcnlst = zeros(255,1);
+    schstng = "[" $+ upper(froot) $+ "]" $+ eol;
+    schstng = schstng $+ "Filetype=Fixed" $+ eol;
+    if _dxaschdr;
+        schstng = schstng $+ "Names=in-file" $+ eol;
+    else;
+        schstng = schstng $+ "Names=not-in-file" $+ eol;
+    endif;
+    schstng = schstng $+ "Dec-Point=." $+ eol;
+    schstng = schstng $+ "CharSet=ascii" $+ eol;
+
+    fieldno = 1;
+    curcol = 0;     /* zero based */
+    /* Get field name */
+    let delim = 32;
+
+    do while 1;
+
+        if strlen(str) == 0;
+            break;
+        endif;
+
+        { name,str,tok } = strtok(str,delim);
+
+        if not isalpha(strsect(name,1,1));          /* first element of name
+                                                    :: must be alpha
+                                                    */
+            msg = "Syntax error - field name expected";
+            goto err;
+        endif;
+
+        { firstname,lastname,rtok } = strtok(name,45);      /* see if range */
+
+        if rtok;    /* process range */
+            tt = firstname;
+            gosub numfind;
+            n1 = stof(nstr);
+            tt = lastname;
+            gosub numfind;
+            ns2 = nstr;
+            n2 = stof(nstr);
+            nlen = strlen(ns2);
+            ns1 = ftocv(n1,nlen,0);
+
+        else;       /* not range */
+            root = name;
+            n1 = 1;
+            n2 = 1;
+            ns1 = "";
+            ns2 = "";
+            nlen = 1;
+        endif;
+
+        /* Get type */
+        { tval,str,tok } = strtok(str,delim);
+        tchar = strsect(tval,1,1);
+        if tchar $== "$";
+            stype = "Char,";
+            { tval,str,tok } = strtok(str,delim);
+        else;
+            stype = "Float,";
+        endif;
+
+        /* Get cols */
+        { t1,t2,tok } = strtok(tval,45);    /* looking for 6-10 */
+        if tok == 45;
+            tt = t1;
+            gosub numchk;
+            tt = t2;
+            gosub numchk;
+            curcol = stof(t1)-1;
+            swidth = ftocv((stof(t2)-stof(t1)+1),1,0);
+            prcn = "";
+            goto schwrite;
+        endif;
+
+        { t1,t2,tok } = strtok(tval,44);    /* looking for 6,5 or 6,
+                                            :: 5.2
+                                            */
+        if tok == 44;
+            tt = t1;
+            gosub numchk;
+            tt = t2;
+            gosub numchk;
+            curcol = stof(t1) -1;
+            { swidth,prcn,tok } = strtok(t2,46);    /* looking for decimal pt */
+            goto schwrite;
+        endif;
+
+        tt = t1;
+        gosub numchk;       /* looking for 5 or 5.2 */
+        { swidth,prcn,tok } = strtok(t1,46);        /* looking for decimal pt */
+        goto schwrite;
+
+    schwrite:
+
+        ns = ns1;
+        scurcol = ftocv(curcol,1,0);
+        j = n1;
+        do until j > n2;
+            curname = root $+ ns;
+            sch = "Field" $+ ftocv(fieldno,1,0) $+ "=" $+ curname $+ "," $+
+                stype $+ swidth $+ ",0," $+ scurcol;
+            prcnlst[fieldno] = stof(prcn);
+            curcol = curcol + stof(swidth);
+            scurcol = ftocv(curcol,1,0);
+            fieldno = fieldno + 1;
+            schstng = schstng $+ sch $+ eol;
+            j = j+1;
+            ns = ftocv(j,nlen,0);
+        endo;
+
+    endo;
+    print " ";
+    nvars = fieldno - 1;
+    /* schstng; */
+    f1 = fopen(schema,"w");
+    if f1 == 0;
+        msg = "File error - could not open " $+ schema;
+        goto err;
+    endif;
+
+    nwrite = fputs(f1,schstng);
+    if nwrite == 0;
+        msg = "File write error " $+ schema;
+        goto err;
+    endif;
+
+    closeall;
+    _dxprcn = prcnlst[1:nvars];     /* save list */
+
+    retp(19);       /* return file type (19) packed ASCII */
+
+numchk:
+
+    if not isnumber(tt);
+        msg = "Syntax error - number expected";
+        goto err;
+    endif;
+    return;
+
+numfind:
+
+    ns = strlen(tt);
+    nstr = "";
+    i = ns;
+    do while 1;
+        ss = strsect(tt,i,1);
+        if not isnumber(ss);
+            break;
+        endif;
+        nstr = ss $+ nstr;
+        i = i-1;
+    endo;
+    root = strsect(tt,1,i);
+    return;
+
+err:
+
+    errorlog msg;
+    retp(miss(0,0));
+endp;
+
+/**********************************************************************
+**                   Utilities
+***********************************************************************/
+
+proc isalpha(char);
+    local alpha,t;
+    alpha = seqa(65,1,26)|95|seqa(97,1,26);         /* A-Z, _, a-z  */
+    t = not ismiss(indnv(vals(char),alpha));
+    retp(t);
+endp;
+
+proc isnumber(char);
+    local num,t;
+    num = 46|seqa(48,1,10);         /* ., 0-9 */
+    t = not ismiss(indnv(vals(char),num));
+    retp(t);
+endp;
+
+proc issymbol(char,sym);
+    retp(char $== sym);
+endp;
+
+proc (3) = strtok(str,delim);
+    local i,n,cmdvec,tok, dval, j1, j2, j3;
+    clear j1, j2, j3, dval;
+    if strlen(str) == 0;
+        retp("","",dval);
+    endif;
+    cmdvec = vals(str);
+    cmdvec = miss(cmdvec,13);
+    cmdvec = miss(cmdvec,10);
+    cmdvec = missrv(cmdvec,32);
+    n = rows(cmdvec);
+    i = 1;
+
+    /* find first non delim char */
+    do while i <= n;
+        dval = indnv(cmdvec[i],delim);
+        if ismiss(dval);
+            j1 = i;
+            break;
+        endif;
+        i = i+1;
+    endo;
+    if i > n;
+        retp("","",0);
+    endif;
+    i = i+1;
+    if i > n;
+        retp(chrs(cmdvec[j1:n]),"",0);
+    endif;
+
+    /* find first delim char */
+
+    dval = minc(indnv(delim,cmdvec[i:n]));
+    if ismiss(dval);
+        retp(chrs(cmdvec[j1:n]),"",0);
+    else;
+        j2 = j1+ dval - 1;
+        i = j2;
+        tok = (cmdvec[j2+1]);
+    endif;
+
+    /* now find first non delim char */
+    i = j2 + 1;
+    if i > n;
+        retp(chrs(cmdvec[j1:j2]),"",0);
+    endif;
+    do while i <= n;
+        dval = indnv(cmdvec[i],delim);
+        if ismiss(dval);
+            j3 = i;
+            break;
+        endif;
+        i = i+1;
+    endo;
+
+    if i > n;
+        retp(chrs(cmdvec[j1:j2]),"",tok);
+    else;
+        retp(chrs(cmdvec[j1:j2]),chrs(cmdvec[j3:n]),tok);
+    endif;
+endp;
+
+/***********************************************************************/
+#endif

@@ -1,0 +1,449 @@
+/*
+** maxprof.src - profile likelihood traces and profile t traces
+**
+**
+** (C) Copyright 1994-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> MaxProfile
+**
+**  Purpose:  Computes profile likelihood traces and profile t traces
+**
+**  Format:   { b,f,g,cov,retcode } = MaxProfile(dataset,vars,&fct,start)
+**
+**  Input:    dataset      string containing name of GAUSS data set, or
+**                         name of data matrix stored in memory
+**
+**            vars         character vector of labels selected for analysis,
+**                         or numeric vector of column numbers in data set
+**                         of variables selected for analysis
+**
+**            fct          the name of a procedure that returns either
+**                         the log-likelihood for one observation or a
+**                         vector of log-likelihoods for a matrix of
+**                         observations
+**
+**            start        Kx1 vector, start values
+**
+**
+**  Output:   b            Kx1 vector, parameter estimates
+**
+**            f            scalar, function at minimum (mean log-likelihood)
+**
+**            g            Kx1 vector, gradient
+**
+**            cov          KxK covariance matrix of coefficients
+**
+**            retcode      return code:
+**
+**                            0   normal convergence
+**                            1   forced exit
+**                            2   maximum number of iterations exceeded
+**                            3   function calculation failed
+**                            4   gradient calculation failed
+**                            5   Hessian calculation failed
+**                            6   step length calculation failed
+**                            7   function cannot be evaluated at initial
+**                                parameter values
+**                            8   number of elements in the gradient vector
+**                                inconsistent with number of starting values
+**                            9   gradient function returned a column vector
+**                                rather than the required row vector
+**                           10   secant update failed
+**                           11   maximum time exceeded
+**                           12   weights could not be found
+**                           20   Hessian failed to invert
+**                           34   data set could not be opened
+**                           99   termination condition unknown
+**
+**  Globals:
+**
+**         _max_Select     selection vector for selecting coefficients to
+**                         be included in profiling
+**
+**         _max_CutPoint   _max_NumCat x 1 vector, output, cutting points
+**                         for profiling table
+**
+**         _max_Increment  Kx1 vector, increments for cutting points,
+**                         default is  2 * _max_Width * std dev of
+**                         coefficient / _max_NumCat
+**
+**         _max_Center     scalar, value of center category in profile table
+**                         default is initial coefficient estimate
+**
+**         _max_Width      scalar, width of profile table, default = 2
+**
+**         _max_NumCat     scalar, number of categories profile table
+**
+**   see maxlik.src for description of additional global variables
+*/
+
+#include maxlik.ext
+#include pgraph.ext
+
+proc(5) = MaxProfile(dataset,var,lfct,start);
+    local x_ret,f_ret,g_ret,h_ret,ret_ret;
+    local abs0,tt0,title0,tt1,n0,title1;
+    local Lmax_cntr, Lmax_inc, Lmaxactv, Lmaxselect;
+    local protplot,proLikeTr,ctp,stri,strj,str,sd,incr,l,actv,is,js;
+    local x,f,g,h,ret1,x1,f1,g1,h1,f0,s0,sgn,L1,oaw,vv,tpath;
+
+    title1 = _ptitle;
+    _ptitle = "";
+    if rows(_max_Center) /= rows(start);
+        Lmax_cntr = _max_Center * ones(rows(start),1);
+    else;
+        Lmax_cntr = _max_Center;
+    endif;
+
+    if rows(_max_Increment) /= rows(start);
+        Lmax_inc = _max_Increment * ones(rows(start),1);
+    else;
+        Lmax_inc = _max_Increment;
+    endif;
+
+    if rows(_max_Active) /= rows(start);
+        Lmaxactv = _max_Active * ones(rows(start),1);
+    else;
+        Lmaxactv = _max_Active;
+    endif;
+
+    if scalmiss(_max_Select);
+        Lmaxselect = seqa(1,1,rows(start));
+    else;
+        Lmaxselect = _max_Select;
+    endif;
+
+    tpath = sysstate(25,0);
+
+    protplot = zeros(_max_NumCat,rows(Lmaxselect));
+    proLikeTr = zeros(_max_NumCat,2);
+    title0 = __title $+ " - all coefficients -";
+
+    if _max_GradMethod == 0;
+        _max_eps2 = __macheps^(1/3);
+    else;
+        _max_eps2 = __macheps^(1/2);
+    endif;
+    _max_eps3 = __macheps^(1/3);
+
+    { x,f0,g,h,ret1,_max_FinalHess,_max_IterData, _max_XprodCov,
+    _max_HessCov,_max_dat,_max_NumObs,_max_row, _max_dsn,
+    _max_Diagnostic } = _Max(dataset,var,lfct,start, _max_Algorithm,
+    _max_Diagnostic, _max_GradCheckTol, _max_LineSearch, _max_CovPar,
+    _max_GradMethod, _max_GradStep, _max_Delta, _max_Extrap,
+    _max_GradProc, _max_GradTol, _max_HessProc, _max_Interp, _max_key,
+    _max_Lag, _max_MaxIters, _max_MaxTime, _max_MaxTry, _max_NumObs,
+    _max_ParNames, _max_RandRadius, _max_Options, _max_Switch, _max_UserSearch,
+    _max_UserNumGrad, _max_UserNumHess, LmaxActv, _max_dat, _max_dsn,
+    _max_row, __altnam, __output, __row, title0, __weight );
+
+    x_ret = x;
+    f_ret = f0;
+    g_ret = g;
+    h_ret = h;
+    ret_ret = ret1;
+
+    ctp = zeros(_max_NumCat,rows(LmaxSelect));
+    if not scalmiss(h);
+        sd = sqrt(diag(h));
+    else;
+        sd = x;
+    endif;
+
+    for i(1,rows(LmaxSelect),1);
+
+        if Lmaxactv[LmaxSelect[i]] /= 0;
+
+            if Lmax_inc[i] == 0;
+                incr = 2 * _max_Width * sd[LmaxSelect[i]] / _max_NumCat;
+                if Lmax_cntr[i] == 0;
+                    str = x[LmaxSelect[i]] - _max_Width * sd[LmaxSelect[i]];
+                else;
+                    str = Lmax_cntr[i] - _max_Width * sd[LmaxSelect[i]];
+                endif;
+            else;
+                incr = Lmax_inc[i];
+                if Lmax_cntr[i] == 0;
+                    str = x[LmaxSelect[i]] - Lmax_inc[i] * _max_NumCat / 2;
+                else;
+                    str = Lmax_cntr[i] - Lmax_inc[i] * _max_NumCat / 2;
+                endif;
+            endif;
+            ctp[.,i] = seqa(str,incr,_max_NumCat);
+        endif;
+    endfor;
+    _max_CutPoint = ctp;
+
+    tt1 = 1;
+    for i(1,rows(LmaxSelect),1);
+
+        is = LmaxSelect[i];
+
+        if Lmaxactv[is] /= 0;
+
+            actv = ones(rows(x),1);
+            actv[is] = 0;
+            if not(Lmaxactv == 1);
+                actv = Lmaxactv .* actv;
+            endif;
+            tt0 = ftos(rows(LmaxSelect)*_max_NumCat,"%0*.*lf",1,0);
+
+            for j(1,_max_NumCat,1);
+                start = x;
+                start[is] = ctp[j,i];
+                title0 = __title $+ " - Profile t - " $+ ftos(tt1,"%0*.*lf",1,
+                    0) $+ " of " $+ tt0 $+ " -";
+                tt1 = tt1 + 1;
+
+                if start[is] == x[is];
+                    protplot[j,i] = 0;
+                else;
+
+                    { L1,f1,L1,L1,ret1,L1,L1,L1,L1,L1, _max_NumObs,_max_row,
+                    _max_dsn,_max_diagnostic } = _max(dataset,var,lfct,
+                    start, _max_Algorithm, _max_Diagnostic, _max_GradCheckTol,
+                    _max_LineSearch, 0, _max_GradMethod, _max_GradStep,
+                    _max_Delta, _max_Extrap, _max_GradProc, _max_GradTol,
+                    _max_HessProc, _max_Interp, _max_key, _max_Lag,
+                    _max_MaxIters, _max_MaxTime, _max_MaxTry, _max_NumObs,
+                    _max_ParNames, _max_RandRadius, _max_Options,_max_Switch,
+                    _max_UserSearch, _max_UserNumGrad, _max_UserNumHess,
+                    actv, _max_dat, _max_dsn, _max_row, __altnam, __output,
+                    __row, title0, __weight );
+
+                    if ret1 == 0;
+                        if start[is] < x[is];
+                            protplot[j,i] = -sqrt(2 * _max_NumObs * (f0 - f1));
+                        else;
+                            protplot[j,i] = sqrt(2 * _max_NumObs * (f0 - f1));
+                        endif;
+                    else;
+                        protplot[j,i] = error(0);
+                    endif;
+                endif;
+
+            endfor;
+        endif;
+    endfor;
+
+    if scalmiss(packr(protplot));
+        if not trapchk(4);
+            errorlog "ERROR: no feasible points left in profile";
+        endif;
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    else;
+        protplot = real(protplot);
+    endif;
+
+#ifunix
+    if rows(LmaxSelect) == 1;
+        oaw = WinGetActive;
+        vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+        call WinSetActive(WinOpenPQG(vv,"Coefficient 1","ProPlot"));
+        _ptek = tempname(tpath,"mlmp",".tkf");
+        xy(ctp,protplot);
+        call WinSetActive(oaw);
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    endif;
+
+    oaw = WinGetActive;
+    vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+    for i(1,rows(LmaxSelect),1);
+        is = LmaxSelect[i];
+        if Lmaxactv[is] /= 0;
+            stri = ftos(is,"%*.*lf",1,0);
+            call WinSetActive(WinOpenPQG(vv,stri,"ProPlot"));
+            ylabel("\202\116\034\081\118");
+            xlabel("\201Coefficient "$+stri);
+            _pframe = 1;
+            _paxes = 1;
+            title("Profile T Plot");
+            _ptek = tempname(tpath,"mlmp",".tkf");
+            call xy(ctp[.,i],protplot[.,i]);
+            vv[1:2] = vv[1:2] + 20;
+        endif;
+    endfor;
+    call WinSetActive(oaw);
+#else
+
+    if rows(LmaxSelect) < 2;
+        xy(ctp,protplot);
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    endif;
+
+#endif
+
+    for i(2,rows(LmaxSelect),1);
+        is = LmaxSelect[i];
+
+        if Lmaxactv[is] /= 0;
+
+            stri = ftos(is,"%*.*lf",1,0);
+            tt0 = ftos(_max_NumCat,"%0*.*lf",1,0);
+
+
+            for j(1,i-1,1);
+
+                js = LmaxSelect[j];
+
+                if Lmaxactv[js] /= 0;
+
+                    strj = ftos(js,"%- *.*lf",1,0);
+                    actv = ones(rows(x),1);
+                    actv[is] = 0;
+                    if not(Lmaxactv == 1);
+                        actv = Lmaxactv .* actv;
+                    endif;
+                    tt1 = 1;
+                    for k(1,_max_NumCat,1);
+
+                        start = x;
+                        start[is] = ctp[k,i];
+                        title0 = __title $+ " - likelihood trace - " $+ ftos(tt1,"%"\
+                            "0*.*lf",1,0) $+ " of " $+ tt0 $+ " -";
+                        tt1 = tt1 + 1;
+
+                        { x1,L1,L1,L1,ret1,L1,L1,L1,L1,L1, _max_NumObs,_max_row,
+                        _max_dsn,_max_Diagnostic } = _Max(dataset,var,lfct,
+                        start, _max_Algorithm, _max_Diagnostic, _max_GradCheckTol,
+                        _max_LineSearch, 0, _max_GradMethod, _max_GradStep,
+                        _max_Delta, _max_Extrap, _max_GradProc, _max_GradTol,
+                        _max_HessProc, _max_Interp, _max_key, _max_Lag,
+                        _max_MaxIters, _max_MaxTime, _max_MaxTry, _max_NumObs,
+                        _max_ParNames, _max_RandRadius, _max_Options,_max_Switch,
+                        _max_UserSearch, _max_UserNumGrad, _max_UserNumHess,
+                        actv, _max_dat, _max_dsn, _max_row, __altnam, __output,
+                        __row, title0, __weight );
+
+                        if ret1 == 0;
+                            proLikeTr[k,1] = x1[js];
+                        endif;
+
+                    endfor;
+
+                    actv = ones(rows(x),1);
+                    actv[js] = 0;
+                    if not(Lmaxactv == 1);
+                        actv = Lmaxactv .* actv;
+                    endif;
+                    tt1 = 1;
+
+                    for k(1,_max_NumCat,1);
+                        start = x;
+                        start[js] = ctp[k,j];
+                        title0 = __title $+ " - Likelihood trace - " $+ ftos(tt1,"%"\
+                            "0*.*lf",1,0) $+ " of " $+ tt0 $+ " -";
+                        tt1 = tt1 + 1;
+
+                        { x1,L1,L1,L1,ret1,L1,L1,L1,L1,L1, _max_NumObs,_max_row,
+                        _max_dsn,_max_diagnostic } = _Max(dataset,var,lfct,
+                        start, _max_Algorithm, _max_Diagnostic, _max_GradCheckTol,
+                        _max_LineSearch, 0, _max_GradMethod, _max_GradStep,
+                        _max_Delta, _max_Extrap, _max_GradProc, _max_GradTol,
+                        _max_HessProc, _max_Interp, _max_key, _max_Lag,
+                        _max_MaxIters, _max_MaxTime, _max_MaxTry, _max_NumObs,
+                        _max_ParNames, _max_RandRadius, _max_Options,_max_Switch,
+                        _max_UserSearch, _max_UserNumGrad, _max_UserNumHess,
+                        actv, _max_dat, _max_dsn, _max_row, __altnam, __output,
+                        __row, title0, __weight );
+
+                        if ret1 == 0;
+                            proLikeTr[k,2] = x1[is];
+                        endif;
+
+                    endfor;
+#ifunix
+                    fonts("simplex simgrma");
+
+                    _pframe = 0;
+                    _paxes = 1;
+
+                    ylabel("\201Coefficient "$+stri);
+                    xlabel("\201Coefficient "$+strj);
+                    title("Likelihood Profile Trace");
+                    call WinSetActive(WinOpenPQG(vv,stri$+" by "$+strj,"LikeTr"));
+                    _ptek = tempname(tpath,"mlmp",".tkf");
+                    xy(ctp[.,j]~proLikeTr[.,1],proLikeTr[.,2]~ctp[.,i]);
+                    call WinSetActive(oaw);
+
+#else
+                    begwind;
+
+                    _pmsgstr = "";
+                    _pmsgctl = 0;
+                    title("");
+
+                    makewind(4.2,3,.2,3.3,0);
+                    makewind(3.2,3.2,.2,.1,0);
+                    makewind(3.2,3.2,4.4,.1,0);
+                    makewind(9,6.855,0,0,1);
+
+                    fonts("simplex simgrma");
+
+                    _pframe = 0;
+                    _paxes = 1;
+
+                    ylabel("\201Coefficient "$+stri);
+                    xlabel("\201Coefficient "$+strj);
+                    title("\201Likelihood Profile Trace");
+                    xy(ctp[.,j]~proLikeTr[.,1],proLikeTr[.,2]~ctp[.,i]);
+
+                    nextwind;
+
+                    ylabel("\202\116\034\081\118");
+                    xlabel("\201Coefficient "$+stri);
+                    _pframe = 1;
+                    _paxes = 1;
+                    title("\201Profile T Plot");
+                    call xy(ctp[.,i],protplot[.,i]);
+
+                    nextwind;
+
+                    ylabel("\202\116\034\081\118");
+                    xlabel("\201Coefficient "$+strj);
+                    _pframe = 1;
+                    _paxes = 1;
+                    title("\201Profile T Plot");
+                    call xy(ctp[.,j],protplot[.,j]);
+
+                    nextwind;
+
+                    ylabel("");
+                    xlabel("");
+                    title(title1);
+                    _pmsgstr = "\201Coefficients\000"$+strj$+" vs. "$+stri;
+                    _pmsgctl = { 5 5 .3 0 2 15 5, 5.7 4.55 .2 0 2 15 5 };
+                    _paxes = 0;
+                    _pframe = 0;
+
+                    draw;
+
+                    endwind;
+#endif
+                endif;
+            endfor;
+        endif;
+    endfor;
+
+#ifunix
+    call WinSetActive(oaw);
+#endif
+
+    retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+endp;
+

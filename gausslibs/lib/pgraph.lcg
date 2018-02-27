@@ -1,0 +1,247 @@
+/*
+** GAUSS library file
+**
+** (C) Copyright 1988-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+
+peps.dec
+    _pqg_eps_BoundingBox             : matrix : 19
+    _pqg_eps_Scale                   : matrix : 20
+    _pqg_eps_Translate               : matrix : 21
+    _pqg_eps_Rotate                  : matrix : 22
+    _pqg_ps_Scale                    : matrix : 25
+    _pqg_ps_Translate                : matrix : 26
+    _pqg_ps_Rotate                   : matrix : 27
+    _pqg_ps_Monochrome               : matrix : 30
+    _pqg_ps_MinLineWidth             : matrix : 31
+    _pqg_ps_WhiteBecomes             : matrix : 32
+    _pqg_ps_Orientation              : string : 33
+    _pqg_ps_RGBColors                : matrix : 34
+
+pgraph.dec
+    _pqg_ver                         : matrix : 422
+    _pagedim                         : matrix : 425
+    _pappend                         : matrix : 426
+    _parrow                          : matrix : 427
+    _parrow3                         : matrix : 428
+    _pascx                           : matrix : 429
+    _pascy                           : matrix : 430
+    _paxes                           : matrix : 431
+    _paxht                           : matrix : 432
+    _paxmarx                         : matrix : 433
+    _pbox                            : matrix : 434
+    _pcrop                           : matrix : 435
+    _pcolor                          : matrix : 436
+    _pcross                          : matrix : 437
+    _pcwin                           : matrix : 438
+    _pncwin                          : matrix : 439
+    _pcsel                           : matrix : 440
+    _perrbar                         : matrix : 441
+    _pfonts                          : matrix : 442
+    _pframe                          : matrix : 443
+    _pgrid                           : matrix : 444
+    _plctrl                          : matrix : 445
+    _pline                           : matrix : 446
+    _plotsiz                         : matrix : 447
+    _plotshf                         : matrix : 448
+    _pageshf                         : matrix : 449
+    _pagesiz                         : matrix : 450
+    _plegctl                         : matrix : 451
+    _plsel                           : matrix : 452
+    _pltype                          : matrix : 453
+    _plwidth                         : matrix : 454
+    _pmargin                         : matrix : 455
+    _pmcolor                         : matrix : 456
+    _pmsgctl                         : matrix : 457
+    _pnotify                         : matrix : 458
+    _pnum                            : matrix : 459
+    _pnumht                          : matrix : 460
+    _protate                         : matrix : 461
+    _pqgplay                         : matrix : 462
+    _pqgtype                         : matrix : 463
+    _pscreen                         : matrix : 464
+    _pinbegwind                      : matrix : 465
+    _psilent                         : matrix : 466
+    _pssel                           : matrix : 467
+    _pstype                          : matrix : 468
+    _psym                            : matrix : 469
+    _psymsiz                         : matrix : 470
+    _ptitlht                         : matrix : 471
+    _pworld                          : matrix : 472
+    _pxpmax                          : matrix : 473
+    _pxscale                         : matrix : 474
+    _pypmax                          : matrix : 475
+    _pyscale                         : matrix : 476
+    _pwindmx                         : matrix : 477
+    _pwindno                         : matrix : 478
+    _pfirstw                         : matrix : 479
+    _pxmem                           : matrix : 480
+    _pxsci                           : matrix : 481
+    _pysci                           : matrix : 482
+    _pzsci                           : matrix : 483
+    _pzclr                           : matrix : 484
+    _pzoom                           : matrix : 485
+    _pvwr                            : string : 487
+    _pvwrflags                       : string : 488
+    _pvwrmode                        : string : 489
+    _pcmdlin                         : string : 495
+    _pcvfile                         : string : 496
+    _pdate                           : string : 497
+    _phard                           : string : 498
+    _plegstr                         : string : 499
+    _pmsgstr                         : string : 500
+    _prtfile                         : string : 501
+    _ptek                            : string : 502
+    _ptitle                          : string : 503
+    _pxfmt                           : string : 504
+    _pxlabel                         : string : 505
+    _pyfmt                           : string : 506
+    _pylabel                         : string : 507
+    _pqgedit                         : matrix : 508
+    _pmnr                            : matrix : 510
+    _pmjr                            : matrix : 511
+    _poptic                          : matrix : 512
+    _pmtic                           : matrix : 513
+    _pbarwid                         : matrix : 516
+    _pbartyp                         : matrix : 517
+    _pboxctl                         : matrix : 520
+    _pboxlim                         : matrix : 521
+    _pbox3d                          : matrix : 524
+    _psym3d                          : matrix : 525
+    _pline3d                         : matrix : 526
+    _psurf                           : matrix : 527
+    _pview                           : matrix : 528
+    _pvolume                         : matrix : 529
+    _pticout                         : matrix : 530
+    _pzlabel                         : string : 531
+    _pzpmax                          : matrix : 532
+    _pzscale                         : matrix : 533
+    _pzfmt                           : string : 534
+    _plev                            : matrix : 537
+
+paxnum.src
+    _paxnum                          : proc : 24
+    _popt                            : proc : 97
+    _pfeq                            : proc : 157
+
+pbar.src
+    bar                              : proc : 61
+
+pbox.src
+    box                              : proc : 91
+    calcbox                          : proc : 308
+    _pcntclc                         : proc : 353
+
+pcart.src
+    _pcartx                          : proc : 35
+    _pcarty                          : proc : 54
+    _pcartz                          : proc : 73
+    _fontsiz                         : proc : 97
+    _pwrscal                         : proc : 116
+    _linfilt                         : proc : 173
+    _txtfilt                         : proc : 228
+    _cmnfilt                         : proc : 277
+    _prngerr                         : proc : 354
+    _setpage                         : proc : 368
+    _decreas                         : proc : 464
+    _range                           : proc : 476
+
+pcart3d.src
+    _3dfilt                          : proc : 25
+    _pwrsc3d                         : proc : 78
+    _volum3d                         : proc : 122
+
+pcontour.src
+    contour                          : proc : 34
+
+pdraw.src
+    draw                             : proc : 29
+
+peps.src
+    tkf2eps                          : proc : 98
+    tkf2ps_margin                    : proc : 121
+    tkf2ps                           : proc : 146
+
+pgraph.src
+    asclabel                         : proc : 58
+    fonts                            : proc : 93
+    graphset                         : proc : 121
+    graphinit                        : proc : 201
+    title                            : proc : 224
+    view                             : proc : 262
+    viewxyz                          : proc : 293
+    volume                           : proc : 320
+    xlabel                           : proc : 336
+    ylabel                           : proc : 356
+    zlabel                           : proc : 376
+    margin                           : proc : 397
+    axmargin                         : proc : 418
+    graphprt                         : proc : 464
+    rerun                            : proc : 484
+    setvwrmode                       : proc : 547
+    pqgwin                           : keyword : 608
+
+phist.src
+    hist                             : proc : 72
+    histp                            : proc : 215
+    histf                            : proc : 328
+
+play.src
+    hardcopy                         : proc : 46
+    setcnvrt                         : proc : 68
+    replay                           : proc : 101
+
+ploglog.src
+    loglog                           : proc : 34
+
+plogx.src
+    logx                             : proc : 34
+
+plogy.src
+    logy                             : proc : 34
+
+polar.src
+    polar                            : proc : 34
+
+pscale.src
+    scale                            : proc : 66
+    scale3d                          : proc : 122
+    xtics                            : proc : 229
+    ytics                            : proc : 292
+    ztics                            : proc : 355
+
+psurface.src
+    surface                          : proc : 34
+
+pwindow.src
+    begwind                          : proc : 33
+    endwind                          : proc : 76
+    window                           : proc : 118
+    makewind                         : proc : 183
+    setwind                          : proc : 209
+    nextwind                         : proc : 235
+    getwind                          : proc : 255
+    savewind                         : proc : 275
+    loadwind                         : proc : 301
+
+pxy.src
+    xy                               : proc : 34
+
+pxyz.src
+    xyz                              : proc : 37
+

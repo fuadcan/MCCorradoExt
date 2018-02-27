@@ -1,0 +1,410 @@
+/*
+** qmf.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {H,G,Htilde,Gtilde} = Coiflet(order);
+**                                Coiflet filters                          23
+**
+**  {H,G,Htilde,Gtilde} = Daubechies(order);
+**                                Daubechies filters                       40
+**
+**  {H,G,Htilde,Gtilde} = Haar;   Haar filters                             57
+**
+**  {H,G,Htilde,Gtilde} = Pollen(alpha,beta);
+**                                Pollen filters                           74
+**
+*/
+
+
+/*
+** Coiflet
+**
+** Purpose: Compute the Coiflet filters
+**
+** Format:  {H,G,Htilde,Gtilde} = Coiflet(order);
+**
+** Input:  order - scalar, the order of the filters
+**
+** Output:     H - p*1 vector, the low-pass filter
+**             G - p*1 vector, the high-pass filter
+**        Htilde - p*1 vector, the low-pass filter conjugate
+**        Gtilde - p*1 vector, the high-pass filter conjugate
+**
+*/
+
+
+/*
+** Daubechies
+**
+** Purpose: Compute the Daubechies filters
+**
+** Format:  {H,G,Htilde,Gtilde} = Daubechies(order);
+**
+** Input:  order - scalar, the order of the filters
+**
+** Output:     H - p*1 vector, the low-pass filter
+**             G - p*1 vector, the high-pass filter
+**        Htilde - p*1 vector, the low-pass filter conjugate
+**        Gtilde - p*1 vector, the high-pass filter conjugate
+**
+*/
+
+
+/*
+** Haar
+**
+** Purpose: Compute the Haar filters
+**
+** Format:  {H,G,Htilde,Gtilde} = Haar;
+**
+** Input:
+**
+** Output:     H - 2*1 vector, the low-pass filter
+**             G - 2*1 vector, the high-pass filter
+**        Htilde - 2*1 vector, the low-pass filter conjugate
+**        Gtilde - 2*1 vector, the high-pass filter conjugate
+**
+*/
+
+
+/*
+** Pollen
+**
+** Purpose: Compute the Pollen filters
+**
+** Format:  {H,G,Htilde,Gtilde} = Pollen(alpha,beta);
+**
+** Input:  alpha - scalar, alpha parameter
+**          beta - scalar, beta parameter
+**
+** Output:     H - 6*1 vector, the low-pass filter
+**             G - 6*1 vector, the high-pass filter
+**        Htilde - 6*1 vector, the low-pass filter conjugate
+**        Gtilde - 6*1 vector, the high-pass filter conjugate
+**
+*/
+
+
+
+/* ----------------------------------------------------------------------
+                               FILTERS
+   ---------------------------------------------------------------------- */
+
+
+/*
+** _qmf: Quadratic Mirros Filters
+*/
+
+proc (4) = _qmf(H);
+  local nH,G,Htilde,Gtilde;
+  local indx1,indx2,indx3,indx4,i;
+
+  nH = rows(H);
+  G = rev(H).*seqm(1,-1,nH);
+
+  indx1 = 1;
+  indx2 = nH;
+  indx3 = nH-1;
+  indx4 = 2;
+
+  Htilde = zeros(nH,1);
+
+  i = 1;
+  do until i > nH/4;
+    Htilde[indx1 indx2] = H[nH-i*2+1:nH-i*2+2];
+    Htilde[indx3 indx4] = H[1+(i-1)*2:i*2];
+    indx1 = indx1+2;
+    indx2 = indx2-2;
+    indx3 = indx3-2;
+    indx4 = indx4+2;
+    i = i + 1;
+  endo;
+
+  if (i-nH/4) > 0;
+    Htilde[indx1 indx2] = H[nH-i*2+1:nH-i*2+2];
+  endif;
+
+  Gtilde = rev(Htilde).*seqm(1,-1,nH);
+
+  retp(H,G,Htilde,Gtilde);
+endp;
+
+
+/*
+** Haar
+*/
+
+proc (4) = Haar;
+  local H,G,Htilde,Gtilde;
+  H = (1|1)/sqrt(2);
+  {H,G,Htilde,Gtilde} = _qmf(H);
+  retp(H,G,Htilde,Gtilde);
+endp;
+
+
+/*
+** Coiflet
+*/
+
+proc (4) = Coiflet(order);
+  local H,G,Htilde,Gtilde;
+  local w,h0,h1,h2,h3,h4,h5;
+
+  if order == 2;
+    w = sqrt(15);
+    h0 = w-3; h1 = 1-w; h2 = 2*(3-w); h3 = 2*(w+3); h4 = w+13; h5 = 9-w;
+    H = h0|h1|h2|h3|h4|h5;
+    H = H/(16*sqrt(2));
+
+  elseif order == 4;
+
+     H =
+         0.0011945726958388|
+          -0.01284557955324|
+          0.024804330519353|
+          0.050023519962135|
+          -0.15535722285996|
+         -0.071638282295294|
+           0.57046500145033|
+           0.75033630585287|
+           0.28061165190244|
+        -0.0074103835186718|
+         -0.014611552521451|
+        -0.0013587990591632;
+
+  elseif order == 6;
+
+     H =
+        -0.0016918510194918|
+       -0.00348787621998426|
+          0.019191160680044|
+          0.021671094636352|
+         -0.098507213321468|
+         -0.056997424478478|
+           0.45678712217269|
+           0.78931940900416|
+           0.38055713085151|
+         -0.070438748794943|
+         -0.056514193868065|
+          0.036409962612716|
+         0.0087601307091635|
+         -0.011194759273835|
+        -0.0019213354141368|
+         0.0020413809772660|
+        0.00044583039753204|
+       -0.00021625727664696;
+
+  else;
+
+    ERRORLOG "error: order must take the value 2, 4 or 6.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  {H,G,Htilde,Gtilde} = _qmf(H);
+  retp(H,G,Htilde,Gtilde);
+endp;
+
+
+/*
+** Daubechies
+*/
+
+proc (4) = Daubechies(order);
+  local H,G,Htilde,Gtilde;
+  local w,ww,h0,h1,h2,h3,h4,h5;
+
+  if order == 4;
+
+    w = sqrt(3);
+    h0 = 1+w; h1 = 3+w; h2 = 3-w; h3 = 1-w;
+    H = h0|h1|h2|h3;
+    H = H/(4*sqrt(2));
+
+  elseif order == 6;
+
+    w = sqrt(10);
+    ww = sqrt(5+2*sqrt(10));
+
+    h0 = 1+w+ww;
+    h1 = 5+w+3*ww;
+    h2 = 10-2*w+2*ww;
+    h3 = 10-2*w-2*ww;
+    h4 = 5+w-3*ww;
+    h5 = 1+w-ww;
+    H = h0|h1|h2|h3|h4|h5;
+    H = H/(16*sqrt(2));
+
+
+  elseif order == 8;
+
+    H =
+             0.230377813309|
+             0.714846570553|
+            0.6308807667930|
+            -0.027983769417|
+            -0.187034811719|
+             0.030841381836|
+             0.032883011667|
+            -0.010597401785;
+
+
+  elseif order == 10;
+
+    H =
+         0.1601023979741929|
+         0.6038292697971895|
+         0.7243085284377726|
+         0.1384281459013203|
+        -0.2422948870663823|
+        -0.0322448695846381|
+         0.0775714938400459|
+        -0.0062414902127983|
+        -0.0125807519990820|
+         0.0033357252854738;
+
+  elseif order == 12;
+
+    H =
+         0.1115407433501095|
+         0.4946238903984533|
+         0.7511339080210959|
+         0.3152503517091982|
+        -0.2262646939654400|
+        -0.1297668675672625|
+         0.0975016055873225|
+         0.0275228655303053|
+        -0.0315820393184862|
+         0.0005538422011614|
+         0.0047772575119455|
+        -0.0010773010853085;
+
+  elseif order == 14;
+
+    H =
+
+         0.077852054085|
+         0.396539319482|
+         0.729132090846|
+         0.469782287405|
+        -0.143906003929|
+        -0.224036184994|
+         0.071309219267|
+         0.080612609151|
+        -0.038029936935|
+        -0.016574541631|
+         0.012550998556|
+         0.000429577973|
+        -0.001801640704|
+         0.000353713800;
+
+  elseif order == 16;
+
+    H =
+
+         0.054415842243|
+         0.312871590914|
+         0.675630736297|
+         0.585354683654|
+        -0.015829105256|
+        -0.284015542962|
+         0.000472484574|
+         0.128747426620|
+        -0.017369301002|
+        -0.044088253931|
+         0.013981027917|
+         0.008746094047|
+        -0.004870352993|
+        -0.000391740373|
+         0.000675449406|
+        -0.000117476784;
+
+  elseif order == 18;
+
+    H =
+
+         0.038077947364|
+         0.243834674613|
+         0.604823123690|
+         0.657288078051|
+         0.133197385825|
+        -0.293273783279|
+        -0.096840783223|
+         0.148540749338|
+         0.030725681479|
+        -0.067632829061|
+         0.000250947115|
+         0.022361662124|
+        -0.004723204758|
+        -0.004281503682|
+         0.001847646883|
+         0.000230385764|
+        -0.000251963189|
+         0.000039347320;
+
+  elseif order == 20;
+
+    H =
+             0.026670057901|
+             0.188176800078|
+             0.527201188932|
+             0.688459039454|
+             0.281172343661|
+            -0.249846424327|
+            -0.195946274377|
+             0.127369340336|
+             0.093057364604|
+            -0.071394147166|
+            -0.029457536822|
+             0.033212674059|
+             0.003606553567|
+            -0.010733175483|
+             0.001395351747|
+             0.001992405295|
+            -0.000685856695|
+            -0.000116466855|
+             0.000093588670|
+            -0.000013264203;
+
+  else;
+
+    ERRORLOG "error: order must take the value 4, 6, 8, 10, 12, 16, 18 or 20.";
+    retp(error(0),error(0),error(0),error(0));
+
+  endif;
+
+  {H,G,Htilde,Gtilde} = _qmf(H);
+  retp(H,G,Htilde,Gtilde);
+endp;
+
+
+/*
+** Pollen
+*/
+
+proc (4) = Pollen(alpha,beta);
+  local c1,c2,d1,d2,e1,e2;
+  local a_2,a_1,a0,a1,a2,a3;
+  local H,G,rH,rG;
+
+  c1 = cos(alpha); c2 = cos(beta);
+  d1 = sin(alpha); d2 = sin(beta);
+  e1 = cos(alpha-beta); e2 = sin(alpha-beta);
+
+  a_2 = ((1+c1+d1)*(1-c2-d2)+2*d2*c1)/4;
+  a_1 = ((1-c1+d1)*(1+c2-d2)-2*d2*c1)/4;
+  a0 = (1+e1+e2)/2;
+  a1 = (1+e1-e2)/2;
+  a2 = 1-a_2-a0;
+  a3 = 1-a_1-a1;
+  H = a_2|a_1|a0|a1|a2|a3;
+  H = dotfne(H,0).*H;
+  H = H/sqrt(2);
+  {H,G,rH,rG} = _qmf(H);
+
+  retp(H,G,rH,rG);
+endp;
+

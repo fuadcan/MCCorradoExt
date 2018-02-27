@@ -1,0 +1,83 @@
+/*
+** COINT.LIB - Econometric package for Cointegrated systems.
+** Authors: Sam Ouliaris and Peter C. B. Phillips
+** Modified to run on Unix/X-Windows: January, 1995
+*/
+
+kernels.src
+   _ker_fun _filter fejer diric mdirich parzen cauchy gw tukhan
+    reisz bohman qs kernel
+base.src
+   detrend lagn ifft reorga reorg makep1 makep2 fxx regr omega diff
+   sfft spect invxpx give gvcov rsum nt cbeta lcmmult lcminv
+   prepvec eregr bregri ptrend covarf lrvar delta _filter _aband _Nodet
+   kacf xahat cwait cpause actscr actwin
+unit.src
+   adf cza cadf gstat jstat jcrit zacrit ztcrit rzacrit rztcrit za sw c_sw
+cregrs.src
+   ccr fm pcb pcbz han hanz gpcb sj hstatc hstatf gpcbiv
+   ghaniv ccrq hstatc fm fmq hstatf pcbZiv
+   hanZiv pcbbw hanbw ghan hstat hstativ pu pz ps cregr c_sja c_sjt
+   gpcbz ghanz gpcbbw c_pu c_pz _times fm_gmm fm_ols fm_give wt
+arma.src
+   hant
+   hanrisst
+   bsplit
+   reorgld
+   reorgdl
+   ppso
+   chekarma
+   han3
+   haniter3
+   ppadfbic
+   adftr
+   ppadfbit
+   armamay
+   pptrend
+   armamayy
+   adjust
+   ferr
+   ferrfev
+   ppmax
+   armabic
+   armabi3
+   armabic3
+   armabic2
+   armatr
+   armatra
+   armatr2
+   armatr2e
+   armatrc
+   arbic
+   arpic
+   araic
+   arbice
+   arbc
+   armabc
+   arpc
+   armastat
+   armasta3
+   arstat
+   sterr
+   grfbic
+   grfpic
+   grfbicl
+   grfbicp
+   grfpicl
+   grfpiclu
+   grfbict
+   grfbicq
+   grfpict
+   grfbicpq
+   pparord
+   arord
+   picsplit
+   llnpic
+lrvar.src
+   specarma slrvr sarmagrf lrvarwx lrvrwx specwx spwxgrf lrvro pplee
+   dspectra resarma andrewsm amlrvr ppzazt
+bayes.src
+   bartr bartr2 dgraph datgraph cbare dgraphe prior postpdf postpdf1
+   postpdf2
+   intpdff zbeta matprior zpostpdf zpdf1 zpdf2 zintpdff bec0 bec00 bec3
+   bmat3 quickols

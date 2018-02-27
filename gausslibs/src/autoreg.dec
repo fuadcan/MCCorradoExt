@@ -1,0 +1,25 @@
+/*
+** autoreg.dec
+** (C) Copyright 1988-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+declare matrix _arinit;   /* if = 1, initial estimates only */
+declare matrix _ariter;   /* if 1, prints iteration information */
+declare matrix _arvsig;   /* variance of sigsq (variance of the variance of */
+                          /*  white noise error) */
+declare matrix _archisq;  /* -2*log-likelihood */
+declare matrix _artobs;   /* number of observations */
+declare matrix _arrsq;    /* explained variance */
+declare matrix _ar_lbl;   /* variable labels */

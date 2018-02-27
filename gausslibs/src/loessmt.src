@@ -1,0 +1,311 @@
+/* loessmt.src - Local Regression and optional Robust Fitting and Symmetric Errors
+**
+** (C) Copyright 2005-2006  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> loessmt
+**
+**  Format:   { yhat,ys,xs } = loessmt(lc0,y,x)
+**
+**  Input:   lc0 -- an instance of a loessmtControl structure containing the
+**					following members:
+** 
+**					lc0.Degree -- scalar, if 2, quadratic fit, otherwise 
+**							linear. Default = 1.
+**
+**					lc0.NumEval -- scalar, number of points in ys and xs.
+**							Default = 50.
+**
+**					lc0.Ouput -- scalar, if 1 (default), iteration information 
+**							and results are printed, otherwise nothing is 
+**							printed.
+**
+**					lc0.Span -- scalar, degree of smoothing, must be greater 
+**							than 2 / N.  Default = .67777.
+**
+**					lc0.WgtType -- scalar, type of weights. Default weight 
+**							type is Gaussian. If set to 1, robust, symmetric 
+**							weights are used.
+**
+**            y    Nx1 vector, dependent variable.
+**
+**            x    Nx1 vector, independent variable.
+**
+**  Output:   yhat    Nx1 vector, predicted depvar given indvars.
+**
+**            ys      lc0.numEvalx1 vector, ordinate values given abscissae
+**                    values in xs.
+**
+**            xs      lc0.numEvalx1 vector, equally spaced abscissae values.
+**
+**
+**   Remarks:
+**
+**   Adapted from a program developed by Simon Jackson
+**     (acbsjack@gosnell.spc.uchicago.edu)
+**
+**   References:
+**   William S. Cleveland. 1979. Robust Locally Weighted Regression and
+**      Smoothing Scatterplots.  _JASA_. 74:829-836.
+**   William S. Cleveland and Susan J. Devlin. 1988. Locally Weighted
+**       Regression: An Approach to Regression Analysis by Local
+**       Fitting. _JASA_. 83:596-609. [mainly on multivariate loess]
+**   William S. Cleveland, Eric Grosse, and William M. Shyu. 1991.
+**      Local Regression Models. in John M. Chambers and Trevor
+**      J. Hastie (eds). _Statistical Models in S_. Pacific Grove:
+**      Wadsworth.
+**   Michael Friendly's routines in _SAS System for Statistical
+**      Graphics, First Edition_. Cary, NC: SAS Institute.
+**   Trevor J. Hastie and R.J. Tibshirani. 1990. _Generalized
+**      Additive Models_. London: Chapman and Hall.
+*/
+
+#include loessmt.sdf
+
+
+proc(3) = loessmt(struct loessmtControl lc0,y,x);
+
+    local data,n,q,iter,i,res,wts,b,yhat,dist,s,near,nx,ny,d,delta,ystar,
+        xstar,u,x0,x1,x2,y1,y2,loind,upind,singlist,slope,dx,step,fixx,
+        sing,flag2,mask,fmt,unit,flag,oldfmt,z2,z3,s0;
+
+
+    n = rows(x);
+    unit = seqa(1,1,n);
+    if floor(lc0.Span*n) < 2;        /* check for valid lc0.Span */
+        if not trapchk(1);
+            errorlog "Invalid value for the Span member of the loessmtControl structure";
+            end;
+        else;
+            retp(error(0),error(0),error(0));
+        endif;
+    endif;
+
+    if lc0.output;
+        if lc0.WgtType == 1;
+            print "Gaussian weights";
+        else;
+            print "Symmetric weights";
+        endif;
+        if lc0.Degree == 1;
+            print "Locally linear";
+        else;
+            print "Locally quadratic";
+        endif;
+        oldfmt = sysstate(19,0);
+        format 4,2;
+        print "Span = " lc0.Span;
+        format 3,0;
+        print "Number of evaluation points " lc0.NumEval;
+        call sysstate(19,oldfmt);
+    endif;
+
+    data = sortc(x~y,1);    /* sort data first */
+    x = data[.,1];
+    y = data[.,2];
+
+    yhat = zeros(n,1);
+    delta = ones(n,1);      /* initialize robustness weights */
+    res = y;        /* initialize residuals */
+    s = ones(n,1);          /* initialize neighbor ranks */
+    singlist = zeros(n,1);          /* initialize singularity indicators  */
+
+    xstar = seqa(minc(x),(maxc(x)-minc(x))./(lc0.NumEval-1),lc0.NumEval);
+    yhat = ones(n,1);
+
+    iter = 1;
+    do until iter > lc0.WgtType;   /* iterations start 2 iterations for
+                                      :: symmetric, 1 for Gaussian
+                                      */
+        if lc0.output;
+            print "Iteration "$+ftos(iter,"*.*lf",1,0);
+        endif;
+        i = 1;
+        do until i > n;    /* loop over x values */
+            flag2 = 0;      /* initialize singularity flag */
+        loop:
+
+            if lc0.Span <= 1;
+                q = floor(lc0.Span.*n);
+            else;
+                q = n;
+            endif;          /* number of nearest neighbors */
+            x0 = x[i];      /* reference obs for this iteration */
+            dist = abs(x-x0);       /* distance to other points */
+            s = sortc(x~y~unit~dist,4);     /* identify sorted distances  */
+            s = s[1:q,.];
+            nx = s[.,1];
+            ny = s[.,2];    /* q nearest neighbors of x0 */
+            d = maxc(s[.,4]);       /* distance to furthest nearest  */
+
+            if lc0.Span > 1;
+                d = d.*lc0.Span;
+            endif;          /* p314, CGS */
+            if d > 0;
+                u = abs(nx-x0)./d;
+                wts = (u .< 1).*((1-u^3)^3);       /* tri-cube neighborhood
+                                                    :: wts
+                                                    */
+                wts = delta[s[.,3]].*wts;           /* symmetric robustness
+                                                    :: weights
+                                                    */
+
+                if sumc(wts[2:q]) > .0001;
+                    wts = sqrt(wts);
+                    if lc0.Degree == 2;
+                        z2 = (ones(rows(nx),1)~nx~nx.*nx).*wts;
+                        z3 = 1~x0~(x0^2);
+                    else;
+                        z2 = (ones(rows(nx),1)~nx).*wts;
+                        z3 = 1~x0;
+                    endif;
+
+                    if log(cond(z2)) < 16;
+                        b = (ny.*wts)/z2;
+                        yhat[i] = z3*b;
+                    else;
+                        if lc0.output;
+                            oldfmt = sysstate(19,0);
+                            format 1,0;
+                            print "Singularity obs " i;;
+                            format 8,4;
+                            print " x = " x0;;
+                            print " y = " y[i];
+                            call sysstate(19,oldfmt);
+                        endif;
+                        q = n;
+                        if flag2 /= 1;
+                            flag2 = 1;
+                            goto loop;
+                        endif;
+                        singlist[i] = 1;
+                    endif;
+                else;
+                    yhat[i] = y[i];
+                endif;
+            else;
+                yhat[i] = meanc(ny);
+                if lc0.output;
+                    oldfmt = sysstate(19,0);
+                    format 1,0;
+                    print "x(0) = 0,  obs " i;;
+                    format 8,4;
+                    print " x = " x0;;
+                    print " y = " y[i];
+                    call sysstate(19,oldfmt);
+                endif;
+                singlist[i] = 1;
+            endif;
+
+            i = i + 1;
+        endo;
+
+        if sumc(singlist) /= 0;    /* singularity fixup - interpolation */
+
+            if lc0.output;
+                s0 = "Singularity fixup (interpolation) for "$+
+                         ftos(sumc(singlist),"*.*lf",1,0)$+" observations";
+                print s0;
+            endif;
+            fixx = indexcat(singlist,1);
+            i = 1;
+            do until i eq rows(fixx);
+                if fixx[i] == 1 or fixx[i] == n;
+                    yhat[i] = y[i];
+                    i = i+1;
+                    continue;
+                endif;
+                dx = x[fixx[i]]-x[fixx[i]-1];
+                flag = 0;
+                step = 0;
+                do until flag == 1;
+                    if scalerr(indexcat(fixx,fixx[i]+step+1)) == 13;
+                        flag = 1;
+                    else;
+                        step = step + 1;
+                    endif;
+                endo;
+                slope = (yhat[fixx[i]+step]-yhat[fixx[i]-1]);
+                slope = slope./(x[fixx[i]+step]-x[fixx[i]-1]);
+                yhat[fixx[i]] = yhat[fixx[i]-1]+(slope.*dx);
+                i = i + 1;
+            endo;
+        endif;
+
+        res = y - yhat;       /* residuals */
+        if lc0.WgtType == 2;   /* get robustness weights */
+            u = res./(6*median(abs(res)));
+            delta = (abs(u) .< 1) .* ((1 - u.*u)^2);
+        endif;
+        iter = iter + 1;
+    endo;
+
+    if lc0.output;
+        if lc0.WgtType == 2;
+            print "Obs    X      Y     Fitted Y    Weights  Residuals";
+            mask = { 1 1 1 1 1 1 };
+            let fmt[6,3] = "*.*lf " 3 0 "*.*lf" 8 3 "*.*lf" 8 3 "*.*lf" 8
+                3 "*.*lf" 8 3 "*.*lf" 8 3 ;
+            call printfm(seqa(1,1,n)~x~y~yhat~delta~res,mask,fmt);
+        else;
+            print "Obs    X      Y     Fitted Y    Residuals";
+            mask = { 1 1 1 1 1 };
+            let fmt[5,3] = "*.*lf " 3 0 "*.*lf" 8 3 "*.*lf" 8 3 "*.*lf" 8
+                3 "*.*lf" 8 3 ;
+            call printfm(seqa(1,1,n)~x~y~yhat~res,mask,fmt);
+        endif;
+    endif;
+
+/* I N T E R P O L A T I O N */
+    if lc0.NumEval == n or abs(lc0.NumEval-rows(unique(x,1))) < 2;
+        xstar = unique(x,1);
+        ystar = yhat[uniqindx(x,1)];
+        goto done;
+    endif;
+    ystar = ones(lc0.NumEval,1);
+    ystar[1] = yhat[1];
+    ystar[lc0.NumEval] = yhat[n];         /* fix end points */
+    i = 2;
+    do until i == lc0.NumEval;
+        d = x-xstar[i];
+        upind = minindc(recode(d,d .< 0,maxc(d)+1));
+        loind = maxindc(recode(d,d .> 0,minc(d)-1));
+        x1 = x[loind];
+        x2 = x[upind];
+        y1 = yhat[loind];
+        y2 = yhat[upind];
+        ystar[i] = y1+((y2-y1)./(x2-x1).*(xstar[i]-x1));
+        i = i+1;
+    endo;
+done:
+
+    retp(yhat,ystar,xstar);
+endp;
+
+
+proc loessmtControlCreate;
+	struct loessmtControl lc0;
+
+	lc0.Span = .6667;
+	lc0.NumEval = 50;
+	lc0.Degree = 1;
+	lc0.WgtType = 2;
+	lc0.output = 1;
+	
+	retp(lc0);
+endp;
+

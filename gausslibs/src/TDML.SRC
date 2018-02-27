@@ -1,0 +1,662 @@
+/*
+** tdml.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {theta,stderr,Mcov,LogL} = TD_cml(&ml,sv,RR,r);
+**                                Maximum Likelihood Estimation in the
+**                                TIME domain under linear restrictions    24
+**
+**  {theta,stderr,Mcov,LogL} = TD_ml(&ml,sv);
+**                                Maximum Likelihood Estimation in the
+**                                TIME domain                              74
+**
+**  {J_matrix,G_matrix,H_matrix,I_matrix} = TDml_derivatives(&ml,theta);
+**                                Jacobian, gradient, Hessian and information
+**                                matrices of the log-likelihood function
+**                                in the TIME domain                      121
+*/
+
+
+/*
+** TD_cml
+**
+** Purpose: Maximum Likelihood Estimation in the TIME domain
+**          under the linear restriction theta = RR*gamma+r
+**
+** Format:  {theta,stderr,Mcov,LogL} = TD_cml(&ml,sv,RR,r);
+**
+** Input: &ml - pointer to a procedure which computes the log-likelihood vector
+**         sv - g*1 vector, starting values for the maximization algorithm
+**         RR - np*g matrix, the R matrix of the restricted equation
+**         r - np*1 vector, the r vector of the restricted equation
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function at
+**                  its maximum
+**
+** Globals:  _print - scalar 1 (default), print the statistics
+**                    scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                    scalar 0, use the BHHH algorithm
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                    the BHHH algorithm (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                    1 for the inverse of the negative hessian matrix
+**                    2 for the inverse of the OPG estimator
+**                    3 for the White Heteroskedasticity matrix
+**       _tsm_parnm - np*1 vector, names of the parameters
+**                    - or -
+**                    scalar, default names
+** _ml_Jacobian_proc - pointer to a procedure which computes the Nobs*np
+**                     Jacobian matrix of the log-likelihood function
+**                     - or -
+**                     scalar 0, numerical Jacobian
+**
+**  _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                    matrices of the log-likelihood function
+**
+** Remarks:
+**           The CV matrix and the standard errors of the estimated coefficients
+**           are not computed if _tsm_Mcov = 0
+**
+**           The information matrix is not available. Use the negative of the
+**           hessian in place of infomation matrix.
+**
+*/
+
+
+/*
+** TD_ml
+**
+** Purpose: Maximum Likelihood Estimation in the TIME domain
+**
+** Format:  {theta,stderr,Mcov,LogL} = TD_ml(&ml,sv);
+**
+** Input: &ml - pointer to a procedure which computes the log-likelihood vector
+**         sv - np*1 vector, starting values for the maximization algorithm
+**
+** Output:  theta - np*1 vector, estimated coefficients
+**         stderr - np*1 vector, standard errors
+**           Mcov - np*np matrix, covariance matrix
+**           LogL - scalar, value of the log-likelihood function at
+**                  its maximum
+**
+** Globals:  _print - scalar 1 (default), print the statistics
+**                    scalar 0, do not print the statistics
+**      _tsm_optmum - scalar 1, use the optmum library
+**                    scalar 0, use the BHHH algorithm
+**        _tsm_gtol - scalar, convergence criterion for the gradient for
+**                    the BHHH algorithm (default = 0.001)
+**        _tsm_Mcov - scalar, type of the covariance matrix
+**                    1 for the inverse of the negative hessian matrix
+**                    2 for the inverse of the OPG estimator
+**                    3 for the White Heteroskedasticity matrix
+**       _tsm_parnm - np*1 vector, names of the parameters
+**                    - or -
+**                    scalar, default names
+** _ml_Jacobian_proc - pointer to a procedure which computes the Nobs*np
+**                     Jacobian matrix of the log-likelihood function
+**                     - or -
+**                     scalar 0, numerical Jacobian
+**
+**  _ml_derivatives - data buffer, Jacobian, gradient, Hessian and information
+**                    matrices of the log-likelihood function
+**
+** Remarks:
+**           The CV matrix and the standard errors of the estimated coefficients
+**           are not computed if _tsm_Mcov = 0
+**
+**           The information matrix is not available. Use the negative of the
+**           hessian in place of infomation matrix.
+**
+*/
+
+
+/*
+** TDml_derivatives
+**
+** Purpose: Compute the jacobian, gradient, hessian and information
+**          matrices of the log-likelihood function in the TIME domain
+**
+** Format:  {J_matrix,G_matrix,H_matrix,I_matrix} = TDml_derivatives(&ml,theta);
+**
+** Input: &ml - pointer to a procedure which computes the log-likelihood vector
+**         theta - np*1 vector, coefficients
+**
+** Output:  J_matrix - Nobs*np matrix, the Jacobian matrix
+**          G_matrix - np*1 vector, the gradient vector
+**          H_matrix - np*np matrix, the Hessian matrix
+**          I_matrix - missing value
+**
+** Globals:
+** _ml_Jacobian_proc - pointer to a procedure which computes the Nobs*np
+**                     Jacobian matrix of the log-likelihood function
+**                     - or -
+**                     scalar 0, numerical Jacobian
+*/
+
+
+/*
+** Maximum Likelihood: Estimation in the time domain
+**
+** DAVIDSON and MACKINNON [1993], Estimation and Inference in Econometrics
+** Oxford University Press, chapter 8
+*/
+
+
+/*
+** TD_ml
+*/
+
+proc (4) = TD_ml(ml,sv);
+  local ml:proc;
+  local Np,RR,r,theta,stderr,Mcov,Logl;
+
+  Np = rows(sv);
+  RR = eye(Np); r = zeros(Np,1);
+
+  {theta,stderr,Mcov,Logl} = _TD_cml(&ml,sv,RR,r);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+
+/*
+** TD_cml
+*/
+
+proc (4) = TD_cml(ml,sv,RR,r);
+  local ml:proc;
+  local Np,err,theta,stderr,Mcov,Logl;
+
+  Np = rows(sv);
+
+  if ( cols(RR) /= Np ) or ( cols(r) /= 1 ) or ( rows(RR) /= rows(r) );
+
+    ERRORLOG "error: Wrong size format of the RR, r or sv matrices.";
+    call pause(2);
+    err = error(0);
+    retp(err,err,err,err);
+
+  endif;
+
+  {theta,stderr,Mcov,Logl} = _TD_cml(&ml,sv,RR,r);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+
+/*
+================================================================================
+*/
+
+proc (4) = _TD_cml(ml,sv,RR,r);
+  local ml:proc;
+  local Np,Np_,T,N,oldtrap;
+  local _gamma,_gamma0,theta,LogL,gd,retcode,CVretcode;
+  local Jproc,Jacobian,Hessian,Gradient,BHHH,H_inv,JJ_inv,Mcov;
+  local stderr,tstudent,pvalue,ddl,parnm,cn;
+  local Niter,alpha,cl,j,omat,fmt,databuf,old;
+
+  clear databuf;
+
+  old = csrtype(0);
+
+  output off;
+
+  Np = cols(RR); Np_ = rows(RR);
+
+  _TD_ml = &ml; _ml_RR = RR; _ml_r = r;
+
+  if __title $== "";
+    __title = "MLE in the Time Domain";
+  endif;
+
+  if _ml_Jacobian_proc /= 0;
+
+    Jproc = _ml_Jacobian_proc;
+    local Jproc:proc;
+
+    Jacobian = Jproc(RR*sv+r);
+
+    if ( rows(Jacobian) /= rows(ml(RR*sv+r)) ) or ( cols(Jacobian) /= Np_ );
+
+      ERRORLOG "error: The dimension of the matrix defined by"\
+               " _ml_Jacobian_proc";
+      ERRORLOG "       must be Nobs*np.";
+      end;
+    endif;
+
+  endif;
+
+  if _tsm_optmum == 0;
+
+    /* BHHH algorithm */
+
+    _gamma0 = sv;
+    Logl = -__TD_cml(_gamma0);
+
+    Jacobian = _ml_jacobian;         /* Jacobian of ml(theta)  */
+    Jacobian = packr(Jacobian);
+    Jacobian = Jacobian*RR;          /* Jacobian of ml(_gamma) */
+
+    Gradient = sumc(Jacobian);       /* Gradient of ml(_gamma) */
+    BHHH = Jacobian'Jacobian;        /* BHHH matrix            */
+
+    cls;
+    Niter = 0;
+    alpha = miss(0,0);
+
+    do while 1;
+
+      if maxc(abs(Gradient)) < _tsm_gtol;
+        _gamma = _gamma0;
+        break;
+      endif;
+
+      cl = key;
+      if cl == 1030;
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      if __output /= 0;
+
+        locate 1,2; print chrs(45*ones(1,77));
+        locate 3,2; print chrs(45*ones(1,77));
+        locate 7,2; print chrs(45*ones(1,77));
+
+        locate 2,33; print "BHHH algorithm";
+        locate 4,23; print ftos(LogL, "Log-likelihood          %lf",10,5);
+        locate 5,23; print ftos(alpha,"Line Search             %lf",10,3);
+        locate 6,23; print ftos(Niter,"Number of iterations    %lf",10,0);
+        locate 8,5; print "parameters/gradient";
+
+        if Np <= 26;
+
+          omat = _gamma0~Gradient;
+          if Np%2 == 1;
+            omat = omat|miss(zeros(1,2),0);
+          endif;
+
+          omat = reshape(omat,rows(omat)/2,4);
+          let fmt[4,3] =  "*.*lf" 18 6  "*.*lf" 18 6
+                          "*.*lf" 18 6  "*.*lf" 18 6;
+          locate 10,1; call printfm(omat,1~1~1~1,fmt);
+
+          locate 9,2;  print chrs(45*ones(1,77));
+          j = 1;
+          do until j > rows(omat);
+            locate 9+j,40; print chrs(124);
+            j = j+1;
+          endo;
+          locate 9+j,2;  print chrs(45*ones(1,77));
+
+        else;
+
+          locate 15,2; print ftos(maxc(Gradient),"Max. Gradient:  %lf",10,6);
+
+        endif;
+
+      endif;
+
+      {_gamma,alpha,LogL} = _ml_BHHH(_gamma0,Gradient,BHHH,LogL);
+
+      if _gamma == error(0);
+        sv = _gamma0;
+        _tsm_optmum = 1;
+        break;
+      endif;
+
+      Niter = Niter +1;
+      _gamma0 = _gamma;
+
+    Jacobian = _ml_jacobian;         /* Jacobian of ml(theta)  */
+    Jacobian = packr(Jacobian);
+    Jacobian = Jacobian*RR;          /* Jacobian of ml(_gamma) */
+
+    Gradient = sumc(Jacobian);       /* Gradient of ml(_gamma) */
+    BHHH = Jacobian'Jacobian;        /* BHHH matrix            */
+
+    endo;
+
+  endif;
+
+  if _tsm_optmum /= 0;
+
+    if _ml_Jacobian_proc /= 0;
+      _opgdprc = &_TDml_gradp;
+    endif;
+    {_gamma,Logl,gd,retcode} = optmum(&__TD_cml,sv);
+    _tsm_retcode = retcode;
+    _opgdprc = 0;
+    LogL = - LogL;
+
+  endif;
+
+  theta = RR*_gamma+r;
+
+  cls;
+  if __title $== "MLE in the Time Domain";
+    __title = "";
+  endif;
+
+  if _tsm_Mcov == 0;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    retp(theta,stderr,Mcov,Logl);
+
+  else;
+
+    print "Computing the covariance matrix...";
+
+    if _ml_Jacobian_proc /= 0;
+      Jacobian = Jproc(theta);             /* Jacobian of ml(theta) */
+    else;
+      Jacobian = gradp(&ml,theta);         /* Jacobian of ml(theta) */
+    endif;
+    Gradient = sumc(packr(Jacobian));      /* Gradient of ml(theta) */
+    if _tsm_Mcov == 2 and _tsm_Hessian == 0;
+      Hessian = miss(0,0);
+    else;
+      Hessian = hessp(&___TD_cml,theta);   /* Hessian of ml(theta)  */
+    endif;
+
+    databuf = vput(databuf,Jacobian,"J_matrix");
+    databuf = vput(databuf,Gradient,"G_matrix");
+    databuf = vput(databuf,Hessian,"H_matrix");
+    databuf = vput(databuf,miss(0,0),"I_matrix");
+    _ml_derivatives = databuf;
+
+    N = rows(Jacobian);
+    Jacobian = packr(Jacobian);
+    T = rows(Jacobian);
+    Hessian = RR'*Hessian*RR;
+    Jacobian = Jacobian*RR;
+
+    if _tsm_Mcov == 3;
+
+      CVretcode = 3;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      H_inv = inv(Hessian);
+      trap oldtrap,1;
+      if scalerr(H_inv);
+
+        ERRORLOG "error: The Hessian matrix is not invertible.";
+        call pause(2);
+        H_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = H_inv*(Jacobian'Jacobian)*H_inv;
+
+    elseif _tsm_Mcov == 2;
+
+      CVretcode = 2;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      JJ_inv = invpd(Jacobian'Jacobian);
+      trap oldtrap,1;
+      if scalerr(JJ_inv);
+
+        ERRORLOG "error: The cross product of the derivatives"\
+                 " is not invertible.";
+        call pause(2);
+        JJ_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = JJ_inv;
+
+    else;
+
+      CVretcode = 1;
+
+      oldtrap = trapchk(1);
+      trap 1,1;
+      H_inv = inv(Hessian);
+      trap oldtrap,1;
+      if scalerr(H_inv);
+
+        ERRORLOG "error: The Hessian matrix is not invertible.";
+        call pause(2);
+        H_inv = miss(zeros(Np,Np),0);
+        CVretcode = 4;
+
+      endif;
+
+      Mcov = - H_inv;
+
+    endif;
+
+    Mcov = RR*Mcov*RR';
+
+  endif;
+
+  if hasimag(Mcov) == 0;
+
+    Mcov = real(Mcov);
+
+  else;
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    CVretcode = 4;
+
+  endif;
+
+  ddl = T-Np;
+  stderr = sqrt(diag(Mcov));
+
+  if iscplx(stderr);
+
+    Mcov = miss(zeros(Np_,Np_),0);
+    stderr = diag(Mcov);
+    CVretcode = 4;
+
+  endif;
+
+  tstudent = theta./miss(stderr,0);
+  pvalue = 2*cdftc(abs(tstudent),ddl);
+
+  output on; cls;
+
+  if _print == 1;
+    cn = N|T|Np|ddl|LogL;
+
+    if ( _tsm_parnm /= 0 ) and ( rows(_tsm_parnm) == Np_);
+      parnm = _tsm_parnm;
+    else;
+    parnm = {};
+      parnm = 0$+"P"$+ftocv(seqa(1,1,Np_),2,0);
+    endif;
+
+    cls;
+    call _ml_print(parnm,theta,stderr,tstudent,pvalue,cn,CVretcode);
+  endif;
+
+  call csrtype(old);
+
+  retp(theta,stderr,Mcov,Logl);
+endp;
+
+proc __TD_cml(_gamma);
+  local RR,r,theta,ml,l,LogL;
+  local Jproc;
+
+  RR = _ml_RR; r = _ml_r;
+  theta = RR*_gamma+r;
+
+  ml = _TD_ml;
+  local ml : proc;
+
+  l = ml(theta); l = packr(l);
+  LogL = sumc(l);
+
+  if _tsm_optmum == 0;
+
+    if _ml_Jacobian_proc /= 0;
+      Jproc = _ml_Jacobian_proc;
+      local Jproc:proc;
+      _ml_jacobian = Jproc(theta);      /* Jacobian of ml(theta) */
+    else;
+      _ml_jacobian = gradp(&ml,theta);  /* Jacobian of ml(theta) */
+    endif;
+
+  endif;
+
+  retp(-LogL);
+endp;
+
+proc ___TD_cml(theta);
+  local ml,l,LogL;
+
+  ml = _TD_ml;
+  local ml : proc;
+
+  l = ml(theta); l = packr(l);
+  LogL = sumc(l);
+
+  retp(LogL);
+endp;
+
+proc _TDml_gradp(_gamma);
+  local RR,r,theta,Jproc,J,g;
+
+  RR = _ml_RR; r = _ml_r;
+  theta = RR*_gamma+r;
+
+  Jproc = _ml_Jacobian_proc;
+  local Jproc:proc;
+
+  J = Jproc(theta);
+  G = sumc(packr(J));
+  G = RR'G;
+
+  retp(-G');
+endp;
+
+proc (3) = _ml_BHHH(_gamma0,Gradient,BHHH,LogL);
+  local H_inv,alpha,_gamma,D,L;
+  local oldtrap;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  H_inv = inv(BHHH);
+  trap oldtrap,1;
+  if scalerr(H_inv);
+
+    ERRORLOG "error: The BHHH matrix is not invertible.";
+    call pause(2);
+    retp(error(0),error(0),error(0));
+
+  endif;
+
+  /* Line search */
+
+  alpha = 1;
+  D = H_inv*Gradient;
+
+  do while 1;
+    _gamma = _gamma0 + alpha*D;
+    L = -__TD_cml(_gamma);
+    if L > LogL;
+      break;
+    else;
+      alpha = alpha/2;
+    endif;
+    if alpha < 0.5^5;
+
+      ERRORLOG "error: Line Search failed.";
+      call pause(2);
+      retp(error(0),error(0),error(0));
+
+    endif;
+  endo;
+
+  retp(_gamma,alpha,L);
+endp;
+
+proc (0) = _ml_print(parnm,theta,stderr,tstudent,pvalue,cn,CV_retcode);
+  local mask,fmt,omat,st;
+
+  mask=0~1~1~1~1;
+  let fmt[5,3]=  "-*.*s"  8 8  "*.*lf" 16 6 "*.*lf" 16 6
+                 "*.*lf" 17 6  "*.*lf" 16 6;
+  omat = parnm~theta~stderr~tstudent~pvalue;
+  print;
+  st = "Total observations:                              %*.*lf  ";
+  print ftos(cn[1],st,15,0);
+  st = "Usable observations:                             %*.*lf  ";
+  print ftos(cn[2],st,15,0);
+  st = "Number of parameters to be estimated:            %*.*lf  ";
+  print ftos(cn[3],st,15,0);
+  st = "Degrees of freedom:                              %*.*lf  ";
+  print ftos(cn[4],st,15,0);
+  st = "Value of the maximized log-likelihood function:  %*.*lf  ";
+  print ftos(cn[5],st,15,5);
+  print;  print;
+  print "Parameters      estimates       std.err.    "\
+        "  t-statistic         p-value   ";
+  print "-----------------------------------------"\
+        "---------------------------------";
+  call printfm(omat,mask,fmt);
+
+  print;
+  if CV_retcode == 0;
+    print "The covariance matrix is not computed.";
+  elseif CV_retcode == 1;
+    print "Covariance matrix: inverse of the negative Hessian.";
+  elseif CV_retcode == 2;
+    print "Covariance matrix: OPG estimator.";
+  elseif CV_retcode == 3;
+    print "Covariance matrix: White Heteroskedastic matrix.";
+  else;
+    print "Failed to compute the covariance matrix.";
+  endif;
+
+  retp;
+endp;
+
+/*
+================================================================================
+*/
+
+
+/*
+** TDml_derivatives
+*/
+
+proc (4) = TDml_derivatives(ml,theta);
+  local ml:proc;
+  local Jproc,J_matrix,G_matrix,H_matrix,I_matrix;
+
+  _TD_ml = &ml;
+
+  if _ml_Jacobian_proc /= 0;
+    Jproc = _ml_Jacobian_proc;
+    local Jproc:proc;
+    J_matrix = Jproc(theta);
+  else;
+    J_matrix = gradp(&ml,theta);
+  endif;
+
+  G_matrix = sumc(packr(J_matrix));
+  H_matrix = hessp(&___TD_cml,theta);
+  I_matrix = miss(0,0);
+
+  retp(J_matrix,G_matrix,H_matrix,I_matrix);
+endp;
+
+

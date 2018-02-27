@@ -1,0 +1,332 @@
+/*
+** ARMAEST.SRC      Version 1.0          Rainer Schlitgen February 2001
+**
+**  Procedures for ML estimation of seasonal arma models
+**
+**  1.ARMALLIK  -2*loglikelihood
+**  2.ARMAEST   performing the estimation
+**  3.GESAMT    multiply two ar or two ma filters 
+**
+*/
+
+/* 
+**> ARMALLIK
+**
+**  Purpose: computes -2*loglikelihood of a seasonal arma model
+**           used by armaest
+**  Format : ll = armallik(par)
+**  Input  : par =(m,1) vector of paramete values, the parameters of
+**                ar1,ar2,ma1,ma2 are stackt in that order 
+**  Output : ll = scalar, the value of -2*loglikelihood  
+**
+**  Remarks: the assignmet of the components of par to the polynomials
+**           is controlled throgh global variables
+**  
+**  Reference: 
+**  Jones, R.H. (1980): Maximum Likelihood fitting of ARMA models 
+**   to time series with missing observations; Technometrics, 22, 389-395        
+*/ 
+
+
+PROC (1) = armallik(par);
+
+LOCAL alpha,theta,phi,kappa,n,m,g,F,H,c,z,e,v,P,gamm,zwi,t,yt,ll,s,D,y,von ;
+  
+  y = _y_;
+  
+  alpha = 0;
+  phi=0;
+  theta = 0;
+  kappa = 0;
+  
+ IF _p_ ;   
+  alpha = ZEROS(_p_,1);
+  alpha[_pindex_] = par[1:_pnumb_ ];  
+ ENDIF;
+ IF _ps_; 
+   phi = ZEROS(_ps_*_s_,1);
+   von = 1+_pnumb_ ;
+   phi[_psindex_*_s_] = par[SEQA(von,1,_psnumb_ )];  
+ ENDIF;
+ IF _q_;
+   theta = ZEROS(_q_,1);
+   von = 1+_pnumb_ +_psnumb_ ;
+   theta[_qindex_] = par[SEQA(von,1,_qnumb_ )];
+ ENDIF;
+ IF _qs_;
+   kappa = ZEROS(_qs_*_s_,1);
+   von = 1+_pnumb_ +_psnumb_ +_qnumb_ ;
+   kappa[_qsindex_*_s_] = par[SEQA(von,1,_qsnumb_ )];
+ ENDIF;
+ alpha = gesamt(alpha,phi);
+ theta = gesamt(theta,kappa);
+ m = MAXC(ROWS(alpha)|(ROWS(theta)+1));    @  2.3    @                     
+ alpha = take(alpha|ZEROS(m,1),m);
+ theta = take(theta|ZEROS(m,1),m);
+     
+ 
+ n = ROWS(y);
+
+
+ g =  (1|-theta)/LOWMAT(TOEPLITZ(1|-alpha));                      @  2.13   @ 
+ F = (ZEROS(ROWS(alpha)-1,1)~EYE(ROWS(alpha)-1))|REV(alpha)';    @  2.15   @ 
+ H = 1~ZEROS(1,m-1); 
+ 
+ c = acovth(alpha,theta,1,m);
+ 
+/*  - - - Initialisierung - - -*/
+ 
+ z = ZEROS(ROWS(F),1);
+ e = MISS(ONES(n,1),1);
+ v = MISS(ONES(n,1),1);
+ 
+ P = SHIFTR(RESHAPE(c[1:m],m,m),SEQA(0,1,m),0);       @   4.12   @                                              
+ gamm = RESHAPE(g[1:m-1],m-1,m-1);                    
+ zwi =  LOWMAT(gamm)*SHIFTR(gamm,-SEQA(0,1,m-1),0);
+ P[1:m-1,1:m-1] = P[1:m-1,1:m-1] - zwi - zwi[m-1:1,m-1:1] + DIAG(zwi);
+
+ /*  --  Iteration  --  */
+
+ t = 0;
+ DO WHILE t < n;
+ 
+   t = t+1;
+   z = F*z;                                @  3.1  @ 
+   P = F*P*F' + g[1:m]*g[1:m]';            @  3.2  @
+   yt = z[1];                              @  3.3  @
+   
+   IF NOT SCALMISS(y[t]);
+    v[t] = P[1,1]  ;                        @  3.10 @ 
+    D = P[.,1]/V[t];                        @  3.5  @
+    z = z + D*(y[t]-yt);                    @  3.4  @
+    P = P-D*H*P;                            @  3.7  @
+   ENDIF;
+   
+   e[t] = y[t]-yt;                          @  3.8  @  
+ ENDO;
+   v = PACKR(v);
+   e = PACKR(e);
+  _e_ = e;
+
+ ll = SUMC(LN(v)) + n*LN(SUMC((e^2)./v));      @ 3.15  @
+ 
+ _s2_ = MEANC((e^2)./v);                       @ 3.14  @
+
+  RETP(ll);  
+ENDP;
+
+/* 
+**> ARMAEST
+**
+**  Purpose: ml-estimation of a seasonal arma model
+**            
+**  Format : {par,stdpar,corpar,sigma2,e,ll} 
+**               = armaest(y,p_index,ps_index,q_index,qs_index,s,par0)
+**  Input  : y =(n,1) vector the time series
+**           p_index = (p1,1)-vector the indices of the first ar polynom or
+**                   = 0 if no non-seasonal ar polynom is present  
+**           ps_index = (p2,1)-vector the indices of the second ar polynom or
+**                   = 0 if no seasonal ar polynom is present
+**           q_index = (q1,1)-vector the indices of the first ma polynom or
+**                   = 0 if no non-seasonal ma polynom is present
+**           qs_index = (q2,1)-vector the indices of the second ma polynom or
+**                   = 0 if no non-seasonal ma polynom is present
+**           s = scalar, seasonal period
+**           par0 = 0 if no starting values are delivered  or
+**                = (p1+p2+q1+q2,1) vector of initial parameter values
+**  Output : par = (p1+p2+q1+q2,1) vector of parameter values
+**           stdpar = (p1+p2+q1+q2,1) vector of standard errors of parameter estimates
+**           corpar = (p1+p2+q1+q2,p1+p2+q1+q2)  correlation matrix of
+**                    parameter estimates 
+**           sigma2 = scalar, estimated error variance
+**           e = vector of residuals
+**           ll = scalar, the value of the loglikelihood function
+**
+** Remarks:
+**    Nelder Meads polytope algorithm is used to obtain the optimum 
+**    Check if stationarity and invertibility conditions are met is
+**    performed at the end only
+**
+*/ 
+
+
+
+  
+PROC (6) = armaest(y,p_index,ps_index,q_index,qs_index,s,par0);
+ 
+ LOCAL alpha,theta,g,H,i,it,j,ll,n,par,parindex,s2,r,von;
+ LOCAL ar_index,ma_index,phi,kappa,z1,cov,par1,par2,e,stdpar,sigma2;
+ 
+ _pindex_ = p_index;
+ _psindex_ = ps_index;
+ _qindex_ = q_index;
+ _qsindex_ = qs_index;
+ _p_ = MAXC(p_index);
+ _pnumb_  = ROWS(p_index)*(_p_>0); 
+ _ps_ = MAXC(ps_index);
+ _psnumb_  = ROWS(ps_index)*(_ps_>0);
+ _q_ = MAXC(q_index);
+ _qnumb_  = ROWS(q_index)*(_q_>0);
+ _qs_ = MAXC(qs_index); 
+ _qsnumb_  = ROWS(qs_index)*(_qs_>0);
+  _y_= y - tsmean(y);
+  _s_ = s;
+  n = ROWS(y);
+   
+  IF (_p_ >= s) AND (_ps_ > 0); 
+    PRINT "Order of first AR-factor is required to be < seasonal period"; STOP;
+  ENDIF;   
+  IF (_q_ >= s) AND (_qs_ > 0); 
+    PRINT "Order of first MA-factor is required to be < seasonal period"; STOP;
+  ENDIF;        
+  
+  alpha = 0;
+  phi = 0;
+  _arnumb_=0;
+   
+  IF _pnumb_ ; 
+     alpha = ZEROS(_p_,1);    alpha[p_index]=alpha[p_index]+1; 
+  ENDIF;
+  IF _psnumb_ ; 
+     phi = ZEROS(_ps_*s,1);   phi[ps_index*s]=phi[ps_index*s]+1; 
+  ENDIF;
+  ar_index = gesamt(alpha,phi)./=0;
+  IF NOT ar_index == 0;
+     _arnumb_ = ROWS(ar_index);
+     ar_index = SELIF(SEQA(1,1,_arnumb_),ar_index);
+  ENDIF;
+  
+  theta = 0;
+  kappa = 0;
+  _manumb_=0;
+ 
+  IF _qnumb_ ; 
+     theta = ZEROS(_q_,1);     theta[q_index]=theta[q_index]+1; 
+  ENDIF;
+  IF _qsnumb_  > 0; 
+     kappa = ZEROS(_qs_*s,1); kappa[qs_index*s]=kappa[qs_index*s]+1;
+  ENDIF;
+  ma_index = gesamt(theta,kappa)./=0;
+  IF NOT ma_index == 0;
+     _manumb_ = ROWS(ma_index);
+     ma_index = SELIF(SEQA(1,1,_manumb_),ma_index);
+  ENDIF;           
+ 
+/* initial values */
+
+ e = y; 
+ par=par0;
+ 
+ IF par0 == 0;
+   {par,stdpar,cov,e,sigma2}=armadhr(e,ar_index,ma_index);
+         
+    par1 = take(par,_pnumb_);
+    IF _ps_;
+      par1 = par1|take(RESHAPE(par,_psnumb_,_pnumb_+1)',-1)';
+    ENDIF;
+    par2 = {};
+    IF _q_ OR _qs_;
+     par = TRIMR(par,_arnumb_,0);
+     par2 = take(par,_qnumb_);
+     IF _qs_;
+      par2 = par2|take(RESHAPE(par,_qsnumb_,_qnumb_+1)',-1)';
+     ENDIF;
+    ENDIF;
+   par=par1|par2;
+ ENDIF;
+
+ {ll,par} = nelmead(&armallik,par);
+ 
+  sigma2= _s2_;
+  e = _e_;
+
+/* check if stationaty and invertibility conditions are met */
+  
+  r ={};
+  IF _pnumb_ ; 
+     alpha[p_index] = par[1:_pnumb_];
+     r = rootcheck(alpha);  
+  ENDIF;
+  IF _psnumb_ ; 
+     von = 1+_pnumb_;
+     phi[ps_index*s] = par[von:(von-1+_psnumb_)]; 
+     r = r|rootcheck(phi);
+  ENDIF;
+  IF _qnumb_ ; 
+     von = 1+_pnumb_+_psnumb_;
+     theta[q_index] = par[von:(von-1+_qnumb_)];
+     r = r|rootcheck(theta); 
+  ENDIF;
+  IF _qsnumb_  > 0; 
+     von = 1+_pnumb_+_psnumb_+_qnumb_;
+     kappa[qs_index*s] = par[von:(von-1+_qsnumb_)];
+     r = r|rootcheck(kappa);
+  ENDIF;
+  
+  IF r > 1;
+    H = HESSP(&armallik,par);
+    cov = sigma2*INV(H);
+    stdpar = SQRT(DIAG(cov));
+  ELSE;
+    cov = MISS(0,0); 
+    stdpar = MISS(ZEROS(ROWS(par),1),0);  
+  ENDIF;
+
+PRINT  "                   Parameter       standard-error   t-statistic  P-value";
+i = 0;
+IF _p_;
+PRINT "1.ar-Polynom";
+PRINT "       Lag";
+ DO WHILE i<_pnumb_;
+  i=i+1;
+  PRINT  p_index[i];; ":";; par[i]~stdpar[i]~(par[i]/stdpar[i])~(2-2*cdfn(abs(par[i]/stdpar[i]))) ;
+ ENDO; 
+ENDIF;
+IF _ps_;
+PRINT "2.ar-Polynom" ;
+PRINT "       Lag";
+ j = 0;
+ DO WHILE i<_pnumb_+_psnumb_;
+  i=i+1;
+  j = j+1;
+  PRINT  ps_index[j];;":";; par[i]~stdpar[i]~(par[i]/stdpar[i])~(2-2*cdfn(abs(par[i]/stdpar[i]))) ;
+ ENDO; 
+ENDIF;
+IF _q_;
+PRINT "1.ma-Polynom" ;
+PRINT "       Lag";
+ j = 0;
+ DO WHILE i<_pnumb_+_psnumb_+_qnumb_;
+  i=i+1;
+  j = j+1;
+  PRINT q_index[j];;":";; par[i]~stdpar[i]~(par[i]/stdpar[i])~(2-2*cdfn(abs(par[i]/stdpar[i]))) ;
+ ENDO; 
+ENDIF;
+IF _qs_;
+PRINT "2.ma-Polynom" ;
+PRINT "       Lag";
+ j = 0;
+ DO WHILE i<ROWS(par);
+  i=i+1;
+  j = j+1;
+  PRINT qs_index[j];;":";; par[i]~stdpar[i]~(par[i]/stdpar[i])~(2-2*cdfn(abs(par[i]/stdpar[i]))) ;
+ ENDO; 
+ENDIF;
+  
+  RETP(par,stdpar,cov./(stdpar*stdpar'),sigma2,e,ll);
+
+ENDP; 
+
+ 
+PROC (1) = gesamt(a,b);
+ LOCAL ges;
+ IF a==0 AND b==0;
+  ges = 0;
+ ELSE; 
+  ges = TRIMR(-POLYMULT(1|-a,1|-b),1,0);
+  ges = TRIMR(ges,0,CUMSUMC(REV(ges).==0));
+ ENDIF; 
+ RETP(ges);
+ENDP; 
+
+

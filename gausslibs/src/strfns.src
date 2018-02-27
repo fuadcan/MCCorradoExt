@@ -1,0 +1,299 @@
+/*
+** strfns.src
+** (C) Copyright 2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** =================================================================
+**
+**> satostrC
+**
+**  Purpose:    Copies from one string array to another using a C language
+**              format specifier string for each element.
+**
+**  Format:     y = satostrC(sa,fmt);
+**
+**  Inputs:     sa         NxM string array.
+**
+**              fmt        1x1, 1xM, or Mx1 format specifier for each element copy.
+**
+**  Returns:    y          NxM formatted string array.
+**
+**  Globals:    None
+*/
+
+proc (1) = satostrC(sain,fmt);
+    local r, c, saout, nelem, typ;
+    clear saout;
+
+    r = rows(sain);
+    c = cols(sain);
+    typ = type(sain);
+
+    if typ == 13;
+        r = 1;
+        c = 1;
+        dllcall satostrS(sain,saout,fmt,r,c,typ);
+    else;
+        nelem = rows(fmt) * cols(fmt);
+        if nelem == 1;
+            dllcall satostrS(sain,saout,fmt,r,c,typ);
+        elseif nelem == c;
+            dllcall satostrV(sain,saout,fmt,r,c);
+        else;
+            errorlog "Format string vector must be string or have same number of columns as string array.";
+            end;
+        endif;
+    endif;
+
+    retp(commandeersa(r, c, saout));
+endp;
+
+/*
+**> strcombine
+**
+**  Purpose:    Converts an NxM string array to an Nx1 string vector by
+**              combining each element in a column separated by a user-
+**              defined delimiter string.
+**
+**  Format:     y = strcombine(sa,delim,qchar);
+**
+**  Inputs:     sa         NxM string array.
+**
+**              delim      1x1, 1xM or Mx1 delimiter string
+**
+**              qchar      scalar, 2x1, or 1x2 string vector containing
+**                         quote characters as required:
+**
+**                         scalar:
+**                         Use this character as quote character.  If
+**                         this is 0, no quotes are added.
+**
+**                         2x1 or 1x2 string vector:
+**                         Contains left and right quote characters.
+**
+**  Returns     y          Nx1 string vector result.
+**
+**  Globals:    None
+*/
+
+proc (1) = strcombine(sain,delim,qchar);
+    local r, c, saout, nelem, qleft, qright, typ, typ2;
+    clear saout;
+
+    r = rows(sain);
+    c = cols(sain);
+    typ = type(sain);
+    typ2 = type(qchar);
+
+    if typ2 == 13;
+        qleft = qchar;
+        qright = qchar;
+    elseif typ2 == 6;
+        qleft = "";
+        qright = "";
+    else;
+        qleft = qchar[1];
+        qright = qchar[2];
+    endif;
+
+    if typ == 13;
+        r = 1;
+        c = 1;
+        dllcall strcombineS(sain,saout,delim,r,c,qleft,qright,typ);
+    else;
+        nelem = rows(delim) * cols(delim);
+
+        if nelem == 1;
+            dllcall strcombineS(sain,saout,delim,r,c,qleft,qright,typ);
+        elseif nelem == c;
+            dllcall strcombineV(sain,saout,delim,r,c,qleft,qright,typ);
+        else;
+            errorlog "Delimiter string vector not conformable to string array";
+            end;
+        endif;
+
+    endif;
+
+    retp(commandeersa(r, 1, saout));
+endp;
+
+/*
+**> strtriml
+**
+**  Purpose:    Strips all whitespace characters from the left side of each element
+**              in a string array.
+**
+**  Format:     y = strtriml(sa);
+**
+**  Inputs:     sa         NxM string array.
+**
+**  Returns     y          NxM string array.
+**
+**  Globals:    None
+*/
+
+proc (1) = strtriml(sain);
+    local r, c, saout, typ;
+    clear saout;
+
+    typ = type(sain);
+
+    if typ == 13;
+        r = 1;
+        c = 1;
+        dllcall strtrimL(sain,saout,r,c,typ);
+    else;
+        r = rows(sain);
+        c = cols(sain);
+        dllcall strtrimL(sain,saout,r,c,typ);
+    endif;
+
+    retp(commandeersa(r, c, saout));
+endp;
+
+/*
+**> strtrimr
+**
+**  Purpose:    Strips all whitespace characters from the right side of each element
+**              in a string array.
+**
+**  Format:     y = strtrimr(sa);
+**
+**  Inputs:     sa         NxM string array.
+**
+**  Returns     y          NxM string array.
+**
+**  Globals:    None
+*/
+
+proc (1) = strtrimr(sain);
+    local r, c, saout, typ;
+    clear saout;
+
+    typ = type(sain);
+
+    if typ == 13;
+        r = 1;
+        c = 1;
+        dllcall strtrimR(sain,saout,r,c,typ);
+    else;
+        r = rows(sain);
+        c = cols(sain);
+        dllcall strtrimR(sain,saout,r,c,typ);
+    endif;
+
+    retp(commandeersa(r, c, saout));
+endp;
+
+/*
+**> strtruncl
+**
+**  Purpose:    Truncates the left side of all elements of a string array
+**              by a number of user-specified characters.
+**
+**  Format:     y = strtruncl(sa,ntrunc);
+**
+**  Inputs:     sa         NxM, Nx1, 1xM, or 1x1 string array.
+**
+**              ntrunc     NxM, Nx1, 1xM, or 1x1 matrix containing the
+**                         number of characters to strip.
+**
+**  Returns     y          String array result.
+**
+**  Globals:    None
+*/
+
+proc (1) = strtruncl(sain,ntrunc);
+    local r, c, rt, ct, saout, typ;
+    clear saout;
+
+    typ = type(sain);
+    rt = rows(ntrunc);
+    ct = cols(ntrunc);
+
+    // if string type...
+    if typ == 13;
+        r = 1;
+        c = 1;
+
+        if rt*rt == 1;
+            dllcall -r strtruncLS(sain,saout,r,c,ntrunc,typ);
+        else;
+            errorlog "Truncation matrix not conformable to string";
+            end;
+        endif;
+
+    // otherwise it's a string array
+    else;
+        r = rows(sain);
+        c = cols(sain);
+
+        if rt*ct == 1;
+            dllcall -r strtruncLS(sain,saout,r,c,ntrunc,typ);
+        else;
+            dllcall -r strtruncLM(sain,saout,r,c,ntrunc,rt,ct,typ);
+        endif;
+
+    endif;
+
+    retp(commandeersa(r, c, saout));
+endp;
+
+/*
+**> strtruncr
+**
+**  Purpose:    Truncates the right side of all elements of a string array
+**              by a number of user-specified characters.
+**
+**  Format:     y = strtruncr(sa,ntrunc);
+**
+**  Inputs:     sa         NxM, Nx1, 1xM, or 1x1 string array.
+**
+**              ntrunc     NxM, Nx1, 1xM, or 1x1 matrix containing the
+**                         number of characters to strip.
+**
+**  Returns     y          String array result.
+**
+**  Globals:    None
+*/
+
+proc (1) = strtruncr(sain,ntrunc);
+    local r, c, rt, ct, saout, typ;
+    clear saout;
+
+    typ = type(sain);
+    rt = rows(ntrunc);
+    ct = cols(ntrunc);
+
+    // if string type...
+    if typ == 13;
+        r = 1;
+        c = 1;
+        dllcall -r strtruncRS(sain,saout,r,c,ntrunc,typ);
+
+    // otherwise it's a string array
+    else;
+        r = rows(sain);
+        c = cols(sain);
+
+        if rt*ct == 1;
+            dllcall -r strtruncRS(sain,saout,r,c,ntrunc,typ);
+        else;
+            dllcall -r strtruncRM(sain,saout,r,c,ntrunc,rt,ct,typ);
+        endif;
+
+    endif;
+
+    retp(commandeersa(r, c, saout));
+endp;

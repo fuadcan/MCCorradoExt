@@ -1,0 +1,437 @@
+/*
+**  fastmax.src   FASTMAX - Fast Maximum Likelihood Estimation
+**
+**
+** (C) Copyright 2001-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> fastmax
+**
+**  Purpose:  computes maximum likelihood estimates
+**
+**  Format:   { x,f,g,cov,retcode } = FASTMAX(data,vars,&fct,start)
+**
+**  Input:    dataset      NxK matrix, data
+**
+**            vars         Kx1 vector or scalar zero, numeric vector 
+**                         of column numbers in data set of variables 
+**                         selected for analysis.
+**                         If scalar zero, all columns are selected.
+**
+**            fct          the name of a procedure that returns a
+**                         vector of log-likelihoods for a matrix of
+**                         observations
+**
+**            start        Kx1 vector, start values
+**
+**
+**  Output:   b            Kx1 vector, maximum likelihood estimates
+**
+**            f            scalar, function at minimum (mean log-likelihood)
+**
+**            g            Kx1 vector, gradient
+**
+**            cov          KxK matrix, covariance matrix of coefficients
+**
+**            retcode      return code:
+**
+**                            0   normal convergence
+**                            1   forced exit
+**                            2   maximum number of iterations exceeded
+**                            3   function calculation failed
+**                            4   gradient calculation failed
+**                            5   Hessian calculation failed
+**                            6   step length calculation failed
+**                            7   function cannot be evaluated at initial
+**                                parameter values
+**                            8   number of elements in the gradient vector
+**                                inconsistent with number of starting values
+**                            9   gradient function returned a column vector
+**                                rather than the required row vector
+**                           10   secant update failed
+**                           11   maximum time exceeded
+**                           12   weights could not be found
+**                           20   Hessian failed to invert
+**                           34   data set could not be opened
+**                           99   termination condition unknown
+**
+**  Globals:
+**
+**       ----- Options -----
+**  149 _max_Options  - string array, specification of options,
+**                       default is equivalent to:
+**
+**                  string _max_Options = { bfgs stepbt forward info }
+**
+**     ----- Descent ------
+**  167 _max_Algorithm  - scalar, determines descent algorithm (2)
+**  175 _max_Delta      - scalar, floor for Hessian Eigenvalues in Newton (.1)
+**
+**       ----- Line Search -----
+**  181 _max_LineSearch - scalar, determines line search method (2)
+**  195 _max_MaxTry     - scalar, maximum # of tries in step length methods(100)
+**  197 _max_Extrap     - scalar, extrapolation constant for BRENT (2.0)
+**  199 _max_Interp     - scalar, interpolation constant for BRENT (.25)
+**  201 _max_RandRadius - scalar, radius of random direction (0)
+**      _max_RandType   - scalar, type of pseudo-random number generator
+**      _max_state      _ scalar or vector, seed for pseudo-random numbers
+**
+**      ----- Covariance Matrix of Parameters -----
+**  212 _max_CovPar    - scalar, determines type of covariance matrix of
+**                    parameters (1)
+**  223 _max_XprodCov  - KxK matrix, cross-product covariance matrix of
+**                    parameters when _max_CovPar = 3
+**  227 _max_HessCov   - KxK matrix, information matrix covariance matrix
+**                    of parameters when _max_CovPar = 3
+**  233 _max_FinalHess - KxK matrix, stores hessian used for covariance
+**
+**      ----- Gradients -----
+**  244 _max_GradMethod  - determines type of numerical gradient (1)
+**  248 _max_GradProc    - scalar, pointer to analytical gradient procedure (0)
+**  278 _max_HessProc    - scalar, pointer to analytical hessian procedure (0)
+**  307 _max_GradStep    - scalar, increment size for computing gradient (0)
+**  309 _max_GradCheckTol - scalar, if nonzero, check analytical gradients (0)
+**
+**      ----- Convergence Criteria -----
+**  316 _max_GradTol  - scalar, convergence tolerance for gradient (1e-5)
+**  320 _max_MaxIters - scalar, maximum number of iterations (1e+5)
+**  322 _max_MaxTime  - scalar, maximum time in iterations in minutes (1e+5)
+**
+**   ----- Data -----
+**  327 _max_Active   - vector, defines fixed/active coefficients (1)
+**  330 __weight      - vector, frequency of observations (1)
+**  345 _max_NumObs   - scalar, rows of data matrix (output)
+**  347 _max_ParNames - char. vector, parameter names (0)
+**
+**   ----- Miscellaneous -----
+**  338 _max_IterData   - 3x1 vector, # of iters, elapsed time, cov method
+**
+******************************************************************************
+**
+**  _max_Options - string array, specification of options.  This global
+**                 permits setting various FASTMAX options in a single global
+**                 using string identifiers.  For example,
+**
+**                 string _max_Options = { brent newton central };
+**
+**                sets the line search method to BRENT, the descent method
+**                to NEWTON, the numerical gradient method to central
+**                differences.
+**
+**                Algorithms:  STEEP, BFGS, DFP, NEWTON, BHHH, PRCG
+**                Line Search:  ONE, STEPBT, HALF, BRENT, BHHHSTEP
+**                Covariance Matrix :  NOCOV, INFO, XPROD, QML
+**                Gradient method:  CENTRAL, FORWARD
+**
+**   ----- Descent ------
+**
+**  _max_Algorithm  -  scalar, indicator for optimization method:
+**               = 1,   SD (steepest descent)
+**               = 2,   BFGS (Broyden, Fletcher, Goldfarb, Shanno)
+**               = 3,   DFP (Davidon, Fletcher, Powell)
+**               = 4,   NEWTON (Newton-Raphson)
+**               = 5,   BHHH
+**               = 6,   Polak-Ribiere Conjugate Gradient
+**
+**  _max_Delta - scalar, floor for eigenvalues of Hessian in the NEWTON
+**               algorithm. This will insure that the Hessian will be
+**               positive definite.
+**
+**
+**   _max_Switch - 4x1 or 4x2 vector, controls algorithm switching:
+**
+**         if 4x1:
+**
+**            _max_Switch[1] = algorithm number to switch to
+**            _max_Switch[2] = NLP switches if functions changes less
+**                             than this amount
+**            _max_Switch[3] = NLP switches if this number of iterations
+**                             is exceeded.
+**            _max_Switch[4] = NLP switches if line search step changes
+**                             less than this amount
+**
+**         else if 4x2, nlp switches between the algorithm in column 1
+**             and column 2
+**
+**
+**   ----- Line Search -----
+**
+**  _max_LineSearch - scalar, indicator determining the line search method.
+**
+**             = 1,  steplength = 1
+**             = 2,  STEPBT  (default)
+**             = 3,  HALF
+**             = 4,  BRENT
+**             = 5,  BHHHSTEP
+**
+**             Usually _max_Step = 2 will be best.  If the optimization
+**             bogs down try setting _max_Step = 1 or 3.  _max_Step = 3
+**             will generate slow iterations but faster convergence and
+**             _max_Step = 1 will generate fast iterations but slower
+**             convergence.
+**
+**  _max_MaxTry - scalar, maximum number of tries in BRENT and GOLDEN.
+**
+**  _max_Extrap - scalar, extrapolation constant in BRENT.
+**
+**  _max_Interp - scalar, interpolation constant in BRENT.
+**
+**  _max_RandRadius - scalar, if _max_RandRadius is set to a nonzero
+**            value (1e-2, say) and all other line search methods fail then
+**             OPTMUM will attempt a random direction with radius
+**             determined by _max_RandRadius.
+**
+**
+**  _max_RandType   scalar, if nonzero, pseudo-random numbers of the linear 
+**                  congruential type are generated, otherwise, they are 
+**                  generated by Marsaglia's "Kiss-Monster" method.  The 
+**                  latter method is slower but has a much larger period.   
+**
+**  _max_state      scalar or vector, state vector for pseudorandom number 
+**                  generators containing seed.  By default it is set to 
+**                  345678.  If you wish to select a seed, set to a 
+**                  different value.  
+**
+**   ----- Covariance Matrix of Parameters -----
+**
+**  _max_CovPar  -  scalar, type of covariance matrix of parameters,
+**              = 0,  the inverse of the final information matrix from
+**                    the optimization is returned in cov (default).
+**              = 1,  the inverse of the second derivatives is returned.
+**
+**              = 2,  the inverse of the cross-product of the first
+**                    derivatives is returned.
+**
+**              = 3,  the hetereskedastic-consistent covariance matrix
+**                    is returned.
+**
+**  _max_XprodCov - KxK matrix, when _max_CovPar is set to 3 the
+**                  cross-product matrix covariance matrix of the
+**                  parameters will be returned in _max_XprodCov.
+**
+**  _max_HessCov - KXK matrix, when _max_CovPar is set to 3 the
+**             information matrix covariance matrix of the parameters,
+**             i.e., the inverse of the matrix of second order partial
+**             derivatives of the log-likelihood, will be returned in
+**            _max_HessCov.
+**
+**  _max_FinalHess - KxK matrix, the Hessian used to compute the covariance
+**             matrix of the parameters will be stored in _max_FinalHess.
+**             This will be most useful if the inversion of the hessian
+**             fails, which is indicated when FASTMAX returns a
+**             missing value for the covariance matrix of the
+**             parameters.  An analysis of the Hessian stored in
+**             _max_FinalHess can then reveal the source of the linear
+**             dependency responsible for the singularity.
+**
+**       ----- Gradients -----
+**
+**  _max_GradMethod  - scalar, method for computing numerical gradient.
+**               = 0, central difference
+**               = 1, forward difference (default)
+**
+**  _max_GradProc - scalar, pointer to a procedure that computes the
+**             gradient of the function with respect to the parameters.
+**             For example, the instruction:
+**
+**                    _max_GradProc=&gradproc
+**
+**             tells FASTMAX that a gradient procedure exists as well
+**             where to find it.  The user-provided procedure has
+**             two input arguments, a Kx1 vector of parameter values and
+**             an NxP matrix of data.  The procedure returns a single
+**             output argument, an NxK matrix of gradients of the log-
+**             likelihood function with respect to the parameters evaluated
+**             at the vector of parameter values.
+**
+**             Default = 0, i.e., no gradient procedure has been provided.
+**
+**
+**  _max_HessProc - scalar, pointer to a procedure that computes the
+**             hessian, i.e., the matrix of second order partial derivatives
+**             of the function with respect to the parameters.  For example,
+**             the instruction:
+**
+**                   _max_HessProc=&hessproc;
+**
+**             tells OPTMUM that a procedure has been provided for the
+**             computation of the hessian and where to find it.  The
+**             procedure that is provided by the user has two
+**             input arguments, a Kx1 vector of parameter values and an
+**             NxK data matrix.  The procedure returns a single
+**             output argument, the KxK symmetric matrix of second order
+**             derivatives of the function evaluated at the parameter
+**             values.
+**
+**
+**    _max_GradStep  - scalar, or 1x2, or Kx1, or Kx2, increment size for
+**             computing numerical gradient and/or Hessian.  If scalar,
+**             stepsize will be value times parameter estimates for the
+**             numerical gradient.  If 1x2, the first element is
+**             multiplied times parameter value for gradient and second
+**             element the same for the Hessian.  If Kx1, the step size
+**             for the gradient will be the elements of the vector, i.e.,
+**             it will not be multiplied times the parameters, and if
+**             Kx2, the second column sets the step sizes for the Hessian.
+**
+**
+**   ----- Convergence Criteria -----
+**
+**  _max_GradTol  - scalar, convergence tolerance for gradient of estimated
+**             coefficients.  Default = 1e-5.  When this criterion has been
+**             satisifed OPTMUM will exit the iterations.
+**
+**  _max_MaxIters - scalar, maximum number of iterations.
+**
+**  _max_MaxTime - scalar, maximum time in iterations in minutes.
+**             Default = 1e+5, about 10 weeks.
+**
+**   ----- Data -----
+**
+**  _max_Active - vector, 0 = fixed coefficient, 1 = active coefficient.
+**                By default all coefficients are active.
+**
+**  __weight - vector, frequency of observations.  By default all
+**             observations have a frequency of 1.  zero frequencies
+**             are allowed.  It is assumed that the elements of __weight
+**             sum to the number of observations.
+**
+**  _max_NumObs  - scalar, number of cases in the data set that was analyzed.
+**
+**  _max_ParNames - Kx1 character vector, parameter labels.
+**
+**   ----- Miscellaneous -----
+**
+**
+**  _max_IterData - 3x1 vector, contains information about the iterations.
+**             The first element contains the # of iterations , the second
+**             element contains the elapsed time in minutes of the iterations,
+**             and the third element contains a character variable indicating
+**             the type of covariance matrix of the parameters.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**     Procedure For Computing Likelihood Function
+**
+**           The user must provide a procedure for computing the
+**       log-likelihood for either one observation, or for a matrix of
+**       observations.  The procedure must have two input arguments,
+**       first, a vector of parameter values, and second, one or more rows
+**       of the data matrix.  The output argument is the log-likelihood
+**       for the observation or observations in the second argument
+**       evaluated at the parameters values in the first argument.
+**           Suppose that the function procedure has been named fct,
+**       the following considerations apply:
+**
+**       FORMAT
+**               logl=fct(x,y)
+**
+**       INPUT
+**               x - vector of parameters of model
+**
+**               y - data set 
+**
+**       OUTPUT
+**               logl -  a vector of log-likelihoods by observation
+**
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**    Calling FASTMAX Recursively
+**
+**    The procedure that computes the log-likelihood may itself call
+**    FASTMAX.   When calling FASTMAX recursively the following
+**    considerations apply:
+**
+**       If a nested version of FASTMAX is going to use the data set
+**    opened by the outer version of FASTMAX then pass a null string
+**    (i.e., "") in the first argument in the call.  If it is going
+**    to analyze a different data set from the outer version then
+**    pass it the data set name in a string.  You may also load and
+**    store a data set in memory in the command file and pass it as
+**    the first argument in the nested call to FASTMAX.
+**
+**        Before the call to the nested version of FASTMAX, the global
+**    variables may be re-set by calling MAXCLR.  You must not use
+**    MAXSET because that will clear information about the data sets
+**    opened and processed in the outer version.  The only differences
+**    between MAXSET and MAXCLR are references to these globals.
+**
+**         You may also want to disable the keyboard control of the
+**    nested versions.  This is done by setting the global _max_key = 0
+**    after the call to MAXCLR and before the call to the nested FASTMAX.
+**
+*/
+
+/*-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------*/
+
+/*  SOURCE CODE  */
+
+#include gauss.ext
+#include maxlik.ext
+
+
+
+
+proc (5) = fastmax(dataset,var,lfct,start);
+    local x,f,g,h,retcode;
+    local Lmlcpvcp, Lmlhsvcp, Lmlfhess, Lmlitdta, Lmldiag;
+
+   if _max_GradMethod == 0;
+        _max_eps2 = __macheps^(1/3);
+    else;
+        _max_eps2 = __macheps^(1/2);
+    endif;
+    _max_eps3 = __macheps^(1/3);
+
+
+     { x,f,g,h,retcode,Lmlfhess,Lmlitdta,Lmlcpvcp,Lmlhsvcp,
+        _max_NumObs,_max_dsn } = _fastmax(dataset,var,lfct,start,
+     _max_Algorithm,
+     _max_LineSearch,
+     _max_CovPar,
+     _max_GradMethod,
+     _max_GradStep,
+     _max_Delta,
+     _max_Extrap,
+     _max_GradProc,
+     _max_GradTol,
+     _max_HessProc,
+     _max_Interp,
+     _max_MaxIters,
+     _max_MaxTime,
+     _max_MaxTry,
+     _max_NumObs,
+     _max_RandRadius,
+     _max_Options,
+     _max_Switch,
+     _max_Active,
+     _max_dat,
+     _max_dsn,
+     __altnam,
+     __weight
+     );
+
+     _max_FinalHess = Lmlfhess;
+     _max_IterData = Lmlitdta;
+     _max_XprodCov = Lmlcpvcp;
+     _max_HessCov = Lmlhsvcp;
+
+    retp(x,f,g,h,retcode);
+endp;
+

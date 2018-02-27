@@ -1,0 +1,52 @@
+
+===============================================================================
+ CML Version 1.0.0                                           4/15/96   3:43 pm
+===============================================================================
+
+return code =    0
+normal convergence
+
+Mean log-likelihood        -1.41393
+Number of cases     100
+
+Covariance of the parameters computed by the following method:
+Inverse of computed Hessian
+
+Parameters    Estimates     Std. err.  Est./s.e.  Prob.    Gradient
+------------------------------------------------------------------
+P01              2.1090        0.9317    2.264   0.0118      0.0000
+P02              3.0016        0.0909   33.004   0.0000      0.0000
+P03              0.3899        0.0923    4.225   0.0000     -0.0000
+P04              0.9950        0.0704   14.142   0.0000     -0.0000
+
+Correlation matrix of the parameters
+   1.000  -0.985  -0.056  -0.000
+  -0.985   1.000   0.057   0.000
+  -0.056   0.057   1.000   0.000
+  -0.000   0.000   0.000   1.000
+
+Number of iterations    12
+Minutes to convergence     0.01650
+
+===============================================================================
+ CML Version 1.0.0                                           4/15/96   3:43 pm
+===============================================================================
+
+return code =    0
+normal convergence
+
+Mean log-likelihood        -1.49592
+Number of cases     100
+
+Covariance of the parameters computed by the following method:
+Inverse of computed Hessian
+
+Parameters    Estimates     Std. err.    Gradient
+------------------------------------------------------------------
+P01              2.3915        1.0429      0.0000
+P02              2.9735        0.1029      0.0000
+P03             -0.0000        0.0000     -0.3877
+P04              1.0800        0.0764     -0.0000
+
+Number of iterations    11
+Minutes to convergence     0.01550

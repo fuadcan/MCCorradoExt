@@ -1,0 +1,31 @@
+
+Total observations:                                          200  
+Usable observations:                                         200  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          196  
+Value of the maximized log-likelihood function:       -274.86856  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+P01             1.045677        0.140481         7.443554        0.000000
+P02            -0.068500        0.127416        -0.537612        0.591455
+P03             0.764313        0.116696         6.549593        0.000000
+P04             0.956379        0.047820        19.999773        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          200  
+Usable observations:                                         200  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                          195  
+Value of the maximized log-likelihood function:       -273.11486  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+AR1_11          1.045680        0.102420        10.209736        0.000000
+AR2_11         -0.068504        0.095210        -0.719504        0.472692
+MA1_11          0.764316        0.074676        10.235107        0.000000
+
+Covariance matrix: inverse of the negative Hessian.

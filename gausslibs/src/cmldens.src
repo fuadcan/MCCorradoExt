@@ -1,0 +1,356 @@
+/*
+** cmldens.src    CMLdensity  -  Kernel Density Estimation
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**   Adapted from a procedure written by Gary King, Department of Government,
+**   Harvard University
+**
+**   Reference:  B.W. Silverman. 1986. _Density Estimation for Statistics
+**      and Data Analysis_.  London: Chapman and Hall.
+**
+**   An Application: Gary King. "Constituency Service and Incumbency
+**      Advantage,"  _British Journal of Political Science_, 21, 1
+**      (January, 1991): 119--128.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> CMLdensity
+**
+**  Purpose:   To compute kernel density estimate and plot.
+**
+**
+**  Format:    ( px,py,sm } = CMLdensity(dataset,pars)
+**
+**  Input:     dataset     string, name of GAUSS dataset
+**                         containing data.
+**
+**             pars        Kx1 vector, selected columns for
+**                         estimation and display.
+**
+**
+**  Output:    px          _cml_NumPointsx1 vector, abscissae.
+**             py          _cml_NumPointsx1 vector, ordinates.
+**             sm          Kx1, or Nxk, or Nx1 smoothing coefficients.
+**
+**  Remarks:
+**
+**       kernel density plots of the selected parameters are
+**       generated.
+**
+**  Globals:
+**
+**     _cml_Kernel     Kx1 character vector, type of kernel:
+**
+**                    NORMAL - normal kernel
+**                      EPAN - Epanechnikov kernel
+**                     BIWGT - biweight kernel
+**                    TRIANG - triangular kernel
+**                   RECTANG - rectangular kernel
+**                   TNORMAL - truncated normal kernel
+**
+**            If _cml_Kernel is scalar, the kernel is the same
+**            for all parameters.  Default = { NORMAL };
+**
+**  _cml_NumPoints    scalar, number of points to be computed for plots
+**
+**  _cml_EndPoints    Kx2 matrix, lower (in first column) and upper
+**                    (in second column) endpoints of density.  Default is
+**                    minimum and maximum, respectively, of the parameter
+**                    values.  If 1x2 matrix, endpoints will be the same
+**                    for all parameters.
+**
+**  _cml_Smoothing    Kx1 vector or Nx1 vector or NxK matrix, smoothing
+**                    coefficients for each plot.  If scalar, smoothing
+**                    coefficient will be the same for each plot.  If zero,
+**                    smoothing coefficient will be computed by CMLdensity.
+**                    If matrix, smoothing coefficient will be different for
+**                    each observation.
+**                    Default = 0;
+**
+**  _cml_Truncate     Kx2 matrix, lower (in first column) and upper (in
+**                    second column) truncation limits for truncated normal
+**                    kernel. If 1x2 matrix, truncations limits will be the
+**                    same for all plots.  Default is minimum and maximum,
+**                    respectively.
+*/
+
+#include cml.ext
+
+
+proc 3 = CMLdensity(dataset,pars);
+    local strt,endd,kern,pts,px,py,smth,std,Tleft,Tright,i0,oldvwr;
+    local fhandle,k1,vnames,vindx,t1,t2,sq5,kernm,kern0,y0, nobs,ivar,i,
+        px0,py0,smth0,z,oaw,vv,str,scalarsm,obsvecsm,varsvecsm,matrixsm;
+
+    kernm = { NORMAL, EPAN, BIWGT, TRIANG, RECTANG, TNORMAL };
+    kern0 = { 1, 2, 3, 4, 5, 1 };
+    sq5 = sqrt(5);
+
+    if type(pars) == 13;
+        pars = stof(pars);
+    endif;
+
+    if type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(error(0),error(0),error(0));
+        endif;
+
+        call seekr(fhandle,1);
+        if pars $== 0;
+            vindx = 0;
+            vnames = getname(dataset);
+        else;
+            { vnames,vindx } = indices(dataset,pars);
+        endif;
+
+        dataset = { };
+        k1 = getnr(6,colsf(fhandle));
+        do until eof(fhandle);
+            y0 = readr(fhandle,k1);
+            dataset = dataset | y0[.,vindx];
+        endo;
+        clear y0;
+        if fhandle > 0;
+            fhandle = close(fhandle);
+        endif;
+    else;
+        if not (pars $== 0);
+            dataset = dataset[.,pars];
+            vnames = "PAR_"$+pars;
+        else;
+            vnames = "PAR_"$+seqa(1,1,cols(dataset));
+        endif;
+    endif;
+    nobs = rows(dataset);
+
+    pts = int(_cml_NumPoints[1,1]);
+    if pts <= 2;
+        if trapchk(4);
+            errorlog "ERROR: _cml_NumPoints must be greater than 2 - Try _c"\
+                "ml_NumPoints = 100";
+            retp(error(0),error(0),error(0));
+        endif;
+    endif;
+
+    px0 = zeros(pts,cols(dataset));
+    py0 = zeros(pts,cols(dataset));
+
+    ScalarSm = rows(_cml_Smoothing) == 1 and cols(_cml_Smoothing) == 1;
+    ObsVecSm = rows(_cml_Smoothing) == rows(dataset) and
+                 cols(_cml_Smoothing) == 1;
+    VarsVecSm = rows(_cml_Smoothing) == cols(dataset) and
+                 cols(_cml_Smoothing) == 1;
+    MatrixSm = rows(_cml_Smoothing) == rows(dataset) and
+                      cols(_cml_Smoothing) == cols(dataset);
+
+
+    if ScalarSm or VarsVecSm;
+        smth0 = zeros(cols(dataset),1);
+    elseif ObsVecSm or MatrixSm;
+        smth0 = zeros(rows(dataset),cols(_cml_Smoothing));
+    else;
+        errorlog "CMLDENSITY: _cml_Smoothing not conformable to data";
+        if not trapchk(4);
+           end;
+        else;
+           retp(error(0),error(0),error(0));
+        endif;
+    endif;
+
+#IFUNIX
+    if __output;
+        oaw = WinGetActive;
+        vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+    endif;
+#ENDIF
+    oldvwr = setvwrmode("many");
+
+    ivar = 1;
+    do until ivar > cols(dataset);
+        if rows(_cml_EndPoints) == 1;
+            i0 = 1;
+        else;
+            i0 = ivar;
+        endif;
+        strt = _cml_EndPoints[i0,1];
+        endd = _cml_EndPoints[i0,2];
+
+        if strt > endd;
+            if trapchk(4);
+                if __output;
+                    errorlog "CMLDENSITY:  endpoints improperly defined";
+                    retp(error(0),error(0),error(0));
+                endif;
+            endif;
+        elseif strt==endd;
+            strt = minc(dataset[.,ivar]);
+            endd = maxc(dataset[.,ivar]);
+        endif;
+
+        if ScalarSm or ObsVecSm;
+            smth = _cml_Smoothing;
+        elseif VarsVecSm;
+            smth = _cml_Smoothing[ivar];
+        elseif MatrixSm;
+            smth = _cml_Smoothing[.,ivar];
+        endif;
+
+        if (smth < 0) and (smth /= -1);
+            if trapchk(4);
+                errorlog "ERROR: _cml_Smoothing must be -1 or > than 0";
+                retp(error(0),error(0),error(0));
+            endif;
+        endif;
+        py = sortc(dataset[.,ivar],1);
+        if smth == 0;
+            std = minc((py[int(3*rows(py) / 4)] - py[int(rows(py)/4)]) /
+                1.34 | stdc(py));
+            smth = 0.9 * std * (rows(py)^(-0.2));
+        endif;
+        if rows(_cml_Kernel) == 1;
+            kern = _cml_check(_cml_Kernel,1,kernm,kern0,1);
+        else;
+            kern = _cml_check(_cml_Kernel[ivar],1,kernm,kern0,1);
+        endif;
+
+        Tleft = 0;
+        Tright = 0;
+
+        if kern == 2;
+            if rows(_cml_Truncate) == 1;
+                i0 = 1;
+            else;
+                i0 = ivar;
+            endif;
+            if _cml_Truncate[i0,1] == _cml_Truncate[i0,2];
+                Tleft = strt;
+                Tright = endd;
+            else;
+                Tleft = _cml_Truncate[i0,1];
+                Tright = _cml_Truncate[i0,2];
+            endif;
+        endif;
+
+        t1 = (endd - strt) / pts;
+        px = seqa(strt+0.4*t1,t1,pts);
+        py = px;
+
+        i = 1;
+        do while i <= pts;
+            if MatrixSm;
+                z = (py[i,1] - dataset[.,ivar])./smth[i];
+            else;
+                z = (py[i,1] - dataset[.,ivar])./smth;
+            endif;
+            if (kern == 1);         /* NORMAL kernel */
+                if MatrixSm;
+                    py[i,1] = sumc((1 / sqrt(2*pi)) *
+                             exp(-0.5*(z.*z))./smth[i])/nobs;
+                else;
+                    py[i,1] = sumc((1 / sqrt(2*pi)) *
+                             exp(-0.5*(z.*z))./smth)/nobs;
+                endif;
+            elseif (kern == 2);     /* EPANECHNIKOV kernel */
+                t1 = (abs(z) .< sq5);
+                t2 = code(t1,sq5|1);
+                if MatrixSm;
+                    py[i,1] = sumc( t1.*(.75*(1-.2*(z.*z))./t2)./smth[i])/nobs;
+                else;
+                    py[i,1] = sumc(t1.*(.75*(1-.2*(z.*z))./t2)./smth)/nobs;
+                endif;
+            elseif (kern == 3);     /* BIWEIGHT kernel */
+                if MatrixSm;
+                    py[i,1] = sumc(.9375*(abs(z).<1).*
+                                    ((1-(z.*z))^2)./smth[i])/nobs;
+                else;
+                    py[i,1] = sumc(.9375*(abs(z).<1).*
+                                    ((1-(z.*z))^2)./smth)/nobs;
+                endif;
+            elseif (kern == 4);     /* TRIANGULAR kernel */
+                if MatrixSm;
+                    py[i,1] = sumc((abs(z).<1).*(1 - abs(z))./smth[i])/nobs;
+                else;
+                    py[i,1] = sumc((abs(z).<1).*(1 - abs(z))./smth)/nobs;
+                endif;
+            elseif (kern == 5);     /* RECTANGULAR kernel */
+                if MatrixSm;
+                    py[i,1] = sumc(0.5*(abs(z).<1)./smth[i])/nobs;
+                else;
+                    py[i,1] = sumc(0.5*(abs(z).<1)./smth)/nobs;
+                endif;
+            elseif (kern == 6);     /* TRUNCATED NORMAL kernel */
+                if py[i,1] > tleft and z < tright;
+                    if MatrixSm;
+                        py[i,1] = sumc(pdfn(z)./(cdfn((tright -
+                        dataset[.,ivar])/smth[i])-cdfn((tleft -
+                        dataset[.,ivar])/smth[i]))./smth[i])/nobs;
+                    else;
+                        py[i,1] = sumc(pdfn(z)./(cdfn((tright -
+                        dataset[.,ivar])/smth)-cdfn((tleft -
+                        dataset[.,ivar])/smth))./smth)/nobs;
+                    endif;
+                else;
+                    py[i,1] = 0;
+                endif;
+            else;
+                errorlog "_cml_Kernel incorrectly specified";
+                if not trapchk(4);
+                    end;
+                else;
+                    retp(error(0),error(0),error(0));
+                endif;
+            endif;
+
+            i = i + 1;
+        endo;
+
+        px0[.,ivar] = px;
+        py0[.,ivar] = py;
+        if ScalarSm or VarsVecSm;
+            smth0[ivar] = smth;
+        elseif ObsVecSm or MatrixSm;
+            smth0[.,ivar] = smth;
+        endif;
+        str = ""$+vnames[ivar];
+
+#IFUNIX
+        if __output and sysstate(26,0) == 2;
+            call WinSetActive(WinOpenPQG(vv,str,"Density"));
+            xlabel(str);
+            xy(px,py);
+            vv[1:2] = vv[1:2] + 20;
+            call WinSetActive(oaw);
+        endif;
+#ELSE
+        if __output;
+            xlabel(str);
+            xy(px,py);
+        endif;
+#ENDIF
+        ivar = ivar + 1;
+    endo;
+    call setvwrmode(oldvwr);
+
+    retp(px0,py0,smth0);
+endp;
+

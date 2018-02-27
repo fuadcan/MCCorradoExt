@@ -1,0 +1,709 @@
+/*
+** hessmt.src - procedures for computing numerical Hessians
+**
+** (C) Copyright 2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  Format                       Purpose                                 Line
+**  ---------------------------------------------------------------------------
+**  h = hessMT(fct,par1,data1)             computes Hessian                41
+**  h = hessMTm(fct,par1,data1,mask)       computes Hessian with mask     149
+**  h = hessMTw(fct,par1,data1,wgts)       computes Hessian with weights  270
+**  h = hessMTmw(fct,par1,data1,mask,wgts) computes Hessian with weights
+**                                           and mask                     385
+**  h = hessMTg(gfct,par1,data1)           computes Hessian using gradient
+**                                           procedure                    507
+**  h = hessMTgw(gfct,par1,data1,wgts)     computes Hessian using gradient
+**                                           procedure                    623
+*/
+
+
+#include pv.sdf
+#include ds.sdf
+
+
+
+/*
+**> hessMT
+**
+**  Purpose:    computes numerical Hessian
+**
+**  Format:     h = hessMT(fct,par1,data1);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:   par1 must be created using the pvPack procedures
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 proc fct(struct PV p0, struct DS d0);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 h = hessMT(&fct,p1,d0);
+*/
+
+
+proc hessMT(fnct, struct PV par1, struct DS data1);
+    local k, hessian, g, ax0, dax0, dh, xdh, ee, f0,
+          eps, x0;
+    local fnct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/3);
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    g = zeros(k,1);
+    hessian = zeros(k,k);
+
+    f0 = sumc(packr(fnct(par1,data1)));
+
+    for i(1,k,1);
+        par1 = pvPutParVector(par1,x0+ee[.,i]);
+        g[i] = sumc(packr(fnct(par1,data1)));
+    endfor;
+
+    for i (1,k,1);
+        for j (1,i,1);
+
+           par1 = pvPutParVector(par1,x0+ee[.,i]+ee[.,j]);
+           hessian[i,j] = sumc(packr(fnct(par1,data1)));
+
+           if i /= j;
+              hessian[j,i] = hessian[i,j];
+           endif;
+
+        endfor;
+    endfor;
+    retp( (((hessian - g) - g') + f0) ./ (dh.*dh') );
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> hessMTm
+**
+**  Purpose:    computes numerical Hessian with mask
+**
+**  Format:     h = hessMTm(fct,par1,data1,mask);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**              mask     KxK matrix, elements in h corresponding to
+**                       elements of mask set to zero are not computed
+**                       otherwise are computed.
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:   par1 must be created using the pvPack procedures.  Only
+**             lower left part of mask looked at.
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 mask = { 1 1
+**                          1 0 };
+**
+**                 proc fct(struct PV p0, struct DS d0);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 h = hessMTm(&fct,p1,d0,mask);
+*/
+
+
+proc hessMTm(fnct, struct PV par1, struct DS data1, mask);
+    local k, hessian, g, ax0, dax0, dh, xdh, ee, f0,
+          eps, x0;
+    local fnct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/3);
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    g = zeros(k,1);
+    hessian = zeros(k,k);
+
+    f0 = sumc(packr(fnct(par1,data1)));
+
+    for i(1,k,1);
+        par1 = pvPutParVector(par1,x0+ee[.,i]);
+        g[i] = sumc(packr(fnct(par1,data1)));
+    endfor;
+
+    for i (1,k,1);
+        for j (1,i,1);
+           if mask[i,j];
+               par1 = pvPutParVector(par1,x0+ee[.,i]+ee[.,j]);
+               hessian[i,j] = sumc(packr(fnct(par1,data1)));
+               if i /= j;
+                  hessian[j,i] = hessian[i,j];
+               endif;
+           endif;
+        endfor;
+    endfor;
+    retp( mask.*(((hessian - g) - g') + f0)./(dh.*dh') );
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> hessMTw
+**
+**  Purpose:    computes numerical Hessian with weights
+**
+**  Format:     h = hessMTw(fct,par1,data1,wgts);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**              wgts     Nx1 vector, weights
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:    fct must evaluate to an Nx1 vector conformable to
+**              the weight vector.  par1 must be created using the
+**              pvPack procedures.
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 wgt = zeros(5,1) | ones(10,1);
+**
+**                 proc fct(&fct, struct PV p0, struct DS d0, wgt);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 h = hessMTw(&fct,p1,d0,wgt);
+*/
+
+
+
+proc hessMTw(fnct, struct PV par1, struct DS data1, wgt);
+    local k, hessian, g, ax0, dax0, dh, xdh, ee, f0,
+          eps, x0;
+    local fnct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/3);
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    g = zeros(k,1);
+    hessian = zeros(k,k);
+
+    f0 = sumc(packr(wgt.*fnct(par1,data1)));
+
+    for i(1,k,1);
+        par1 = pvPutParVector(par1,x0+ee[.,i]);
+        g[i] = sumc(packr(wgt.*fnct(par1,data1)));
+    endfor;
+
+    for i (1,k,1);
+        for j (1,i,1);
+
+           par1 = pvPutParVector(par1,x0+ee[.,i]+ee[.,j]);
+           hessian[i,j] = sumc(packr(wgt.*fnct(par1,data1)));
+
+           if i /= j;
+              hessian[j,i] = hessian[i,j];
+           endif;
+
+        endfor;
+    endfor;
+    retp( (((hessian - g) - g') + f0) ./ (dh.*dh') );
+
+endp;
+
+
+
+
+
+
+
+
+
+
+
+/*
+**> hessMTmw
+**
+**  Purpose:    computes numerical Hessian with mask and weights
+**
+**  Format:     h = hessMTmw(fct,par1,data1,mask,wgts);
+**
+**  Input:      fct      scalar, pointer to procedure returning
+**                       either Nx1 vector or 1x1 scalar
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**              mask     KxK matrix, elements in h corresponding to
+**                       elements of mask set to zero are not computed
+**                       otherwise are computed.
+**
+**              wgts     Nx1 vector, weights
+**
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:    fct must evaluate to an Nx1 vector conformable to
+**              the weight vector.  par1 must be created using the
+**              pvPack procedures.
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 wgts = zeros(5,1) | ones(10,1);
+**
+**                 mask = { 1 1
+**                          1 0 };
+**
+**                 proc fct(&fct, struct PV p0, struct DS d0, wgts);
+**                     local p,y;
+**                     p = pvUnpack(p0,"P");
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     retp(y);
+**                 endp;
+**
+**                 h = hessMTw(&fct,p1,d0,mask,wgt);
+*/
+
+
+proc hessMTmw(fnct, struct PV par1, struct DS data1,mask,wgt);
+    local k, hessian, g, ax0, dax0, dh, xdh, ee, f0,
+          eps, x0;
+    local fnct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/3);
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0./ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+    g = zeros(k,1);
+    hessian = zeros(k,k);
+
+    f0 = sumc(packr(wgt.*fnct(par1,data1)));
+
+    for i(1,k,1);
+        par1 = pvPutParVector(par1,x0+ee[.,i]);
+        g[i] = sumc(packr(wgt.*fnct(par1,data1)));
+    endfor;
+
+    for i (1,k,1);
+        for j (1,i,1);
+           if mask[i,j];
+               par1 = pvPutParVector(par1,x0+ee[.,i]+ee[.,j]);
+               hessian[i,j] = sumc(packr(wgt.*fnct(par1,data1)));
+               if i /= j;
+                  hessian[j,i] = hessian[i,j];
+               endif;
+           endif;
+        endfor;
+    endfor;
+    retp( mask.*(((hessian - g) - g') + f0)./(dh.*dh') );
+
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> hessMTg
+**
+**  Purpose:    computes numerical Hessian using gradient procedure
+**
+**  Format:     h = hessMTg(gfct,par1,data1);
+**
+**  Input:      gfct     scalar, pointer to procedure computing either
+**                       1xK gradient or NxK Jacobian
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:    par1 must be created using the pvPack procedures.
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 proc gfct(&fct, struct PV p0, struct DS d0, wgt);
+**                     local p,y,g1,g2;
+**                     p = pvUnpack(p0,"P");
+**                     g1 = exp( -p[2] * d0.dataMatrix );
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     g2 = -p[1] * d0.dataMatrix .* g1;
+**                     retp(g1~g2);
+**                 endp;
+**
+**                 h = hessMTg(&gfct,p1,d0);
+*/
+
+
+
+
+
+proc 1 = hessMTg(gfct, struct PV par1, struct DS data1 );
+
+    local k, grdd, dh, ax0, xdh, dax0, f2, ee, x1, f1,
+          m, x, x0, eps, mask;
+    local gfct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/2);
+
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+
+    par1 = pvPutParVector(par1,x0+ee[.,1]);
+
+    f1 = sumc(gfct(par1,data1));
+    mask = f1 .== error(0);
+
+    if scalInfNanMiss(f1);
+        retp(error(0));
+    endif;
+
+    grdd = error(0)*zeros(rows(f1),k);
+    for i (1,k,1);
+        if mask[i] == 0;
+            if i /= 1;
+                par1 = pvPutParVector(par1,x0+ee[.,i]);
+                f1 = sumc(gfct(par1,data1));
+            endif;
+            par1 = pvPutParVector(par1,x0-ee[.,i]);
+            f2 = sumc(gfct(par1,data1));
+            grdd[.,i] = f1 - f2;
+        endif;
+    endfor;
+
+    retp(grdd./(2*dh'));
+
+endp;
+
+
+
+
+
+
+
+
+
+
+/*
+**> hessMTgw
+**
+**  Purpose:    computes numerical Hessian using gradient procedure
+**                      with weights
+**
+**  Format:     h = hessMTgw(gfct,par1,data1,wgts);
+**
+**  Input:      gfct     scalar, pointer to procedure computing either
+**                       1xK gradient or NxK Jacobian
+**
+**              par1     structure of type PV containing parameter
+**                       vector at which Hessian is to be evaluated
+**
+**              data1    structure of type DS containing any
+**                       data needed by fct
+**
+**              wgts     Nx1 vector, weights
+**
+**  Output:     h        KxK matrix, Hessian
+**
+**
+**  Remarks:    par1 must be created using the pvPack procedures.
+**
+**  Example:
+**                 #include optim.sdf
+**
+**                 struct PV p1;
+**                 p1 = pvCreate;
+**                 p1 = pvPack(p1,0.1|0.2,"P");
+**
+**                 struct DS d0;
+**                 d0 = dsCreate;
+**                 d0.dataMatrix = seqa(1,1,15);
+**
+**                 wgts = zeros(5,1) | ones(10,1);
+**
+**                 proc gfct(&fct, struct PV p0, struct DS d0);
+**                     local p,y,g1,g2;
+**                     p = pvUnpack(p0,"P");
+**                     g1 = exp( -p[2] * d0.dataMatrix );
+**                     y = p[1] * exp( -p[2] * d0.dataMatrix );
+**                     g2 = -p[1] * d0.dataMatrix .* g1;
+**                     retp(g1~g2);
+**                 endp;
+**
+**                 h = hessMTg(&gfct,p1,d0,wgts);
+*/
+
+
+
+proc 1 = hessMTgw(gfct, struct PV par1, struct DS data1, wgt );
+
+    local k, grdd, dh, ax0, xdh, dax0, f2, ee, x1, f1,
+          m, x, x0, eps, mask;
+    local gfct:proc;
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    eps = machEpsilon^(1/2);
+
+    x0 = pvGetParVector(par1);
+    k = rows(x0);
+
+/* Computation of stepsize (dh) for gradient */
+
+    ax0 = abs(x0);
+    if x0 /= 0;
+        dax0 = x0 ./ ax0;
+    else;
+        dax0 = 1;
+    endif;
+
+    dh = eps*maxc(ax0'|(1e-2)*ones(1,k)).*dax0;
+
+    xdh = x0 + dh;
+    ee = eye(k).*(xdh - x0);
+
+    par1 = pvPutParVector(par1,x0+ee[.,1]);
+    f1 = sumc(wgt.*gfct(par1,data1));
+    mask = f1 .== error(0);
+
+    if scalInfNanMiss(f1);
+        retp(error(0));
+    endif;
+
+    grdd = error(0)*zeros(rows(f1),k);
+    for i (1,k,1);
+        if mask[i] /= 0;
+            if i /= 1;
+                par1 = pvPutParVector(par1,x0+ee[.,i]);
+                f1 = sumc(wgt.*gfct(par1,data1));
+            endif;
+            par1 = pvPutParVector(par1,x0-ee[.,i]);
+            f2 = sumc(wgt.*gfct(par1,data1));
+            grdd[.,i] = f1 - f2;
+        endif;
+    endfor;
+
+    retp(grdd./(2*dh'));
+
+endp;
+
+
+
+
+
+

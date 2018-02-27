@@ -1,0 +1,81 @@
+/*
+** mlgradre.src - Forward Difference Derivatives using Richardson
+**                Extrapolation for Maximum Likelihood Estimation
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+
+proc mlgradre(f,x0,y);
+    local i,m,n,r,h,newaim,f0,j,k,grdd,arg,xstep,amlist, nmlist,Aim,Aimp1;
+    local w,t1,t2,z,v;
+    local f:proc;
+    let w = 2 1 2 9 0 7;
+    n = 13;
+    r = 0.2;
+    h = 0.8;
+    m = 0;
+    gosub fct(x0,y);
+    pop f0;
+    j = rows(f0);
+    k = rows(x0);
+    grdd = zeros(j,k);
+    amlist = zeros(j*k,n+1);
+    do until m > n;
+        xstep = x0+(r^m)*h;
+        arg = diagrv(reshape(x0,k,k)',xstep);
+        i = 1;
+        do until i > k;
+            gosub fct(arg[.,i],y);
+            pop v;
+            grdd[.,i] = v;
+            i = i + 1;
+        endo;
+        grdd = (grdd - f0)./((r^m)*h);
+        amlist[.,m+1] = reshape(grdd,j*k,1);
+        m = m + 1;
+    endo;
+    i = 2;
+    do until i > n;
+        nmlist = zeros(j*k,n+1);
+        m = 1;
+        do until m > (n-i+1);
+            Aim = reshape(amlist[.,m],j,k);
+            Aimp1 = reshape(amlist[.,m+1],j,k);
+            newAim = (Aimp1 - r^(i)*Aim)/(1-r^(i));
+            nmlist[.,m] = reshape(newaim,j*k,1);
+            m = m + 1;
+        endo;
+        amlist = nmlist;
+
+        i = i + 1;
+    endo;
+    retp(reshape(nmlist[.,1],j,k));
+
+FCT:
+
+    pop t2;
+    pop t1;
+    z = f(t1,t2);
+    if scalmiss(z);
+        retp(error(3));
+    endif;
+    return(z);
+endp;
+

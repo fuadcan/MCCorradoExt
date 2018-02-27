@@ -1,0 +1,41 @@
+#ifOS2WIN
+
+/*
+** dataxchn.dec
+**
+**
+** (C) Copyright 1997-2002  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+** Global variable declarations for common Data Exchange globals.
+*/
+
+declare string _dxftype = "";       /* default file type */
+declare matrix _dxtype = 1;         /* default numeric */
+declare matrix _dxwidth = 12;       /* default width */
+declare matrix _dxprcn = 4;         /* default precision */
+declare matrix _dxwkshdr = 1;       /* names as headers - spreadsheet files */
+declare matrix _dxbuffer = 1;       /* default buffer size in Mbytes  */
+declare matrix _dxprint = 1;        /* default print option */
+declare matrix _dxmiss = .;         /* default missing value */
+declare matrix _dxexver = 8.0;      /* default Excel 8.0 export */
+
+@ ASCII files @
+declare matrix _dxtxdlim = 32;      /* default text delimiter (space) */
+declare matrix _dxaschdr = 0;       /* names as headers - ASCII files  */
+
+#endif

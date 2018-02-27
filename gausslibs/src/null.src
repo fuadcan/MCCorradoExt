@@ -1,0 +1,369 @@
+/*
+** null.src - Null space using QR decomposition.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS-386.
+**
+**    Format                                  Line
+**  ===============================================
+**   b = NULL(x);                              28
+**   nu = NULL1(x,dataset);                   205
+*/
+
+#include qr.ext
+
+/*
+**> null
+**
+**  Purpose:    Computes an orthonormal basis for the (right) null
+**              space of a matrix.
+**
+**  Format:     b = null(x);
+**
+**  Input:      x    NxM matrix.
+**
+**  Output:     b    MxK matrix, where K is the nullity of X, such
+**                   that:
+**
+**                       x*b = 0         ( NxK matrix of zeros )
+**                         and
+**                       b'b = I         ( MxM identity matrix )
+**
+**              The error returns are returned in b:
+**
+**                  error code              reason
+**                  -------------------------------------------------
+**                      1                there is no null space
+**
+**                      2                b is too large to return
+**                                       in a single matrix
+**
+**              Use scalerr to test for error returns.
+**
+**  Remarks:    The orthogonal complement of the column space of x' is
+**              computed using the QR decomposition.  This provides an
+**              orthonormal basis for the null space of x.
+**
+**  Globals:    _qrcd, _qrsl
+**
+**  Example:    let x[2,4] = 2 1 3 -1
+**                           3 5 1  2;
+**
+**              b = null(z);
+**              z = x*b;
+**              i = b'b;
+*/
+
+proc null(x);
+    local r,e,tol,indx,sqr,diff,nullity,flag,narg,parg,qraux,
+        work,jpvt,job,karg,dum,info,qy,
+        rm,q1,i,y,cdim;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    tol = 2.24e-16*sqrt( sumc( sumc( x.*x ) ) );    /* use F-norm */
+
+    /* the following code computes QR decomposition */
+
+    flag = 1;       /* always do pivoting */
+
+    /* compute matrix dimensions and other inputs to qrdc subroutine  */
+    /* rows and cols reversed, since we want QR of x' */
+    narg = cols(x);          /* leading dimension of x matrix */
+    parg = rows(x);         /* order of x matrix */
+    qraux = zeros(parg,1);
+    work = qraux;
+    jpvt = qraux;           /* all columns are to be free */
+
+    /* compute matrix dimensions and other inputs to qrsl subroutine  */
+
+    karg = parg;
+    dum = 0;
+    info = 0;
+    job = 10000;    /* compute qy only */
+    qy = zeros(narg,1);
+
+    /* matrix already transposed for this purpose */
+
+    /* call fortran routine to perform transform */
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,narg,narg,parg,qraux,jpvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,narg,narg,parg,qraux,jpvt,work,flag);
+
+#endif
+
+    if narg >= parg;        /* case 1: more rows than cols (in transpose) */
+        diff = narg-parg;
+        rm = trimr(x',0,diff);      /* R except for part below diag  */
+        r = diag(rm);       /* Diagonals */
+        cdim = parg;
+    else;           /* case 2: more cols than rows (in transpose) */
+        diff = parg-narg;
+        rm = trimr(x,0,diff)';      /* R except for part below diag  */
+        r = diag(rm);       /* Diagonals */
+        cdim = narg;
+    endif;
+
+    /* find 0's of r */
+    sqr = seqa(1,1,rows(r));
+    e = abs( r ) .<= tol;
+    indx = ( submat(packr( sqr~miss(e,0) ),0,1) );
+
+    if narg >= parg;
+        if ismiss(indx);
+            nullity = diff;
+        else;
+            nullity = diff + rows(indx);
+        endif;
+    else;
+        if ismiss(indx);
+            nullity = 0;
+        else;
+            nullity = rows(indx);
+        endif;
+    endif;
+
+    if nullity == 0;
+        retp( error(1) );           /* return scalar error code 1 */
+    endif;
+
+    y = shiftr(1~zeros(1,narg-1),narg-nullity,0);
+
+    if narg*nullity > 8190;
+        retp( error(2) );
+    endif;
+
+    q1 = zeros(narg,nullity);       /* initialize space for q1 */
+    i = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+
+#endif
+
+    /* go through loop to compute Q1 */
+    do until i > nullity;
+
+#ifDLLCALL
+#else
+
+        callexe _qrsl(x,narg,narg,karg,qraux,y,qy,dum,dum,dum,dum,job,info);
+
+#endif
+
+#ifDLLCALL
+
+        dllcall qrsl(x,narg,narg,karg,qraux,y,qy,dum,dum,dum,dum,job,info);
+
+#endif
+
+        q1[.,i] = qy;
+        y = shiftr(y,1,0);
+        i = i + 1;
+    endo;
+    retp( q1 );
+endp;
+
+/*
+**> null1
+**
+**  Purpose:    Computes an orthonormal basis for the (right) null
+**              space of a matrix.
+**
+**  Format:     nu = null1(x,dataset);
+**
+**  Input:      x          NxM matrix.
+**
+**  Output:     nu         scalar, the nullity of x.
+**
+**              dataset    string, the name of a data set where the transpose
+**                         of b is written.  The matrix b is an MxK matrix,
+**                         where K is the nullity of X, such that:
+**
+**                              x*b = 0      ( NxK matrix of zeros )
+**                                and
+**                              b'b = I      ( MxM identity matrix )
+**
+**                         If the nullity of the matrix is zero, no
+**                         data set will be written.
+**
+**  Globals:    _qrdc, _qrsl
+*/
+
+proc null1(x,dataset);
+    local r,e,tol,indx,sqr,diff,nullity,f1,flag,narg,parg,qraux,
+        work,jpvt,job,karg,dum,info,qy,
+        rm,i,y,cdim;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    tol = 2.24e-16*sqrt( sumc( sumc( x.*x ) ) );    /* use F-norm */
+
+    /* The following code computes QR decomposition */
+
+    flag = 1;       /* always do pivoting */
+
+    /* compute matrix dimensions and other inputs to qrdc subroutine with
+    :: rows and cols reversed, since we want QR of x'
+    */
+    narg = cols(x);          /* leading dimension of x matrix */
+    parg = rows(x);         /* order of x matrix */
+    qraux = zeros(parg,1);
+    work = qraux;
+    jpvt = qraux;           /* all columns are to be free */
+
+    /* compute matrix dimensions and other inputs to qrsl subroutine  */
+
+    karg = parg;
+    dum = 0;
+    info = 0;
+    job = 10000;    /* compute qy only */
+    qy = zeros(narg,1);
+
+    /* matrix already transposed for this purpose */
+
+    /* call routine to perform transform */
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,narg,narg,parg,qraux,jpvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,narg,narg,parg,qraux,jpvt,work,flag);
+
+#endif
+
+    if narg >= parg;        /* case 1: more rows than cols (in transpose) */
+        diff = narg-parg;
+        rm = trimr(x',0,diff);      /* R except for part below diag  */
+        r = diag(rm);       /* Diagonals */
+        cdim = parg;
+    else;           /* case 2: more cols than rows (in transpose) */
+        diff = parg-narg;
+        rm = trimr(x,0,diff)';      /* R except for part below diag  */
+        r = diag(rm);       /* Diagonals */
+        cdim = narg;
+    endif;
+
+    /* find 0's of r */
+    sqr = seqa(1,1,rows(r));
+    e = abs( r ) .<= tol;
+    indx = ( submat(packr( sqr~miss(e,0) ),0,1) );
+
+    if narg >= parg;
+        if ismiss(indx);
+            nullity = diff;
+        else;
+            nullity = diff + rows(indx);
+        endif;
+    else;
+        if ismiss(indx);
+            nullity = 0;
+        else;
+            nullity = rows(indx);
+        endif;
+    endif;
+
+    if nullity == 0;
+        retp( 0 );           /* return 0, no data set written */
+    endif;
+
+    y = shiftr(1~zeros(1,narg-1),narg-nullity,0);
+
+    /* Write result to data set on disk. The number of rows in the data set
+    :: is the nullity of the matrix
+    */
+
+    create f1 = ^dataset with x,narg,8;     /* create data set to hold result */
+    i = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+
+#endif
+
+    /* go through loop to compute Q1 */
+    do until i > nullity;
+
+#ifDLLCALL
+#else
+
+        callexe _qrsl(x,narg,narg,karg,qraux,y,qy,dum,dum,dum,dum,job,info);
+
+#endif
+
+#ifDLLCALL
+
+        dllcall qrsl(x,narg,narg,karg,qraux,y,qy,dum,dum,dum,dum,job,info);
+
+#endif
+
+        if writer(f1,qy') /= 1;     /* write result to row of disk  */
+            errorlog "ERROR: Disk Full.";
+            end;
+        endif;
+        y = shiftr(y,1,0);
+        i = i + 1;
+    endo;
+
+    f1 = close(f1);
+    retp( nullity );        /* return nullity */
+endp;

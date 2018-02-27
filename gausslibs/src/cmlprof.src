@@ -1,0 +1,483 @@
+/*
+** cmlprof.src   CMLProfile - Profile likelihood traces
+**
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> CMLProfile
+**
+**  Purpose:  profile likelihood traces and profile t traces
+**
+**  Format:   { b,f,g,cov,retcode } =  CMLProfile(dataset,vars,&fct,start)
+**
+**  Input:    dataset      string containing name of GAUSS data set, or
+**                         name of data matrix stored in memory
+**
+**            vars         character vector of labels selected for analysis,
+**                         or numeric vector of column numbers in data set
+**                         of variables selected for analysis
+**
+**            fct          the name of a procedure that returns either
+**                         the log-likelihood for one observation or a vector
+**                         of log-likelihoods for a matrix of observations
+**
+**            start        a Kx1 vector of start values
+**
+**
+**  Output:   b            Kx1 vector of least squares estimates of the
+**                         coefficients
+**
+**            f            scalar, function at minimum (mean log-likelihood)
+**
+**            g            Kx1 vector, gradient
+**
+**            cov          KxK covariance matrix of coefficients
+**
+**        retcode          return code:
+**
+**                            0   normal convergence
+**                            1   forced exit
+**                            2   maximum number of iterations exceeded
+**                            3   function calculation failed
+**                            4   gradient calculation failed
+**                            5   Hessian calculation failed
+**                            6   step length calculation failed
+**                            7   function cannot be evaluated at initial
+**                                parameter values
+**                            8   error with gradient
+**                            9   error with constraints
+**                           10   secant update failed
+**                           11   maximum time exceeded
+**                           12   error with weights
+**                           13   quadratic program failed
+**                           20   Hessian failed to invert
+**                           34   data set could not be opened
+**                           99   termination condition unknown
+**
+**
+**  Globals:
+**
+**        _cml_Select      selection vector for selecting coefficients to
+**                         be included in profiling
+**
+**        _cml_Increment   Kx1 vector, increments for cutting points,
+**                         default is 2 * _cml_Width * std dev of
+**                         coefficient / _cml_NumCat
+**
+**        _cml_Center      Kx1 vector, value of center category in profile
+**                         table default is initial coefficient estimate
+**
+**        _cml_Width       scalar, width of profile table, default = 2
+**
+**        _cml_NumCat      scalar, number of categories in profile table
+**
+**   see CML.SRC for description of additional global variables
+*/
+
+#include cml.ext
+#include pgraph.ext
+
+proc(5) = CMLProfile(dataset,var,lfct,start);
+
+    local Lnlpm_cntr, Lnlpm_inc, Lnlpactv;
+    local x_ret,f_ret,g_ret,h_ret,ret_ret,LnlpmSelect;
+    local abs0,title0,tt0,tt1,is,js,title1,oldvwr;
+    local protplot,proLikeTr,ctp,stri,strj,str,sd,incr,i,j,k,l,actv;
+    local x,f,g,h,x1,f1,ret1,f0,s0,sgn,np,np1,L1,oaw,vv;
+
+    title1 = _ptitle;
+    if rows(_cml_Center) /= rows(start);
+        Lnlpm_cntr = _cml_Center * ones(rows(start),1);
+    else;
+        Lnlpm_cntr = _cml_Center;
+    endif;
+
+    if rows(_cml_Increment) /= rows(start);
+        Lnlpm_inc = _cml_Increment * ones(rows(start),1);
+    else;
+        Lnlpm_inc = _cml_Increment;
+    endif;
+
+    if rows(_cml_Active) /= rows(start);
+        Lnlpactv = _cml_Active * ones(rows(start),1);
+    else;
+        Lnlpactv = _cml_Active;
+    endif;
+
+    if scalmiss(_cml_Select);
+        Lnlpmselect = seqa(1,1,rows(start));
+    else;
+        Lnlpmselect = _cml_Select;
+    endif;
+
+    protplot = zeros(_cml_NumCat,rows(LnlpmSelect));
+    proLikeTr = zeros(_cml_NumCat,2);
+    title0 = __title $+ " - all coefficients -";
+
+    { x,f0,g,h,ret1,_cml_FinalHess,_cml_IterData,_cml_XprodCov,
+        _cml_HessCov,_cml_NumObs,_cml_Lagrange } = _CML(dataset,var,lfct,
+        start, _cml_Algorithm, _cml_CovPar, _cml_Delta, _cml_Extrap,
+        _cml_GradMethod, _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp,
+        _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry,
+        _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch,
+        _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius,
+        _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+        _cml_UserNumHess, _cml_Active, _cml_GradStep, _cml_GradOrder,
+        _cml_GradCheckTol, __altnam, __output, __row, title0, __weight );
+
+    x_ret = x;
+    f_ret = f0;
+    g_ret = g;
+    h_ret = h;
+    ret_ret = ret1;
+
+    ctp = zeros(_cml_NumCat,rows(LnlpmSelect));
+    if not scalmiss(h);
+        sd = sqrt(diag(h));
+    else;
+        sd = x;
+    endif;
+
+    i = 1;
+    do until i > rows(LnlpmSelect);
+        if Lnlpactv[LnlpmSelect[i]] == 0;
+            i = i + 1;
+            continue;
+        endif;
+
+        if Lnlpm_inc[i] == 0;
+            incr = 2 * _cml_Width * sd[LnlpmSelect[i]] / _cml_NumCat;
+            if Lnlpm_cntr[i] == 0;
+                str = x[LnlpmSelect[i]] - _cml_Width * sd[LnlpmSelect[i]];
+            else;
+                str = Lnlpm_cntr[i] - _cml_Width * sd[LnlpmSelect[i]];
+            endif;
+        else;
+            incr = Lnlpm_inc[i];
+            if Lnlpm_cntr[i] == 0;
+                str = x[LnlpmSelect[i]] - Lnlpm_inc[i] * _cml_NumCat / 2;
+            else;
+                str = Lnlpm_cntr[i] - Lnlpm_inc[i] * _cml_NumCat / 2;
+            endif;
+        endif;
+        ctp[.,i] = seqa(str,incr,_cml_NumCat);
+        i = i + 1;
+    endo;
+
+    tt1 = 1;
+    i = 1;
+    do until i > rows(LnlpmSelect);
+        is = LnlpmSelect[i];
+
+        if Lnlpactv[i] == 0;
+            i = i + 1;
+            continue;
+        endif;
+
+        actv = ones(rows(x),1);
+        actv[is] = 0;
+        if not(Lnlpactv == 1);
+            actv = Lnlpactv .* actv;
+        endif;
+        tt0 = ftos(rows(LnlpmSelect)*_cml_NumCat,"%0*.*lf",1,0);
+
+        j = 1;
+        do until j > _cml_NumCat;
+            start = x;
+            start[is] = ctp[j,i];
+
+            title0 = __title $+ " - Profile t - " $+ ftos(tt1,"%0*.*lf",1,
+                0) $+ " of " $+ tt0 $+ " -";
+            tt1 = tt1 + 1;
+
+            if start[is] == x[is];
+                protplot[j,i] = 0;
+            elseif _pf_feasible(start);
+
+                { L1,f1,L1,L1,ret1,L1,L1,L1,L1,_cml_NumObs,L1 } =
+                    _CML(dataset,var,lfct,start, _cml_Algorithm, 0,
+                    _cml_Delta, _cml_Extrap, _cml_GradMethod,
+                    _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp,
+                    _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry,
+                    _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch,
+                    _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius,
+                    _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+                    _cml_UserNumHess, actv, _cml_GradStep, _cml_GradOrder,
+                    _cml_GradCheckTol, __altnam, __output, __row, title0, __weight );
+
+                if ret1 == 0;
+                    if start[is] < x[is];
+                        protplot[j,i] = -sqrt(2 * _cml_NumObs * (f0 - f1));
+                    else;
+                        protplot[j,i] = sqrt(2 * _cml_NumObs * (f0 - f1));
+                    endif;
+                else;
+                    protplot[j,i] = error(0);
+                endif;
+            else;
+                protplot[j,i] = error(0);
+            endif;
+
+            j = j + 1;
+        endo;
+        i = i + 1;
+    endo;
+
+    if scalmiss(packr(protplot));
+        if not trapchk(4);
+            errorlog "ERROR: no feasible points left in profile";
+        endif;
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    else;
+        protplot = real(protplot);
+    endif;
+
+    oldvwr = setvwrmode("many");
+#ifunix
+
+
+    fonts("simplex simgrma");
+    if rows(LnlpmSelect) == 1;
+        oaw = WinGetActive;
+        vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+        call WinSetActive(WinOpenPQG(vv,"Coefficient 1","ProPlot"));
+        xy(ctp,protplot);
+        call WinSetActive(oaw);
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    endif;
+    oaw = WinGetActive;
+    vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+    i = 1;
+    do until i > rows(LnlpmSelect);
+        is = LnlpmSelect[i];
+        if Lnlpactv[is] == 0;
+            i = i + 1;
+            continue;
+        endif;
+        stri = ftos(is,"%*.*lf",1,0);
+        call WinSetActive(WinOpenPQG(vv,stri,"ProPlot"));
+        ylabel("\202\116\034\081\118");
+        xlabel("\201Coefficient "$+stri);
+        _pframe = 1;
+        _paxes = 1;
+        title("\201Profile T Plot");
+        call xy(ctp[.,i],protplot[.,i]);
+        vv[1:2] = vv[1:2] + 20;
+        i = i + 1;
+    endo;
+    call WinSetActive(oaw);
+#else
+
+    if rows(LnlpmSelect) == 1;
+        xy(ctp,protplot);
+        retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+    endif;
+#endif
+
+    i = 2;
+    do until i > rows(LnlpmSelect);
+        is = LnlpmSelect[i];
+        if Lnlpactv[is] == 0;
+            i = i + 1;
+            continue;
+        endif;
+
+        stri = ftos(is,"%*.*lf",1,0);
+        tt0 = ftos(_cml_NumCat,"%0*.*lf",1,0);
+        j = 1;
+        do while j < i;
+            js = LnlpmSelect[j];
+            if Lnlpactv[js] == 0;
+                j = j + 1;
+                continue;
+            endif;
+
+            strj = ftos(js,"%- *.*lf",1,0);
+            actv = ones(rows(x),1);
+            actv[is] = 0;
+            if not(Lnlpactv == 1);
+                actv = Lnlpactv .* actv;
+            endif;
+            tt1 = 1;
+            k = 1;
+            do until k > _cml_NumCat;
+
+                start = x;
+                start[is] = ctp[k,i];
+                title0 = __title $+ " - likelihood trace - " $+ ftos(tt1,"%"\
+                    "0*.*lf",1,0) $+ " of " $+ tt0 $+ " -";
+                tt1 = tt1 + 1;
+
+                if _pf_feasible(start);
+
+                    { x1,L1,L1,L1,ret1,L1,L1,L1,L1,L1,L1 } = _CML(dataset,
+                        var,lfct,start, _cml_Algorithm, 0, _cml_Delta,
+                        _cml_Extrap, _cml_GradMethod,
+                        _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp,
+                        _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry,
+                        _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch,
+                        _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius,
+                        _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+                        _cml_UserNumHess, actv, _cml_GradStep, _cml_GradOrder,
+                        _cml_GradCheckTol, __altnam, __output, __row, title0, __weight );
+
+                    if ret1 == 0;
+                        proLikeTr[k,1] = x1[js];
+                    endif;
+                endif;
+                k = k + 1;
+            endo;
+
+            actv = ones(rows(x),1);
+            actv[js] = 0;
+            if not(Lnlpactv == 1);
+                actv = Lnlpactv .* actv;
+            endif;
+            tt1 = 1;
+            k = 1;
+            do until k > _cml_NumCat;
+                start = x;
+                start[js] = ctp[k,j];
+                title0 = __title $+ " - Likelihood trace - " $+ ftos(tt1,"%"\
+                    "0*.*lf",1,0) $+ " of " $+ tt0 $+ " -";
+                tt1 = tt1 + 1;
+
+                if _pf_feasible(start);
+
+                    { x1,L1,L1,L1,ret1,L1,L1,L1,L1,L1,L1 } = _CML(dataset,
+                        var,lfct,start, _cml_Algorithm, 0, _cml_Delta,
+                        _cml_Extrap,_cml_GradMethod,
+                        _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp,
+                        _cml_Key, _cml_Lag, _cml_MaxIters, _cml_MaxTime, _cml_MaxTry,
+                        _cml_NumObs, _cml_ParNames, _cml_Switch, _cml_GridSearch,
+                        _cml_GridSearchRadius, _cml_Trust,_cml_TrustRadius,
+                        _cml_LineSearch, _cml_Options, _cml_UserSearch, _cml_UserNumGrad,
+                        _cml_UserNumHess, actv, _cml_GradStep, _cml_GradOrder,
+                        _cml_GradCheckTol, __altnam, __output, __row, title0, __weight );
+
+                    if ret1 == 0;
+                        proLikeTr[k,2] = x1[is];
+                    else;
+                        proLikeTr[k,2] = error(0);
+                    endif;
+                endif;
+                k = k + 1;
+            endo;
+
+#ifunix
+            _pframe = 0;
+            _paxes = 1;
+
+            ylabel("\201Coefficient "$+stri);
+            xlabel("\201Coefficient "$+strj);
+            title("Likelihood Profile Trace");
+            call WinSetActive(WinOpenPQG(vv,stri$+" by "$+strj,"LikeTr"));
+            xy(ctp[.,j]~proLikeTr[.,1],proLikeTr[.,2]~ctp[.,i]);
+            call WinSetActive(oaw);
+#else
+
+            begwind;
+            _pmsgstr = "";
+            _pmsgctl = 0;
+            title("");
+
+            makewind(4.2,3,.2,3.3,0);
+            makewind(3.2,3.2,.2,.1,0);
+            makewind(3.2,3.2,4.4,.1,0);
+            makewind(9,6.855,0,0,1);
+
+            fonts("simplex simgrma");
+
+            _pframe = 0;
+            _paxes = 1;
+
+            ylabel("\201Coefficient "$+stri);
+            xlabel("\201Coefficient "$+strj);
+            title("Likelihood Profile Trace");
+            xy(ctp[.,j]~proLikeTr[.,1],proLikeTr[.,2]~ctp[.,i]);
+
+            nextwind;
+
+            ylabel("\202\116\034\081\118");
+            xlabel("\201Coefficient "$+stri);
+            _pframe = 1;
+            _paxes = 1;
+            title("\201Profile T Plot");
+            call xy(ctp[.,i],protplot[.,i]);
+
+            nextwind;
+
+            ylabel("\202\116\034\081\118");
+            xlabel("\201Coefficient "$+strj);
+            _pframe = 1;
+            _paxes = 1;
+            title("\201Profile T Plot");
+            call xy(ctp[.,j],protplot[.,j]);
+
+            nextwind;
+
+            ylabel("");
+            xlabel("");
+            title(title1);
+            _pmsgstr = "\201Coefficients\000"$+strj$+" vs. "$+stri;
+            _pmsgctl = { 5 5 .3 0 2 15 5, 5.7 4.55 .2 0 2 15 5 };
+            _paxes = 0;
+            _pframe = 0;
+
+            draw;
+
+            endwind;
+#endif
+            j = j + 1;
+        endo;
+        i = i + 1;
+    endo;
+
+    call setvwrmode(oldvwr);
+#ifunix
+    call WinSetActive(oaw);
+#endif
+
+    retp(x_ret,f_ret,g_ret,h_ret,ret_ret);
+endp;
+
+proc _pf_feasible(x);
+    local ineqproc;
+    if not scalmiss(_cml_C);
+        if not((_cml_C*x - _cml_D) >= 0);
+            retp(0);
+        endif;
+    endif;
+    if not scalmiss(_cml_IneqProc);
+        ineqproc = _cml_IneqProc;
+        local ineqproc:proc;
+        if not(IneqProc(x) >= 0);
+            retp(0);
+        endif;
+    endif;
+    if cols(_cml_Bounds) == 2;
+        if not((x - _cml_Bounds[.,1]) >= 0);
+            retp(0);
+        endif;
+        if not((-x + _cml_Bounds[.,2]) >= 0);
+            retp(0);
+        endif;
+    endif;
+    retp(1);
+endp;
+

@@ -1,0 +1,485 @@
+/*
+** intgrat.src
+** (C) Copyright 1988-2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** =========================================================================
+**   PROCEDURE     FORMAT                       PURPOSE               LINE
+** =========================================================================
+**   INTGRAT2      y = INTGRAT2(&f,xl,gl);      2-D integration         28
+**   INTGRAT3      y = INTGRAT3(&f,xl,gl,hl);   3-D integration        231
+** =========================================================================
+*/
+
+#include integral.ext
+
+/*
+**> intgrat2
+**
+**  Purpose:    Evaluates a the double integral
+**
+**                              _ x1   _ g1(x)
+**                             (      (
+**                             |      |  f(x,y)dydx
+**                            _)     _)
+**                                x2     g2(x)
+**
+**              where g1, g2, and f are user defined functions and x1 and
+**              x2 are scalars.
+**
+**  Format:     y = intgrat2(&f,xl,gl);
+**
+**  Input:      &f    pointer to the procedure containing the function to
+**                    be integrated.
+**
+**              xl    2xN matrix, the limits of x.  These must be scalar
+**                    limits.
+**
+**              gl    2xN matrix of function pointers, the limits of y.
+**
+**                    For xl and  gl, the first row is the upper limit and
+**                    the second row is the lower limit.  N integrations are
+**                    computed.
+**
+**         _intord    scalar, the order of the integration.  The larger
+**                    _intord, the more precise the final result will be.
+**                    _intord may be set to:
+**
+**                             2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 40
+**
+**                     Default is 32.
+**
+**  Output:      y     Nx1 vector of the estimated integral(s) of f(x,y)
+**                     evaluated between between the limits given by xl
+**                     and gl.
+**
+**  Remarks:
+**  User defined functions f, and those used in <gl> must either
+**
+**                1. Return a scalar constant: For example,
+**
+**                        proc g2(x);
+**                            retp(3);
+**                        endp;
+**
+**                   or,
+**
+**                2. Return a vector of function values.  intgrat2 will
+**                   pass to  user defined functions a vector or matrix
+**                   for x and y and expect a vector or matrix to be
+**                   returned.  See example below.
+**
+**
+**  Example:    proc f(x,y);
+**                  retp(x.*sin(y));
+**              endp;
+**
+**              proc g1(x);
+**                 retp(sqrt(1-x^2));
+**              endp;
+**
+**              proc g2(x);
+**                  retp(0);
+**              endp;
+**
+**              xl = pi|0;
+**              gl = &g1|&g2;
+**              y = intgrat2(&f,xl,gl);
+**
+**  This will integrate the function x*sin(x) over the upper half of the
+**  unit circle. Note the use of the ".*" operator instead of just "*" in
+**  the definition of f(x,y).  This allows f to return a vector or matrix
+**  of function values.
+**
+**
+**  See Also:   intgrat3, intquad1, intquad2, intquad3 and intsimp
+*/
+
+proc intgrat2(f,xl,gl);
+     local result,intrec;
+     intrec = 0;
+     result = _intgrat2(f,xl,gl,intrec);
+     retp(result);
+endp;
+
+
+proc _intgrat2(&f,xl,gl,intrec);
+    local f:proc,diff,e,w,xc,fx,yc,ii,t,qind,intord,n,k,fx1,g1,g2,chk;
+
+    let qind = 2 3 4 6 8 12 16 20 24 32 40 1000;
+    qind = minindc(qind .<= _intord)-1;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if iscplx(gl);
+        if hasimag(gl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            gl = real(gl);
+        endif;
+    endif;
+
+    if intrec == 0;
+        if rows(xl) /= 2;
+            errorlog "ERROR:  X limit vector must be 2xN";
+            end;
+        elseif rows(gl) /= 2;
+            errorlog "ERROR:  Function limit vector must be 2xN";
+            end;
+        else;
+            chk = cols(xl)|cols(gl);
+            n = maxc(chk);
+            if not ((chk .== 1) .or (chk .== n)) == 1;
+                 errorlog "ERROR:  Limit matrices are not conformable.\n";
+                 end;
+            else;
+                xl = zeros(2,n) + xl;
+                gl = zeros(2,n) + gl;
+            endif;
+        endif;
+    endif;
+
+    if qind <= 1;
+        e = _intq2[.,1];
+        w = _intq2[.,2];
+    elseif qind == 2;
+        e = _intq3[.,1];
+        w = _intq3[.,2];
+    elseif qind == 3;
+        e = _intq4[.,1];
+        w = _intq4[.,2];
+    elseif qind == 4;
+        e = _intq6[.,1];
+        w = _intq6[.,2];
+    elseif qind == 5;
+        e = _intq8[.,1];
+        w = _intq8[.,2];
+    elseif qind == 6;
+        e = _intq12[.,1];
+        w = _intq12[.,2];
+    elseif qind == 7;
+        e = _intq16[.,1];
+        w = _intq16[.,2];
+    elseif qind == 8;
+        e = _intq20[.,1];
+        w = _intq20[.,2];
+    elseif qind == 9;
+        e = _intq24[.,1];
+        w = _intq24[.,2];
+    elseif qind == 10;
+        e = _intq32[.,1];
+        w = _intq32[.,2];
+    elseif qind >= 11;
+        e = _intq40[.,1];
+        w = _intq40[.,2];
+    endif;
+
+    if qind > 2;    /* for qind > 3, expand e and w */
+        e = (-rev(e)|e);
+        w = rev(w)|w;
+    endif;
+
+    if intrec == 0;
+        intrec = 1;
+        diff = xl[1,.]' - xl[2,.]';
+        xc = 0.5*( (xl[2,.]'+xl[1,.]')+(diff .* e'));
+        fx = _intgrat2(&f, xc, gl, intrec);
+        fx = ((diff/2).* (fx*w));
+        intrec = 0;
+        retp(fx);
+    else;
+        xc = xl;             /* rows(xc) = N; cols(xc) = _intord  */
+        n = rows(xc);
+        intord = cols(xc);
+        k = 1;
+        fx = zeros(n,intord);
+        do until k > n;
+            g1 = gl[1,k];
+            g2 = gl[2,k];
+            local g1:proc, g2:proc;
+            diff = zeros(1,intord) + g1(xc[k,.]) - g2(xc[k,.]);
+            yc = 0.5*((g1(xc[k,.]) + g2(xc[k,.])) + ( diff .* e));
+            fx1 = zeros(1,intord);
+            ii = 1;
+            do until ii > intord;
+                T = zeros(intord,1) + f(xc[k,ii],yc[.,ii]);
+                fx1[ii] = 0.5*diff[ii]*(T'*w);
+                ii = ii + 1;
+            endo;
+            fx[k,.] = fx1;   /* N x intord */
+            k = k + 1;
+        endo;
+        retp(fx);
+    endif;
+endp;
+
+/*
+**> intgrat3
+**
+**  Purpose:    Evaluates the triple integral
+**
+**                    _ x1       _ g1(x)    _ h1(x,y)
+**                   (          (          (
+**                   |          |          |  f(x,y,z) dzdydx
+**                  _)         _)         _)
+**                      x2         g2(x)      h2(x,y)
+**
+**              where h1, h2, g1, g2, and f are user defined functions
+**              and x1 and x2 are scalars.
+**
+**  Format:     y = intgrat3(&f,xl,gl,hl);
+**
+**  Input:      &f     pointer to the procedure containing the function
+**                     to be integrated. F is a function of (x,y,z).
+**
+**              xl     2xN matrix, the limits of x. These  must be scalar
+**                     limits.
+**
+**              gl     2xN matrix of function pointers. These procedures
+**                     are functions of x.
+**
+**              hl     2xN matrix of function pointers. These procedures
+**                     are functions of x and y.
+**
+**                     For xl, gl, and hl, the first row is the upper limit
+**                     and the second row is the lower limit.  N
+**                     integrations are computed.
+**
+**         _intord     scalar, the order of the integration.  The larger
+**                     _intord, the more precise the final result will be.
+**                     _intord may be set to:
+**
+**                             2, 3, 4, 6, 8, 12, 16, 20, 24, 32, 40
+**
+**                      Default is 32.
+**
+**  Output:      y     Nx1 vector of the estimated integral(s) of f(x,y,z)
+**                     evaluated between the limits given by xl, gl and hl.
+**
+**  Remarks:
+**  User defined functions f, and those used in <gl> and <hl> must either
+**
+**                1. Return a scalar constant, for example
+**
+**                         proc h2(x,y);
+**                             retp(1);
+**                         endp;
+**
+**                   or,
+**
+**                2. Return a vector of function values.  intgrat3 will
+**                   pass to user defined functions a vector or matrix
+**                   for x and y and expect a vector or matrix to be
+**                   returned (if the function is not constant).  Use
+**                   Use the ".*" and "./" operators instead of "*" or "/".
+**
+**
+**
+**  Example:    proc f(x,y,z);
+**                 retp(1);
+**              endp;
+**
+**              proc g1(x);
+**                  retp(sqrt(25-x^2));
+**              endp;
+**
+**              proc g2(x);
+**                  retp(-g1(x));
+**              endp;
+**
+**              proc h1(x,y);
+**                   retp(sqrt(25 - x^2 - y^2));
+**              endp;
+**
+**              proc h2(x,y);
+**                   retp(-h1(x,y));
+**              endp;
+**
+**              xl = 5|-5;
+**              gl = &g1|&g2;
+**              hl = &h1|&h2;
+**              y = intgrat3(&f,xl,gl,hl);
+**
+**  This will integrate the function f(x,y,z) = 2 over the sphere of
+**  radius 5.  The result will be approximately  2*(4/3*pi*125).
+**
+**  See Also:   intgrat2, intquad1, intquad2, intquad3, and intsimp
+*/
+
+proc intgrat3(f,xl,gl,hl);
+     local result,intrec;
+     intrec = 0;
+     result = _intgrat3(f,xl,gl,hl,intrec);
+     retp(result);
+endp;
+
+proc _intgrat3(&f,xl,gl,hl,intrec);
+    local f:proc,diff,e,w,xc,fx,yc,zc,ii,t,qind,g1,g2,n,h1,h2,k,intord,
+          fx1,chk;
+    let qind = 2 3 4 6 8 12 16 20 24 32 40 1000;
+    qind = minindc(qind .<= _intord) - 1;
+
+    /* check for complex input */
+    if iscplx(xl);
+        if hasimag(xl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            xl = real(xl);
+        endif;
+    endif;
+
+    if iscplx(gl);
+        if hasimag(gl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            gl = real(gl);
+        endif;
+    endif;
+
+    if iscplx(hl);
+        if hasimag(hl);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            hl = real(hl);
+        endif;
+    endif;
+
+    if intrec == 0;
+        if rows(xl) /= 2;
+            errorlog "ERROR:  X limit vector must be 2xN";
+            end;
+        elseif (rows(gl) /= 2) or (rows(hl) /= 2);
+            errorlog "ERROR:  Function limit vectors must be 2xN";
+            end;
+        else;
+            chk = cols(xl)|cols(gl)|cols(hl);
+            n = maxc(chk);
+            if not ((chk .== 1) .or (chk .== n)) == 1;
+                 errorlog "ERROR:  Limit matrices are not conformable.\n";
+                 end;
+            else;
+                xl = zeros(2,n) + xl;
+                gl = zeros(2,n) + gl;
+                hl = zeros(2,n) + hl;
+            endif;
+        endif;
+    endif;
+
+
+    if qind <= 1;
+        e = _intq2[.,1];
+        w = _intq2[.,2];
+    elseif qind == 2;
+        e = _intq3[.,1];
+        w = _intq3[.,2];
+    elseif qind == 3;
+        e = _intq4[.,1];
+        w = _intq4[.,2];
+    elseif qind == 4;
+        e = _intq6[.,1];
+        w = _intq6[.,2];
+    elseif qind == 5;
+        e = _intq8[.,1];
+        w = _intq8[.,2];
+    elseif qind == 6;
+        e = _intq12[.,1];
+        w = _intq12[.,2];
+    elseif qind == 7;
+        e = _intq16[.,1];
+        w = _intq16[.,2];
+    elseif qind == 8;
+        e = _intq20[.,1];
+        w = _intq20[.,2];
+    elseif qind == 9;
+        e = _intq24[.,1];
+        w = _intq24[.,2];
+    elseif qind == 10;
+        e = _intq32[.,1];
+        w = _intq32[.,2];
+    elseif qind >= 11;
+        e = _intq40[.,1];
+        w = _intq40[.,2];
+    endif;
+
+    if qind > 2;    /* for qind > 3, expand e and w */
+        e = (-rev(e)|e);
+        w = rev(w)|w;
+    endif;
+
+    if intrec <= 1;
+        if intrec == 0 ;
+            diff = xl[1,.]' - xl[2,.]';
+            intrec = 1;
+            xc = 0.5*( (xl[2,.]' + xl[1,.]') + (diff .* e'));
+            fx = _intgrat3(&f,xc,gl,hl,intrec);
+            fx = ((diff/2).* (fx*w));
+            intrec = 0;
+            retp(fx);
+        else;
+            intrec = 2;
+            xc = xl;                /* rows(xc) = N; cols(xc) = _intord  */
+            n = rows(xc);
+            intord = cols(xc);
+            fx = zeros(n,intord);
+            k = 1;
+            do until k > n;
+                g1 = gl[1,k];
+                g2 = gl[2,k];
+                local g1:proc, g2:proc;
+                diff = zeros(1,intord) + g1(xc[k,.]) - g2(xc[k,.]);
+                yc = 0.5*((g1(xc[k,.]) + g2(xc[k,.])) + ( diff .* e));
+                fx1 = zeros(1,intord);
+                ii = 1;
+                do until ii > intord;
+                    T = _intgrat3(&f,xc[k,ii],yc[.,ii],hl[.,k],intrec);
+                    fx1[ii] = 0.5*diff[ii]*(T'*w);
+                    ii = ii + 1;
+                endo;
+                fx[k,.] = fx1;   /* N x intord */
+                k = k + 1;
+            endo;
+            retp(fx);
+        endif;
+    else;
+        yc = gl;
+        xc = xl;             /* rows(xc) = N; cols(xc) = _intord  */
+        intord = rows(yc);
+        fx = zeros(intord,1);    /* Initialize */
+        h1 = hl[1];
+        h2 = hl[2];
+        local h1:proc, h2:proc;
+        diff = zeros(1,intord) + (h1(xc,yc)' - h2(xc,yc)');
+        zc = 0.5*((h1(xc,yc)' + h2(xc,yc)') + ( diff .* e));
+        ii = 1;
+        do until ii > intord;
+            T = zeros(intord,1) + f(xc,yc[ii],zc[.,ii]);
+            fx[ii] = 0.5*diff[ii]*(T'*w);
+            ii = ii + 1;
+        endo;
+        retp(fx);
+    endif;
+    retp(fx);
+endp;

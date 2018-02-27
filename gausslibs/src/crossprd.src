@@ -1,0 +1,45 @@
+/*
+** crossprd.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> crossprd
+**
+**  Purpose:    Computes the cross products (vector products) of
+**              sets of 3x1 vectors.
+**
+**  Format:     z = crossprd(x,y);
+**
+**  Input:      x    3xK matrix, each column is treated as a 3x1 vector.
+**
+**              y    3xK matrix, each column is treated as a 3x1 vector.
+**
+**  Output:     z    3xK matrix, each column is the cross product
+**                   (sometimes called vector product) of the
+**                   corresponding columns of x and y.
+**
+**  Remarks:    The cross product vector (z) is orthogonal to both x and y.
+**              sumc(x.*z) and sumc(y.*z) will be Kx1 vectors all of whose
+**              elements are 0 (except for rounding error).
+**
+**  Globals:    None
+*/
+
+proc crossprd(x,y);
+    local r1, r2, r3;
+    r1 = x[2,.].*y[3,.]-x[3,.].*y[2,.];
+    r2 = x[3,.].*y[1,.]-x[1,.].*y[3,.];
+    r3 = x[1,.].*y[2,.]-x[2,.].*y[1,.];
+    retp( r1|r2|r3 );
+endp;

@@ -1,0 +1,644 @@
+/*
+** eqSolvemt.src - Nonlinear Systems of Equations
+** (C) Copyright 1997-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**
+**  Format                             Purpose                             Line
+** -----------------------------------------------------------------------------
+**  out  = eqSolvemt(&fct,par,data,c);  solves systems of linear
+**                                      equations                           31
+**  c = eqSolvemtControlCreate;         creates eqSolvemtControl           599
+**                                      structure
+**  c = eqSolvemtOutCreate;             creates eqSolvemtOut structure     619
+*/
+
+
+/*
+**
+**> eqSolvemt
+**
+**  Purpose:    Solves a system of nonlinear equations
+**
+**  Format:     out =  eqSolvemt(&fct,par,data,c);
+**
+**  Input:    &fct      pointer to a procedure that computes the function to
+**                      be minimized.  This procedure must have two input
+**                      arguments, an instance of a PV structure containing
+**                      the parameters, and an instance of a DS structure
+**                      containing data if any.  It must return the value
+**                      of the function evaluated at the parameter values.
+**
+**            par       an instance of a PV structure. The par instance is
+**                      passed to the user-provided procedure pointed to by
+**                      &fct.  par is constructed using the "pvPack"
+**                      functions
+**
+**            data      an array of instances of a DS structure. This array is
+**                      passed to the user-provided pointed by &fct to be used
+**                      in the objective function. QNewton does not
+**                      look at this structure.  Each instance contains the
+**                      the following members which can be set in whatever way
+**                      that is convenient for computing the objective function:
+**
+**                      data1[i].dataMatrix  NxK matrix, data matrix.
+**
+**                      data1[i].dataArray   NxKxL.. array, data array.
+**
+**                      data1[i].vnames      string array, variable names (optional).
+**
+**                      data1[i].dsname      string, data name (optional).
+**
+**                      data1[i].type        scalar, type of data (optional).
+**
+**
+**
+**             c        an instance of an eqSolvemtControl structure.  Normally an
+**                      instance is initialized by calling eqSolveControlCreate
+**                      and members of this instance can be set to other values
+**                      by the user.  For an instance named c, the members are:
+**
+**                   c.jacobianProc  pointer to a procedure which computes the
+**                                   analytical Jacobian.  By default, eqSolvemt
+**                                   will compute the Jacobian numerically.
+**
+**                   c.maxIters      scalar, the maximum number of iterations.
+**                                   Default = 100.
+**
+**                   c.stepTolerance scalar, the step tolerance.
+**                                   Default = macheps^(2/3).
+**
+**                   c.typicalF      Kx1 vector of the typical F(X) values at a point
+**                                   not near a root, used for scaling.  This becomes
+**                                   important when the magnitudes of the components
+**                                   of F(X) are expected to be very different.
+**                                   By default, function values are not scaled.
+**
+**                   c.typicalX     Kx1 vector of the typical magnitude of <x>, used
+**                                  for scaling. This becomes important when the
+**                                  magnitudes of the components of <x> are expected
+**                                  to be very different.  By default, variable
+**                                  values are not scaled.
+**
+**                   c.printIters   scalar, if nonzero, iteration information is
+**                                  printed.  Default = 0;
+**
+**                   c.tolerance    scalar, the tolerance of the scalar
+**                                  function f = 0.5*||F(X)||2 required to terminate
+**                                  the algorithm. That is, the  condition that
+**                                  |f(x)| <= _nlfvtol must be met before  that
+**                                  algorithm can terminate successfully.
+**                                  Default = 1e-5
+**
+**
+**                   c.altnam       Kx1 character vector of alternate names to be used
+**                                  by the printed output.  By default, the names "X1,
+**                                  X2, X3....
+**
+**                   c.title        string, printed as a title in output.
+**
+**                   c.output       scalar.  If non-zero, final results are printed.
+**
+*
+**  Output:   out       an instance of an eqSolveOut structure. For an
+**                      instance named out, the members are:
+**
+**                      out.par    instance of a PV structure containing the
+**                           parameter estimates will be placed in the member
+**                           matrix out.par.
+**
+**                      out.fct    scalar, function evaluated at x
+**
+**                      out.retcode    scalar, return code:
+**
+**                         -1   Jacobian is singular
+**               
+**                          1   Norm of the scaled function value is less than
+**                              c.tolerance. Xp given is an approximate root of F(X)
+**                              (unless c.tolerance is too large).
+**               
+**                          2   The scaled distance between the last two steps is
+**                              less than the step-tolerance (c.stepTolerance).
+**                              X may be an approximate root of F(X), but it is
+**                              also possible that the algorithm is making very
+**                              slow progress and is not near a root, or the
+**                              step-tolerance is too large.
+**               
+**                          3   The last global step failed to decrease
+**                              norm2(F(X)) sufficiently; either X is close to a
+**                              root of F(X) and no more accuracy is possible, or
+**                              an incorrectly coded analytic Jacobian is being
+**                              used, or the secant approximation to the Jacobian
+**                              is inaccurate, or the step-tolerance is
+**                              too large.
+**               
+**                          4   Iteration limit exceeded.
+**               
+**                          5   Five consecutive steps of maximum step length --
+**                              have been taken; either norm2(F(X))
+**                              asymptotes from above to a finite value in some
+**                              direction or the maximum step length is too small.
+**               
+**                          6   X seems to be an approximate local minimizer of
+**                              norm2(F(X)) that is not a root of F(X).
+**                              To find a root of F(X), restart eqSolvemt
+**                              from a different region.
+**
+**  Remarks:   The equation procedure should return a column vector
+**             containing the result for each equation.
+**
+**             If there is no data, you can pass an empty DS structure
+**             in the second argument:
+**
+**                     call eqSolvemt(&fct,par,dsCreate,c);
+**
+**
+**  Example:
+**
+**    //     Equation 1:   x1^2  + x2^2 - 2 = 0
+**    //     Equation 2:   exp(x1-1) + x2^3 - 2 = 0
+**
+**         #include eqSolvemt.sdf;
+**
+**         struct eqSolvemtControl c;
+**         c = eqSolvemtControlCreate;
+**         c.printIters = 1;
+**
+**         struct PV par;
+**         par = pvPack(pvCreate,1,"x1");
+**         par = pvPack(par,1,"x2");
+**
+**         struct eqSolvemtOut out1;
+**
+**         out1 = eqSolvemt(&fct,par,dsCreate,c);
+**
+**         proc  f(par,data);
+**             local x1,x2,eqn1,eqn2;
+**             x1 = pvUnpack(par,"x1");
+**             x2 = pvUnpack(par,"x2");
+**             eqn1 = x1^2 + x2^2 - 2;       /* Equation 1 */
+**             eqn2 = exp(x1-1) + x2^3 - 2;  /* Equation 2 */
+**             retp( eqn1 | eqn2 );
+**         endp;
+**
+**
+**
+**
+*/
+
+#include eqsolvemt.sdf
+
+proc eqSolvemt(f, struct PV par0, struct DS d0, struct eqSolvemtControl c0);
+
+    local f:proc;
+
+    local jacob,retcode,maxstep,sx,sf,xc,gc,fp,eta, fvc,restart,
+        itncount,p,xp,maxtaken,fc,fvp, jc,consecmx,n,sfsq,typx,typf,
+        macheps,fvtol,sp, gp,eqlist,varlist,fmtstr,oldt, x0;
+
+    local nldc, nlfpprv, nlxpprv, eqmtol;
+    local Lnlitnum;
+
+    struct eqSolvemtOut out;
+
+    clear nlfpprv, nlxpprv;
+    nldc = 1;
+
+    x0 = pvGetParVector(par0);
+    n = rows(x0);
+    fvc = f(par0,d0);
+    if rows(fvc) > n;
+        errorlog "\nERROR:  This is an overdetermined system.  eqSolvemt requ"\
+            "ires that\n        the system be square. (i.e. that the number"\
+            " of variables\n        equal the number of equations.\n";
+        end;
+    elseif rows(fvc) < n;
+        errorlog "\nERROR:  This is an underdetermined system.  eqSolvemt req"\
+            "uires that\n        the system be square. (i.e. that the numbe"\
+            "r of variables\n        equal the number of equations.\n";
+        end;
+    endif;
+
+/*
+** Initialize defaults.
+**
+*/
+    retcode = 0;
+
+    eta = sqrt(machEpsilon);
+    eqmtol = machEpsilon^(2/3);
+
+    if rows(c0.stepTolerance) == 0;
+        c0.stepTolerance = machEpsilon^(2/3);
+    endif;
+
+    if rows(c0.tolerance) == 0;
+        c0.tolerance = machEpsilon^(1/3);
+    endif;
+
+    if rows(c0.typicalx) == 0;
+        sx = ones(n,1);
+        typx = sx;
+    elseif rows(sx) == n;
+        typx = missrv(miss(c0.typicalx,0),1);
+        sx = 1/typx;
+    endif;
+
+    if rows(c0.typicalf) == 0;
+        sf = ones(n,1);
+        typf = sf;
+    elseif rows(sf) == n;
+        typf = missrv(miss(c0.typicalf,0),1);
+        sf = 1/typf;
+    endif;
+
+    if rows(c0.maxIters) == 0;
+        c0.maxIters = 100;
+    endif;
+
+    if rows(c0.printIters) == 0;
+        c0.printIters = 0;
+    endif;
+
+    if rows(c0.output) == 0;
+        c0.output = 1;
+    endif;
+
+    if c0.altNames[1] $== "";
+        varlist = ftostrC(seqa(1,1,n),"X%1.0lf");
+    else;
+        if rows(c0.altNames) == n;
+            varlist = c0.altNames;
+        elseif cols(c0.altNames) == n;
+            varlist = c0.altNames';
+        else;
+            errorlog "\nERROR:  Wrong number of rows in altnames.\n";
+            end;
+        endif;
+    endif;
+
+    if c0.printiters > 0 or c0.output > 0;
+        local lbl,m0,s0,s1,s2;
+
+        lbl = pvGetParNames(par0);
+        m0 = 0;
+        for i(1,rows(lbl),1);
+            m0 = maxc(m0 | strlen(lbl[i]) );
+        endfor;
+        m0 = m0 + 5;
+        s0 =  "Parameters"$+chrs(32*ones(1,m0-8))$+"Estimate     Gradient";
+        s1 = chrs(45*ones(1,maxc(strlen(s0)+7|40)));
+        s2 = ""$+chrs(32*ones(1,m0-strlen(lbl[1])));
+        for i(2,rows(lbl),1);
+            s2 = s2 $| chrs(32*ones(1,m0-strlen(lbl[i])));
+        endfor;
+    endif;
+
+    sfsq = sf^2;
+    maxstep = (10^3)*maxc(sqrt(moment(sx.*x0,0))'|sqrt(moment(sx,0))');
+    eqlist = ftostrC(seqa(1,1,n),"F%1.0lf(X)");
+
+    if c0.jacobianProc;
+        jacob = c0.jacobianProc;      /* Assign pointer to jacob */
+        local jacob:proc;           /* Assume jacob is procedure pointer  */
+        jc = jacob(pvPutParVector(par0,x0),d0);
+    else;
+        jc = _eqsmt_jacob(&f,x0,fvc,0,typx,eta);
+    endif;
+
+    gc = jc'fvc;
+    xp = x0;
+    xc = x0;
+    fc = 0.5*moment(sf.*fvc,0);
+    retcode = 0;
+
+    consecmx = 0;
+    itncount = 0;
+
+    if c0.printIters;
+        print chrs(45*ones(80,1));
+        print "              ROOTS";;
+        print chrs(32*ones(32,1)) "      F(ROOTS)";
+        print chrs(45*ones(80,1));
+        print;
+    endif;
+
+    do while retcode == 0;
+
+        oldt = trapchk(1);
+        trap 1,1;
+        p = -fvc/jc;
+        if scalmiss(p);
+            out.par = pvPutParVector(par0,xc);
+            out.retcode = -1;
+            retp(out);
+        endif;
+        trap oldt,1;
+
+        gc = jc'fvc;
+        xc = xp;
+
+        local alpha,newtlen,rlength,minlam,lambda,ab,inslope,
+            ltemp, one,two,three,fpprev,a,b,disc,lprev, notdone,
+            tcode;
+
+    /* Initialize Parameters */
+
+        maxtaken = 0;
+        alpha = 1e-4;
+
+        newtlen = sqrt(moment(sx.*p,0));
+        if newtlen > maxstep;
+            p = p*(maxstep/newtlen);
+            newtlen = maxstep;
+        endif;
+
+        inslope = gc'p;
+        rlength = maxc(abs(p) ./ (maxc(xc'|(typx')) ));
+
+        if rlength == 0;
+            xp = xc;
+            fp = fc;
+        else;
+            minlam = c0.stepTolerance/rlength;
+
+            lambda = 1;
+            notdone = 1;
+
+            do while notdone;
+                xp = xc + lambda*p;
+                fp = 0.5*moment(sf.*f(pvPutParVector(par0,xp),d0),0);       /* objective function  */
+
+                if fp <= fc + alpha*lambda*inslope;
+                    if lambda == 1 and newtlen > .99*maxstep;
+                       maxtaken = 1;
+                    endif;
+                    notdone = 0;
+                elseif lambda < minlam;
+                    xp = xc;
+                    notdone = 0;
+                else;
+                    if lambda == 1;
+                            /* Quadratic step */
+                        ltemp = -inslope/(2*(fp-fc-inslope));
+                    else;
+                        one = 1/(lambda - lprev);
+                        two = ((1/lambda^2 ~ -1/lprev^2) |
+                            (-lprev/lambda^2 ~ lambda/lprev^2));
+                        three = fp - fc - lambda *inslope | fpprev - fc
+                            -lprev*inslope;
+
+                        ab = one*two*three;
+                        a = ab[1,1];
+                        b = ab[2,1];
+                        disc = b^2 - 3*a*inslope;
+
+                        if ndpchk(8);
+                            break;
+
+                        elseif a == 0;
+                            ltemp = -inslope/(2*b);
+                        elseif disc <= 0 or ndpchk(8);
+                            break;
+                        else;
+                            ltemp = (-b+sqrt(disc))/(3*a);
+                        endif;
+                        if ltemp > 0.5*lambda;
+                            ltemp = 0.5*lambda;
+                        endif;
+                    endif;
+                    lprev = lambda;
+                    fpprev = fp;
+
+                    if ltemp <= 0.1*lambda;
+                        lambda = 0.1*lambda;
+                    else;
+                        lambda = ltemp;
+                    endif;
+                endif;
+            endo;
+
+        endif;
+
+        fvp = f(pvPutParVector(par0,xp),d0);
+
+        if c0.jacobianProc;
+            jc = jacob(pvPutParVector(par0,xp),d0);
+        else;
+            jc = _eqsmt_jacob(&f,xp,fvp,0,typx,eta);
+        endif;
+
+/*
+** Check to see if any stopping criteria have been met.
+*/
+
+        if _eqsmt_norm2(fvp.*sf) <= c0.tolerance;
+            retcode = 1;    /* A proper termination */
+        elseif abs(xp-xc)./maxc(abs(xp)'|typx') <= c0.stepTolerance;
+            retcode = 2;    /* Algorithm may have bogged down */
+        elseif retcode == 1;
+            retcode = 3;
+        elseif itncount >= c0.maxIters;
+            retcode = 4;
+        elseif maxtaken == 1;
+            consecmx = consecmx+1;
+            if consecmx == 20;
+                retcode = 5;
+            endif;
+        else;
+            consecmx = 0;
+            gp = jc'.*sfsq*fvp;
+            if maxc(abs((gp.* maxc(xp'|typx'))/maxc(fp|1/sf))) <= eqmtol;
+                retcode = 6;
+            endif;
+        endif;
+        itncount = itncount + 1;
+
+        if c0.printIters > 0;
+            print "Iteration #" ftos(itncount,"%*.*lf",1,0);
+            for i(1,rows(x0),1);
+                print varlist[i];;
+                print s2[i];;
+                print ftos(x0[i],"%*.*lf    ",18,10);;
+                print eqlist[i];;
+                print ftos(fvp[i],"  %*.*lf",18,10);
+            endfor;
+            print;
+            print;
+        endif;
+
+        fc = fp;
+        fvc = fvp;
+
+    endo;
+
+    out.par = pvPutParVector(par0,xp);
+    out.retcode = retcode;
+
+    if c0.output > 0;
+
+        local table,fmt;
+
+        call header("EqSolvemt","",_rtl_ver);
+        print;
+
+        print "||F(X)|| at final solution:                               "\
+              "     ";;
+        print ftos(_eqs_norm2(xp),"%*.*lg",15,8);
+
+        print chrs(45*ones(80,1));
+        print "Termination Code = " ftos(retcode,"%*.*lf",1,0) ":";
+        print;
+
+        if retcode == 1;
+            print "Norm of the scaled function value is less than tolerance;";
+        elseif retcode == 2;
+            print "The scaled distance between the last two steps is less "\
+                  "than";
+            print "the stepTolerance. X may be an approximate";
+            print " root of F(X), but it is also possible that the algorithm is";
+            print "making very slow progress and is not near a root, or that the";
+            print "step tolerance is too large.";
+        elseif retcode == 3;
+            print "The last global step failed to decrease norm2(F(X)) ";
+            print "either X is close to a root of F(X) and no more accura"\
+                  "cy";
+            print "is possible, or an incorrectly coded analytic Jacobian"\
+                  " is ";
+            print "being used";
+        elseif retcode == 4;
+            print "Iteration limit exceeded.";
+        elseif retcode == 5;
+            print "Five consecutive steps of maximum length  have been taken;";
+            print "either norm2(F(X)) approaches an asymptote from above to a";
+            print "finite value in some direction or the maximum step length";
+            print "is too small.";
+        elseif retcode == 6;
+            print "X seems to be an approximate local minimizer of norm2"\
+                  "(F(X))";
+            print "that is not a root of F(X) (or __Tol is too small).  To f"\
+                  "ind";
+            print "a root of F(X), eqSolve should be restarted from a differ"\
+                  "ent";
+            print "region";
+        elseif retcode == -1;
+            print "Jacobian is singular";
+        endif;
+
+        print chrs(45*ones(80,1));
+        print;
+        print chrs(45*ones(80,1));
+
+        print "VARIABLE              START                   ";;
+        print "ROOTS                 F(ROOTS)";
+        print chrs(45*ones(80,1));
+        fvp = f(out.par,d0);
+
+        for i(1,rows(x0),1);
+            print;
+            print varlist[i];;
+            print s2[i];;
+            print ftos(x0[i],"%*.*lf",15,8);;
+            print ftos(xp[i],"%*.*lf",18,10);;
+            print ftos(fvp[i],"%*.*lf",22,10);
+        endfor;
+        print chrs(45*ones(80,1));
+        print;
+        print;
+
+    endif;
+
+retp(out);
+endp;
+
+proc _eqsmt_norm2(x);
+    retp(0.5*sqrt(x'x));
+endp;
+
+
+
+
+proc _eqsmt_jacob(f,par0,d0,f0,dh,typx,eta);
+
+    local rows_f,rows_x,jacobian,i,xc,xp,x;
+    local f:proc;
+
+    x = pvGetParVector(par0);
+    rows_f = rows(f0);
+    rows_x = rows(x);
+    jacobian = zeros(rows_f,rows_x);
+
+    /* Computation of stepsize (dh) for gradient if dh == 0 */
+
+    if dh == 0;
+        dh = eta*maxc(abs(x')|typx');
+        dh = dh + (dh == 0);
+    endif;
+
+    xc = x + dh;
+    dh = xc - x;        /* This increases precision slightly */
+    xp = x + eye(rows_x).*dh;
+
+    /* Calculate forward difference */
+    i = 1;
+    do until i > rows_x;
+        jacobian[.,i] = (f(pvPutParVector(par0,xp[.,i]),d0) - f0);
+        i = i + 1;
+    endo;
+    retp(jacobian./(dh'));
+endp;
+
+
+
+
+/*
+**> eqSolvemtControlCreate
+**
+**  Purpose:   creates default eqSolvemtControl structure
+**
+**  Format:    c = eqSolvemtControlCreate;
+**
+**  Output:    c    instance of eqSolvemtControlStructure with
+**                  members set to default values
+*/
+
+
+proc eqSolvemtControlCreate;
+   struct eqSolvemtControl c;
+   c.jacobianProc = 0;
+   retp(c);
+endp;
+
+
+
+/*
+**> eqSolvemtOutCreate
+**
+**  Purpose:   creates default eqSolvemtOut structure
+**
+**  Format:    c = eqSolvemtOutCreate;
+**
+**  Output:    c    instance of eqSolvemtOutStructure with
+**                  members set to default values
+*/
+
+
+
+
+proc eqSolvemtOutCreate;
+   struct eqSolvemtOut out;
+   out.retcode = 0;
+   retp(out);
+endp;

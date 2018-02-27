@@ -1,0 +1,221 @@
+/*
+** denoise.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  ytilde = SemiSoft(y,lambda1,lamba2);
+**                                Semi-soft wavelet shrinkage technique    23
+**
+**  ytilde = Thresholding(y,p);   Quantile Thresholding techniques         39
+**
+**  ytilde = VisuShrink(y,method);
+**                                Visu shrinkage                           54
+**
+**  ytilde = WaveShrink(y,lambda,method);
+**                                Wavelet schrinkage techniques            70
+**
+*/
+
+
+/*
+** SemiSoft
+**
+** Purpose: Semi-soft wavelet shrinkage technique
+**
+** Format:  ytilde = SemiSoft(y,lambda1,lambda2);
+**
+** Input:         y - N*1 vector, the coefficients
+**          lambda1 - scalar, lambda(1) parameter
+**          lambda2 - scalar, lambda(2) parameter
+**
+** Output:   ytilde - N*1 vector, the smoothed coefficients
+**
+*/
+
+
+/*
+** Thresholding
+**
+** Purpose: Quantile Thresholding technique
+**
+** Format:  ytilde = Thresholding(y,p);
+**
+** Input:         y - N*1 vector, the coefficients
+**                p - scalar, the quantile p parameter
+**
+** Output:   ytilde - N*1 vector, the smoothed coefficients
+**
+*/
+
+
+/*
+** VisuShrink
+**
+** Purpose: Wavelet Visu Shrinkage
+**
+** Format:  ytilde = VisuShrink(y,method);
+**
+** Input:         y - N*1 vector, the coefficients
+**           method - string, "Hard" for hard thresholding
+**                        "Soft" for soft thresholding
+**
+** Output:   ytilde - N*1 vector, the smoothed coefficients
+**
+*/
+
+
+/*
+** WaveShrink
+**
+** Purpose: Wavelet Shrinkage techniques
+**
+** Format:  ytilde = WaveShrink(y,lambda,method);
+**
+** Input:         y - N*1 vector, the coefficients
+**           lambda - scalar, lambda parameter
+**           method - string, "Hard" for hard thresholding
+**                            "Soft" for soft thresholding
+**
+** Output:   ytilde - N*1 vector, the smoothed coefficients
+**
+*/
+
+
+
+/* ----------------------------------------------------------------------
+                              DENOISING
+   ---------------------------------------------------------------------- */
+
+/*
+** WaveShrink
+*/
+
+proc (1) = WaveShrink(y,lambda,method);
+  local sigma,ytilde,u,v;
+
+  if ismiss(y);
+    ERRORLOG "error: The vector of coefficients contains missing values.";
+    retp(error(0));
+  endif;
+
+  sigma = stdc(y);
+  y = y/sigma;
+
+  if lower(method) $== "hard";
+
+    ytilde = y .* (abs(y) .>= lambda);
+
+  elseif lower(method) $== "soft";
+
+    u = y.>0; u = 2*u-1;
+    v = abs(y)-lambda;
+    v = v .* (v .> 0);
+    ytilde = u.*v;
+
+  else;
+
+    ERRORLOG "error: Two methods are available : hard schrinkage (method = "\
+             "\"Hard\")\L"\
+             "       and soft schrinkage (method = \"soft\").";
+    retp(error(0));
+
+  endif;
+
+  ytilde = sigma*ytilde;
+
+  retp(ytilde);
+endp;
+
+
+/*
+** VisuShrink
+*/
+
+proc (1) = VisuShrink(y,method);
+  local N,lambda,ytilde;
+
+  if ismiss(y);
+    ERRORLOG "error: The vector of coefficients contains missing values.";
+    retp(error(0));
+  endif;
+
+  N = rows(y);
+  lambda = sqrt(2*log(N));
+  ytilde = Waveshrink(y,lambda,method);
+
+  retp(ytilde);
+endp;
+
+
+/*
+** SemiSoft
+*/
+
+proc (1) = SemiSoft(y,lambda1,lambda2);
+  local sigma,ytilde,u,v0,v1_,v1,v2,v3;
+
+  if ismiss(y);
+    ERRORLOG "error: The vector of coefficients contains missing values.";
+    retp(error(0));
+  endif;
+
+  if lambda1 > lambda2;
+
+    ERRORLOG "error: lambda2 must be greater than lambda1";
+    retp(error(0));
+
+  endif;
+
+  sigma = stdc(y);
+  y = y/sigma;
+
+  u = y.>0; u = 2*u-1;
+
+  v0 = abs(y);
+  v1_ = v0-lambda1; v1 = v1_ .<= 0;
+  v2 = v0-lambda2; v2 = v2 .> 0;
+  v3 = 1 - (v1 .or v2);
+  ytilde = (0 .* v1) + (y .* v2) + (u.*lambda2.*v1_/(lambda2-lambda1)).*v3;
+
+  ytilde = sigma*ytilde;
+
+  retp(ytilde);
+endp;
+
+
+/*
+** Thresholding (quantile)
+*/
+
+proc (1) = Thresholding(y,p);
+  local ytilde,N,u,ystar,q;
+
+  if ismiss(y);
+    ERRORLOG "error: The vector of coefficients contains missing values.";
+    retp(error(0));
+  endif;
+
+  if (p < 0) or (p > 1);
+
+    ERRORLOG "error: p must be in the range 0-1.";
+    retp(error(0));
+
+  endif;
+
+  N = rows(y);
+  u = abs(y);
+  ystar = sortc(u,1);
+  q = ceil(N*p);
+  if q < 1;
+    ystar = 0;
+  else;
+    ystar = ystar[q];
+  endif;
+
+  ytilde = y .* (u .>= ystar);
+
+  retp(ytilde);
+endp;
+

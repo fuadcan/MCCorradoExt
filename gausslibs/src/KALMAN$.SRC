@@ -1,0 +1,1222 @@
+/*
+** kalman$.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  call SSM_buid(Z,d,H,T,c,R,Q,cn);
+**                                Build the state space model              40
+**
+**  {a0,P0} = SSM_ic;             Compute the initial conditions for a stable
+**                                TIME-INVARIANT state space model         72
+**
+**  P_bar = ARE(tol,iter);        Solve the Algebraic Riccati Equation
+**                                for a (TIME-INVARIANT) state space
+**                                model by an iterative method             88
+**
+**  call KFiltering(y,a0,P0);     Kalman filtering of a state space model 105
+**
+**  w = KF_matrix(i);             Read the different matrices derived
+**                                from the Kalman filter                  121
+**
+**  Logl = KF_ml;                 Compute the log-likelihood vector of
+**                                the innovations process of a
+**                                state space model                       143
+**
+**  {as,Ps} = KSmoothing;         Smoothing (fixed point) of a
+**                                state space process                     159
+**
+**  {yF,mse,aF,PF} = KForecasting(Np);
+**                                Forecast a TIME-INVARIANT
+**                                state space model                       174
+**
+**  call SSM(Z,d,H,T,c,R,Q,cn);   Print the state space model             193
+**
+*/
+
+
+/*
+** SSM_build
+**
+** Purpose: Build the state space model
+**
+** ============================================================================
+** TIME-INVARIANT MODEL
+** Format:  call SSM_build(Z,d,H,T,c,R,Q,0);
+**
+** Input:   Z - N*M matrix, the Z matrix
+**          d - N*1 vector, the d vector
+**          H - N*N matrix, the H matrix
+**          T - M*M matrix, the T matrix
+**          c - M*1 vector, the c vector
+**          R - M*G matrix, the R matrix
+**          Q - G*G matrix, the Q matrix
+**
+** ============================================================================
+** TIME-VARIANT MODEL
+** Format:  call SSM_build(&Z,&d,&H,&T,&c,&R,&Q,1);
+**
+** Input:   &Z - pointer to a procedure which returns the N*M Z(t) matrix
+**          &d - pointer to a procedure which returns the N*1 d(t) vector
+**          &H - pointer to a procedure which returns the N*N H(t) matrix
+**          &T - pointer to a procedure which returns the M*M T(t) matrix
+**          &c - pointer to a procedure which returns the M*1 c(t) vector
+**          &R - pointer to a procedure which returns the M*G R(t) matrix
+**          &Q - pointer to a procedure which returns the G*G Q(t) matrix
+**
+*/
+
+
+/*
+** SSM_ic
+**
+** Purpose: Compute the initial conditions for a
+**          STABLE TIME-INVARIANT state space model
+**
+** Format:  {a0,P0} = SSM_ic;
+**
+** Input;   SSM_ic needs no argument
+**
+** Output:  a0 - M*1 vector, the initial state vector
+**          P0 - M*M matrix, the initial covariance matrix
+**
+*/
+
+
+/*
+** ARE
+**
+** Purpose: Solve the Algebraic Riccati Equation for
+**          a (TIME-INVARIANT) state space model by an
+**          iterative method
+**
+** Format:  P_bar = ARE(tol,Niter);
+**
+** Input:    tol - scalar, convergence criterion
+**         Niter - scalar, the maximum number of iterations
+**
+** Output: P_bar - M*M matrix, Pbar the solution of the ARE
+**
+*/
+
+
+/*
+** KFiltering
+**
+** Purpose: Kalman filtering of a state space model
+**
+** Format:  call KFiltering(y,a0,P0);
+**
+** Input:    y - Nobs*N matrix, data
+**          a0 - M*1 vector, the initial state vector
+**          P0 - M*M matrix, the initial covariance matrix
+**
+** Output:  You should use the KF_matrix procedure to read the different
+**          matrices evaluated through KFiltering
+*/
+
+
+/*
+** KF_matrix
+**
+** Purpose: Read the different matrices derived from the Kalman filter
+**
+** Format:  w = KF_matrix(i);
+**
+** Input:    i - scalar
+**               = 1, y(t|t-1)
+**               = 2, v(t)
+**               = 3, a(t)
+**               = 4, P(t)
+**               = 5, a(t|t-1)
+**               = 6, P(t|t-1)
+**               = 7, F(t)
+**               = 8, inv(F(t))
+**
+** Output:   w - matrix
+**
+*/
+
+
+/*
+** KF_ml
+**
+** Purpose: Compute the log-likelihood vector of the innovations process
+**          of a state space model
+**
+** Format:  Logl = KF_ml;
+**
+** Input:   KF_ml needs no argument
+**
+** Output:  Logl - Nobs*1 vector, the log-likelihood vector of the
+**                                innovations for each observation.
+**
+*/
+
+
+/*
+** KSmoothing
+**
+** Purpose: Smoothing of a state space process
+**
+** Format:  {as,Ps} = KSmoothing;
+**
+** Output:  as - Nobs*M matrix, the smoothed state vector
+**          Ps - Nobs*(M*(M+1)/2) matrix, the smoothed covariance matrix
+**
+** Remarks: The output data are stored as in the KF_matrix procedure
+**
+*/
+
+
+/*
+** KForecasting
+**
+** Purpose: Forecast a TIME-INVARIANT state space model
+**
+** Format:  {yF,mse,aF,PF} = KForecasting(Np);
+**
+** Input:   Np - scalar, the number of periods to be forecasted
+**
+** Output:  yF - Np*N matrix, the forecast of y(t)
+**         mse - Np*(N*(N+1)/2) matrix, the corresponding MSE
+**          aF - Np*M matrix, the forecast of a(t)
+**          PF - Np*(M*(M+1)/2) matrix, the corresponding covariance matrices
+**
+** Remarks: The output data are stored as in the KF_matrix procedure
+**
+*/
+
+
+/*
+** SSM
+**
+** Purpose: Print the state space model
+**
+** ============================================================================
+** TIME-INVARIANT MODEL
+** Format:  call SSM(Z,d,H,T,c,R,Q,0);
+**
+** Input:   Z - N*M matrix, the Z matrix
+**          d - N*1 vector, the d vector
+**          H - N*N matrix, the H matrix
+**          T - M*M matrix, the T matrix
+**          c - M*1 vector, the c vector
+**          R - M*G matrix, the R matrix
+**          Q - G*G matrix, the Q matrix
+**
+** ============================================================================
+** TIME-VARIANT MODEL
+** Format:  call SSM(&Z,&d,&H,&T,&c,&R,&Q,1);
+**
+** Input:   &Z - pointer to a procedure which returns the N*M Z(t) matrix
+**          &d - pointer to a procedure which returns the N*1 d(t) vector
+**          &H - pointer to a procedure which returns the N*N H(t) matrix
+**          &T - pointer to a procedure which returns the M*M T(t) matrix
+**          &c - pointer to a procedure which returns the M*1 c(t) vector
+**          &R - pointer to a procedure which returns the M*G R(t) matrix
+**          &Q - pointer to a procedure which returns the G*G Q(t) matrix
+**
+** Remarks: This procedure can be used to verify the dimensions of the matrices.
+**
+*/
+
+/*
+** State-Space Models
+*/
+
+
+/*
+** SSM_build
+*/
+
+proc (0) = SSM_build(Z,d,H,T,c,R,Q,cn);
+  local n,m,g;
+
+  if cn == 0;
+
+    n = rows(Z); m = cols(Z); g = cols(R);
+
+    if ( rows(d) /= n ) or ( rows(H) /= n ) or ( cols(H) /= n )
+       or ( rows(T) /= m ) or ( cols(T) /= m ) or ( rows(c) /= m )
+       or ( rows(R) /= m ) or ( rows(Q) /= g ) or ( cols(Q) /= g )
+       or ( cols(d) /= 1 ) or ( cols(c) /= 1 );
+
+       ERRORLOG "error: Wrong size format of matrices.";
+       end;
+
+    endif;
+
+    _SSM_parameters = 1|n|m|g|0;
+
+    _SSM_Z = Z;
+    _SSM_d = d;
+    _SSM_H = H;
+    _SSM_T = T;
+    _SSM_c = c;
+    _SSM_R = R;
+    _SSM_Q = Q;
+
+    retp;
+
+  elseif cn == 1;
+
+    local Z:proc,d:proc,H:proc,T:proc,c:proc,R:proc,Q:proc;
+
+    n = rows(Z(1)); m = cols(Z(1)); g = cols(R(1));
+
+    if ( rows(d(1)) /= n ) or ( rows(H(1)) /= n ) or ( cols(H(1)) /= n )
+       or ( rows(T(1)) /= m ) or ( cols(T(1)) /= m ) or ( rows(c(1)) /= m )
+       or ( rows(R(1)) /= m ) or ( rows(Q(1)) /= g ) or ( cols(Q(1)) /= g )
+       or ( cols(d(1)) /= 1 ) or ( cols(c(1)) /= 1 );
+
+       ERRORLOG "error: Wrong size format of matrices.";
+       end;
+
+    endif;
+
+    _SSM_parameters = 2|n|m|g|0;
+
+    _SSM_Z = &Z;
+    _SSM_d = &d;
+    _SSM_H = &H;
+    _SSM_T = &T;
+    _SSM_c = &c;
+    _SSM_R = &R;
+    _SSM_Q = &Q;
+
+    retp;
+
+  else;
+
+     ERRORLOG "error: cn must take the value 1 or 0.";
+     end;
+
+  endif;
+endp;
+
+
+/*
+** Initial conditions for a state space model
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 120-121
+*/
+
+
+/*
+** SSM_ic;
+*/
+
+proc (2) = SSM_ic;
+  local a_0,P_0;
+  local m,g,T,c,R,Q,w0,oldtrap,w1,w2,w3;
+
+  if _SSM_parameters[1] == 2;
+
+    ERRORLOG "error: The state space model is not time-invariant.";
+    end;
+
+  endif;
+
+  if _SSM_parameters[1] /= 1;
+
+    ERRORLOG "error: State space model not built.";
+    end;
+
+  endif;
+
+  m = _SSM_parameters[3];
+  g = _SSM_parameters[4];
+
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+  w0 = eye(m)-T;
+
+  if w0 == zeros(m,m);
+
+    ERRORLOG "error: The state space model is not stable.";
+    call pause(2);
+    retp(error(0),error(0));
+
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  w0 = inv(w0);
+  trap oldtrap,1;
+
+  if scalerr(w0);
+
+    ERRORLOG "error: The state space model is not stable.";
+    call pause(2);
+    retp(error(0),error(0));
+
+  endif;
+
+  a_0 = w0*c;
+
+  if Q == zeros(g,g);
+
+    P_0 = zeros(m,m);
+    retp(a_0,P_0);
+
+  else;
+
+    w1 = T.*.T;
+    w2 = eye(m^2) - w1;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    w2 = inv(w2);
+    trap oldtrap,1;
+
+    if scalerr(w2);
+
+      ERRORLOG "error: The state space model is not stable.";
+      retp(error(0),error(0));
+
+    endif;
+
+    w3 = w2*vec(R*Q*R');
+    P_0 = reshape(w3,m,m); P_0 = P_0';
+
+  endif;
+
+  retp(a_0,P_0);
+endp;
+
+
+/*
+** Kalman Filter
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 104-106
+*/
+
+
+/*
+** KFiltering
+*/
+
+proc (0) = KFiltering(y,a_0,P_0);
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+
+    ERRORLOG "error: State space model not built.";
+    end;
+
+  endif;
+
+  if _SSM_parameters[1] == 1;
+
+    call _KFiltering1(y,a_0,P_0);
+
+  elseif _SSM_parameters[1] == 2;
+
+    call _KFiltering2(y,a_0,P_0);
+
+  endif;
+
+  _SSM_parameters[5] = 1;
+
+  retp;
+endp;
+
+proc (0) = _KFiltering1(y,a_0,P_0);
+  local data,y_,Nobs,Nobs_,s,n,m,g;
+  local Z,d,H,T,c,R,Q;
+  local yc,v,a,ac,P,Pc,F,invF;
+  local yt,yt_1,vt,at,at_1,Pt,Pt_1,Ft,Ft_inv;
+  local oldtrap,i,j,w0,w1,w2;
+  local n1,m1;
+
+  Nobs = rows(y);
+  s = seqa(1,1,Nobs);
+  data = packr(y~s);
+
+  Nobs_ = rows(data);
+  n = _SSM_parameters[2]; n1 = n*(n+1)/2;
+  m = _SSM_parameters[3]; m1 = m*(m+1)/2;
+  g = _SSM_parameters[4];
+
+  if cols(y) /= n;
+
+    ERRORLOG "error: The matrix of observations is not conformable.";
+    end;
+
+  endif;
+
+  if ( cols(a_0) /= 1 ) or ( rows(a_0) /= m ) ;
+
+    ERRORLOG "error: Vector a_0 is not conformable.";
+    end;
+
+  endif;
+
+  if ( cols(P_0) /= m ) or ( rows(P_0) /= m ) ;
+
+    ERRORLOG "error: Matrix P_0 is not conformable.";
+    end;
+
+  endif;
+
+  y_ = data[.,1:n]; s = data[.,n+1];
+
+  yc = miss(zeros(Nobs,n),0); v = yc;
+  ac = miss(zeros(Nobs,m),0); a = ac;
+  Pc = miss(zeros(Nobs,m1),0); P = Pc;
+  F = miss(zeros(Nobs,n1),0); invF = F;
+  _KF_detF = miss(zeros(Nobs,1),0);
+  _KF_pinv = zeros(Nobs,1);
+
+  Z = _SSM_Z; d = _SSM_d; H = _SSM_H;
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+  at = a_0; Pt = P_0;
+  w0 = R*Q*R' ;
+
+  i = 1;
+  do until i > Nobs_;
+
+    j = s[i];
+    yt = y[j,.]';
+
+    at_1 = T*at + c ;
+    Pt_1 = T*Pt*T' + w0 ;
+
+    yt_1 = Z*at_1 + d ;
+    vt = yt-yt_1 ;
+
+    Ft = Z*Pt_1*Z' + H ;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Ft_inv = invpd(Ft);
+    trap oldtrap,1;
+
+    if scalerr(Ft_inv);
+
+      if Ft == zeros(n,n);
+        Ft_inv = miss(zeros(n,n),0);
+      else;
+        Ft_inv = pinv(Ft);
+        _KF_pinv[j] = 1;
+      endif;
+
+    else;
+
+      _KF_detF[j] = detl;
+
+    endif;
+
+    w1 = Pt_1*Z';
+    w2 = w1*Ft_inv;
+
+    at = at_1 + w2*vt ;
+    Pt = Pt_1 - w2*w1' ;
+
+    yc[j,.] = yt_1';
+    v[j,.] = vt';
+    a[j,.] = at';
+    ac[j,.] = at_1';
+    P[j,.] = vech(Pt)';
+    Pc[j,.] = vech(Pt_1)';
+    F[j,.] = vech(Ft)';
+    invF[j,.] = vech(Ft_inv)';
+
+    i=i+1;
+
+  endo;
+
+  _KF_yc = yc;
+  _KF_v = v;
+  _KF_a = a;
+  _KF_P = P;
+  _KF_ac = ac;
+  _KF_Pc = Pc;
+  _KF_F = F;
+  _KF_invF = invF;
+
+  retp;
+endp;
+
+proc (0) = _KFiltering2(y,a_0,P_0);
+  local data,y_,Nobs,Nobs_,s,n,m,g;
+  local Z,d,H,T,c,R,Q;
+  local Z_,d_,H_,T_,c_,R_,Q_;
+  local yc,v,a,ac,P,Pc,F,invF;
+  local yt,yt_1,vt,at,at_1,Pt,Pt_1,Ft,Ft_inv;
+  local oldtrap,i,j,w0,w1,w2;
+  local n1,m1;
+
+  Nobs = rows(y);
+  s = seqa(1,1,Nobs);
+  data = packr(y~s);
+
+  Nobs_ = rows(data);
+  n = _SSM_parameters[2]; n1 = n*(n+1)/2;
+  m = _SSM_parameters[3]; m1 = m*(m+1)/2;
+  g = _SSM_parameters[4];
+
+  if cols(y) /= n;
+
+    ERRORLOG "error: The matrix of observations is not conformable.";
+    end;
+
+  endif;
+
+  if ( cols(a_0) /= 1 ) or ( rows(a_0) /= m ) ;
+
+    ERRORLOG "error: Vector a_0 is not conformable.";
+    end;
+
+  endif;
+
+  if ( cols(P_0) /= m ) or ( rows(P_0) /= m ) ;
+
+    ERRORLOG "error: Matrix P_0 is not conformable.";
+    end;
+
+  endif;
+
+  y_ = data[.,1:n]; s = data[.,n+1];
+
+  yc = miss(zeros(Nobs,n),0); v = yc;
+  ac = miss(zeros(Nobs,m),0); a = ac;
+  Pc = miss(zeros(Nobs,m1),0); P = Pc;
+  F = miss(zeros(Nobs,n1),0); invF = F;
+  _KF_detF = miss(zeros(Nobs,1),0);
+  _KF_pinv = zeros(Nobs,1);
+
+  Z_ = _SSM_Z; d_ = _SSM_d; H_ = _SSM_H;
+  T_ = _SSM_T; c_ = _SSM_c; R_ = _SSM_R; Q_ = _SSM_Q;
+
+  local Z_:proc,d_:proc,H_:proc,T_:proc,c_:proc,R_:proc,Q_:proc;
+
+  at = a_0; Pt = P_0;
+
+  i = 1;
+  do until i > Nobs_;
+
+    j = s[i];
+
+    Z = Z_(j); d = d_(j); H = H_(j);
+    T = T_(j); c = c_(j); R = R_(j); Q = Q_(j);
+
+    w0 = R*Q*R' ;
+
+    yt = y[j,.]';
+
+    at_1 = T*at + c ;
+    Pt_1 = T*Pt*T' + w0 ;
+
+    yt_1 = Z*at_1 + d ;
+    vt = yt-yt_1 ;
+
+    Ft = Z*Pt_1*Z' + H ;
+
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Ft_inv = invpd(Ft);
+    trap oldtrap,1;
+
+    if scalerr(Ft_inv);
+
+      if Ft == zeros(n,n);
+        Ft_inv = miss(zeros(n,n),0);
+      else;
+        Ft_inv = pinv(Ft);
+        _KF_pinv[j] = 1;
+      endif;
+
+    else;
+
+      _KF_detF[j] = detl;
+
+    endif;
+
+    w1 = Pt_1*Z';
+    w2 = w1*Ft_inv;
+
+    at = at_1 + w2*vt ;
+    Pt = Pt_1 - w2*w1' ;
+
+    yc[j,.] = yt_1';
+    v[j,.] = vt';
+    a[j,.] = at';
+    ac[j,.] = at_1';
+    P[j,.] = vech(Pt)';
+    Pc[j,.] = vech(Pt_1)';
+    F[j,.] = vech(Ft)';
+    invF[j,.] = vech(Ft_inv)';
+
+    i=i+1;
+
+  endo;
+
+  _KF_yc = yc;
+  _KF_v = v;
+  _KF_a = a;
+  _KF_P = P;
+  _KF_ac = ac;
+  _KF_Pc = Pc;
+  _KF_F = F;
+  _KF_invF = invF;
+
+  retp;
+endp;
+
+
+/*
+** KF_matrix
+*/
+
+proc (1) = KF_matrix(i);
+  local w;
+
+  if _SSM_parameters[5] /= 1;
+
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+
+  endif;
+
+  if i == 1;
+    w = _KF_yc;
+  elseif i == 2;
+    w = _KF_v;
+  elseif i == 3;
+    w = _KF_a;
+  elseif i == 4;
+    w = _KF_P;
+  elseif i == 5;
+    w = _KF_ac;
+  elseif i == 6;
+    w = _KF_Pc;
+  elseif i == 7;
+    w = _KF_F;
+  elseif i == 8;
+    w = _KF_invF;
+  else;
+   ERRORLOG "error: Invalid index i.";
+   end;
+  endif;
+
+  retp(w);
+
+endp;
+
+
+/*
+** Log-Likelihood of a state-space model
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 125-126
+*/
+
+
+/*
+** KF_ml
+*/
+
+proc (1) = KF_ml;
+  local v,F,invF,Nobs,N,Nstar,i;
+  local vi,Fi,invFi,Logl,detF,di,s,lambda;
+
+  if _SSM_parameters[5] /= 1;
+
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+
+  endif;
+
+  v = KF_matrix(2);
+  F = KF_matrix(7);
+  invF = KF_matrix(8);
+  detF = _KF_detF;
+
+  Nobs = rows(v); Logl = miss(zeros(Nobs,1),0);
+  n = cols(v);
+
+  if n == 1;
+
+    Logl = -0.5*ln(2*pi)-0.5*ln(detF)-0.5*(v.*v).*invF;
+
+  else;
+
+    i = 1;
+    do until i > Nobs;
+      vi = v[i,.]';
+
+      if ismiss(vi);
+
+        i = i+1;
+        continue;
+
+      else;
+
+        Fi = xpnd(F[i,.]');
+        invFi = xpnd(invF[i,.]');
+
+        if _KF_pinv[i] == 1;
+          s = svd(Fi);
+          Nstar = sumc(s.>_svdtol);
+          lambda = eig(Fi);
+          di = real(prodc(lambda[1:Nstar]));
+        else;
+          di = detF[i];
+          Nstar = N;
+        endif;
+
+        logl[i] = -(Nstar/2)*ln(2*pi)-0.5*ln(di)-0.5*vi'invFi*vi;
+        i = i+1;
+
+      endif;
+    endo;
+  endif;
+
+  retp(Logl);
+endp;
+
+
+/*
+** Kalman Forecasting
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 147-148
+*/
+
+
+/*
+** KForecasting
+*/
+
+proc (4) = KForecasting(np);
+  local n,m,n1,m1,Z,d,H,T,c,R,Q;
+  local a,P,y_F,a_F,P_F,mse;
+  local yt,at,Pt,MSEt,Nobs,w1,i;
+
+  if _SSM_parameters[5] /= 1;
+
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+
+  endif;
+
+
+  if _SSM_parameters[1] /= 1;
+
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+
+  endif;
+
+  n = _SSM_parameters[2]; n1 = n*(n+1)/2;
+  m = _SSM_parameters[3]; m1 = m*(m+1)/2;
+
+  y_F = zeros(Np,n);
+  a_F = zeros(Np,m);
+  P_F = zeros(Np,m1);
+  mse = zeros(Np,n1);
+
+  Z = _SSM_Z; d = _SSM_d; H = _SSM_H;
+  T = _SSM_T; c = _SSM_c; R = _SSM_R; Q = _SSM_Q;
+
+  a = KF_matrix(3); P = KF_matrix(4);
+  a = packr(a); P = packr(P); Nobs = rows(a);
+
+  at = a[Nobs,.]'; Pt = xpnd(P[Nobs,.]');
+
+  w1 = R*Q*R';
+
+  i = 1;
+  do until i > np;
+
+    at = T*at + c ;
+    Pt = T*Pt*T' + w1 ;
+    yt = Z*at + d ;
+    MSEt = Z*Pt*Z' + H ;
+
+    y_F[i,.] = yt';
+    MSE[i,.] = vech(MSEt)';
+    a_F[i,.] = at';
+    P_F[i,.] = vech(Pt)';
+
+    i=i+1;
+  endo;
+
+  retp(y_F,mse,a_F,P_F);
+endp;
+
+
+/*
+** Kalman Smoothing
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 149-155
+*/
+
+
+/*
+** KSmoothing
+*/
+
+proc (2) = KSmoothing;
+  local as,Ps;
+
+  if _SSM_parameters[5] /= 1;
+
+    ERRORLOG "error: Kalman filter not used.";
+    end;
+
+  endif;
+
+
+  if _SSM_parameters[1] == 1;
+
+    {as,Ps} = _KSmoothing1;
+
+  elseif _SSM_parameters[1] == 2;
+
+    {as,Ps} = _KSmoothing2;
+
+  endif;
+
+  retp(as,Ps);
+endp;
+
+proc (2) = _KSmoothing1;
+  local m,m1,T,as,Ps,ast,Pst,a,P,ac,Pc;
+  local Nobs,Nobs_,s,data,aT,PT,i;
+  local Pt_1,at_1,oldtrap,invP,P_star;
+
+  m = _SSM_parameters[3]; m1 = m*(m+1)/2;
+
+  T = _SSM_T;
+
+  a = KF_matrix(3); P = KF_matrix(4);
+  ac = KF_matrix(5); Pc = KF_matrix(6);
+
+  Nobs = rows(a);
+  s = seqa(1,1,Nobs);
+  data = packr(a~s);
+  s = data[.,m+1];
+  Nobs_ = rows(s);
+  a = data[.,1:m]; P = packr(P);
+
+  as = miss(zeros(Nobs,m),0);
+  Ps = miss(zeros(nobs,m1),0);
+
+  aT = a[Nobs_,.]'; PT = xpnd(P[Nobs_,.]');
+
+  ast = aT;
+  Pst = PT ;
+  as[s[Nobs_],.] = ast';
+  Ps[s[Nobs_],.] = vech(Pst)';
+
+  i = Nobs_-1;
+  do while i > 0;
+
+    Pt = xpnd(P[s[i],.]');
+    Pt_1 = xpnd(Pc[s[i+1],.]');
+    at = a[s[i],.]';
+    at_1 = ac[s[i+1],.]';
+
+    oldtrap=trapchk(1);
+    trap 1,1;
+    invP = invpd(Pt_1);
+    trap oldtrap,1;
+    if scalerr(invP);
+      invP = pinv(Pt_1);
+    endif;
+
+    P_star = Pt*T'*invP;
+
+    ast = at + P_star*(ast-at_1) ;
+    Pst = Pt + P_star*(Pst-Pt_1)*P_star' ;
+
+    as[s[i],.] = ast';
+    Ps[s[i],.] = vech(Pst)';
+
+    i=i-1;
+  endo;
+
+  retp(as,Ps);
+endp;
+
+proc (2) = _KSmoothing2;
+  local m,m1,T,T_,as,Ps,ast,Pst,a,P,ac,Pc;
+  local Nobs,Nobs_,s,data,aT,PT,i;
+  local Pt_1,at_1,oldtrap,invP,P_star;
+
+  m = _SSM_parameters[3]; m1 = m*(m+1)/2;
+
+  T_ = _SSM_T;
+  local T_:proc;
+
+  a = KF_matrix(3); P = KF_matrix(4);
+  ac = KF_matrix(5); Pc = KF_matrix(6);
+
+  Nobs = rows(a);
+  s = seqa(1,1,Nobs);
+  data = packr(a~s);
+  s = data[.,m+1];
+  Nobs_ = rows(s);
+
+  as = miss(zeros(Nobs,m),0);
+  Ps = miss(zeros(nobs,m1),0);
+
+  aT = a[s[Nobs_],.]'; PT = xpnd(P[s[Nobs_],.]');
+
+  ast = aT;
+  Pst = PT ;
+  as[s[Nobs_],.] = ast';
+  Ps[s[Nobs_],.] = vech(Pst)';
+
+  i = Nobs_-1;
+  do while i > 0;
+    T = T_(s[i+1]);
+    Pt = xpnd(P[s[i],.]');
+    Pt_1 = xpnd(Pc[s[i+1],.]');
+    at = a[s[i],.]';
+    at_1 = ac[s[i+1],.]';
+
+    oldtrap=trapchk(1);
+    trap 1,1;
+    invP = invpd(Pt_1);
+    trap oldtrap,1;
+    if scalerr(invP);
+      invP = pinv(Pt_1);
+    endif;
+
+    P_star = Pt*T'*invP;
+
+    ast = at + P_star*(ast-at_1) ;
+    Pst = Pt + P_star*(Pst-Pt_1)*P_star' ;
+
+    as[s[i],.] = ast';
+    Ps[s[i],.] = vech(Pst)';
+
+    i = i - 1;
+  endo;
+
+  retp(as,Ps);
+endp;
+
+
+/*
+** Algebraic Riccati Equation
+**
+** HARVEY [1990], Forecasting, structural time series and
+** the Kalman filter, Cambridge University Press, pages 120-121
+*/
+
+
+/*
+** ARE
+*/
+
+
+/*
+** ARE
+*/
+
+proc (1) = ARE(tol,Niter);
+  local P_bar,va;
+  local Z,H,T,R,Q,m,n;
+  local Pt_1,Ft,Ft_inv,oldtrap,i;
+  local RQR,TPT,TPZ,Kt;
+
+  if not ( _SSM_parameters[1] == 1 or _SSM_parameters[1] == 2 );
+
+    ERRORLOG "error: State space model not built.";
+    end;
+
+  endif;
+
+  if _SSM_parameters[1] == 2;
+
+    ERRORLOG "error: Not valid for a time-variant state space model.";
+    end;
+
+  endif;
+
+  Z = _SSM_Z; H = _SSM_H;
+  T = _SSM_T; R = _SSM_R; Q = _SSM_Q;
+
+  m = _SSM_parameters[3];
+  n = _SSM_parameters[2];
+
+
+  P_bar = zeros(m,m);
+
+  va = eig(T); va = abs(va); va = maxc(va);
+
+  if va >= 1;
+
+    ERRORLOG "Warning: The state space model is not stable.";
+
+  endif;
+
+  Pt_1 = P_bar;
+  RQR = R*Q*R' ;
+
+  i = 1;
+  do until i > Niter;
+
+    Ft = Z*Pt_1*Z' + H ;
+    oldtrap = trapchk(1);
+    trap 1,1;
+    Ft_inv = invpd(Ft);
+    trap oldtrap,1;
+
+    if scalerr(Ft_inv);
+
+      if Ft == zeros(n,n);
+        Ft_inv = zeros(n,n);
+      else;
+        Ft_inv = pinv(Ft);
+      endif;
+
+    endif;
+
+    TPT = T*Pt_1*T';
+    TPZ = T*Pt_1*Z';
+    Kt = TPZ*Ft_inv;
+    Pt_1 = TPT - Kt*TPZ'+RQR; /* formula (3.3.13) */
+
+    if maxc(abs(vec(Pt_1)-vec(P_bar))) < tol;
+      P_bar = Pt_1;
+      retp(P_bar);
+    endif;
+
+    P_bar = Pt_1;
+
+    i = i+1;
+  endo;
+
+  retp(miss(0,0));
+endp;
+
+
+/*
+** SSM
+*/
+
+proc (0) = SSM(Z,d,H,T,c,R,Q,cn);
+  local old,rm,cm;
+  local str,strA,strB,strC,str1,str2,str3,str4,str5;
+
+  if cn == 0;
+
+    rm = rows(Z)|rows(d)|rows(H)|rows(T)|rows(c)|rows(R)|rows(Q);
+    cm = cols(Z)|cols(d)|cols(H)|cols(T)|cols(c)|cols(R)|cols(Q);
+
+  elseif cn == 1;
+
+    local Z:proc,d:proc,H:proc,T:proc,c:proc,R:proc,Q:proc;
+    rm = rows(Z(1))|rows(d(1))|rows(H(1))|rows(T(1))|rows(c(1));
+    rm = rm|rows(R(1))|rows(Q(1));
+    cm = cols(Z(1))|cols(d(1))|cols(H(1))|cols(T(1))|cols(c(1));
+    cm = cm|cols(R(1))|cols(Q(1));
+
+  else;
+
+    retp;
+
+  endif;
+
+  old = csrtype(0);
+
+  strA = "  |                                                            "\
+        "               |";
+  strB = strput("|",strA,40);
+  strC = "  "$+chrs(45*ones(1,77));
+
+  print strC;
+  str = strput("State Space Model",strA,40-10);
+  print str;
+  print strC;
+
+  print;
+
+  print strC;
+  str1 = "Measurement Equation";
+  str2 = "Transition Equation ";
+  str = strput(str1,strB,9);
+  str = strput(str2,str,49);
+  print str;
+  print strB;
+  str1 = ftos(rm[1],"Z      %lf",1,0)$+ftos(cm[1]," x %lf",1,0);
+  str2 = ftos(rm[4],"T      %lf",1,0)$+ftos(cm[4]," x %lf",1,0);
+  str = strput(str1,strB,14);
+  str = strput(str2,str,54);
+  print str;
+  str1 = ftos(rm[2],"d      %lf",1,0)$+ftos(cm[2]," x %lf",1,0);
+  str2 = ftos(rm[5],"c      %lf",1,0)$+ftos(cm[5]," x %lf",1,0);
+  str = strput(str1,strB,14);
+  str = strput(str2,str,54);
+  print str;
+  str1 = ftos(rm[3],"H      %lf",1,0)$+ftos(cm[3]," x %lf",1,0);
+  str2 = ftos(rm[6],"R      %lf",1,0)$+ftos(cm[6]," x %lf",1,0);
+  str = strput(str1,strB,14);
+  str = strput(str2,str,54);
+  print str;
+  str1 = "  ";
+  str2 = ftos(rm[7],"Q      %lf",1,0)$+ftos(cm[7]," x %lf",1,0);
+  str = strput(str1,strB,14);
+  str = strput(str2,str,54);
+  print str;
+  print strB;
+  print strC;
+
+  print "  "$+chrs(45*ones(1,77));
+
+  str = "  | y(t) =    Z(t)    x  alpha(t)  +    d(t)    +    epsilon(t)"\
+        "               |";
+  print str;
+  str = "     =            x            +            +              ";
+  str1 = ftos(rm[1],"%lf",1,0) $+ " x " $+ ftos(cm[1],"%lf",1,0);
+  str2 = ftos(cm[4],"%lf",1,0) $+ " x 1";
+  str3 = ftos(rm[2],"%lf",1,0) $+ " x " $+ ftos(cm[2],"%lf",1,0);
+  str4 = ftos(cm[3],"%lf",1,0) $+ " x 1";
+  str = strput(str1,str,15-ceil(strlen(str1)/2)-2);
+  str = strput(str2,str,28-ceil(strlen(str2)/2)-2);
+  str = strput(str3,str,41-ceil(strlen(str3)/2)-2);
+  str = strput(str4,str,57-ceil(strlen(str4)/2)-2);
+  str = "  |"$+str$+"                |";
+  print str;
+
+
+  str = "  |                                                            "\
+        "               |";
+  print str;
+
+  str = "  | alpha(t) =    T(t)    x alpha(t-1) +    c(t)    +    R(t)    x"\
+        "    nu(t)   |";
+  print str;
+  str = "         =            x            +            +            x"\
+        "         ";
+  str1 = ftos(rm[4],"%lf",1,0) $+ " x " $+ ftos(cm[4],"%lf",1,0);
+  str2 = ftos(cm[4],"%lf",1,0) $+ " x 1";
+  str3 = ftos(rm[5],"%lf",1,0) $+ " x " $+ ftos(cm[5],"%lf",1,0);
+  str4 = ftos(rm[6],"%lf",1,0) $+ " x " $+ ftos(cm[6],"%lf",1,0);
+  str5 = ftos(cm[7],"%lf",1,0) $+ " x 1";
+  str = strput(str1,str,19-ceil(strlen(str1)/2)-2);
+  str = strput(str2,str,32-ceil(strlen(str2)/2)-2);
+  str = strput(str3,str,45-ceil(strlen(str3)/2)-2);
+  str = strput(str4,str,58-ceil(strlen(str4)/2)-2);
+  str = strput(str5,str,72-ceil(strlen(str4)/2)-2);
+  str = "  |"$+str$+"    |";
+  print str;
+
+  print "  "$+chrs(45*ones(1,77));
+
+  call csrtype(old);
+
+  retp;
+endp;
+
+

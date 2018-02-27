@@ -1,0 +1,909 @@
+/*
+** autoreg.src - Autoregression
+** (C) Copyright 1988-1999 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> autoreg
+**
+**  Purpose:   Estimates regression models with p-th order autoregressive
+**             errors.
+**
+**  Format:    { coefs,vcb,phi,vcphi,sigsq,acov,acor }
+**                   = autoreg(dataset,depvar,indvars,lagvars,order);
+**
+**  Input:     dataset   string containing complete name of data set
+**                       if dataset is a null string (i.e., "") AUTOREG will
+**                       assume that the data are stored in memory in arrays
+**                       depvar and indvars.
+**
+**             depvar    1x1, character variable containing name of
+**                       dependent variable, or, if dataset $== "",
+**                       Nx1 vector of observations on dependent variable
+**                       stored in memory.
+**
+**             indvars   Kx1, character vector containing names of
+**                       independent variables, or, if dataset $== "",
+**                       NxK matrix of observations on the independent
+**                       variables stored in memory.  Indvars can include
+**                       repeated entries of the independent variables
+**                       and the dependent variable as long as the
+**                       corresponding entries in LAGVARS are lagged
+**                       uniquely.
+**
+**             lagvars   Either 1x1 scalar 0, or Kx1, a vector of integer
+**                       values.  If there are no lagged variables set
+**                       to scalar 0.
+**                          The variables in INDVARS will be lagged the
+**                       number of periods according to the corresponding
+**                       value in LAGVARS.  The dependent variable in
+**                       DEPVAR can be included in INDVARS if its
+**                       corresponding value in LAGVARS is greater than
+**                       zero.  Independent variables in INDVARS can be
+**                       repeated if each corresponding entry in LAGVARS
+**                       is a different value.
+**                          If dataset $== "", that is, INDVARS
+**                       is a matrix rather than a vector of variable
+**                       labels, then INDVARS may contain the dependent
+**                       variable in one of its columns as long as the
+**                       corresponding entry in LAGVARS is different
+**                       from 0, and duplicate versions of the independent
+**                       variables may also be included in the matrix
+**                       if corresponding entries in LAGVARS are unique.
+**
+**             order     = L, order of the autoregressive process; must be
+**                       greater than 0 and less than the number of
+**                       observations.
+**
+**
+**
+**  Output:    coefs  Kx1, vector of estimated regression coefficients.
+**
+**             vcb    KxK, covariance matrix of estimated regression
+**                         coefficients.
+**
+**             phi    Lx1, vector of lag coefficients.
+**
+**             vcphi  LxL, covariance matrix of phi.
+**
+**             sigsq  variance of white noise error.
+**
+**             acov   autocovariances.
+**
+**              acor  autocorrelations
+**
+**
+**  Globals:
+**           __con   scalar, if 1, constant will be used in model; else not.
+**                   Default = 1.
+**
+**           __tol   scalar, convergence tolerance.  Default = 1e-5.
+**
+**          _arinit  scalar, if 1, only initial estimates will be computed.
+**                   Default = 0.
+**
+**         __output  scalar, if 0, nothing will be printed by AUTOREG,
+**                           else, results will be printed.
+**
+**           _ariter scalar, if not zero, iteration information will be
+**                   printed.  Default = 0.
+**
+**           _arvsig  variance of sigsq (variance of the variance of
+**                         white noise error)
+**
+**           _archisq  -2*log-likelihood
+**
+**           _artobs  number of observations
+**
+**           _arrsq   explained variance
+**
+**           _ar_lbl  variable labels
+**
+**
+**    AUTOREG will compute estimates of the parameters and standard
+**    errors for a regression model with autoregressive errors.  Thus,
+**    it can be used for models for which the Cochrane-Orcutt or
+**    similar procedure can be used.  It is also similar to the SAS
+**    AUTOREG procedure.
+**
+**    The difference is that this routine will compute the maximum
+**    Likelihood estimates based upon the exact likelihood function.
+**
+**    The model estimated is of the general form:
+**
+**    y[t,1] = x[t,.]*beta + u[t,1]
+**
+**    u[t,1] - phi[1,1]*u[t-1,1] - ... - phi[p,1]*u[t-p,1] = e[t,1]
+**
+**    where it is assumed that e is a white noise error term,
+**    distributed as N(0,sigsq).
+**
+**    The parameters to be estimated are thus: beta (Kx1), phi (Lx1),
+**    and sigsq (1x1).  The "order" of the process is L.
+**
+**    In addition, this program will estimate the autocovariances and
+**    autocorrelations of the error term u.  It produces initial
+**    estimates of these based upon the residuals of an OLS regression.
+**    Then it computes the ML estimates of these based upon the ML
+**    estimates of the other parameters.
+**
+**    This program will only handle data sets that fit in memory. Another
+**    restriction is that all autoregressive parameters will be
+**    estimated up to the specified lag.  It is not possible to have it
+**    estimate only the first and the fourth lags, for instance.
+**
+**    The algorithm will fail if the model is not stationary at the
+**    estimated parameters.  Thus, in that sense it automatically tests
+**    for stationarity.
+**
+**
+**
+*/
+
+#include gauss.ext
+#include autoreg.ext
+#include timeser.ext
+
+external proc indices2;
+
+proc(7) = autoreg(dataset,depvar,indvars,lagvars,order);
+
+    local kb, kp, tobs, nmp, np, ybar, yy, xx, xy, beta0, tstart,
+        uhat, rv, tv, df, sigsq0, acov, varu, acor, dmt, dmtt, phi0,
+        gm, rho, qpi, qp, cholqpi, converge, iter, param0, ystar, xstar,
+        ytstar, xtstar, ysy, xsy, xsx, beta1, sigsq1, gma, phi1, mtlnl1,
+        dmtlnl, param1, db, cxx, vcb, stderrb, vcphi, stderrph,
+        vcsigsq, rsq, vp, mtlnl0,
+        detqpi, sigsq0t, klnl, outfn, itout,
+        x, y, fh, i, dta, ind1, ind2, xxi, old, oldnfmt;
+
+    itout = 1;
+    if __output;
+#ifDOS
+        cls;
+#endif
+        call header("AUTOREG", dataset, _ts_ver);
+    endif;
+    if type(indvars) == 13;
+        indvars = stof(indvars);
+    endif;
+
+/* use OLS if order == 0 */
+
+    if order == 0;
+        errorlog "ERROR: The specified order must be greater than 0.";
+        retp(error(0),error(0),error(0),error(0),error(0),error(0),error(0));
+    endif;
+
+/* *************************** GET VARIABLES *******************************/
+
+    dataset = "" $+ dataset;
+    if dataset $== "";
+        y = depvar;
+        x = indvars;
+       if __altnam $== "";
+            depvar = 0$+"Y";
+            indvars = 0$+"X"$+
+               ftocv(seqa(1,1,cols(x)),__vpad*floor((log(cols(x)))+1),0);
+        else;
+            depvar = __altnam[1];
+            indvars = __altnam[2:rows(__altnam)];
+        endif;
+    else;
+        outfn = dataset;
+        { depvar,ind1,indvars,ind2 } = indices2(outfn,depvar,indvars);
+        open fh = ^outfn;
+        if fh == -1;
+            errorlog " data set not found";
+            retp(error(0),error(0),error(0),error(0),error(0),error(0),
+                error(0));
+        endif;
+
+        y = {};
+        x = {};
+        do until eof(fh);
+            if ((rows(x)+1)*cols(x)>=maxvec);
+                errorlog "ERROR: matrix of independent variables won't fit i"\
+                    "n memory";
+                fh = close(fh);
+                retp(error(0),error(0),error(0),error(0),error(0),error(0),
+                     error(0));
+            endif;
+            dta = readr(fh,1);
+            y = y|dta[ind1];
+            x = x|dta[ind2];
+        endo;
+        fh = close(fh);
+    endif;
+
+    if not (lagvars == 0);
+        if rows(lagvars)/=rows(indvars);
+            errorlog "ERROR: rows(LAGVARS) not equal to rows(INDVARS)";
+            retp(error(0),error(0),error(0),error(0),error(0),error(0),
+               error(0));
+        endif;
+
+        x = packr(shiftr(x', lagvars, miss(0,0))');
+        y = y[(rows(y)-rows(x)+1):rows(y),.];
+        i = 0;
+        do until i==rows(lagvars);
+            i = i+1;
+            if lagvars[i]==0;
+                continue;
+            endif;
+            ind1 = "" $+ indvars[i];
+            ind2 = minc(strindx(ind1," ",1)-1|6);
+            if ind2==-1;
+                ind2 = 6;
+            elseif ind2==0;
+                ind2 = 1;
+            endif;
+            indvars[i] = 0 $+ strsect(ind1,1,ind2) $+ "-" $+
+                ftocv(lagvars[i],1,0);
+        endo;
+    endif;
+
+    tstart = hsec;
+
+    if __con;
+        if ((rows(x)+1)*cols(x)>=maxvec);
+            errorlog "ERROR: matrix of independent variables won't fit in me"\
+                "mory when constant has been added";
+            retp(error(0),error(0),error(0),error(0),error(0),error(0),
+                    error(0));
+        endif;
+        x = ones(rows(x),1)~x;
+        indvars = "CONSTANT"|indvars;       /* add this for printing  */
+    endif;
+    _ar_lbl = depvar|indvars;
+
+    kp = order;
+    kb = cols(x);           /* number of independent variables */
+    tobs = rows(x);         /* number of observations */
+    klnl = tobs*( ln(2*pi) + 1 );           /* constant to be added to log
+                                            :: likelihood
+                                            */
+
+/* define symetric array of numbers */
+    vp = seqa(1,1,kp+1);
+    np = seqa(1,1,kp);
+    nmp = (ones(kp+1,1).*vp') + vp - 1;     /* used in initial approx to phi */
+  /*  nmk = nmp[1:kp,1:kp];    */       /* symmetric array of numbers */
+
+    clear dmt;
+/* ============================ Initial Estimates =========================== */
+
+/* Mean and Variance of dependent variable */
+
+    tobs = rows(y);         /* Number of observations. */
+    _artobs = tobs;
+
+/* Step 1: Initial OLS estimates */
+    old = trapchk(1);
+    trap 1,1;
+    ybar = meanc(y);
+    yy = y'y;
+    xx = moment(x,0);
+    xy = x'y;
+    xxi = invpd(xx);
+
+    trap old,1;
+    if scalerr(xxi);
+        errorlog "covariance matrix of independent variables is";
+        errorlog "not positive definite at initial OLS estimate";
+        retp(error(0),error(0),error(0),error(0),error(0),error(0),error(0));
+    endif;
+    beta0 = xxi*xy;
+    vcb = ((yy - xy*beta0')/(rows(x)-cols(x)))*xxi;
+
+/* Step 2: Compute residuals and related statistics */
+
+    uhat = y - x*beta0;
+
+    rv = uhat'uhat;
+    tv = yy - tobs*ybar*ybar;
+    df = tobs - kb;
+/*    see = sqrt(rv/df);*/
+    df = tobs - kb;
+    rsq = 1-(rv/tv);
+    _arrsq = rsq;
+/* Step 3: Compute autocovariances and autocorrelations of residuals. */
+        /* this is the same as: autocov(uhat,0,kp) */
+
+    acov = rev( conv(uhat, rev(uhat), tobs-kp, tobs) ) / tobs;
+    varu = acov[1,1];
+    if varu == 0;
+        errorlog "ERROR: No residual variance in the specified model.";
+        retp(error(0),error(0),error(0),error(0),error(0),error(0),error(0));
+    endif;
+
+    acor = acov/varu;
+
+/* Step 4: Compute D-matrix and obtain first approximations to
+          autoregresive parameters */
+
+    gosub sdmat;    /* returns dmt, uses uhat, kp */
+
+    dmtt = tobs*dmt./(tobs+1-nmp);
+    phi0 = dmtt[2:kp+1,1]/dmtt[2:kp+1,2:kp+1];      /* Initial Estimates of
+                                                    :: Phi
+                                                    */
+
+/* Step 5: Compute logl for initial estimates. */
+    trap 1;
+
+    /* Generate true qp matrix */
+    gm = phi0.*ones(kp,1)';
+    rho = ( phi0/(eye(kp) - shiftr(gm',-np,0)' - shiftr(gm',np,0)') );
+    qp = submat( rotater( (rev(rho)| 1 | rho )', np-1 ), 0, np+kp ) /
+        (1-phi0'rho);
+
+    qpi = invpd(qp);
+    detqpi = detl;
+    if scalerr(qpi);
+        errorlog "WARNING: The model is not stationary at the initial estim"\
+            "ates.";
+        errorlog "Therefore the estimates cannot be computed.";
+        retp(error(0),error(0),error(0),error(0),error(0),error(0),error(0));
+    else;
+        sigsq0 = (dmt[1,1]-2*phi0'dmt[2:kp+1,1]+phi0'dmt[2:kp+1,2:kp+1]
+            *phi0)/tobs;
+
+        mtlnl0 = klnl + tobs*ln(sigsq0) - ln(detqpi);
+    endif;
+
+    cholqpi = chol(qpi);
+
+/* Step 6: Compute Variances, etc, for initial estimates. */
+
+    gosub compstat(xx,rv/df);       /* compute as though just ols */
+
+/* Step 7: Print out initial parameter estimates */
+    _archisq = mtlnl0;
+    if __output;
+        print;
+        print "------------------------ INITIAL ESTIMATES -----------------"\
+            "-----";
+        call autoprt(beta0,vcb,phi0,vcphi,sigsq0,acov,acor);
+    endif;
+
+    if _arinit == 1;
+        retp(beta0,vcb,phi0,vcphi,sigsq0,acov,acor);
+    endif;
+
+/* ============================ ML ESTIMATES ================================ */
+    converge = 0;
+    iter = 1;
+    param0 = beta0|sigsq0|phi0;     /* initial parameter vector */
+    if __output /= 0 and _ariter == 1 and itout;
+        print;
+        print;
+    print " ------------------------ COMPUTING ML ITERATIONS ----------------"\
+            "-------- ";
+        print;
+    endif;
+    do until converge;      /* see below for convergence test */
+
+    /* 1. Given phi0, qpi, and cholqpi, transform y and x and estimate beta */
+
+        ytstar = conv(1|-phi0,y,kp+1,tobs);         /* Transform last T-
+                                                    :: P obs.
+                                                    */
+        xtstar = conv(1|-phi0,x,kp+1,tobs);
+
+        ystar = (cholqpi*y[1:kp,.])|ytstar;         /* Transform first P obs
+                                                    :: and concatenate
+                                                    */
+        xstar = (cholqpi*x[1:kp,.])|xtstar;
+
+        ysy = ystar'ystar;
+        xsx = moment(xstar,0);
+        xsy = xstar'ystar;
+
+        beta1 = solpd(xsy,xsx);     /* Regression */
+        clear ystar, xstar;
+
+    /* 2. New Sigsq (variance of white-noise error). */
+
+        rv = ysy - beta1'xsy;
+
+        sigsq1 = rv/tobs;
+
+    /* 3. New Untransformed Residuals. */
+
+        uhat = y - x*beta1;
+
+    /* 4. DMAT -- this is used to compute phi */
+
+        gosub sdmat;        /* returns dmt, uses uhat, kp */
+
+    /* 5. New Estimates of phi. */
+
+        gma = -qp*(phi0.*np);       /* Partials of det(invpd(qp)) */
+
+        phi1 = (gma*sigsq1 + dmt[2:kp+1,1]) / dmt[2:kp+1,2:kp+1];
+
+    /* 6. Compute new qpi (inverse(qp)), qp, and cholqpi */
+
+    /* Generate true qp matrix */
+        gm = phi1.*ones(kp,1)';
+        rho = ( phi1/(eye(kp) - shiftr(gm',-np,0)' - shiftr(gm',np,0)') );
+        qp = submat( rotater( (rev(rho)| 1 | rho )', np-1 ), 0, np+kp ) /
+            (1-phi1'rho);
+
+        qpi = invpd(qp);
+
+        if scalerr(qpi);
+         errorlog ("WARNING: The model is not stationary at the"\
+                  " estimates for iteration " ftos(iter,"%*.*lf",1,0));
+         errorlog "Therefore the estimates cannot be computed.";
+         retp(error(0),error(0),error(0),error(0),error(0),error(0),error(0));
+        else;
+            mtlnl1 = klnl + tobs*( ln(sigsq1) ) - ln( detl );
+        endif;
+
+        cholqpi = chol(qpi);
+
+    /* 7. Print Results for this iteration. */
+
+        if __output /= 0 and _ariter == 1;
+
+            print (" --------------------------- ITERATION " $+
+                    ftos(iter,"%*.*lf",1,0) $+ "---------------------------");
+            oldnfmt = formatnv("-*.*lf"~10~6);
+            print "        Beta: ";;
+            printfmt(beta1',1);
+            print;
+            print "         Phi: ";;
+            printfmt(phi1',1);
+            print;
+            print "       Sigsq: ";;
+            printfmt(sigsq1,1);
+            print;
+            print "     -2*lnL = ";;
+            printfmt(mtlnl1,1);
+            print;
+            dmtlnl = 100*(mtlnl1-mtlnl0)/mtlnl0;
+            print "    %Change in -2*lnL = ";;
+            printfmt(dmtlnl,1);
+            print;
+            print;
+            call formatnv(oldnfmt);
+        endif;
+
+/* 9. Computation of change in parameter values -- db. */
+
+        param1 = beta1|sigsq1|phi1;
+        db = (param1 - param0) ./ param1;           /* Proportionate change
+                                                    :: parameters.
+                                                    */
+        if abs(db) < __tol;         /* convergence test */
+            converge = 1;
+        endif;
+
+/* 10. Reset Starting Values for next iteration. */
+
+        beta0 = beta1;
+        sigsq0 = sigsq1;
+        phi0 = phi1;
+        mtlnl0 = mtlnl1;
+        param0 = param1;
+
+        iter = iter+1;
+
+        if key;     /* switch printing on if key pressed */
+            itout = 1 - itout;
+        endif;
+
+    endo;
+
+/* ---------------------- END OF ML ITERATION LOOP ------------------- */
+
+    /* Compute Estimates of Asymptotic Variance-Covariance Matrices  */
+    gosub compstat(xsx,sigsq1);
+
+    acor = 1|rho;
+    varu = sigsq0/(1-rho'phi0);     /* 0-th order autocovariance */
+    acov = acor*varu;
+    _archisq = mtlnl0;
+    if __output;
+        print;
+        print (" Total Time for Computation and Printing: " $+
+            ftos((hsec-tstart)/100,"%*.*lf",4,2) $+ "(seconds)");
+        print ("                    Number of Iterations: " $+
+            ftos(iter-1,"%*.*lf",4,0));
+        print;
+        call autoprt(beta0,vcb,phi0,vcphi,sigsq0,acov,acor);
+    endif;
+
+    retp(beta0,vcb,phi0,vcphi,sigsq0,acov,acor);
+
+/*------------------------- SUBROUTINES FOLLOW -----------------------------*/
+/* COMPSTAT:  Subroutine to compute variances, etc, */
+
+compstat:
+        pop sigsq0t;
+        pop cxx;    /* pop X'INV(S)*X */
+
+    vcb = sigsq0t * invpd(cxx);     /* For betas */
+    stderrb = sqrt(diag(vcb));
+
+    vcphi = qpi / tobs;    /* For phi */
+    stderrph = sqrt(diag(vcphi));
+
+    vcsigsq = sigsq0t*sigsq0t*2/tobs;       /* For sigsq */
+    _arvsig = vcsigsq;
+    /* R-squared */
+
+    rsq = 1-(rv/tv);
+    _arrsq = rsq;
+    clear cxx;
+    return;
+
+/*
+** SDMAT -- computes matrix of symmetric products and crossproducts -- see
+**          Box & Jenkins, page 276-279.
+*/
+sdmat:
+    /* uses uhat, kp; returns dmt */
+    dmt = zeros(kp+1,kp+1);
+    i = 0;
+    do until i > kp;
+
+        dmt[i+1:kp+1,i+1] = rev( conv(trimr(uhat,i,0), rev(trimr(uhat,0,i))
+            , tobs-kp-i, tobs-2*i ) );
+
+        i = i + 1;
+    endo;
+
+    dmt = ((dmt.*(.not(eye(kp+1)))+dmt'));
+    return;
+
+endp;
+
+
+/*
+**             coefs  Kx1, vector of estimated regression coefficients
+**
+**               vcb  KxK, covariance matrix of estimated regression
+**                         coefficients
+**
+**               phi  Lx1, vector of lag coefficients
+**
+**             vcphi  LxL, covariance matrix of phi
+**
+**             sigsq  variance of white noise error
+**
+**              acov  autocovariances
+**
+**              acor  autocorrelations
+**
+**
+**  Globals:
+**           __con   1x1, if 1, constant will be used in model; else not.
+**                   Default = 1.
+**
+**           __tol   1x1, convergence tolerance.  Default = 1e-5.
+**
+**           _arvsig  variance of sigsq (variance of the variance of
+**                         white noise error)
+**
+**           _archisq  -2*log-likelihood
+**
+**           _artobs  number of observations
+**
+**           _arrsq   explained variance
+**
+**           _ar_lbl  variable labels
+**
+*/
+proc(7) = autoprt(coefs,vcb,phi,vcphi,sigsq,acov,acor);
+    local indvars,omat,mask,fmt,stderr,ts,pv,lg,vcsigsq,chisq,tobs,rsq;
+    print;
+    print "convergence tolerance set to " ftos(__tol,"%*.*lf",10,5);
+    rsq = _arrsq;
+    tobs = _artobs;
+    chisq = _archisq;
+    vcsigsq = _arvsig;
+    print;
+    print "DEPENDENT VARIABLE:  " $_ar_lbl[1];
+    print "                Number of Observations: " ftos(tobs,"%*.*lf",7,0);
+    print "                             R-squared:" ftos(rsq,"%*.*lf",10,3);
+    print ("            Standard Error of Estimate:" $+
+            ftos(sqrt(acov[1,1]/acor[1,1]),"%*.*lf",10,3));
+    print " Variance of White Noise Error (sigsq):" ftos(sigsq,"%*.*lf",10,3);
+    print "                     Variance of sigsq:" ftos(vcsigsq,"%*.*lf",10,3);
+    print "                    -2*log(likelihood):" ftos(chisq,"%*.*lf",10,3);
+    print;
+    print "                COEFFICIENTS OF INDEPENDENT VARIABLES (beta)";
+    print;
+    print "Var             Coef           Std. Error     t-Ratio       P-Value";
+    print "-------------------------------------------------------------------";
+
+    stderr = sqrt(diag(vcb));
+    ts = coefs./stderr;
+    pv = 2 * cdftc(abs(ts),tobs-rows(coefs));       /* Prob Values  */
+    indvars = _ar_lbl[2:rows(_ar_lbl)];
+    omat = indvars~coefs~stderr~ts~pv;
+    mask = 0~1~1~1~1;
+    let fmt[5,3] = "-*.*s" 10 8 "*.*lf " 14 6 "*.*lf " 14 6 "*.*lf " 14 6 ""\
+        "*.*lf " 11 3;
+
+    call printfm(omat,mask,fmt);
+
+    print ;
+    print "                      AUTOREGRESSIVE PARAMETERS (Phi)";
+    print;
+    print "Lag         Phi            Std. Error     T-Ratio        P-Value";
+    print "----------------------------------------------------------------";
+    lg = seqa(1,1,rows(phi));
+    stderr = sqrt(diag(vcphi));
+    ts = phi./stderr;
+    pv = 2 * cdftc(abs(ts),tobs-rows(phi));         /* Prob Values  */
+    omat = lg~phi~stderr~ts~pv;
+    mask = 1~1~1~1~1;
+    let fmt[5,3] = "-*.*lf" 6 0 "*.*lf " 14 6 "*.*lf " 14 6 "*.*lf " 14 6
+        "*.*lf " 11 3;
+
+    call printfm(omat,mask,fmt);
+
+    print;
+    print "                   AUTOCORRELATIONS AND AUTOCOVARIANCES";
+    print;
+    print "            Lag           Autocovariances      Autocorrelations";
+    print "            ----------------------------------------------------";
+    omat = (0|lg)~acov~acor;
+    mask = 1~1~1;
+    let fmt[3,3] = "*.*lf " 13 0 "*.*lf " 20 6 "*.*lf " 20 6;
+    call printfm(omat,mask,fmt);
+
+    retp(coefs,vcb,phi,vcphi,sigsq,acov,acor);
+endp;
+
+proc(0) = autoset;
+    _arinit = 0;
+    _arvsig = 0;
+    _archisq = 0;
+    _artobs = 0;
+    _arrsq = 0;
+    _ar_lbl = 0;
+endp;
+
+/**************************************************************************
+**> autocor
+**
+**  Purpose:     computes specified autocorrelations for each column of a matrix.
+**              The data are assumed to have 0 mean. Thus, use x = x-meanc(x)'
+**              prior to the use of this function if mean is not 0.
+**
+**  Format:    a = autocor(x,F,L);
+**
+**  Input:   x    nxk matrix, for which autocorrelations are to be computed for
+**                each column separately. Assumed to have 0 mean.
+**           F    1x1 scalar in range [0,rows(x)-1], denoting the first auto-
+**                correlation to compute.
+**           L    1x1 scalar in range [0,rows(x)-1], denoting the last auto-
+**                correlation to compute. It must be that: F <= L; if L = 0
+**                L is set to rows(x)-1 and all autocorrelations from F to L
+**                are computed. If L = 0 and F < 0, then only the 0th order
+**                autocorrelation is computed (this equals x'x).
+**  Output:  c    gxk matrix, where g = L - F + 1, containing the
+**                autocorrelations of order F, F+1, ..., L for each of the
+**                columns of x. If the variance of any variable is 0, missings
+**                will be returned for that variable.
+**
+**  Remarks:     The 0th autocorrelation will always be 1.
+**
+**  Example:     autocor(x,2,8)     will compute the 2nd through 8th order
+**                                  autocorrelations.
+**  See Also:    autocor, conv,
+*/
+
+proc autocor(x,F,L);
+    local n, acov, var;
+    n = rows(x);
+    if L > (N - 1) or F > L;
+        errorlog "ERROR: Illegal values specified for starting and/or endin"\
+            "g autocorrelations.";
+        end;
+    endif;
+
+    if L == 0 and F == 0;
+        L = n - 1;
+    elseif L == 0 and F < 0;
+        F = 0;
+    endif;
+    acov = rev( conv(x, rev(x), n - L, n - F ) );
+    if F > 0;
+        var = sumc( (x.*x) )';      /* compute variances, if necessary  */
+    else;
+        var = acov[1,.];
+    endif;
+    if not(var /= 0);
+        var = miss(var,0);          /* return all missings for variable if 0
+                                    :: variance
+                                    */
+    endif;
+
+    retp( acov./var );
+endp;
+
+/****************************************************************************
+**> autocov
+**
+**  Purpose:    computes specified autocovariances for each column of a matrix.
+**              The data are assumed to have 0 mean. Thus, use x = x-meanc(x)'
+**              prior to the use of this function if mean is not 0.
+**
+**  Format:     a = autocov(x,F,L);
+**
+**  Input:      x    nxk matrix, for which autocovariances are to be computed for
+**                   each column separately. Assumed to have 0 mean.
+**              F    1x1 scaLar in range [0,rows(x)-1], denoting the first auto-
+**                   covariance to compute.
+**              L    1x1 scalar, <= rows(x)-1, denoting the last auto-
+**                   covariance to compute. It must be that: F <= L; if L = 0
+**                   and F = 0, then L is set to rows(x)-1 and all autocovariances
+**                   are computed. If L = 0 and F < 0, then only the 0th order
+**                   autocovariance is computed (this equals x'x).
+**
+**  Output:     a    gxk matrix, where g = L - F + 1, containing the autocovariances
+**                   of order F, F+1, ..., L for each of the columns of x.
+**
+**  Remarks:    The 0th autocovariance is just the variance of the variable.
+**              The divisor for each autocovariance is the number of elements
+**              involved in its computation. Thus, the pth order cross product
+**              is divided by N - P, where N = rows(x), to obtain the pth order
+**              autocovariance.
+**
+**  Example:     autocov(x,2,8)   will compute the 2nd through 8th order
+**                                autocovariances.
+**  See Also:    autocor, conv;
+**
+*/
+
+proc autocov(x,F,L);
+    local n, num;
+    n = rows(x);
+    if (L > n - 1) or F > L;
+        errorlog "ERROR: Illegal values specified for starting and ending a"\
+            "utocovariances.";
+        end;
+    endif;
+
+    if L == 0 and F == 0;
+        L = n - 1;
+        num = L - F + 1;
+    elseif L == 0 and F < 0;
+        L = 0;
+        F = 0;
+        num = 1;
+    else;
+        num = L - F + 1;
+    endif;
+    retp( rev( conv(x, rev(x), n - L, n - F ) ) / n );
+endp;
+
+/*--------------------------------------------------------------------------*/
+/* LAGOP
+
+Purpose:   Lag polynomial operator function (filter). It produces the
+           moving average series formed by the lag polynomial operator:
+
+              A(L)xt = x[t,.] - b1*x[t-1,.] - b2*x[t-2,.] -...- bq*x[t-q,.];
+                   t = t0, ..., t1
+
+           It allows initial values to be specified, and allows the
+           initial and final values of t to be specified. It will operate
+           simultaneously on several series with different operators, as
+           long as the orders of the operators are the same.
+
+Format:    y = lagop(x,b,x0,t0,t1);
+
+Inputs:    x -- nxk matrix, each of whose columns will be transformed by the
+                lag polynomial operator
+           b -- qxk matrix, containing the coefficients of the lag polynomial
+                operators. If b has only one column, this will be used for
+                all columns in x.
+          x0 -- qxk matrix or 1x1 scalar 0, containing initial values for the
+                series. A scalar 0 is equivalent to a qxk matrix of 0's. X0
+                is considered to contain data for time periods -(q-1) to 0,
+                while the data in x are considered to be data for time periods
+                1 to T.
+          t0 -- the initial time period for the filtered series. The lowest
+                legal true value is 1; the highest is T (= rows(x)). However,
+                if t0=0, then t0 will be set to the first "legitimate" value
+                of the series; that is, if x0 is qxk and not all 0's, t0 will
+                be set to 1; if x0 is scalar zero (or all 0's), t0 will be set
+                to q + 1;
+          t1 -- the final time period for the filtered series. The lowest legal
+                true value is 1; the highest is T (=rows(x)). However, if t1=0,
+                then t1 will be set to T. It must be the case, of course, that
+                t1 >= t0;
+
+Output:    y -- lxk matrix, where l = t1 - t0 if t1 and t0 are not 0, otherwise
+                l = T - q0, where T = rows(x) and q0 is either 1 or q+1, as
+                described above in the discussion of t0.
+
+Remarks:   This proc calls CONV. The basic call is:
+
+                    conv(1|-b, x, t0, t1);
+
+           Most of the code in this proc computes the correct x, t0, and t1
+           to be passed to conv.  Since there is a certain amount of overhead
+           involved in this, in some cases it could speed up computation
+           substantially just to make a direct call to conv.
+
+Examples:  b=1|2; y=lagop(x,b,0,0,0); -- y will be (n-2)xk, since the first
+           2 time periods will be dropped.
+
+           b=1; x0=0.5; y=lagop(x,b,x0,0,0); -- y will be nxk, and will
+           contain "first differenced" values of x, with the value 0.5 used
+           for x at t=0 for all variables.
+----------------------------------------------------------------------------*/
+proc lagop(x,b,x0,t0,t1);
+    local n, qx0, k, k0, q, s0, s1;
+
+    q = rows(b);
+    qx0 = rows(x0);
+
+    if x0 ne 0;
+
+        if q /= qx0;
+            errorlog "ERROR: If x0 is non-zero, b and x0 must have the same"\
+                " number of rows.";
+            end;
+        endif;
+        k = cols(x);
+        k0 = cols(x0);
+        if k0 ne k and k0 ne 1;
+            errorlog "ERROR: The columns in x and x0 do not match.";
+            end;
+        endif;
+        if k0 ne k;
+            x0 = reshape(x0,k,q)';
+        endif;
+        x = x0 | x;
+
+        if t0 > 0;
+            s0 = q + t0;
+        else;
+            s0 = q + 1;
+        endif;
+
+    else;
+
+        if t0 > 0;
+            s0 = t0;
+        else;
+            s0 = q + 1;
+        endif;
+
+    endif;
+
+    n = rows(x);
+    if t1 <= 0;
+        s1 = n;
+    else;
+        s1 = t1;
+    endif;
+    if s0 > s1 or s1 > n + q - 1;
+        errorlog "ERROR: Illegal values specified for starting and/or endin"\
+            "g points.";
+        end;
+    endif;
+
+    retp( conv(1|-b, x, s0, s1) );
+endp;
+
+

@@ -1,0 +1,33 @@
+/*
+** optmum.ext - external declarations for globals used in OPTMUM.
+** (C) Copyright 1988-1994 by Aptech Systems, Inc.
+** All Rights Reserved.
+*/
+
+external matrix _op_ver;
+external matrix _opalgr;
+external matrix _opparnm;
+external matrix _opstep;
+external matrix _opshess;
+external matrix _opfhess;
+external matrix _opmbkst;
+external matrix _opgtol;
+external matrix _ophsprc;
+external matrix _opgdprc;
+external matrix _opgdmd;
+external matrix _opditer;
+external matrix _opdfct;
+external matrix _opmiter;
+external matrix _opcoef;
+external matrix _opitdta;
+external matrix _oprteps;
+external matrix _opusrch;
+external matrix _opdelta;
+external matrix _opmxtry;
+external string _opstmth;
+external string _opmdmth;
+external matrix _opkey;
+external matrix _opmtime;
+external matrix _opgrdh;
+external matrix _opusrgd;
+external matrix _opusrhs;

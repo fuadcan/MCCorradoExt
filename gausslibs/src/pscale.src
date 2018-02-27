@@ -1,0 +1,383 @@
+/*
+** pscale.src - Publication Quality Graphics Support.
+**
+**
+** (C) Copyright 1988-1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**-------------------**------------------**-------------------**-----------**
+**
+** Format                          Purpose                              Line
+** ==========================================================================
+** SCALE(x,y);                    Fix scaling, 2D                        30
+** SCALE3D(x,y,z);                Fix scaling, 3D                        30
+** XTICS(min,max,step,minordiv);  Set and fix axes numbering and tics   202
+** YTICS(min,max,step,minordiv);  Set and fix axes numbering and tics   265
+** ZTICS(min,max,step,minordiv);  Set and fix axes numbering and tics   328
+**
+**
+**
+**> scale, scale3d
+**
+**  Purpose:    To fix a scaling for subsequent graphs.
+**
+**  Format:     scale(x,y);
+**              scale3d(x,y,z);
+**
+**  Input:      x    matrix, the X axis data.
+**
+**              y    matrix, the Y axis data.
+**
+**              z    matrix, the Z axis data.
+**
+**  Remarks:    x, y, and z must each have at least 2 elements.  Only the
+**              minimum and maximum values are necessary.
+**
+**              This routine fixes the scaling for all subsequent graphs
+**              until graphset is called. This also clears xtics, ytics and
+**              ztics whenever it is called.
+**
+**              If either of the arguments is a scalar missing,
+**              autoscaling will be restored for that axis.
+**
+**              If an argument has 2 elements, the first will be used
+**              for the minimum and the last will be used for the maximum.
+**
+**              If an argument has 2 elements, and contains a missing
+**              value, that end of the axis will be autoscaled.
+**
+**              If you want direct control over the axes endpoints and
+**              tick marks use xtics, ytics, or ztics.  If these have
+**              been called after scale, they will override scale.
+*/
+
+#include pgraph.ext
+
+proc (0) = scale(x,y);
+    local m,xmin,xmax,ymin,ymax;
+    m = { . };
+    if scalmiss(x);
+        xmin = m;
+        xmax = m;
+    elseif rows(x)*cols(x) == 2;
+        if not ismiss(x);
+            if x[1] >= x[2];
+                errorlog "Invalid X scale values";
+                end;
+            endif;
+        endif;
+        if scalmiss(x[1]);
+            xmin = m;
+        else;
+            xmin = minc(minc(x));
+        endif;
+        if scalmiss(x[2]);
+            xmax = m;
+        else;
+            xmax = maxc(maxc(x));
+        endif;
+    else;
+        xmin = minc(minc(x));
+        xmax = maxc(maxc(x));
+    endif;
+    if scalmiss(y);
+        ymin = m;
+        ymax = m;
+    elseif rows(y)*cols(y) == 2;
+        if not ismiss(y);
+            if y[1] >= y[2];
+                errorlog "Invalid Y scale values";
+                end;
+            endif;
+        endif;
+        if scalmiss(y[1]);
+            ymin = m;
+        else;
+            ymin = minc(minc(y));
+        endif;
+        if scalmiss(y[2]);
+            ymax = m;
+        else;
+            ymax = maxc(maxc(y));
+        endif;
+    else;
+        ymin = minc(minc(y));
+        ymax = maxc(maxc(y));
+    endif;
+    _pworld = xmin|xmax|ymin|ymax|error(0)|error(0);
+    _pxscale = 0;
+    _pyscale = 0;
+endp;
+
+proc 0 = scale3d(x,y,z);
+    local m,xmin,xmax,ymin,ymax,zmin,zmax;
+    m = { . };
+    if scalmiss(x);
+        xmin = m;
+        xmax = m;
+    elseif rows(x)*cols(x) == 2;
+        if not ismiss(x);
+            if x[1] >= x[2];
+                errorlog "Invalid X scale values";
+                end;
+            endif;
+        endif;
+        if scalmiss(x[1]);
+            xmin = m;
+        else;
+            xmin = minc(minc(x));
+        endif;
+        if scalmiss(x[2]);
+            xmax = m;
+        else;
+            xmax = maxc(maxc(x));
+        endif;
+    else;
+        xmin = minc(minc(x));
+        xmax = maxc(maxc(x));
+    endif;
+    if scalmiss(y);
+        ymin = m;
+        ymax = m;
+    elseif rows(y)*cols(y) == 2;
+        if not ismiss(y);
+            if y[1] >= y[2];
+                errorlog "Invalid Y scale values";
+                end;
+            endif;
+        endif;
+        if scalmiss(y[1]);
+            ymin = m;
+        else;
+            ymin = minc(minc(y));
+        endif;
+        if scalmiss(y[2]);
+            ymax = m;
+        else;
+            ymax = maxc(maxc(y));
+        endif;
+    else;
+        ymin = minc(minc(y));
+        ymax = maxc(maxc(y));
+    endif;
+    if scalmiss(z);
+        zmin = m;
+        zmax = m;
+    elseif rows(z)*cols(z) == 2;
+        if not ismiss(z);
+            if z[1] >= z[2];
+                errorlog "Invalid Y scale values";
+                end;
+            endif;
+        endif;
+        if scalmiss(z[1]);
+            zmin = m;
+        else;
+            zmin = minc(minc(z));
+        endif;
+        if scalmiss(z[2]);
+            zmax = m;
+        else;
+            zmax = maxc(maxc(z));
+        endif;
+    else;
+        zmin = minc(minc(z));
+        zmax = maxc(maxc(z));
+    endif;
+    _pworld = xmin|xmax|ymin|ymax|zmin|zmax;
+    _pxscale = 0;
+    _pyscale = 0;
+    _pzscale = 0;
+endp;
+
+/*
+**> xtics
+**
+**  Purpose:    To set and fix scaling, axes numbering and tics for
+**              the X axis.
+**
+**  Format:     xtics(min,max,step,minordiv);
+**
+**  Input:      min         scalar, the minimum value.
+**
+**              max         scalar, the maximum value.
+**
+**              step        scalar, the value between major tics.
+**
+**              minordiv    scalar, the number of minor subdivisions.
+**
+**  Remarks:    This routine fixes the scaling for all subsequent graphs
+**              until graphset is called.
+**
+**              This must be called after any call to scale, because
+**              scale resets xtics whenever it is called.
+**
+**              This gives you direct control over the axes endpoints and
+**              tick marks.  If xtics has been called, it will override scale.
+*/
+
+proc 0 = xtics(min,max,step,minordiv);
+    local k;
+    if ismiss(min|max|step);
+        _pxscale = 0;
+        retp;
+    endif;
+    if ismiss(minordiv);
+        minordiv = 1;
+    elseif minordiv < 1;
+        minordiv = 1;
+    endif;
+
+    if step > 0;
+        k = min;
+        do while k < max and abs(k-max) > 1e-15;
+            k = k+step;
+        endo;
+        if abs(k-max) > 1e-15;
+            max = k;
+        endif;
+        _pxscale = min|max|step|minordiv;
+    elseif step < 0;
+        k = min;
+        do while k < max and abs(k-max) > 1e-15;
+            k = k-step;
+        endo;
+        if abs(k-max) > 1e-15;
+            max = k;
+        endif;
+        _pxscale = max|min|step|minordiv;
+    else;
+        errorlog "ERROR: XTICS - step value too small.";
+        end;
+    endif;
+
+endp;
+
+/*
+**> ytics
+**
+**  Purpose:    To set and fix scaling, axes numbering and tics for
+**              the Y axis.
+**
+**  Format:     ytics(min,max,step,minordiv);
+**
+**  Input:      min         scalar, the minimum value.
+**
+**              max         scalar, the maximum value.
+**
+**              step        scalar, the value between major tics.
+**
+**              minordiv    scalar, the number of minor subdivisions.
+**
+**  Remarks:    This routine fixes the scaling for all subsequent graphs
+**              until graphset is called.
+**
+**              This must be called after any call to scale, because
+**              scale resets ytics whenever it is called.
+**
+**              This gives you direct control over the axes endpoints and
+**              tick marks.  If ytics has been called, it will override scale.
+*/
+
+proc 0 = ytics(min,max,step,minordiv);
+    local k;
+    if ismiss(min|max|step);
+        _pyscale = 0;
+        retp;
+    endif;
+    if ismiss(minordiv);
+        minordiv = 1;
+    elseif minordiv < 1;
+        minordiv = 1;
+    endif;
+
+    if step > 0;
+        k = min;
+        do while k < max and abs(k-max) > 1e-15;
+            k = k+step;
+        endo;
+        if abs(k-max) > 1e-15;
+            max = k;
+        endif;
+        _pyscale = min|max|step|minordiv;
+    elseif step < 0;
+        k = min;
+        do while k < max and abs(k-max) > 1e-15;
+            k = k-step;
+        endo;
+        if abs(k-max) > 1e-15;
+            max = k;
+        endif;
+        _pyscale = max|min|step|minordiv;
+    else;
+        errorlog "ERROR: YTICS - step value too small.";
+        end;
+    endif;
+
+endp;
+
+/*
+**> ztics
+**
+**  Purpose:    To set and fix scaling, axes numbering and tics for
+**              the Z axis.
+**
+**  Format:     ztics(min,max,step,minordiv);
+**
+**  Input:      min         scalar, the minimum value.
+**
+**              max         scalar, the maximum value.
+**
+**              step        scalar, the value between major tics.
+**
+**              minordiv    scalar, the number of minor subdivisions.
+**
+**  Remarks:    This routine fixes the scaling for all subsequent graphs
+**              until graphset is called.
+**
+**              This must be called after any call to scale, because
+**              scale resets ztics whenever it is called.
+**
+**              This gives you direct control over the axes endpoints and
+**              tick marks.  If ztics has been called, it will override scale.
+*/
+
+proc 0 = ztics(min,max,step,minordiv);
+    local k;
+    if ismiss(min|max|step);
+        _pzscale = 0;
+        retp;
+    endif;
+    if ismiss(minordiv);
+        minordiv = 1;
+    elseif minordiv < 0;
+        minordiv = 1;
+    endif;
+    if min >= max;
+        errorlog "ERROR: ZTICS - min must be less than max";
+        end;
+    endif;
+    if step <= 0;
+        errorlog "ERROR: ZTICS - step too small or negative";
+        end;
+    endif;
+    k = min;
+    do while k < max and abs(k-max) > 1e-15;
+        k = k+step;
+    endo;
+    if abs(k-max) > 1e-15;
+        max = k;
+    endif;
+    _pzscale = min|max|step|minordiv;
+endp;
+

@@ -1,0 +1,76 @@
+
+Total observations:                                          131  
+Usable observations:                                         131  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          127  
+Value of the maximized log-likelihood function:       -687.96111  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+rho            -0.843170        0.101630        -8.296473        0.000000
+lambda_c       -3.551515        0.110586       -32.115504        0.000000
+sig_kapp       14.140718        5.866701         2.410336        0.017371
+sig_epsi       40.152548        3.618352        11.096915        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+  Parameter     Estimates       Harvey's Estimates
+
+     rho         -0.84317             0.84 
+lambda_c       -3.5515151             0.41 
+sig_kapp        199.95989              200 
+sig_epsi        1612.2271             1612 
+
+These are the same estimates because if we set:
+
+       rho* = - rho     and     lambda* = -lambda_c-pi
+
+Then we verify that the value taken by the log-likelihood function is the same.
+
+  Parameter     Estimates       Harvey's Estimates
+
+    rho*          0.84317             0.84 
+ lambda*       0.40992247             0.41 
+sig_kapp        199.95989              200 
+sig_epsi        1612.2271             1612 
+
+Total observations:                                          131  
+Usable observations:                                         131  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          127  
+Value of the maximized log-likelihood function:       -687.96111  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+rho            -0.843170        0.101630        -8.296473        0.000000
+lambda_c       -3.551515        0.110586       -32.115504        0.000000
+sig_kapp       14.140718        5.866701         2.410336        0.017371
+sig_epsi       40.152548        3.618352        11.096915        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+Press any key to continue...
+
+Total observations:                                          131  
+Usable observations:                                         131  
+Number of parameters to be estimated:                          4  
+Degrees of freedom:                                          127  
+Value of the maximized log-likelihood function:       -687.96111  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+rho            -0.843170        0.101630        -8.296473        0.000000
+lambda_c       -3.551515        0.110586       -32.115504        0.000000
+sig_kapp       14.140718        5.866701         2.410336        0.017371
+sig_epsi       40.152548        3.618352        11.096915        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+
+Press any key to continue...
+edit;

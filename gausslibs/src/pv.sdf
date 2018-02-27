@@ -1,0 +1,65 @@
+/*
+** pv.sdf - structure definition for structs PV and PVobj
+**
+** (C) Copyright 2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+struct PVobj
+{
+   // m - placeholder for matrix data
+
+   matrix m;
+
+   // a - placeholder for array data
+
+   array a;
+
+   // fpoff - mask offsets (as needed)
+
+   matrix fpoff;
+};
+
+struct PV
+{
+   // np - total number of prms
+
+   scalar np;
+
+   // type - object type, 1-6
+   //
+   //    1 - general matrix            # of prms = rows(m)*cols(m)
+   //    2 - masked general matrix     # of prms = rows(fpoff)
+   //    3 - symmetric matrix          # of prms = rows(m)*(cols(m)+1)/2
+   //    4 - masked symmetric matrix   # of prms = rows(fpoff)
+   //    5 - general array             # of prms = prodc(getorders(a))
+   //    6 - masked general array      # of prms = rows(fpoff)
+
+   matrix type;
+
+   // obj - the objects -- data and mask offsets
+
+   struct PVobj obj;
+
+   // table - indices for fast referencing into obj
+
+   matrix table;
+
+   // names - object names
+
+   string array names;
+};

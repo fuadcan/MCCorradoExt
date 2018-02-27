@@ -1,0 +1,61 @@
+
+Total observations:                                          499  
+Usable observations:                                         499  
+Number of parameters to be estimated:                          2  
+Degrees of freedom:                                          497  
+Value of the maximized log-likelihood function:        233.86695  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+mu              0.187144        0.068148         2.746157        0.006248
+sigma           0.478874        0.015159        31.590771        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          499  
+Usable observations:                                         499  
+Number of parameters to be estimated:                          2  
+Degrees of freedom:                                          497  
+Value of the maximized log-likelihood function:        233.86695  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+mu              0.187144        0.068257         2.741758        0.006331
+sigma           0.478874        0.015159        31.590057        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          499  
+Usable observations:                                         499  
+Number of parameters to be estimated:                          2  
+Degrees of freedom:                                          497  
+Number of moment conditions:                                   2  
+Value of the criterion function:                         0.00000  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+mu              0.187141        0.069006         2.711940        0.006921
+sigma           0.478874        0.016511        29.003548        0.000000
+
+
+Total observations:                                          499  
+Usable observations:                                         499  
+Number of parameters to be estimated:                          2  
+Degrees of freedom:                                          497  
+Number of moment conditions:                                   2  
+Value of the criterion function:                         0.00000  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+mu              0.187141        0.069006         2.711940        0.006921
+sigma           0.478874        0.016511        29.003548        0.000000
+
+
+
+                 True values        TDML            GMM
+      mu              0.2       0.18714374       0.18714141 
+   sigma              0.5       0.47887426       0.47887387 

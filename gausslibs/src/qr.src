@@ -1,0 +1,451 @@
+/*
+** qr.src - Procedures related to the QR decomposition.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS 3.0.
+**
+**  Format                   Purpose                                     Line
+** ---------------------------------------------------------------------------
+**   r       = QR(x);           QR decomposition                          30
+** { r,e }   = QRE(x);          QR decomposition with pivoting           163
+** { r,e }   = QREP(x,pvt);     QR decomposition with pivoting control   317
+*/
+#include qr.ext
+
+
+
+/*
+**> qr
+**
+**  Purpose:    Computes the orthogonal-triangular (qr)
+**              decomposition of a matrix X, such that:
+**
+**                          X = Q1*R.                               (17)
+**
+**  Format:     R = qr(x);
+**
+**  Input:      X    NxP matrix.
+**
+**  Output:     R    LxP upper triangular matrix, L = min(N,P).
+**
+**  Remarks:   qr is the same as qqr but doesn't return the Q1 matrix.
+**             If Q1 is not wanted, qr will save a significant amount
+**             of time and memory usage, especially for large problems.
+**
+**             Given X, there is an orthogonal matrix Q such that Q' * X
+**             is zero below its diagonal, i.e.,
+**
+**                   Q'* X =  [ R ]                              (18)
+**                            [ 0 ]
+**
+**             where R is upper triangular.  If we partition
+**
+**                   Q = [ Q1 Q2 ]                               (19)
+**
+**             where Q1 has P columns then
+**
+**                   X = Q1 * R                                   (20)
+**
+**             is the qr decomposition of X.  If X has linearly
+**             independent columns, R is also the Cholesky factorization of
+**             the moment matrix of X, i.e., of X'* X.            (21)
+**
+**             qr does not return the Q matrix because in most cases it is
+**             not required and can be very large.  If you need the Q1 matrix
+**             see the GAUSS function qqr.  If you need the entire Q matrix
+**             call qyr with Y set to a conformable identity
+**             matrix.
+**
+**             For most problems Q'* Y, Q1'* Y, or Q * Y, Q1 * Y,
+**             for some Y, are required.  For these cases see qtyr and qyr.
+**
+**             For linear equation or least squares problems, which require Q2
+**             for computing residuals and residual sums of squares, see olsqr.
+**
+**             If N < P the factorization assumes the form:
+**
+**                   Q'* X = [ R1  R2 ]                              (22)
+**
+**             where R1 is a PxP upper triangular matrix and R2 is Px(N-P).
+**             Thus Q is a PxP matrix and R is a PxN matrix containing R1 and
+**             R2.  This type of factorization is useful for the solution of
+**             underdetermined systems.  However,  (unless the linearly
+**             independent columns happen to be the initial rows) such an
+**             analysis also requires pivoting (see qre and qrep).
+**
+**
+**
+** Globals:    _qrdc, _qrsl
+**
+** See Also:  qqr, qrep, qtyre
+**
+*/
+
+proc (1) = qr(x);
+    local flag,n,p,qraux,work,pvt,job,dum,info,qy,r,v,i,y,k,dif;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+
+    dum = 0;
+    info = 0;
+    job = 10000;    /* compute qy only */
+    qy = zeros(n,1);
+    x = x';
+
+    flag = 0;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    dif = abs(n-p);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+    endif;
+
+    retp(r);
+endp;
+
+
+/*
+**> qre
+**
+**  Purpose:    Computes the orthogonal-triangular (qr)
+**              decomposition of a matrix X, such that:
+**
+**                         X[.,E] = Q1*R.                       (23)
+**
+**  Format:     { R,E } = qre(X);
+**
+**  Input:       X    NxP matrix.
+**
+**  Output:      R    LxP upper triangular matrix, L = min(N,P).
+**
+**               E    Px1 permutation vector.
+**
+**  Remarks:   qre is the same as qqre but doesn't return the Q1 matrix.
+**             If Q1 is not wanted, qre will save a significant amount
+**             of time and memory usage, especially for large problems.
+**
+**             Given X[.,E], where E is a permutation vector that permutes
+**             the columns of X, there is an orthogonal matrix Q such that
+**             Q' * X[.,E] is zero below its diagonal, i.e.,
+**
+**                   Q'* X[.,E] = [ R ]                            (24)
+**                                [ 0 ]
+**
+**             where R is upper triangular.
+**             If we partition
+**
+**                   Q = [ Q1 Q2 ]                                (25)
+**
+**             where Q1 has P columns then
+**
+**                    X[.,E] = Q1 * R                            (26)
+**
+**             is the qr decomposition of X[.,E].                (27)
+**
+**             qre does not return the Q matrix because in most cases it is
+**             not required and can be very large.  If you need the Q1 matrix
+**             see the GAUSS function qqre.  If you need the entire Q matrix
+**             call qyre with Y set to a conformable identity
+**             matrix.  For most problems Q'* Y, Q1'* Y, or Q * Y, Q1 * Y,
+**             for some Y, are required.  For these cases see qtyre and qyre.
+
+**             If X has rank P, then the columns of X will
+**             not be permuted.  If X has rank M < P, then the M linearly
+**             independent columns are permuted to the front of X
+**             by E.  Partition the permuted X in the following way:
+**
+**                    X[.,E] = [ X1 X2 ]                               (28)
+**
+**             where X1 is NxM and X2 is Nx(P-M).  Further partition R
+**             in the following way:
+**
+**                   R = [ R11 R12 ]                                   (29)
+**                       [  0   0  ]
+**
+**             where R11 is MxM and R12 is Mx(P-M).  Then
+**
+**                   A = inv(R11)*R12                                 (30)
+**
+**             and
+**
+**                   X2 = X1*A.                                       (31)
+**
+**             that is, A is an Mx(P-N) matrix defining the linear
+**             combinations of X2 with respect to X1.
+**
+**             If N < P the factorization assumes the form:
+**
+**                   Q'* X = [ R1  R2 ]                              (32)
+**
+**             where R1 is a PxP upper triangular matrix and R2 is Px(N-P).
+**             Thus Q is a PxP matrix and R is a PxN matrix containing R1 and
+**             R2.  This type of factorization is useful for the solution of
+**             underdetermined systems.  For the solution of
+**
+**                   X[.,E] * b = Y
+**                                                                 (33)
+**             it can be shown that
+**
+**                  b = qrsol(Q'Y,R1) | zeros(N-P,1);
+**
+**             The explicit formation here of Q, which can be a very large
+**             matrix, can be avoided by using the GAUSS function qtyre.
+**
+**             For further discussion of qr factorizations see the documentation
+**             for the GAUSS function qqr.
+**
+**  Globals:    _qrdc
+**
+**  See Also:   qqr, olsqr
+*/
+
+proc (2) = qre(x);
+    local flag,n,p,qraux,work,pvt,r,v,k,dif;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+    x = x';
+
+    flag = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    dif = abs(n-p);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+    endif;
+    retp(r,pvt);
+endp;
+
+/*
+**> qrep
+**
+**  Purpose:    Computes the orthogonal-triangular (QR)
+**              decomposition of a matrix X, such that:
+**
+**                          X[.,E] = Q1*R.                       (34)
+**
+**  Format:     { R,E } = qrep(X,PVT);
+**
+**  Input:      X      NxP matrix.
+**
+**              PVT    Px1 vector, controls the selection of the pivot
+**                     columns:
+**
+**                          if PVT[i] gt 0 then X[i] is an initial column
+**                          if PVT[i] eq 0 then X[i] is a free column
+**                          if PVT[i] lt 0 then X[i] is a final column
+**
+**                     The initial columns are placed at the beginning
+**                     of the matrix and the final columns are placed
+**                     at the end.  Only the free columns will be moved
+**                     during the decomposition.
+**
+**  Output:     R      LxP upper triangular matrix, L = min(N,P).
+**
+**              E      Px1 permutation vector.
+**
+**  Remarks:   qrep is the same as qqrep but doesn't return the Q1 matrix.
+**             If Q1 is not wanted, qrep will save a significant amount
+**             of time and memory usage, especially for large problems.
+**
+**             Given X[.,E], where E is a permutation vector that permutes
+**             the columns of X, there is an orthogonal matrix Q such that
+**             Q' * X[.,E] is zero below its diagonal, i.e.,
+**
+**                   Q'* X[.,E] = [ R ]                           (35)
+**                                [ 0 ]
+**
+**             where R is upper triangular.
+**             If we partition
+**
+**                   Q = [ Q1 Q2 ]                              (36)
+**
+**             where Q1 has P columns then
+**
+**                   X[.,E] = Q1 * R                           (37)
+**
+**             is the qr decomposition of X[.,E].               (38)
+**
+**             qrep does not return the Q matrix because in most cases it is
+**             not required and can be very large.  If you need the Q1 matrix
+**             see the GAUSS function qqrep.  If you need the entire Q matrix
+**             call qyrep with Y set to a conformable identity
+**             matrix.  For most problems Q'* Y, Q1'* Y, or Q * Y, Q1 * Y,
+**             for some Y, are required.  For these cases see qtyrep and qyrep.
+**
+**             qrep allows you to control the pivoting.  For example,
+**             suppose that X is a data set with a column of ones in the
+**             first column.  If there are linear dependencies among the
+**             columns of X, the column of ones for the constant may get
+**             pivoted away.  This column can be forced to be included
+**             among the linearly independent columns using pvt.
+**
+**  Globals:    _qrdc
+**
+**  See Also:   qr, qre, qqrep
+*/
+
+proc (2) = qrep(x,pvt);
+    local flag,n,p,qraux,work,r,v,k,dif;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if iscplx(pvt);
+        if hasimag(pvt);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            pvt = real(pvt);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    qraux = zeros(p,1);
+    work = qraux;
+    x = x';
+
+    flag = 1;
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    k = minc(n|p);
+    dif = abs(n-p);
+
+    if n > p;
+        r = trimr(x',0,dif);
+        v = seqa(1,1,p);    /* use to create mask */
+        r = r .*( v .<= v' );       /* R */
+    elseif p > n;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        v = trimr(v,0,dif);
+        r = x' .* v ;        /* R */
+    else;
+        v = seqa(1,1,p);    /* use to create mask */
+        v = v .<= v';
+        r = x' .* v ;        /* R */
+    endif;
+
+    retp(r,pvt);
+endp;

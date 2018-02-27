@@ -1,0 +1,221 @@
+/*
+** QProg - Quadratic Programming
+**
+** (C) Copyright 1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/*
+**> QProg
+**
+**  Purpose:  solves the quadratic programming problem
+**
+**  Format:
+**            { x,u1,u2,u3,u4,ret } = QProg( start,q,r,a,b,c,d,bnds );
+**
+**
+**  Input: start   Kx1 vector,  starting values
+**
+**             q   KxK matrix,  model coefficient matrix
+**
+**             r   Kx1 vector,  model constant vector
+**
+**             a   MxK matrix,  equality constraint coefficient matrix
+**                 if no equality constraints in model, set to zero
+**
+**             b   Mx1 vector,  equality constraint constant vector
+**                 if set to zero and M > 1, b is set to Mx1 vector
+**                 of zeros
+**
+**             c   NxK matrix,  inequality constraint coefficient matrix
+**                  if no inequality constraints in model, set to zero
+**
+**             d   Nx1 vector,  inequality constraint constant vector
+**                 if set to zero and N > 1, d is set to Mx1 vector
+**                 of zeros
+**
+**          bnds   Kx2 vector, bounds on x, the first column contains
+**                 the lower bounds on x, and the second column the
+**                 upper bounds, if zero bounds for all elements of x
+**                 are set to the plus and minus _qpbgnum
+**
+**  Output:  x   Kx1 vector,  coefficients at the minimum of the function
+**
+**          u1   Mx1 vector,  Lagrangian coefficients of equality constraints
+**
+**          u2   Nx1 vector,  Lagrangian coefficients of inequality constraints
+**
+**          u3   Kx1 vector,  Lagrangian coefficients of lower bounds
+**
+**          u4   Kx1 vector,  Lagrangian coefficients of upper bounds
+**
+**          ret  return code:  0, successful termination
+**                             1, max iterations exceeded
+**                             2, machine accuracy is insufficient to
+**                                maintain decreasing function values
+**                             3, model matrices not conformable
+**                            <0, active constraints inconsistent
+**
+**  Globals:  _qprog_maxit - scalar, maximum number of iterations,
+**            default = 1000
+**
+**  Remarks:  QProg solves the standard quadratic programming problem:
+**
+**         minimize  0.5 * x'Qx - x'R
+**
+**         subject to constraints,
+**
+**             Ax  = B
+**             Cx >= D
+**
+**         and bounds,
+**
+**             bnds[.,1] <= x <= bnds[.,2]
+**
+*/
+
+
+proc(6) = QProg(x,q,r,a,b,c,d,bnds);
+
+local m, n, ret, u, w, lw, iact, c1, maxit, numeq,
+      isa, isc, eps, xl, xu, lql;
+
+    if rows(bnds) == 1 and cols(bnds) == 1;
+        xl = -1e200*ones(rows(x),1);
+        xu = 1e200*ones(rows(x),1);
+    elseif rows(bnds) == 1 and cols(bnds) == 2;
+        xl = bnds[1,1]*ones(rows(x),1);
+        xu = bnds[1,2]*ones(rows(x),1);
+    else;
+        if rows(bnds) /= rows(R);
+            errorlog "QProg: bounds not conformable";
+            retp(error(0),error(0),error(0),error(0),error(0),3);
+        endif;
+        xl = bnds[.,1];
+        xu = bnds[.,2];
+    endif;
+
+    isa = rows(a) /= 1 or cols(a) /= 1 or a /= 0;
+    isc = rows(c) /= 1 or cols(c) /= 1 or c /= 0;
+    if isa and isc;
+        numeq = rows(a);
+        if cols(c) /= cols(a);
+            if not trapchk(1);
+                errorlog "QProg:  constraints not conformable";
+                end;
+            endif;
+            retp(error(0),error(0),error(0),error(0),error(0),3);
+        else;
+            a = a|c;
+        endif;
+        if rows(c) /= rows(d);
+            if rows(b) == 1 and cols(b) == 1 and b == 0;
+                b = b | zeros(rows(c),1);
+            else;
+                if not trapchk(1);
+                    errorlog "QProg: equality constraint matrices not"\
+                             " consistent";
+                    end;
+               endif;
+               retp(error(0),error(0),error(0),error(0),error(0),3);
+           endif;
+        else;
+            b = b | d;
+            d = 0;
+        endif;
+    elseif isa and not isc;
+        numeq = rows(a);
+        if rows(a) /= rows(b);
+            if rows(b) == 1 and cols(b) == 1 and b == 0;
+                b = zeros(rows(a),1);
+            else;
+                if not trapchk(1);
+                    errorlog "QProg: equality constraint matrices not"\
+                             " consistent";
+                    end;
+                endif;
+                retp(error(0),error(0),error(0),error(0),error(0),3);
+           endif;
+       endif;
+    elseif isc and not isa;
+       numeq = 0;
+       a = c;
+       if rows(c) /= rows(d);
+           if rows(b) == 1 and cols(b) == 1 and b == 0;
+               b = zeros(rows(c),1);
+           else;
+               if not trapchk(1);
+                   errorlog "QProg: equality constraint matrices not"\
+                            " consistent";
+                   end;
+               endif;
+               retp(error(0),error(0),error(0),error(0),error(0),3);
+           endif;
+       else;
+          b = d;
+       endif;
+   else;
+       numeq = 1;
+       a = zeros(1,rows(x));
+   endif;
+   c = 0;
+   d = 0;
+
+   if rows(q) /= cols(q);
+       if not trapchk(1);
+           errorlog "QProg:  model matrix not square";
+           end;
+       endif;
+       retp(error(0),error(0),error(0),error(0),error(0),3);
+   endif;
+   if rows(q) /= rows(r);
+       if not trapchk(1);
+           errorlog "QProg:  model matrices not consistent";
+           end;
+       endif;
+       retp(error(0),error(0),error(0),error(0),error(0),3);
+   endif;
+   if rows(x) /= rows(q);
+       if not trapchk(1);
+           errorlog "QProg:  starting vector not conformable to model matrix";
+           end;
+       endif;
+       retp(error(0),error(0),error(0),error(0),error(0),3);
+   endif;
+
+   maxit = _qprog_maxit;
+
+   { b,xl,xu,x,ret }=
+               _intqpsolvfcn01(q,r,a,b,xl,xu,x,numeq,maxit,1);
+
+   local u1, u2;
+   if isa and not isc;
+       u1 = b;
+       u2 = 0;
+   elseif not isa and isc;
+       u1 = 0;
+       u2 = b;
+   elseif not isa and not isc;
+       u1 = 0;
+       u2 = 0;
+   else;
+       u1 = b[1:numeq];
+       u2 = b[numeq+1:rows(b)];
+   endif;
+
+   retp(x,u1,u2,xl,xu,ret);
+
+endp;
+
+

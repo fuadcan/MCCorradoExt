@@ -1,0 +1,331 @@
+/*
+** maxhist.src        MaxHist - generates histograms and surface plots
+**                              from tables of re-sampled coefficients
+**
+** (C) Copyright 1994-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**> MaxHist
+**
+**  Purpose:
+**
+**  Format:   { tab, cut } = MaxHist(dataset,pars)
+**
+**  Input:    dataset      string, name of GAUSS dataset containing
+**                         bootstrapped parameters
+**
+**            pars         Kx1 vector,  parameters to be selected from
+**                         dataset. If zero, all columns are selected.
+**
+**  Output:   tab          ncatxK matrix, K univariate tabulations of the
+**                         distributions of the bootstrapped parameters
+**                         stored in dataset
+**
+**            cut          ncatxK vector, cutting points for each column
+**                         in tab
+**
+**
+**  Globals:
+**
+**     _max_Increment      Kx1 vector, increments for cutting points, default
+**                         is 2 * _max_Width * std dev of coefficient /
+**                          _max_NumCat
+**
+**     _max_Center         scalar, value of center category in tab default
+**                         is initial coefficient estimate
+**
+**     _max_Width          scalar, width used in computing _max_Increment,
+**                         default = 2
+**
+**     _max_NumCat         scalar, number of categories in tab
+**
+**
+**  Remarks:
+**
+**   Three plots are generated for each pair of coefficients selected:
+**   two univariate histograms and a bivariate surface plot
+*/
+
+#include pgraph.ext
+#include maxlik.ext
+
+proc (2) = MaxHist(dataset,pars);
+    local vindx,vnames,k1,y0,cntr;
+    local nobs,wgt,frq,dst,ttime,tt0,ff,l1,fhandle,g0,ncase,ctp,
+            itdta,mm,mn,incr,sd,adds,sq,tme,irow,stri,str,strj,ttab,xv,
+            title0,it0,yv,zv,i,j,k,l,oaw,vv,title1,tpath;
+
+    if type(pars) == 13;
+        pars = stof(pars);
+    else;
+        pars = vec(pars);
+    endif;
+    title1 = _ptitle;
+    _ptitle = "";
+
+    tpath = sysstate(25,0);
+
+    if type(dataset) == 13 and dataset $/= "";
+        fhandle = -1;
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(error(0),error(0));
+        endif;
+
+        if pars $== 0;
+            vindx = 0;
+            vnames = getname(dataset);
+        else;
+            { vnames,vindx } = indices(dataset,pars);
+        endif;
+
+        dataset = {};
+        k1 = getnr(6,colsf(fhandle));
+        call seekr(fhandle,1);
+        do until eof(fhandle);
+            y0 = readr(fhandle,k1);
+            dataset = dataset | y0[.,vindx];
+        endo;
+        clear y0;
+        if fhandle > 0;
+           fhandle = close(fhandle);
+        endif;
+    else;
+        if not (pars $== 0);
+            dataset = dataset[.,pars];
+            vnames = "PAR_"$+pars;
+        else;
+            vnames = "PAR_"$+seqa(1,1,cols(dataset));
+        endif;
+    endif;
+
+    if cols(dataset) == 1;
+        frq = zeros(_max_NumCat,1);
+    else;
+        frq = zeros(_max_NumCat*_max_NumCat,cols(dataset)*(cols(dataset)-1)/2);
+    endif;
+    dst = zeros(_max_NumCat,cols(dataset));
+
+    ctp = zeros(_max_NumCat,cols(dataset));
+    sd = stdc(dataset);
+    sd = sd.*(sd .> 1e-16) + ones(rows(sd),1).*(sd .<= 1e-16);
+    mn = meanc(dataset);
+
+    i = 1;
+    do until i > cols(dataset);
+        if rows(_max_Increment) == cols(dataset);
+             incr = _max_Increment[i];
+        else;
+             incr = _max_Increment[1];
+        endif;
+        if rows(_max_Center) == cols(dataset);
+             cntr = _max_Center[i];
+        else;
+             cntr = _max_Center[1];
+        endif;
+        if incr == 0;
+            incr = 2 * _max_Width * sd[i] / _max_NumCat;
+            if cntr == 0;
+                str = mn[i] - _max_Width * sd[i] - incr / 2;
+            else;
+                str = cntr - _max_Width * sd[i] - incr / 2;
+            endif;
+        else;
+            if cntr == 0;
+                str = mn[i] - incr * (_max_NumCat - 1) / 2;
+            else;
+                str = cntr - incr * (_max_NumCat - 1) / 2;
+            endif;
+        endif;
+        ctp[.,i] = seqa(str,incr,_max_NumCat);
+        i = i + 1;
+    endo;
+
+    adds = zeros(cols(dataset),1);
+    sq = seqa(1,1,_max_NumCat);
+    tme = 0;
+    irow = 1;
+    do until irow > rows(dataset);
+
+        i = 1;
+        do until i > cols(dataset);
+            if dataset[irow,i] > ctp[_max_NumCat,i];
+                adds[i] = _max_NumCat;
+            else;
+                adds[i] = subscat(dataset[irow,i],ctp[.,i],sq);
+            endif;
+            dst[adds[i],i] = dst[adds[i],i] + 1;
+            i = i + 1;
+        endo;
+
+        if cols(dataset) == 1;
+            frq[adds[1]] = frq[adds[1]] + 1;
+        else;
+            k = 1;
+            i = 2;
+            do until i > cols(dataset);
+                j = 1;
+                do while j < i;
+                   l = _max_NumCat * (adds[i] - 1) + adds[j];
+                   frq[l,k] = frq[l,k] + 1;
+                   j = j + 1;
+                   k = k + 1;
+                endo;
+                i = i + 1;
+           endo;
+        endif;
+
+        irow = irow + 1;
+    endo;
+
+    if __output == 0;
+        retp(dst,ctp);
+    endif;
+
+#IFUNIX
+    oaw = WinGetActive;
+    if cols(dataset) == 1;
+        vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+        call WinSetActive(WinOpenPQG(vv,"Coefficient 1","Hist"));
+        _ptek = tempname(tpath,"mlmh",".tkf");
+        call bar(ftocv(ctp,6,3),frq);
+    else;
+
+        vv = { 50,100,640,480,40,80,1,6,15,0,0,2,2 };
+
+        i = 1;
+        do until i > cols(dataset);
+            stri = "Coefficient "$+vnames[i];
+            call WinSetActive(WinOpenPQG(vv,stri,"Hist"));
+            xlabel(stri);
+
+            _psurf = { 0, 0 };
+            _pframe = 1;
+            _paxes = 1;
+            _ptek = tempname(tpath,"mlmh",".tkf");
+            call bar(ctp[.,i],
+                 sumc(reshape(frq[.,i],_max_NumCat,_max_NumCat)));
+
+            vv[1:2] = vv[1:2] + 10;
+            i = i + 1;
+        endo;
+
+       vv = { 100,100,640,480,40,80,1,6,15,0,0,2,2 };
+
+        k = 1;
+        i = 2;
+        do until i > cols(dataset);
+            stri = "Coefficient "$+vnames[i];
+            xlabel(stri);
+
+            j = 1;
+            do while j < i;
+                _pframe = 0;
+                _paxes = 1;
+                xv = -4*ctp[1,j]+3*ctp[_max_NumCat,j];
+                strj = "Coefficients "$+vnames[j]$+" by "$+vnames[i];
+                call WinSetActive(WinOpenPQG(vv,strj,"Surface"));
+                ylabel("Coefficient "$+vnames[j]);
+                _ptek = tempname(tpath,"mlmh",".tkf");
+                call surface(ctp[.,j]',ctp[.,i],
+                             reshape(frq[.,k],_max_NumCat,_max_NumCat));
+                vv[1:2] = vv[1:2] + 10;
+                k = k + 1;
+                j = j + 1;
+            endo;
+            i = i + 1;
+        endo;
+    endif;
+    call WinSetActive(oaw);
+
+#ELSE
+
+    if cols(dataset) == 1;
+        call bar(ftocv(ctp,6,3),frq);
+    else;
+        title0 = _ptitle;
+        _ptitle = "";
+        k = 1;
+        i = 2;
+        do until i > cols(dataset);
+            j = 1;
+            do while j < i;
+               ttab = reshape(frq[.,k],_max_NumCat,_max_NumCat);
+
+                graphset;
+
+                begwind;
+                title("");
+                _pmsgstr = "";
+                _pmsgctl = 0;
+
+                makewind(4.2,3,.2,3.8,0);
+                makewind(4,3.1,.2,.2,0);
+                makewind(4.2,3,4.4,.2,0);
+                makewind(9,6.855,0,0,1);
+
+                xlabel("Coefficient "$+vnames[j]);
+                _psurf = { 0, 0 };
+                _pframe = 1;
+                _paxes = 1;
+                call bar(ctp[.,j],sumc(ttab));
+
+                nextwind;
+                _pframe = 0;
+                _paxes = 1;
+
+                ylabel("Coefficient "$+vnames[i]);
+                call surface(ctp[.,j]',ctp[.,i],ttab);
+
+                nextwind;
+
+                xlabel("Coefficient "$+vnames[i]);
+                ylabel("");
+                _pframe = 1;
+                _paxes = 1;
+                call bar(ctp[.,i],sumc(ttab'));
+
+                nextwind;
+
+                xlabel("");
+                title(title0);
+                _pmsgstr = "Coefficients\000"$+vnames[j]$+" vs. "$+vnames[i];
+                _pmsgctl = { 5 5 .3 0 2 15 5,
+                             5.7 4.55 .2 0 2 15 5 };
+                _paxes = 0;
+                _pframe = 0;
+
+                draw;
+
+                endwind;
+                k = k + 1;
+                j = j + 1;
+            endo;
+            i = i + 1;
+        endo;
+    endif;
+#ENDIF
+
+    retp(dst,ctp);
+endp;
+
+
+
+

@@ -1,0 +1,311 @@
+/*
+** maxpflcl.src     MaxPflClimits - profile likelihood confidence limits
+**
+** (C) Copyright 1994-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**
+**> MaxPflClimits
+**
+**  Purpose:  computes profile likelihood confidence limits
+**
+**  Format:   cl = MAXPflClimits(b,f,dataset,var,fct)
+**
+**  Input:    b            Kx1 vector, maximum likelihood estimates
+**
+**            f            scalar, function at minimum
+**
+**            dataset      string containing name of GAUSS data set, or
+**                         name of data matrix stored in memory
+**
+**            vars         Kx1 vector or scalar zero.  If Kx1, character
+**                         vector of labels selected for analysis,
+**                         or numeric vector of column numbers in data
+**                         set of variables selected for analysis.
+**                         If scalar zero, all columns are selected.
+**
+**            fct          the name of a procedure that returns either
+**                         the log-likelihood for one observation or a
+**                         vector of log-likelihoods for a matrix of
+**                         observations
+**
+**            start        Kx1 vector, start values
+**
+**
+**  Output:      cl        Kx2 matrix, lower (first column) and
+**                         upper (second column) limits of the selected
+**                         parameters
+**
+**
+**  Globals:
+**
+**      _max_Alpha      (1-_max_Alpha)% two-tailed limits are computed.
+**                       Default = .95
+**
+**      _max_NumObs      scalar, number of observations.  Must be set.
+**
+**      _max_Select      Lx1 vector, selection of columns of dataset.
+**                       For example, _max_Select = { 1, 3, 4 }.
+**
+**
+**  Remarks:
+**
+**  MAXPflClimits computes profile likelihood confidence limits given
+**  a maximum likelihood estimation.  'b' and 'f' should be returns
+**  from a call to MAXLIK.  This will also properly set up the global
+**  _max_NumObs for MAXPflClimits.
+**
+**  MAXPflClimits solves for the confidence limits as a parametric
+**  maximum likelihood problem.  Thus it itself calls MAXLIK several
+**  times for each confidence limit.  The screen output is turned off
+**  for these runs.  However, the computation can be time consuming, and
+**  if you wish to check on its progress, type O, or Alt-O, and revise
+**  the __OUTPUT global.  This will turn on the screen output for that
+**  run.  The parameter number is printed on the title and this will tell
+**  you where it is.
+*/
+
+#include maxlik.ext
+
+proc (1) = MAXPflCLimits(coefs,vof,dataset,var,lfct);
+    local oldt,hi,cl,cl0,sde,np,tv,lv,i,k,phi0,phi1,phi2,f0,f1,f2, iter,in,
+        im,is,ff,ff0,select;
+
+    if _max_NumObs == 0;
+        if not trapchk(4);
+            errorlog "ERROR: _max_NumObs not set";
+        endif;
+        retp(error(0));
+    endif;
+    coefs = vec(real(coefs));
+
+    if scalmiss(_max_Select) or _max_Select == 0;
+        select = seqa(1,1,rows(coefs));
+    else;
+        if maxc(_max_Select) > rows(coefs) or minc(_max_Select) < 1;
+            if not trapchk(4);
+                errorlog "error in selection vector";
+                retp(error(0));
+            endif;
+        else;
+            select = _max_Select;
+        endif;
+    endif;
+    if not(_max_Active == 1);
+        i = 1;
+        do until i > rows(select);
+            if _max_Active[select[i]] == 0;
+                 select = packr(miss(0,0),select[i]);
+            endif;
+            i = i + 1;
+        endo;
+    endif;
+
+    tv = cdfchii(1-_max_Alpha,1);
+    cl = miss(zeros(rows(coefs),2),0);
+
+    i = 0;
+    do until i == rows(select);
+        i = i + 1;
+
+/* lower bound */
+
+        k = _mxpf_magnitude(coefs[select[i]]);
+        phi0 = coefs[select[i]] - k*tv;
+        if scalmiss(phi0);
+            if not trapchk(4);
+                errorlog "ERROR: starting value calculation failed";
+            endif;
+            goto A1;
+        endif;
+
+        f0 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi0,select[i]);
+        if scalmiss(f0);
+            if not trapchk(4);
+                errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                goto A1;
+            endif;
+        elseif abs(f0-tv) < __tol;
+            cl[select[i],1] = phi0;
+            goto A1;
+        endif;
+
+        k = _mxpf_magnitude(coefs[select[i]]);
+        phi1 = phi0 - maxc(k|k*abs(phi0));
+        if phi1 >= coefs[select[i]];
+            phi1 = (phi0 + coefs[select[i]]) / 2;
+        endif;
+
+        f1 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi1,select[i]);
+        if scalmiss(f1);
+            if not trapchk(4);
+                errorlog "lower confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                goto A1;
+            endif;
+        elseif abs(f1-tv) < __tol;
+            cl[select[i],1] = phi1;
+            goto A1;
+        endif;
+
+        ff0 = 0;
+        iter = 0;
+        do until iter > _max_MaxIters;
+            iter = iter + 1;
+
+            if f1 == f0;
+                cl[select[i],1] = phi0;
+                break;
+            endif;
+            phi2 = (phi1 * (tv - f0) - phi0 * (tv - f1)) / (f1 - f0);
+            if phi2 >= coefs[select[i]];
+                k = _mxpf_magnitude(coefs[select[i]]);
+                phi2 = phi1 - maxc(k|k*abs(phi1));
+            endif;
+
+            f2 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi2,select[i]);
+            if scalmiss(f2);
+                if not trapchk(4);
+                    errorlog "lower confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                    break;
+                endif;
+            endif;
+            if abs(f2 - tv) < __tol;
+                cl[select[i],1] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+        endo;
+
+    A1:
+
+/* upper bound */
+
+        k = _mxpf_magnitude(coefs[select[i]]);
+        phi0 = coefs[select[i]] + k * tv;
+
+        f0 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi0,select[i]);
+
+        if scalmiss(f0);
+            if not trapchk(4);
+                errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                continue;
+            endif;
+        elseif abs(f0-tv) < __tol;
+            cl[select[i],2] = phi0;
+            continue;
+        endif;
+
+        k = _mxpf_magnitude(coefs[select[i]]);
+        phi1 = phi0 + maxc(k|k*abs(phi0));
+        if phi1 <= coefs[select[i]];
+            phi1 = (phi0 + coefs[select[i]]) / 2;
+        endif;
+
+        f1 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi1,select[i]);
+        if scalmiss(f1);
+            if not trapchk(4);
+                errorlog "upper confidence limit for parameter "$+ftos(i,"%"\
+                    "*.*lf",1,0)$+" failed";
+                continue;
+            endif;
+        elseif abs(f1-tv) < __tol;
+            cl[select[i],2] = phi1;
+            continue;
+        endif;
+
+        ff0 = 0;
+        iter = 1;
+        do until iter > _max_MaxIters;
+            iter = iter + 1;
+
+            if f0 == f1;
+                cl[select[i],2] = phi0;
+                break;
+            endif;
+            phi2 = (phi1 * (tv - f0) - phi0 * (tv - f1)) / (f1 - f0);
+            if phi2 <= coefs[select[i]];
+                k = _mxpf_magnitude(coefs[select[i]]);
+                phi2 = phi1 - maxc(k|k*abs(phi1));
+            endif;
+            f2 = _mxpf_quad(dataset,var,lfct,vof,coefs,phi2,select[i]);
+            if scalmiss(f2);
+                if not trapchk(4);
+                    errorlog "upper confidence limit for parameter " $+
+                        ftos(i,"%*.*lf",1,0)$+" failed";
+                    break;
+                endif;
+            endif;
+            if abs(f2 - tv) < __tol;
+                cl[select[i],2] = phi2;
+                break;
+            endif;
+            f0 = f1;
+            phi0 = phi1;
+            f1 = f2;
+            phi1 = phi2;
+        endo;
+    endo;
+
+    retp(cl);
+endp;
+
+proc _mxpf_magnitude(x);
+    local k;
+    if x /= 0;
+        k = .01 * 10^trunc(log(abs(x)));
+    else;
+        k = .01;
+    endif;
+    retp(k);
+endp;
+
+
+
+proc(1) = _mxpf_quad(dataset,var,lfct,f0,coefs,phi,eta);
+
+       local l1,f1,ret1,x0,actv,title0;
+       x0 = coefs;
+       x0[eta] = phi;
+       if rows(_max_Active) == rows(coefs);
+           actv = _max_Active;
+       else;
+           actv = ones(rows(x0),1);
+       endif;
+       actv[eta] = 0;
+       title0 = __title $+ " parameter # " $+ ftos(eta,"%0*.*lf",1,0);
+
+       { L1,f1,L1,L1,ret1,L1,L1,L1,L1,_max_dat,_max_NumObs,_max_row,
+           _max_dsn,_max_Diagnostic } = _Max(dataset,var,lfct,
+           x0,_max_Algorithm, _max_Diagnostic, _max_GradCheckTol,
+           _max_LineSearch, 0, _max_GradMethod, _max_GradStep,
+           _max_Delta, _max_Extrap, _max_GradProc, _max_GradTol,
+           _max_HessProc, _max_Interp, _max_key, _max_Lag,
+           _max_MaxIters, _max_MaxTime, _max_MaxTry, _max_NumObs,
+           _max_ParNames, _max_RandRadius, _max_Options,_max_Switch,
+           _max_UserSearch, _max_UserNumGrad, _max_UserNumHess,
+           actv, _max_dat, _max_dsn, _max_row, __altnam, __output,
+           __row, title0, __weight );
+
+       retp(2 * _max_NumObs * (f0 - f1));
+endp;

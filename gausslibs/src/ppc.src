@@ -1,0 +1,82 @@
+/*
+**  princomp.src  -  Principle Components
+**
+** (C) Copyright 1996  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+
+/*
+** >princomp
+**
+**  Purpose:   computes principal components of a data matrx
+**
+**  Format:    { p,v,a } = princomp(x,j)
+**
+**  Inputs:    x      NxK data matrix,  N > K, full rank
+**
+**             J      scalar, number of principal components to
+**                    be computed (J <= K)
+**
+**  Outputs:   p      NxJ matrix of the first J principal components of X
+**                    in descending order of amount of variance "explained".
+**
+**             v      Jx1 vector of fractions of variance explained
+**
+**             a      JxK matrix of factor loadings, such that
+**                    x = p * a + error
+**
+**  Remarks:
+**
+**   Adapted from a program written by Mico Loretan (loretanm@frb.gov).
+**
+**   The algorithm is based on: Henri Theil, Principles of Econometrics,
+**   1971, New York: Wiley, pp. 46-56.
+*/
+
+proc(3) = princomp(x,j);
+
+    local fj, e, ev, v, a;
+
+    if j > cols(x);
+        if not trapchk(1);
+            errorlog "Can't compute more principal components"\
+                     " than columns of input matrix.";
+            end;
+        else;
+            retp(error(0),error(0));
+        endif;
+    endif;
+
+    fj = seqa(cols(x),-1,j);
+
+    { e,v } = eighv(moment(x,0));
+
+    if not (e > -1e-10);
+        if not trapchk(1);
+            errorlog "Moment matrix negative definite";
+            end;
+        else;
+            retp(error(0),error(0));
+        endif;
+    elseif not (e > 0);
+        e = e .* (e .> 0);     
+    endif;
+
+    ev = e[fj,1];
+    a = v[.,fj] .* sqrt(ev)';
+
+    retp((x*a)./ev',ev/sumc(e),a');
+endp;
+
+

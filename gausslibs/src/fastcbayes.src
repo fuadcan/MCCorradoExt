@@ -1,0 +1,278 @@
+/*
+** fastcbayes.src   fastCMLBayes - Baysian Inference using weighted maximum
+**                           likelihood bootstrap using FASTCML
+**
+** (C) Copyright 1995-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   PROC fastCMLbayes
+**
+**   FORMAT
+**          { x,f,g,cov,retcode } = fastCMLbayes(dataset,vars,&fct,start)
+**
+**   INPUT
+**
+**    dataset - string containing name of GAUSS data set, or
+**              name of data matrix stored in memory
+**
+**       vars - character vector of labels selected for analysis, or
+**              numeric vector of column numbers in data set
+**              of variables selected for analysis
+**
+**        fct - the name of the log-likelihood procedure.  It has
+**              two input arguments, first, the vector of parameters,
+**              second, a matrix of observations, and one output argument,
+**              a vector of log-likelihoods computed for each of the
+**              observations given the parameters
+**
+**      start - a Kx1 vector of start values
+**
+**   OUTPUT
+**          x - Kx1 vector, mean of simulated posterior
+**          f - scalar, mean weighted bootstrap log-likelihood
+**          g - Kx1 vector, mean gradiant of weighted bootstrap
+**        cov - KxK matrix, covariance matrix of simulated posterior
+**    retcode - return code:
+**
+**           0   normal convergence
+**           1   forced exit
+**           2   maximum number of iterations exceeded
+**           3   function calculation failed
+**           4   gradient calculation failed
+**           5   Hessian calculation failed
+**           6   step length calculation failed
+**           7   function cannot be evaluated at initial parameter values
+**           8   error with gradient
+**           9   error with constraints
+**          10   secant update failed
+**          11   maximum time exceeded
+**          12   error with weights
+**          13   quadratic program failed
+**          20   Hessian failed to invert
+**          34   data set could not be opened
+**          99   termination condition unknown
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**   GLOBAL VARIABLES                                                     LINE
+**
+**   _cml_BayesAlpha - exponent of the Dirichlet random variates used in
+**                     the weights for the weighted bootstrap. See
+**                     Newton and Raftery, "Approximate Bayesian Inference
+**                     with the Weighted Likelihood Bootstrap",  J.R.Statist.
+**                     Soc. B (1994), 56:3-48.  Default = 1.4.
+**
+**    _cml_PriorProc - pointer to proc for computing prior.  This proc
+**                     takes the parameter vector as its only argument,
+**                     are returns a scalar probability.  If a proc is not
+**                     provided, a uniform prior is assumed.
+**
+**    _cml_NumSample - scalar, number of re-samples in the weighted likelihood
+**                     bootstrap.
+**
+**    _cml_BootFname - string, file name of GAUSS dataset (do not include
+**                        the .DAT extension) containing simulated posterior
+**                        of the parameters.  If not specified, CMLBayes
+**                        will select the file name, BOOTxxxx where xxxx is
+**                        0000 incremented by 1 until a name is found that
+**                        doesn't exist on the current directory.
+**
+**    _cml_MaxTime - scalar, maximum time in weighted bootstrap.
+**                      Default = 1e5 minutes.
+**
+**   see CML.SRC for description of additional global variables
+*/
+
+#include cml.ext
+
+proc (5) = fastCMLBayes(dataset,var,lfct,start);
+    local x,f,g,h,retcode,ofname;
+    local nobs,wgt,ttime,tt0,l1,fhandle,fout,g0,ncase,ix,alpha,oldt,
+            itdta,mm,mn,incr,tme,iter,xv,it0,yv,zv,i,j,k,l,ii,jj,
+            datx,hi,isprior,prior,np,fhat,datf,terrell,num,ch,f0,zz;
+
+    if type(dataset) == 13 and dataset $/= "";
+        open fhandle = ^dataset;
+        if fhandle == -1;
+            if not trapchk(4);
+                errorlog dataset $+ " could not be opened";
+            endif;
+            retp(start,error(0),error(0),error(0),error(34));
+        endif;
+        nobs = rowsf(fhandle);
+        fhandle = close(fhandle);
+    else;
+        nobs = rows(dataset);
+    endif;
+
+    alpha = _cml_BayesAlpha;
+    if not scalmiss(_cml_PriorProc);
+        prior = _cml_PriorProc;
+        local prior:proc;
+        isPrior = 1;
+    else;
+        isPrior = 0;
+    endif;
+
+    tme = 0;
+    iter = 1;
+    ttime = date;
+    datx = zeros(_cml_NumSample,rows(start));
+    datf = zeros(_cml_NumSample,1);
+    tt0 = ftos(_cml_NumSample,"%0*.*lf",1,0);
+    clear ncase,mn,mm,g0,itdta;
+    do until iter > _cml_NumSample or tme > _cml_MaxTime;
+
+        if _cml_RandType;
+            { zz, _cml_state } = rndLCu(nobs,1,_cml_state);
+        else;
+            { zz, _cml_state } = rndKMu(nobs,1,_cml_state);
+        endif;
+
+        if __weight == 0;
+            wgt = (-ln(zz))^alpha;
+        else;
+            wgt = __weight .* (-ln(zz))^alpha;
+        endif;
+
+        { x,f,g,h,retcode,L1,it0,L1,L1,L1,L1 } = _fastcml(dataset,var,lfct,start, 
+        _cml_Algorithm,1, _cml_Delta, _cml_Extrap, _cml_GradMethod,
+        _cml_GradProc, _cml_DirTol, _cml_HessProc, _cml_Interp,
+        _cml_MaxIters, _cml_MaxTime, _cml_MaxTry, _cml_NumObs,
+        _cml_ParNames, _cml_Switch, _cml_GridSearch, _cml_GridSearchRadius,
+        _cml_Trust, _cml_TrustRadius, _cml_LineSearch, _cml_Options,
+        _cml_Active, _cml_GradStep, _cml_GradOrder, __altnam, __weight );
+
+        if retcode == 0;
+            if not(diag(h) == error(0));
+                mn = mn + x;
+                mm = mm + moment(x',0);
+                ncase = ncase + 1;
+                start = mn / iter;
+            endif;
+            datx[iter,.] = x';
+            datf[iter] = f;
+            g0 = g0 + g;
+            itdta = itdta + it0;
+        else;
+            datx[iter,.] = miss(zeros(1,rows(x)),0);
+            datf[iter] = error(0);
+        endif;
+
+        tme = ethsec(ttime,date)/6000;
+        iter = iter + 1;
+    endo;
+    datx = packr(datx);
+    datf = packr(datf);
+
+    _cml_NumObs = rows(datf);
+    mn = mn / ncase;
+    mm = mm / ncase - mn * mn';
+
+    g0 = g0 / _cml_NumObs;
+    itdta[1:2] = itdta[1:2] / iter;
+    itdta[3] = "BAYES";
+    _cml_IterData = itdta;
+    if tme >= _cml_MaxTime;
+        retcode = 11;
+    else;
+        retcode = 0;
+    endif;
+
+    np = rows(start);
+    terrell = ( ((np+8)^((np+6)/2)) /
+                (16*nobs*(np+2)*gamma((np+8)/2)) )^(2/(np+4));
+
+    fhat = zeros(rows(datx),1);
+
+    oldt = trapchk(1);
+    trap 1,1;
+    ch = inv(chol(mm*terrell));
+    trap oldt,1;
+    if scalmiss(ch);
+         errorlog "estimated covariance matrix not positive definite";
+         retp(start,error(0),error(0),error(0),error(20));
+    endif;
+
+    for i(1,rows(datx),1);
+         if isPrior;
+             f0 = rows(datx)*datf[i]*prior(datx[i,.]');
+         else;
+             f0 = rows(datx)*datf[i];
+         endif;
+         if abs(f0) > 1e-16;
+             f0 = sumc(exp(sumc((-.5 * ((datx[i,.] - datx)*ch)^2)'))/f0);
+             if abs(f0) > 1e-16;
+                 fhat[i] = 1 / f0;
+             else;
+                 fhat[i] = 0;
+             endif;
+         else;
+             fhat[i] = 0;
+         endif;
+
+    endfor;
+    fhat = fhat / sumc(fhat);
+
+    if _cml_BootFname $== "";
+        ofname = tempname("","bayes",".dat");
+        if ofname $== "";
+            errorlog "ERROR:  file name selection for Bayesian bootstrap"\
+                  " dataset failed";
+            retp(start,error(0),error(0),error(0),error(99));
+        endif;
+        _cml_BootFname = ofname;
+    else;
+        ofname = _cml_BootFname;
+    endif;
+
+    if _cml_ParNames $== "";
+        create fout = ^ofname with PAR_,rows(start),8;
+    else;
+        create fout = ^ofname with ^_cml_ParNames,0,8;
+    endif;
+
+    mm = 0;
+    mn = 0;
+    ncase = 0;
+    for i(1,rows(fhat),1);
+
+        if _cml_RandType;
+            { num, _cml_state } = rndLCp(1,1,fhat[i]*rows(datx),_cml_state);
+        else;
+            { num, _cml_state } = rndKMp(1,1,fhat[i]*rows(datx),_cml_state);
+        endif;
+
+        for j(1,num,1);
+            ncase = ncase + 1;
+            mn = mn + datx[i,.];
+            mm = mm + moment(datx[i,.],0);
+            call writer(fout,datx[i,.]);
+        endfor;
+
+    endfor;
+
+    mn = mn' / ncase;
+    mm = mm / ncase - mn * mn';
+    fout = close(fout);
+
+    retp(mn,meanc(datf),g0,mm,retcode);
+
+endp;
+
+

@@ -1,0 +1,158 @@
+/*
+** play.src - Publication Quality Graphics Supplemental for PLAY.EXE.
+** (C) Copyright 1988-2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**     Format              Purpose                                Line
+** ========================================================================
+**     HARDCOPY(str);      Select hardcopy options                 27
+**     SETCNVRT(n,ans)     Set format conversion parameters        51
+**     REPLAY;             Execute PLAY.EXE print utility          88
+*/
+
+#include pgraph.ext
+
+/*
+**> hardcopy
+**
+**  Purpose:    To select hardcopy or pause options.
+**
+**  Format:     hardcopy(str);
+**
+**  Input:      str    string, hardcopy or pause option control string.
+**
+**                ""   (null) Wait for interactive input (default)
+**                "M"  High resolution half page
+**                "m"  Medium resolution half page
+**                "L"  High resolution full page
+**                "l"  Medium resolution full page
+**                "10" Display plot 10 seconds then exit
+**
+**
+**
+*/
+
+proc 0 = hardcopy(str);
+    _phard = " /" $+ str;
+endp;
+
+/*
+**> setcnvrt
+**
+**  Purpose:   Saves information about each conversion type to disk.
+**
+**  Format:     setcnvrt( type, ans );
+**
+**  Input:      type   Format conversion type:
+**
+**                     1 - Lotus PIC file
+**                     2 - Ventura GEM file
+**                     3 - Hewlett-Packard HPGL file
+**                     4 - Encapsulated Postscript file
+**
+**              ans    Matrix containing responses to interactive questions
+**                     about format conversion details.
+*/
+
+proc 0 = setcnvrt(cvttype,ans);
+    local filename;
+    filename = sysstate(2,0);   /* get the exe path */
+    if cvttype == 1;
+        filename = filename $+ "pic.fmt";
+    elseif cvttype == 2;
+        filename = filename $+ "gem.fmt";
+    elseif cvttype == 3;
+        filename = filename $+ "hpg.fmt";
+    elseif cvttype == 4;
+        filename = filename $+ "eps.fmt";
+    else;
+        "Invalid conversion format specified in setcnvrt.";
+        end;
+    endif;
+    save ^filename = ans;
+endp;
+
+
+/*
+**> replay
+**
+**  Purpose:    Executes the play.exe print/conversion utility.
+**
+**  Format:     replay;
+**
+**  Input:      Uses the following pqg globals for control options:
+**
+**              _ptek, _pcvfile, _phard, _prtfile, _pzoom, _psilent
+**
+**  Output:     Produces a graph to the screen/printer/plotter.
+*/
+
+proc 0 = replay();
+    local tkfstr,nologo,zf,status;
+    nologo = 1;
+
+    if _ptek $== "notek";
+        retp;
+    endif;
+
+    tkfstr = _ptek;
+    if _pzoom[1] > 0;
+        if _pzoom[2] < 0 or _pzoom[3] > 100;
+            errorlog "Error _pzoom value out of range.";
+            end;
+        endif;
+        zf = "%*.*lf";
+        tkfstr = tkfstr $+ " /z " $+ ftos(_pzoom[1],zf,6,2);
+        tkfstr = tkfstr $+ ftos(_pzoom[2],zf,7,2) $+ ftos(_pzoom[3],zf,7,2);
+    endif;
+    if not (_phard $== "");
+        tkfstr = tkfstr $+ _phard;
+    endif;
+
+    if not ( _prtfile $== "" );
+        tkfstr = tkfstr $+ " /pf " $+ _prtfile;
+    endif;
+
+    if not ( _pcvfile $== "" );
+        tkfstr = tkfstr $+ " /cf " $+ _pcvfile;
+    endif;
+
+    if nologo;
+        tkfstr = tkfstr $+ " /nologo";
+    endif;
+
+    if _psilent;
+        tkfstr = tkfstr $+ " /silent";
+    endif;
+
+    if _pnotify == 0;
+        tkfstr = tkfstr $+ " /notell";
+    endif;
+
+#IFDOS
+
+    status = exec( "play.exe", tkfstr );
+    if status == -1;
+        errorlog "Can't find PLAY.EXE, check DOS PATH.";
+        end;
+    elseif status == -3;
+        errorlog "Insufficient memory to execute PLAY.EXE.";
+        end;
+    endif;
+
+#ENDIF
+
+endp;
+
+

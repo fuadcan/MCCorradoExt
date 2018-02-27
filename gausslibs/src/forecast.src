@@ -1,0 +1,169 @@
+/*
+** forecast.src - Forecasting for ARIMA Time Series Models.
+**
+**
+** (C) Copyright 1994-1995  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+** Purpose: Compute forecasts using estimation results obtained from ARIMA.
+**
+** Format:  f = tsforecast(b,y,p,d,q,const,e,h);
+**
+** Input:   b       Kx1 vector of parameter estimates
+**          y       Nx1 vector, time series (possibly transformed)
+**          p       scalar, the autoregressive order
+**          d       scalar, the order of differencing
+**          q       scalar, the moving average order
+**          const   scalar, 1 if constant is included, 0 otherwise
+**          e       (N-d)x1 vector, errors reported by ARIMA program
+**          h       scalar, number of step-ahead forecasts to compute
+**
+** Ouput:   f       hx3 matrix, column 1 gives the lower forecast confidence
+**                  bound, column 2 gives the forecasts, column 3 gives the
+**                  upper forecast confidence bound
+**
+** Globals: _amcritl   scalar, confidence level to compute for forecasts,
+**                     default = .95
+**
+**          __output   scalar, 1 print forecasts, 0 print nothing, default = 1
+*/
+
+#include gauss.ext
+
+proc tsforecast(b,y,p,d,q,const,e,h);
+    local n,eh,yh,db,i,phip,rp,m,theta,co,c,crit,sig,forecas,fstderr,fl,sef;
+
+    n = rows(y);
+    if cols(y) > 1;
+        errorlog "ERROR: The columns of the time series must equal one.";
+    endif;
+    if d >= 1;
+        eh = zeros(d,1)|e|zeros(h,1);
+    else;
+        eh = e|zeros(h,1);
+    endif;
+    yh = y|zeros(h,1);
+    if d > 0;
+        db = 1|-1;
+        i = 2;
+        do while i <= d;
+            db = conv(db,1|-1,0,0);
+            i = i+1;
+        endo;
+    else;
+        db = 1;
+    endif;
+    if p >= 1;
+        phip = conv(db,1|-b[1:p],0,0);
+        phip = -phip[2:p+d+1];
+    elseif d > 0;
+        phip = -db[2:d+1];
+    else;
+        phip = 0;
+    endif;
+    rp = rows(phip);
+    m = maxc(rp|q);
+    if rp < m;
+        phip = phip|zeros(m-rp,1);
+    endif;
+    if q < m and q > 0;
+        theta = b[p+1:p+q]|zeros(m-q,1);
+    elseif q < m and q == 0;
+        theta = zeros(m,1);
+    else;
+        theta = b[p+1:p+q];
+    endif;
+    if const == 1 and p > 0;
+        co = sumc(1|-b[1:p])*b[p+q+1];
+    elseif const == 1 and p == 0;
+        co = b[p+q+1];
+    else;
+        co = 0;
+    endif;
+    c = zeros(h,1);
+    c[1] = 1;
+    if h > 1;
+        i = 2;
+        do while i <= h and i <= m+1;
+            c[i] = rev(phip[1:i-1])'c[1:i-1]-theta[i-1];
+            i = i+1;
+        endo;
+        do while i <= h;
+            c[i] = rev(phip)'c[i-m:i-1];
+            i = i+1;
+        endo;
+    endif;
+    c = c^2;
+    if _amcritl == .95;
+        crit = 1.9599639;
+    else;
+        crit = _am_critz( _amcritl);
+    endif;
+    sig = sqrt(e'e/(n-d-p-q-const));
+    forecas = zeros(h,3);
+    fstderr = zeros(h,1);
+    i = 1;
+    fl = n;
+    do while fl <= n+h-1;
+        fstderr[i] = sig*sqrt(sumc(c[1:i]));
+        sef = crit*fstderr[i];
+        forecas[i,2] = co+rev(phip)'yh[fl-m+1:fl]-rev(theta)'eh[fl-m+1:fl];
+        yh[fl+1] = forecas[i,2];
+        forecas[i,1] = forecas[i,2]-sef;
+        forecas[i,3] = forecas[i,2]+sef;
+        i = i+1;
+        fl = fl+1;
+    endo;
+    if __output == 1;
+        format /rz 30,0;
+        print;
+        print "Forecasts for ARIMA("$+ftocv(p,1,0)$+","$+ftocv(d,
+            1,0)$+","$+ftocv(q,1,0);;
+        print ") Model.";;
+        format /rz 6,2;
+        print $ftocv( _amcritl*100,2,0)$+"%";;
+        print "Confidence Interval Computed.";
+        print;
+        print " Period        LCL        Forecasts        UCL     Forecast "\
+            "Std. Err.";
+        let c[5,3] = "*.*lf" 6 0, "*.*lf" 14 6, "*.*lf" 14 6, "*.*lf" 14 6,
+            "*.*lf" 14 6;
+        call printfm(seqa(n+1,1,h)~forecas~fstderr,1,c);
+        format /rd 8,5;
+    endif;
+    retp(forecas);
+endp;
+
+proc _am_critz(z);
+    local p,pa,j,a,i;
+    p = (1-z)/2;
+    pa = 1;
+    a = .1;
+    j = 1;
+    i = .1;
+    do until abs(pa[j]-p) <= 1e-8;
+        a = seqa(a[j],i,29);
+        pa = cdfnc(a);
+        j = 1;
+        do while pa[j] >= p;
+            j = j+1;
+        endo;
+        j = j-1;
+        i = i*.1;
+    endo;
+    retp(a[j]);
+endp;

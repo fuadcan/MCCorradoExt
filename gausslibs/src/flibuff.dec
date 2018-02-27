@@ -1,0 +1,18 @@
+#ifDLLCALL
+#else
+
+/*
+** flibuff.dec - Foreign language interface - used by 32-bit version only.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global code buffer definitions for 32-bit foreign language procedures.
+*/
+
+declare matrix _countwt;        /* COUNTWTS.SRC  */
+declare matrix _ixcat;          /* INDEXCAT.SRC  */
+declare matrix _subsct;         /* SUBSCAT.SRC   */
+declare matrix _uniqndx;        /* UNIQUINDX.SRC */
+declare matrix _unique;         /* UNIQUE.SRC    */
+
+#endif

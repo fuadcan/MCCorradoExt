@@ -1,0 +1,294 @@
+/*
+** olsqr.src - Ordinary least squares procedures using the QR decomposition.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS-386.
+**
+**  Format                   Purpose                                 Line
+** -----------------------------------------------------------------------
+** b = OLSQR(y,x);           OLS coefficients using QR                 28
+** { b,r,p } = OLSQR2(y,x);  OLS coef., resid. and predicted values   160
+*/
+
+#include qr.ext
+
+/*
+**> olsqr
+**
+**  Purpose:    Computes ols coefficients using qr decomposition.
+**
+**  Format:     b = olsqr(y,x);
+**
+**  Input:      y           Nx1 vector containing dependent variable.
+**
+**              x           NxP matrix containing independent variable.
+**
+**              _olsqtol    global scalar, the tolerance for testing if
+**                          diagonal elements are approaching zero.  The
+**                          default value is 1.0e-14.
+**
+**  Output:     b           Px1 vector of least squares estimates of
+**                          regression of y on x. If x does not have full
+**                          rank, then the coefficients that cannot be
+**                          estimated will be zero.
+**
+**  Remarks:    This provides an alternative to y/x for computing
+**              least squares coefficients.
+**
+**              This procedure is slower than the / operator.
+**              However, for near singular matrices it may
+**              produce better results.
+**
+**              olsqr handles matrices that do not have full rank
+**              by returning zeros for the coefficients that can
+**              not be estimated.
+**
+**  Globals:    _olsqtol, _qrcd, _qrsl
+**
+**  See Also:   olsqr2, orth, qr
+*/
+
+proc olsqr(y,x);
+    local flag,n,p,qraux,work,pvt,job,b,k,
+        rsd,xb,info,qy,qty,rd;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if iscplx(y);
+        if hasimag(y);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            y = real(y);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+    flag = 1;       /* Use pivoting */
+        /* compute matrix dimensions and other inputs to qrsl subroutine  */
+    if rows(y) ne n;
+        errorlog "ERROR: OLSQR - X and Y must have same length";
+        end;
+    elseif n < p;
+        errorlog "ERROR: OLSQR - Problem is underdetermined (N < P)";
+        end;
+    endif;
+
+    b = zeros(p,1);         /* Vector to hold ols coeffs */
+    rsd = zeros(n,1);       /* Vector to hold residuals */
+    xb = rsd;       /* Vector to hold predicted values */
+    info = 0;
+    job = 111;      /* compute b, rsd, xb */
+    qy = rsd;
+    qty = rsd;
+
+    k = minc(n|p);
+
+    x = x';
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    rd = abs(diag(trimr(x',0,n-p)));        /* abs of diagonal of R  */
+    k = sumc( rd .> _olsqtol*rd[1,1] );     /* number of diagonal elements of
+                                            :: R that are greater than
+                                            :: tolerance
+                                            */
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+    callexe _qrsl(x,n,n,k,qraux,y,qy,qty,b,rsd,xb,job,info);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrsl(x,n,n,k,qraux,y,qy,qty,b,rsd,xb,job,info);
+
+#endif
+
+    /* sort b to put it in correct order */
+    b = submat( sortc(b~pvt,2),0,1);
+
+    retp(b);
+endp;
+
+/*
+**> olsqr2
+**
+**  Purpose:    Computes ols coefficients, residuals, and
+**              predicted values using the qr decomposition.
+**
+**  Format:     { b,r,p } = olsqr2(y,x);
+**
+**  Input:      y           Nx1 vector containing dependent variable.
+**
+**              x           NxP matrix containing independent variables.
+**
+**              _olsqtol    global scalar, the tolerance for testing if
+**                          diagonal elements are approaching zero.  The
+**                          default value is 1.0e-14.
+**
+**  Output:     b           Px1 vector of least squares estimates of
+**                          regression of y on x. If x does not have full
+**                          rank, then the coefficients that cannot be
+**                          estimated will be zero.
+**
+**              r           Px1 vector of residuals. ( r = y - x*b ).
+**
+**              p           Px1 vector of predicted values. ( p = x*b ).
+**
+**  Remarks:    This provides an alternative to y/x for computing
+**              least squares coefficients.
+**
+**              This procedure is slower than the / operator.
+**              However, for near singular matrices it may
+**              produce better results.
+**
+**              olsqr handles matrices that do not have full rank
+**              by returning zeros for the coefficients that can
+**              not be estimated.
+**
+**  Globals:    _olsqtol, _qrcd, _qrsl
+**
+**  See Also:   olsqr, orth, qr
+*/
+
+proc (3) = olsqr2(y,x);
+    local flag,n,p,qraux,work,pvt,job,b,k,
+        rsd,xb,info,qy,qty,rd;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if iscplx(y);
+        if hasimag(y);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            y = real(y);
+        endif;
+    endif;
+
+    n = rows(x);
+    p = cols(x);
+    qraux = zeros(p,1);
+    work = qraux;
+    pvt = qraux;
+    flag = 1;       /* Use pivoting */
+        /* compute matrix dimensions and other inputs to qrsl subroutine  */
+    if rows(y) ne n;
+        errorlog "ERROR: OLSQR2 - X and Y must have same length";
+        end;
+    elseif n < p;
+        errorlog "ERROR: OLSQR2 - Problem is underdetermined (N < P)";
+        end;
+    endif;
+
+    b = zeros(p,1);         /* Vector to hold ols coeffs */
+    rsd = zeros(n,1);       /* Vector to hold residuals */
+    xb = rsd;       /* Vector to hold predicted values */
+    info = 0;
+    job = 111;      /* compute b, rsd, xb */
+    qy = rsd;
+    qty = rsd;
+
+    k = minc(n|p);
+
+    x = x';
+
+#ifDLLCALL
+#else
+
+    if rows(_qrdc) /= 647 or _qrdc[1] $== 0;
+        _qrdc = zeros(647,1);
+        loadexe _qrdc = qrdc.rex;
+    endif;
+    callexe _qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrdc(x,n,n,p,qraux,pvt,work,flag);
+
+#endif
+
+    rd = abs(diag(trimr(x',0,n-p)));        /* abs of diagonal of R  */
+    k = sumc( rd .> _olsqtol*rd[1,1] );     /* number of diagonal elements of
+                                            :: R that are greater than
+                                            :: tolerance
+                                            */
+
+#ifDLLCALL
+#else
+
+    if rows(_qrsl) /= 455 or _qrsl[1] $== 0;
+        _qrsl = zeros(455,1);
+        loadexe _qrsl = qrsl.rex;
+    endif;
+    callexe _qrsl(x,n,n,k,qraux,y,qy,qty,b,rsd,xb,job,info);
+
+#endif
+
+#ifDLLCALL
+
+    dllcall qrsl(x,n,n,k,qraux,y,qy,qty,b,rsd,xb,job,info);
+
+#endif
+
+    /* sort b to put it in correct order */
+    b = submat( sortc(b~pvt,2),0,1);
+
+    retp(b,rsd,xb);
+endp;

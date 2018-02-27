@@ -1,0 +1,119 @@
+/*
+** uniquesa.src
+** (C) Copyright 1988-2003 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** if you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**  Format                                                        Line
+** =========================================================================
+** Y = uniquesa(sv);                                               24
+** Y = uniqindxsa(sv);                                             61
+**
+*/
+
+/*
+**> uniquesa
+**
+**  Purpose:    Removes duplicate elements from a string vector.  
+**
+**  Format:     y = uniquesa(sv);
+**
+**  Input:      sv      Nx1 or 1xN string vector.
+**
+**  Output:     y       Sorted Mx1 string vector containing all unique
+**                      elements found in sv.
+**
+**  Globals:    None
+**
+**  Example:    sv1 = { "mary", "jane", "mary", "linda", "john", "jane" };
+**              y = uniquesa(sv);
+**
+**              y =   jane
+**                    john
+**                   linda
+**                    mary
+*/
+
+proc (1) = uniquesa(sv1);
+    local sv;
+
+    sv = {};
+
+    for i (1, rows(sv1), 1);
+        if (sv1[i] $/= sv);
+            sv = sv $| sv1[i];
+        endif;
+    endfor;
+
+    retp(sortcc(sv,1));
+endp;
+
+/*
+**> uniqindxsa
+**
+**  Purpose:    Computes the sorted index of a string vector, omitting
+**              duplicate elements.   
+**
+**  Format:     ind = uniqindxsa(sv);
+**
+**  Input:      sv      Nx1 or 1xN string vector.
+**
+**  Output:     ind     Mx1 vector, indices corresponding to the elements of
+**                      sv sorted in ascending order with duplicates removed. 
+**
+**  Globals:    None
+**
+**  Remarks:    Among sets of duplicates it is unpredictable which elements
+**              will be indexed. 
+**
+**  Example:    string sv = {"mary","linda","linda","jane","jane","cindy","betty"};
+**              ind = uniqindxsa(sv);
+**              y = sv[ind]; 
+**
+**                    7
+**                    6
+**              ind = 5
+**                    2
+**                    1
+**
+**                  betty
+**                  cindy
+**              y = jane
+**                  linda
+**                  mary
+**
+*/
+
+proc (1) = uniqindxsa(sv);
+    local svtmp,svtmp1,nrows,vtmp,vscal;
+
+    if rows(sv) == 1;
+        if cols(sv) > 1;
+            sv = sv';
+        endif;
+    endif;
+
+    nrows = rows(sv);
+
+    svtmp = ftostrC(seqa(1,1,nrows), "%2.0lf") $~ sv;
+    svtmp = sortcc(svtmp, 2);
+    svtmp1 = svtmp[1,.];
+
+    for i (1, nrows, 1);
+        if (svtmp[i,2] $/= svtmp1[.,2]);
+            svtmp1 = svtmp1 $| svtmp[i,.];
+        endif;
+    endfor;
+
+    retp( strtof(svtmp1[.,1]) );
+endp;

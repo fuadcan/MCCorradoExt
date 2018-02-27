@@ -1,0 +1,1433 @@
+/*
+** SQPsolveMT.src
+**
+**
+** (C) Copyright 1997-2003  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+******************************************************************************
+**
+**
+**> SQPsolveMT
+**
+**  Purpose:  solve the nonlinear programming problem
+**
+**  Format:   out1 = SQPsolveMT(&fct,par1,data1,c1)
+**
+**
+**  Input:    &fct      pointer to a procedure that computes the function to
+**                      be minimized.  This procedure must have one input
+**                      argument, a vector of parameter values, and one
+**                      output argument, the value of the function evaluated
+**                      at the input vector of parameter values.
+**
+**            par1      an instance of a PV structure. The par1 instance is
+**                      passed to the user-provided procedure pointed to by
+**                      &fct.  par1 is constructed using the "pack"
+**                      functions
+**
+**            data1     an array of instances of a DS structure. This array is
+**                      passed to the user-provided pointed by &fct to be used
+**                      in the objective function. SQPsolveMT does not
+**                      look at this structure.  Each instance contains the
+**                      the following members which can be set in whatever way
+**                      that is convenient for computing the objective function:
+**
+**                      data1[i].dataMatrix  NxK matrix, data matrix.
+**
+**                      data1[i].dataArray   NxKxL.. array, data array.
+**
+**                      data1[i].vnames      string array, variable names (optional).
+**
+**                      data1[i].dsname      string, data name (optional).
+**
+**                      data1[i].type        scalar, type of data (optional).
+**
+**
+**
+**             c1       an instance of an SQPsolveMTControl structure.  Normally an
+**                      instance is initialized by calling sqpSolveMTControlCreate
+**                      and members of this instance can be set to other values
+**                      by the user.  For an instance named c1, the members are:
+**
+**                      c1.A  MxK matrix, linear equality constraint
+**                           coefficients:  c1.A * p = c1.B where
+**                           p is a vector of the parameters.
+**
+**                      c1.B  Mx1 vector, linear equality constraint
+**                           constants:  c1.A * p = c1.B where
+**                           p is a vector of the parameters.
+**
+**                      c1.C  MxK matrix, linear inequality constraint
+**                           coefficients:  c1.C * p >= c1.D where
+**                           p is a vector of the parameters.
+**
+**                      c1.D  Mx1 vector, linear inequality constraint
+**                           constants:  c1.C * p >= c1.D where
+**                           p is a vector of the parameters.
+**
+**                      c1.eqProc  scalar, pointer to a procedure that
+**                           computes the nonlinear equality constraints.
+**                           When such a procedure has been provided, it has
+**                           one input argument, a structure of type SQPdata,
+**                           and one output argument, a vector of computed
+**                           equality constraints. For more details see
+**                           Remarks below.  Default = {.}, i.e., no
+**                           equality procedure.
+**
+**                      c1.weights vector, weights for objective function
+**                           returning a vector.  Default = 1.
+**
+**                      c1.IneqProc  scalar, pointer to a procedure that
+**                           computes the nonlinear inequality constraints.
+**                           When such a procedure has been provided, it has
+**                           one input argument, a structure of type SQPdata,
+**                           and one output argument, a vector of computed
+**                           inequality constraints. For more details see
+**                           Remarks below.  Default = {.}, i.e., no
+**                           inequality procedure.
+**
+**                      c1.Bounds  1x2 or Kx2 matrix, bounds on parameters.
+**                           If 1x2 all parameters have same bounds.
+**                           Default = { -1e256 1e256 }.
+**
+**                      c1.CovType scalar, if 2, QML covariance matrix,
+**                            else if 0, no covariance matrix is computed,
+**                            else ML covariance matrix is computed.
+**
+**                      c1.GradProc  scalar, pointer to a procedure
+**                           that computes the gradient of the function with
+**                           respect to the parameters. Default = {.}, i.e.,
+**                           no gradient procedure has been provided.
+**
+**                      c1.HessProc  scalar, pointer to a procedure
+**                           that computes the Hessian, i.e., the matrix
+**                           of second order partial derivatives of the
+**                           function with respect to the parameters.
+**                           Default = {.}, i.e., no Hessian procedure has
+**                           been provided.
+**
+**
+**                      c1.MaxIters  scalar, maximum number of iterations.
+**                           Default = 1e+5.
+**
+**                      c1.MaxTries  scalar, maximum number of attemps in
+**                           random search.  Default = 100.
+**
+**                      c1.DirTol  scalar, convergence tolerance for
+**                           gradient of estimated coefficients. Default = 1e-5.
+**                           When this criterion has been satisifed SQPSolve
+**                           exits the iterations.
+**
+**                      c1.FeasibleTest scalar, if nonzero, parameters are
+**                           tested for feasibility before computing function in
+**                           line search.  If function is defined outside
+**                           inequality boundaries, then this test can be turned
+**                           off.  Default = 1;
+**
+**                      c1.randRadius  scalar, If zero, no random search is
+**                           attempted.  If nonzero, it is the radius of the
+**                           random search.  Default = .001.
+**
+**                      c1.trustRadius  scalar, radius of the trust region.  If
+**                           scalar missing, trust region not applied.  The trust
+**                           sets a maximum amount of the direction at each
+**                           iteration.  Default = .001.
+**
+**                      c1.output scalar, if nonzero, results are printed.
+**                           Default = 0.
+**
+**                      c1.PrintIters  scalar, if nonzero, prints iteration
+**                           information.  Default = 0.
+**
+**                      c1.disableKey  scalar, if nonzero, keyboard input disabled
+**
+**
+**  Output:   out1      an instance of an SQPsolveMTout structure. For an
+**                      instance named out1, the members are:
+**
+**                      out1.par    instance of a PV structure containing the
+**                           parameter estimates will be placed in the member
+**                           matrix out1.par.
+**
+**                      out1.fct    scalar, function evaluated at x
+**
+**                      out1.lagr  an instance of a SQPLagrange structure
+**                           containing the Lagrangeans for the constraints.
+**                           For an instance named lagr, the members
+**                           are:
+**
+**                            out1.lagr.lineq  Mx1 vector, Lagrangeans
+**                                of linear equality constraints,
+**                            out1.lagr.nlineq Nx1 vector, Lagrangeans
+**                                of nonlinear equality constraints
+**                            out1.lagr.linineq Px1 vector, Lagrangeans
+**                                of linear inequality constraints
+**                            out1.lagr.nlinineq Qx1 vector,
+**                                Lagrangeans of nonlinear inequality
+**                                constraints
+**                            out1.lagr.bounds Kx2 matrix, Lagrangeans
+**                                of bounds
+**
+**                          Whenever a constraint is active, its associated
+**                          Lagrangean will be nonzero.  For any constraint
+**                          that is inactive throughout the iterations as well
+**                          as at convergence, the corresponding Lagrangean matrix
+**                          will be set to a scalar missing value.
+**
+**
+**                      out1.retcode      return code:
+**
+**                         0   normal convergence
+**                         1   forced exit
+**                         2   maximum number of iterations exceeded
+**                         3   function calculation failed
+**                         4   gradient calculation failed
+**                         5   Hessian calculation failed
+**                         6   line search failed
+**                         7   error with constraints
+**                         8   function complex
+**                         9   feasible direction couldn't be found
+**
+**  Remarks:  There is one required user-provided procedure, the one computing
+**            the objective function to be minimized, and four other optional
+**            functions, one each for computing the equality constraints, the
+**            inequality constraints, the gradient of the objective function,
+**            and the Hessian of the objective function.
+**
+**            All of these functions have one input argument that is an
+**            instance of type struct PV and a second argument that is an
+**            instance of type struct DS.  On input to the call to
+**            SQPsolveMT, the first argument contains starting values
+**            for the parameters and the second argument any required
+**            data.  The data are passed in a separate argument because
+**            the structure in the first argument will be copied as it
+**            is passed through procedure calls which would be very costly
+**            if it contained large data matrices.  Since SQPsolveMT makes
+**            no changes to the second argument it will be passed by
+**            pointer thus saving time because its contents aren't copied.
+**
+**            Both of the PV structures are set up using the PV pack procedures,
+**            pvPack,  pvPackm,  pvPacks, and pvPacksm.  These procedures allow
+**            for setting up a parameter vector in a variety of ways.
+**
+**            For example, we might have the following objective function for
+**            fitting a nonlinear curve to data:
+**
+**                 proc Micherlitz(struct PV par1, struct DS data1);
+**
+**                      local p0,e,s2,x,y;
+**                      p0 = pvUnpack(par1,"parameters");
+**                      y = data1.dataMatrix[.,1];
+**                      x = data1.dataMatrix[.,2];
+**                      e = y - p0[1] - p0[2]*exp(-p0[3] * x);
+**                      retp(e'*e);
+**                 endp;
+**
+**            In this example the dependent and independent variables are passed
+**            to the procedure as the first and second columns of a data matrix
+**            stored in a single DS structure.  Alternatively these two columns
+**            of data can be entered into a vector of DS structures one for each
+**            column of data:
+**
+**                 proc Micherlitz(struct PV par1, struct DS data1);
+**
+**                      local p0,e,s2,x,y;
+**                      p0 = pvUnpack(par1,"parameters");
+**                      y = data1[1].dataMatrix;
+**                      x = data1[2].dataMatrix;
+**                      e = data1.data[.,1] - p0[1] - p0[2]*exp(-p0[3]*data1.data[.,2]);
+**                      retp(e'*e);
+**                 endp;
+**
+**
+**            The syntax is similar for the optional user-provided procedures.
+**            For example, to constrain the squared sum of the first two
+**            parameters to be greater than one in the above problem, provide
+**            the following procedure:
+**
+**                 proc ineqConst(struct PV par1, struct DS data1);
+**                      local p0;
+**                      p0 = pvUnpack(p0,"parameters");
+**                      retp( (p0[2]+p0[1])^2 - 1 );
+**                 endp;
+**
+**
+**
+**            The following is a complete example for estimating the parameters
+**            of the Micherlitz equation in data with bounds constraints on the
+**            parameters and where an optional gradient procedure has been
+**            provided
+**
+**               #include SQPsolveMT.sdf
+**
+**                    struct DS d0;
+**                    d0 = dsCreate;
+**
+**                    y =   3.183|
+**                          3.059|
+**                          2.871|
+**                          2.622|
+**                          2.541|
+**                          2.184|
+**                          2.110|
+**                          2.075|
+**                          2.018|
+**                          1.903|
+**                          1.770|
+**                          1.762|
+**                          1.550;
+**
+**                     x = seqa(1,1,13);
+**
+**                     d0.dataMatrix = y~x;
+**
+**                     struct SQPsolveMTControl c0;
+**                     c0 = sqpSolveMTControlCreate;
+**                     c0.bounds = 0~100;  /* constrains parameters */
+**                                         /* to be positive        */
+**
+**                     struct PV par1;
+**                     par1 = pvCreate;
+**                     pvPack(par1,.92|2.62|.114,"parameters");
+**
+**                     struct SQPsolveMTout out1;
+**                     out1 = SQPsolveMT(&Micherlitz,par1,d0,c0);
+**
+**                     print " parameter estimates ";
+**                     print pvUnPack(out1.par,"parameters");
+**
+**
+**
+**                     proc Micherlitz(struct PV par1, struct DS data1);
+**                          local p0,e,s2,x,y;
+**                          p0 = pvUnpack(par1,"parameters");
+**                          y = data1.dataMatrix[.,1];
+**                          x = data1.dataMatrix[.,2];
+**                          e = y - p0[1] - p0[2]*exp(-p0[3] * x);
+**                          retp(e'*e);
+**                     endp;
+**
+**                     proc grad(struct PV par1, struct DS data1);
+**                          local p0,e,w,g,r,x,y;
+**                          p0 = pvUnpack(par1,"parameters");
+**                          y = data1.dataMatrix[.,1];
+**                          x = data1.dataMatrix[.,2];
+**                          g = zeros(3,1);
+**                          w = exp(-p0[3] * x);
+**                          e = y - p0[1] - p0[2]*w;
+**                          r = e'*w;
+**                          g[1] = -2*sumc(e);
+**                          g[2] = -2*r;
+**                          g[3] = 2*p0[1]*p0[2]*r;
+**                          retp(g);
+**                     endp;
+**
+*/
+
+
+#include sqpsolvemt.sdf;
+
+
+
+proc SQPsolveMT(fnct, struct PV par1, struct DS data1, struct SQPsolveMTControl c1);
+
+
+    /* ------- LOCALS ----------- */
+    local g,s,h,ky,old,f0,iter,x2,x0,
+        np,gproc,hsproc,k1,k2,numeq,qp_m,t0,t1,lbl,fmt,s0,s1,s2,m0,c0,
+        qp_t,qp_xl,qp_xu,qp_ret,qp_maxit,lagr1,lagr2,qp_a,qp_b,qp_d,qp_lql,
+        numNlinEqC,numNlinIneqC,eqproc,ineqproc,fnct:proc,rteps,delta,
+        ub,lb,cdelta,dg,tt,f1,f2,w1,sprev,s2prev,rprev,r2prev,j,w,f11,
+        sprev2,s2prev2,sp2,dsprev,vv,zz,ab,a,b,qv,MaxTry,f10,p0,p1,seed,
+        g0,v1,dx,bfgs,bfgsstart,_c,_lg,qp_e,ia,oldt,z,h1,q1,numTries,x1,
+        vof0,vof1,constActive,relgtest,lcn,he,he1;
+
+
+    if c1.dirTol == 0;
+        c1.DirTol = 1e-5;      /* convergence tolerance */
+    endif;
+    if c1.maxIters == 0;
+        c1.maxIters = 1e+5;    /* maximum number of iterations */
+    endif;
+    if c1.feasibleTest == 0;
+        c1.feasibleTest = 1;
+    endif;
+    if c1.trustRadius == 0;
+       c1.trustRadius = .1;
+    endif;
+    if rows(c1.weights) == 0;
+       c1.weights = 1;
+    endif;
+    if c1.randRadius == 0;
+       c1.randRadius = .001;
+    endif;
+    if c1.maxTries == 0;
+       c1.maxTries = 100;
+    endif;
+    if c1.seed == 0;
+        seed = 236456546;
+    endif;
+    struct SQPsolveMTOut out1;
+    out1.par = par1;
+    t0 = hsec;
+
+    clear numEq,lagr1,lagr2,qp_m,qp_ret;
+    clear numNlinEqC,numNlinIneqC;
+
+    MaxTry = 100;
+    vv = ones(2,2);
+    vv[1,2] = -1;
+    zz = zeros(2,1);
+    sp2 = zeros(1,2);
+    bfgs = 0;
+    bfgsstart = 1;
+    numTries = 1;
+
+    old = ndpcntrl(0,0);
+    call ndpcntrl(1,1);
+
+    if pvTest(par1);
+        errorlog "SQPsolveMT: input parameter structure not a proper structure";
+        end;
+    endif;
+
+    qp_maxit = 1000;
+    qp_d = .01*pvGetParVector(par1);
+    np = rows(qp_d);
+    qp_t = 1e+256*ones(np,1);
+
+    lbl = pvGetParNames(out1.par);
+    m0 = 0;
+    for i(1,rows(lbl),1);
+        m0 = maxc(m0 | strlen(lbl[i]) );
+    endfor;
+    m0 = m0 + 5;
+    s0 =  "Parameters"$+chrs(32*ones(1,m0-8))$+"Estimates    Direction      Gradient";
+    s1 = chrs(45*ones(1,strlen(s0)+7));
+    s2 = ""$+chrs(32*ones(1,m0-strlen(lbl[1])));
+    for i(2,rows(lbl),1);
+        s2 = s2 $| chrs(32*ones(1,m0-strlen(lbl[i])));
+    endfor;
+
+    if c1.gradProc /= 0;
+        gproc = c1.gradProc;
+        local gproc:proc;
+    endif;
+
+
+    if c1.HessProc /= 0;
+        hsproc = c1.HessProc;
+        local hsproc:proc;
+    endif;
+
+
+    if not scalmiss(c1.A);
+        qp_m = qp_m + rows(c1.A);
+        numEq = numEq + rows(c1.A);
+    endif;
+
+
+    if not scalmiss(c1.C);
+        qp_m = qp_m + rows(c1.C);
+    endif;
+
+
+    if c1.eqProc /= 0;
+        eqproc = c1.eqProc;
+        local eqproc:proc;
+        numNlinEqC = rows(EqProc(par1,data1));
+        qp_m = qp_m + numNlinEqC;
+        numEq = numEq + numNlinEqC;
+    endif;
+
+
+    if c1.ineqProc /= 0;
+        ineqproc = c1.ineqProc;
+        local ineqproc:proc;
+        numNlinIneqC = rows(IneqProc(par1,data1));
+        qp_m = qp_m + numNlinIneqC;
+    endif;
+
+
+    if not scalmiss(c1.bounds);
+        if cols(c1.bounds) /= 2 or (rows(c1.bounds) /= rows(qp_d) and
+            rows(c1.bounds) /= 1);
+            if not trapchk(4);
+                errorlog "SQPSOLVEMT:  bounds is not correctly defined";
+            endif;
+            call ndpcntrl(old,0xffff);
+            ndpclex;
+            out1.retcode = 7;
+            retp(out1);
+        endif;
+    endif;
+
+
+    if qp_m == 0;           /* if no constraints other than bounds  */
+        qp_m = 1;           /* set to one dummy constraint */
+    endif;
+
+
+    out1.retcode = 2;
+    vof0 = 1e200;
+    constActive = 1;
+    s = 0;
+
+    iter = 1; do until iter > c1.maxIters;
+
+        x1 = pvGetParVector(par1);
+        vof1 = sumc(c1.weights.*fnct(par1,data1));
+
+        if iter > 1 and abs(vof0-vof1) < 1e-6;
+            if numTries < 10;
+                numTries = numTries + 1;
+            else;
+                bfgs = 1 - bfgs;
+                numTries = 1;
+                if bfgs;
+                    bfgsStart = 1;
+                endif;
+            endif;
+        endif;
+        vof0 = vof1;
+
+        if scalinfnanmiss(vof0);
+            out1.retcode = 3;
+            out1.par = par1;
+            out1.fct = vof0;
+            errorlog "sqpSolveMT:  function evaluation failed";
+            break;
+        elseif iscplx(vof0);
+            out1.retcode = 8;
+            out1.par = par1;
+            out1.fct = abs(vof0);
+            errorlog "sqpSolveMT:  function evaluated as complex\n"\
+                                  "absolute value returned";
+            retp(out1);
+        endif;
+
+        if c1.gradProc /= 0;
+            g = sumc(c1.weights.*gproc(par1,data1));
+            if ismiss(g);
+                 g = missrv(g,0) + sumc(c1.weights.*gradMTm(&fnct,par1,data1,g .== error(0)));
+            endif;
+        else;
+            g = sumc(c1.weights.*gradMT(&fnct,par1,data1));
+        endif;
+
+        if bfgs and c1.hessProc == 0;
+
+            if bfgsStart == 1;
+                h = eye(np);
+                g0 = g;
+                bfgsStart = 0;
+            else;
+                dx = s*qp_d;
+                v1 = g'dx - g0'dx;
+                if (v1 < 1e-22);
+                    h = eye(np)*maxc(abs(vof0)|1);
+                else;
+                    oldt = trapchk(1);
+                    trap 1,1;
+                    h = choldn(h,g0/sqrt(-g0'qp_d));
+                    trap oldt,1;
+                    if not scalmiss(h);
+                        oldt = trapchk(1);
+                        trap 1,1;
+                         h = cholup(h,(g-g0)/sqrt(v1));
+                        trap oldt,1;
+                    endif;
+                    if scalmiss(h);
+                        h = eye(np)*maxc(abs(vof0)|1);
+                    endif;
+                endif;
+                g0 = g;
+            endif;
+            he = abs(diag(h));
+            lcn = 2*log(maxc(he)/minc(he));
+            qp_lql = 0;
+
+
+        else;
+
+
+            if c1.hessProc /= 0;
+
+                if not c1.weights == 1;
+                    h = hsproc(par1,data1,c1.weights);
+                    if ismiss(h);
+                         h = missrv(h,0) + hessMTmw(&fnct,par1,data1,c1.weights,h .== error(0));
+                    endif;
+                else;
+                    h = hsproc(par1,data1);
+                    if ismiss(h);
+                         h = missrv(h,0) + hessMTm(&fnct,par1,data1,h .== error(0));
+                    endif;
+                endif;
+
+            elseif c1.gradProc /= 0;
+
+                if not c1.weights == 1;
+                    h = hessMTgw(&gproc,par1,data1,c1.weights);
+                    if ismiss(h);
+                         h = missrv(h,0) + hessMTmw(&fnct,par1,data1,h .== error(0),c1.weights);
+                    endif;
+                else;
+                    h = hessMTg(&gproc,par1,data1);
+                    if ismiss(h);
+                         h = missrv(h,0) + hessMTm(&fnct,par1,data1,h .== error(0));
+                    endif;
+                endif;
+
+            else;
+
+                if not c1.weights == 1;
+                    h = hessMTw(&fnct,par1,data1,c1.weights);
+                else;
+                    h = hessMT(&fnct,par1,data1);
+                endif;
+
+            endif;
+            if ismiss(h);
+                lcn = error(0);
+                h = eye(np)*maxc(abs(vof0)|1);
+                bfgs = 1;
+                bfgsStart = 0;
+                g0 = g;
+            else;
+                if rows(h) > 1;
+                    he = lapeighi(h,rows(h)-1,rows(h),0);
+                    he1 = lapeighi(h,1,2,0);
+                    if scalmiss(he) or scalmiss(he1);
+                        lcn = error(0);
+                    else;
+                        lcn = log(abs(he[2]/he1[1]));
+                    endif;
+                else;
+                    lcn = log(abs(h));
+                    he1 = h;
+                endif;
+                if scalmiss(lcn) or he1[1] <= 0;
+                     h = eye(np)*maxc(abs(vof0)|1);
+                     bfgs = 1;
+                     bfgsStart = 0;
+                     g0 = g;
+                endif;
+            endif;
+            qp_lql = 1;
+
+        endif;
+
+        if scalmiss(g);
+            if not trapchk(4);
+                errorlog "gradient function failed";
+            endif;
+            out1.retcode = 4;
+            break;
+        endif;
+
+        relgtest = (abs(g).*maxc(abs(x1)'|ones(1,rows(x1))))/maxc(abs(vof1)|1) < c1.dirtol or abs(g) < 1e-15;
+
+        if c1.printIters /= 0 and (iter%c1.printIters == 0 or iter == 1);
+
+            print;
+            print;
+            print s1;
+            print " iter "$+ftos(iter-1,"%*.*lf",1,0);;
+
+            if scalmiss(s);
+                print "  random search";;
+            elseif bfgs and c1.hessproc == 0;
+                print "  bfgs       ";;
+            else;
+                print "  newton     ";;
+            endif;
+
+            print "       function "$+ftos(vof1,"*.*lf",8,5);
+            print "         log(cond(hessian)) "$+ftos(lcn,"*.*lf",6,3);;
+            if not scalmiss(s);
+                print "     step length "$+ftos(s,"*.*lf",8,5);
+            else;
+                print;
+            endif;
+            print s1;
+            print s0;
+            print;
+            for i(1,rows(x1),1);
+                print lbl[i];;
+                print s2[i];;
+                print ftos(x1[i],"%*.*lf",10,5);;
+                print ftos(qp_d[i],"%*.*lf",14,5);;
+                print ftos(g[i],"%*.*lf",14,5);
+            endfor;
+            print /flush "";
+        endif;
+
+        if (constActive and abs(qp_d) < c1.dirtol) or (not constActive and relgtest);
+            out1.retcode = 0;
+            break;
+        endif;
+
+        qp_a = {};
+        qp_b = {};
+        if rows(c1.A) > 0;
+            qp_a = qp_a | c1.A;
+            qp_b = qp_b | (-c1.A*x1 + c1.B);
+        endif;
+
+
+        if c1.eqproc /= 0;
+            qp_a = qp_a | gradMT(&EqProc,par1,data1);
+            qp_b = qp_b | -EqProc(par1,data1);
+        endif;
+
+
+        if rows(c1.C) > 0;
+            qp_a = qp_a | c1.C;
+            qp_b = qp_b | -c1.C*x1 + c1.D;
+        endif;
+
+
+        if c1.ineqproc /= 0;
+            qp_a = qp_a | gradMT(&IneqProc,par1,data1);
+            qp_b = qp_b | -IneqProc(par1,data1);
+        endif;
+
+
+        if scalmiss(qp_a);
+            qp_a = ones(1,np);
+            qp_b = -1e256;
+        endif;
+
+
+        if not scalmiss(c1.bounds);
+            qp_xl = c1.bounds[.,1] - x1;
+            qp_xu = c1.bounds[.,2] - x1;
+        else;
+            qp_xl = -qp_t;
+            qp_xu = qp_t;
+        endif;
+
+        if not scalmiss(c1.TrustRadius);
+            q1 = c1.TrustRadius.*ones(1,np);
+            qp_xl = maxc(qp_xl' | -q1);
+            qp_xu = minc(qp_xu' | q1);
+        endif;
+
+        { qp_b,qp_xl,qp_xu,qp_d,qp_ret } = _intqpsolvfcn01(h,-g,qp_a,qp_b,
+            qp_xl,qp_xu,qp_d,numeq,qp_maxit,qp_lql);
+
+
+        if qp_ret < 0;
+            if not trapchk(4) and qp_ret < 0;
+                errorlog "constraint no. "$+ftos(-qp_ret,"%*.*lf",1,0)$+" incon"\
+                    "sistent";
+            endif;
+            out1.retcode = 7;
+            break;
+         elseif qp_ret == 1;
+            if not trapchk(4);
+                errorlog "maximum iterations exceeded in QPSOLVE";
+            endif;
+        elseif qp_ret == 2;
+            if not trapchk(4);
+                errorlog "quadratic program iterations halted due to lack"\
+                         " of precision";
+            endif;
+        endif;
+
+
+        if not scalmiss(c1.bounds);
+            k2 = c1.bounds[.,1] - x1;
+            k1 = qp_d .< k2;
+            qp_d = (1 - k1) .* qp_d + k1 .* k2;
+            k2 = c1.bounds[.,2] - x1;
+            k1 = qp_d .> k2;
+            qp_d = (1 - k1) .* qp_d + k1 .* k2;
+        endif;
+
+
+        ky = 1;
+        lagr1 = 0;
+        if rows(c1.A) > 0;
+            out1.lagr.lineq = qp_b[ky:rows(c1.A)];
+            lagr1 = maxc(abs(out1.lagr.lineq));
+            ky = ky + rows(c1.A);
+        endif;
+
+
+        if c1.eqproc /= 0;
+            out1.lagr.nlineq = qp_b[ky:ky+numNlinEqC-1];
+            lagr1 = maxc(lagr1|abs(out1.lagr.nlineq));
+            ky = ky + numNlinEqC;
+        endif;
+
+
+        lagr2 = 0;
+        if rows(c1.C) > 0;
+            out1.lagr.linineq = qp_b[ky:ky+rows(c1.C)-1];
+            lagr2 = maxc(abs(out1.lagr.linineq));
+            ky = ky + rows(c1.C);
+        endif;
+
+
+        if c1.ineqproc > 0;
+            out1.lagr.nlinineq = qp_b[ky:ky+numNlinIneqC-1];
+            lagr2 = maxc(abs(lagr2|out1.lagr.nlinineq));
+        endif;
+
+
+        if not scalmiss(c1.bounds);
+            out1.lagr.bounds = qp_xl~qp_xu;
+            lagr2 = maxc(abs(qp_xl|qp_xu|lagr2));
+        endif;
+        constActive = (abs(lagr1) > 1e-8 or abs(lagr2) > 1e-8);
+
+
+        /*
+        **  line search
+        */
+
+
+        delta = 1e-4;   /* must be in (0,1/2) interval */
+        ub = 0.5;       /* Upper bound on acceptable reduction in s. */
+        lb = 0.1;       /* Lower bound on acceptable reduction in s. */
+        cdelta = 1 - delta;
+        dg = qp_d' * g;
+
+        f0 = sqpmt_meritFunct(&fnct,0,lagr1,lagr2,par1,data1,c1);
+
+        if c1.feasibleTest;
+            s = sqpmt_feasible(1,qp_d,par1,data1,c1);
+            if scalmiss(s);
+                goto A1;
+            endif;
+        else;
+            s = 1;
+        endif;
+        f1 = sqpmt_meritFunct(&fnct,s*qp_d,lagr1,lagr2,par1,data1,c1);
+        tt = s * dg;
+
+        if scalinfnanmiss(f1) or iscplx(f1);
+            s = error(0);
+            goto A1;
+        endif;
+
+
+        if (f1 / tt - f0 / tt) < delta;
+
+            s = -dg/(2*(f1-f0-dg));
+            if c1.feasibleTest;
+                s = sqpmt_feasible(maxc(s|lb),qp_d,par1,data1,c1);
+                if scalmiss(s);
+                    goto A1;
+                endif;
+            endif;
+            f2 = sqpmt_meritFunct(&fnct,s*qp_d,lagr1,lagr2,par1,data1,c1);
+
+            if scalinfnanmiss(f2) or iscplx(f2);
+                s = error(0);
+                goto A1;
+            endif;
+
+
+            tt = s * dg;
+            w1 = f2 / tt - f0 / tt;
+
+            if w1 < delta or w1 > cdelta;
+
+                sprev = s;
+                s2prev = 1;
+                rprev = f2;
+                r2prev = f1;
+                j = 1; do until j > MaxTry;
+                    sprev2 = sprev * sprev;
+                    s2prev2 = s2prev * s2prev;
+                    sp2[1,1] = sprev2;
+                    sp2[1,2] = s2prev2;
+                    dsprev = sprev - s2prev;
+
+
+                    vv[2,1] = -s2prev;
+                    vv[2,2] = sprev;
+                    vv = vv./sp2;
+
+
+                    zz[1] = rprev - f0 - dg * sprev;
+                    zz[2] = r2prev - f0 - dg * s2prev;
+                    ab = (1 / dsprev) * vv * zz;
+                    a = ab[1,1];
+                    b = ab[2,1];
+
+
+                    if a == 0;
+                        s = -dg / (2 * b);
+                    else;
+                        qv = b * b - 3 * a * dg;
+                        if qv < 0;
+                            break;
+                        endif;          /* terminate if not real root */
+                        tt = 3 * a;
+                        s = -b / tt + sqrt(qv) / tt;
+                    endif;
+
+
+                    if s > ub * sprev;
+                        s = ub * sprev;
+                    elseif s < lb * sprev;
+                        s = lb * sprev;
+                    endif;
+
+
+                    if c1.feasibleTest;
+                        s = sqpmt_feasible(s,qp_d,par1,data1,c1);
+                        if scalmiss(s);
+                            goto A1;
+                        endif;
+                    endif;
+                    f1 = sqpmt_meritFunct(&fnct,s*qp_d,lagr1,lagr2,par1,data1,c1);
+
+                    if scalinfnanmiss(f1) or iscplx(f1);
+                        s = error(0);
+                        break;
+                    endif;
+
+                    tt = s * dg;
+                    w1 = f1 / tt - f0 / tt;
+
+                    if w1 >= delta and w1 <= cdelta;
+                        break;
+                    endif;
+
+                    s2prev = sprev;
+                    sprev = s;
+                    r2prev = rprev;
+                    rprev = f1;
+                j = j + 1; endo;
+
+            else;
+                 f1 = f2;
+            endif;
+
+        elseif f1 > f0;
+             s = error(0);
+        endif;
+
+
+     A1:
+
+        if scalmiss(s);  /* half */
+
+            s = .5;
+            w = 1;
+            for i(1,40,1);
+                if c1.feasibleTest;
+                    s = sqpmt_feasible(s,qp_d,par1,data1,c1);
+                    if scalmiss(s);
+                        continue;
+                    endif;
+                endif;
+                if sqpmt_meritFunct(&fnct,s*qp_d,lagr1,lagr2,par1,data1,c1) < f0;
+                    w = 0;
+                    break;
+                endif;
+                s = s / 2;
+            endfor;
+            if w;
+                 s = error(0);
+            endif;
+        endif;
+
+        if scalmiss(s);  /* random search */
+            f1 = 1e256;
+            qp_d = zeros(rows(x1),1);
+            for k(1,c1.maxTries,1);
+                w = x1 .* (c1.randRadius*(2*rndus(rows(x1),1,seed) - 1));
+                if c1.feasibleTest;
+                    if scalmiss(sqpmt_feasible(1,w,par1,data1,c1));
+                        continue;
+                    endif;
+                endif;
+                f2 = sqpmt_meritFunct(&fnct,w,lagr1,lagr2,par1,data1,c1);
+                if f2 < f1;
+                    f1 = f2;
+                    qp_d = w;
+                    if f0 - f2 > 1e-5;
+                       goto A7;
+                    endif;
+                endif;
+            endfor;
+
+A7:
+
+            if iscplx(f0);
+                out1.retcode = 8;
+                out1.par = pvPutParVector(par1,x1+qp_d);
+                out1.fct = f0;
+                retp(out1);
+            endif;
+
+            x1 = x1 + qp_d;
+            par1 = pvPutParVector(par1,x1);
+
+            if qp_d == 0;
+                out1.retcode = 9;
+                out1.par = par1;
+                out1.fct = f1;
+                retp(out1);
+            endif;
+
+            if bfgs;
+                bfgs = 0;
+                numTries = 1;
+                bfgsStart = 1;
+            endif;
+
+        else;
+
+            par1 = pvPutParVector(par1,x1+s*qp_d);
+
+            if s < 1e-6;
+                if numTries < 10;
+                    numTries = numTries + 1;
+                else;
+                    bfgs = 1 - bfgs;
+                    numTries = 1;
+                    if bfgs;
+                        bfgsStart = 1;
+                    endif;
+                endif;
+            endif;
+
+        endif;
+
+        if not c1.disableKey;
+            ky = key;
+            do while ky;
+                if upper(chrs(ky)) $== "C";
+                    out1.retcode = 1;
+                    goto A9;
+                elseif upper(chrs(ky)) $== "P";
+                    c1.printIters = 1 - c1.printIters;
+                endif;
+                ky = key;
+            endo;
+        endif;
+
+    iter = iter + 1; endo;
+A9:
+    call ndpcntrl(old,0xffff);
+    ndpclex;
+
+    out1.par = par1;
+    out1.fct = sumc(c1.weights.*fnct(par1,data1));
+
+/*
+**  compute covariance matrix
+*/
+    if c1.CovType and out1.retcode <= 2;
+
+        if c1.hessProc /= 0;
+            if not c1.weights == 1;
+                h = hsproc(par1,data1,c1.weights);
+                if ismiss(h);
+                     h = missrv(h,0) + hessMTmw(&fnct,par1,data1,c1.weights,h .== error(0));
+                endif;
+            else;
+                h = hsproc(par1,data1);
+                if ismiss(h);
+                     h = missrv(h,0) + hessMTm(&fnct,par1,data1,h .== error(0));
+                endif;
+            endif;
+
+        elseif c1.gradProc /= 0;
+
+            if not c1.weights == 1;
+                h = hessMTgw(&gproc,par1,data1,c1.weights);
+                if ismiss(h);
+                     h = missrv(h,0) + hessMTmw(&fnct,par1,data1,h .== error(0),c1.weights);
+                endif;
+            else;
+                h = hessMTg(&gproc,par1,data1);
+                if ismiss(h);
+                     h = missrv(h,0) + hessMTm(&fnct,par1,data1,h .== error(0));
+                endif;
+            endif;
+
+        else;
+            if not c1.weights == 1;
+                h = hessMTw(&fnct,par1,data1,c1.weights);
+            else;
+                h = hessMT(&fnct,par1,data1);
+            endif;
+        endif;
+        out1.hessian = h;
+
+
+        _c = { };
+        _lg = { };
+        qp_e = eye(np)|-eye(np);
+        if not scalmiss(c1.bounds);
+           _c = qp_e | _c;
+           if not scalmiss(out1.lagr.bounds);
+               _lg = vec(out1.lagr.bounds);
+           endif;
+        endif;
+        if c1.IneqProc > 0;
+           c0 = gradMT(&IneqProc,par1,data1);
+           if not scalmiss(c0);
+               _c = c0 | _c;
+               if not scalmiss(out1.lagr.nlinineq);
+                   _lg = out1.lagr.nlinineq | _lg;
+               endif;
+           endif;
+        endif;
+        if rows(c1.C) > 0;
+            _c = c1.C | _c;
+            if not scalmiss(out1.lagr.linineq);
+                _lg = out1.lagr.linineq | _lg;
+            endif;
+        endif;
+        if not scalmiss(_lg);
+            ia = packr(miss(seqa(1,1,rows(_lg)).*(_lg ./= 0),0));
+            if not scalmiss(ia);
+                _c = _c[ia,.];
+            else;
+                _c = error(0);
+            endif;
+        endif;
+
+        if rows(c1.A) > 0;
+            _c = c1.A | _c;
+        endif;
+
+        if c1.eqproc /= 0;
+            c0 = gradMT(&EqProc,par1,data1);
+            if not scalmiss(c0);
+                _c = c0 | _c;
+            endif;
+        endif;
+
+        if not scalmiss(_c);
+            oldt = trapchk(1);
+            trap 1,1;
+            z = null(_c);
+            trap oldt,1;
+            if not scalmiss(z);
+                oldt = trapchk(1);
+                trap 1,1;
+                h1 = solpd(eye(cols(z)),z'*h*z);
+                trap oldt,1;
+            else;
+                h1 = error(0);
+            endif;
+             if scalmiss(h1);
+                oldt = trapchk(1);
+                trap 1,1;
+                h1 = pinv( (h~_c') | (_c~zeros(rows(_c),rows(_c))) );
+                trap oldt,1;
+                h1 = h1[1:rows(h),1:rows(h)];
+            else;
+                h1 = z*h1*z';
+            endif;
+            h = h1;
+        else;
+            oldt = trapchk(1);
+            trap 1,1;
+            h1 = solpd(eye(rows(h)),h);
+            trap oldt,1;
+            h = h1;
+        endif;
+
+        if c1.CovType == 2;
+
+            if c1.gradProc /= 0;
+                g = c1.weights.*gproc(par1,data1);
+                if ismiss(g);
+                    g = missrv(g,0) + c1.weights.*gradMTm(&fnct,par1,data1,sumc(g) .== error(0));
+                endif;
+            else;
+                g = c1.weights.*gradMT(&fnct,par1,data1);
+            endif;
+            if rows(g)== 1 and not trapchk(4);
+                errorlog "SQPSOLVEMT:  Jacobian can't be computed, ML covariance"\
+                                      "matrix computed instead";
+            else;
+                out1.xproduct = moment(g,0);
+                h = h*out1.xproduct*h;
+                g = sumc(g);
+            endif;
+
+        endif;
+
+        if not scalmiss(h);
+
+            if diag(h) < 1e-8;
+               h = error(0);
+            else;
+                h1 = abs(diag(h)) .< 1e-8;
+                if sumc(h1);
+                    h1 = packr(miss(h1.*seqa(1,1,rows(h1)),0));
+                    k1 = 1;
+                    do until k1 > rows(h1);
+                        h[h1[k1],.] = error(0)*zeros(1,rows(h));
+                        h[.,h1[k1]] = error(0)*zeros(rows(h),1);
+                        k1 = k1 + 1;
+                    endo;
+                endif;
+            endif;
+
+        endif;
+        out1.moment = h;
+
+    else;
+
+        out1.moment = error(0);
+
+    endif;
+
+    if c1.output > 0;
+
+
+        t1 = hsec;
+        print;
+        call header("SQPSolve","",_rtl_ver);
+        print;
+        print "return code = " ftos(out1.retcode,"%*.*lf",4,0);
+        if out1.retcode == 0;
+           print "normal convergence";
+        elseif out1.retcode == 1;
+           print "forced termination";
+        elseif out1.retcode == 2;
+           print "maximum number of iterations exceeded";
+        elseif out1.retcode == 3;
+           print "function calculation failed";
+        elseif out1.retcode == 4;
+           print "gradient calculation failed";
+        elseif out1.retcode == 5;
+           print "Hessian calculation failed";
+        elseif out1.retcode == 6;
+           print "line search failed";
+        elseif out1.retcode == 7;
+           print "error with constraints";
+        elseif out1.retcode == 8;
+           print "function complex";
+        elseif out1.retcode == 9;
+           print "feasible direction couldn't be found";
+        endif;
+        print;
+        print "Value of objective function " ftos(out1.fct,"%*.*lf",15,6);
+        print;
+        print s1;
+        print s0;
+        print;
+        x1 = pvGetParVector(out1.par);
+        for i(1,rows(x1),1);
+            print lbl[i];;
+            print s2[i];;
+            print ftos(x1[i],"%*.*lf",10,5);;
+            print ftos(qp_d[i],"%*.*lf",14,5);;
+            print ftos(g[i],"%*.*lf",14,5);
+        endfor;
+        print;
+        print;
+        print "Linear Equality Lagrangean Coefficients";
+        print out1.lagr.lineq;
+        print;
+        print "Linear Inequality Lagrangean Coefficients";
+        print out1.lagr.linineq;
+        print;
+        print "Nonlinear Equality Lagrangean Coefficients";
+        print out1.lagr.nlineq;
+        print;
+        print "Nonlinear Inequality Lagrangean Coefficients";
+        print out1.lagr.nlinineq;
+        print;
+        print "Bounds Lagrangean Coefficients";
+        print out1.lagr.bounds;
+
+
+        print;
+        print "Number of iterations    " ftos(iter,"%*.*lf",5,0);
+        print "Minutes to convergence  " ftos((t1-t0)/6000,"%*.*lf",10,5);
+    elseif c1.printIters;
+        print;
+    endif;
+
+    if iter == c1.MaxIters;
+        out1.retcode = 2;
+    endif;
+    out1.par = par1;
+
+    retp(out1);
+
+
+endp;
+
+
+
+proc sqpmt_feasible(l,d, struct PV par1, struct DS data1, struct SQPsolveMTControl c1 );
+    local m0, t, ineqproc;
+
+    m0 = 0;
+    do until m0 > 200;
+        m0 = m0 + 1;
+        t = pvGetParVector(par1) + l * d;
+        if rows(c1.C) > 0;
+            if not((c1.C*t - c1.D) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if c1.ineqproc /= 0;
+            IneqProc = c1.ineqproc;
+            local ineqproc:proc;
+            par1 = pvPutParVector(par1,t);
+            if not(IneqProc(par1,data1) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        if not scalmiss(c1.bounds);
+            if not((t - c1.bounds[.,1]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+            if not((-t + c1.bounds[.,2]) >= 0);
+                l = .9 * l;
+                continue;
+            endif;
+        endif;
+        retp(l);
+    endo;
+//    if not trapchk(4);
+//        errorlog "feasible step length could not be found";
+//    endif;
+    retp(error(0));
+endp;
+
+
+
+
+proc sqpmt_meritFunct(fnct, d, lagr1, lagr2, struct PV par1,
+                       struct DS data1, struct SQPsolveMTControl c1);
+
+    local f0, zz, eqproc, ineqproc, x1;
+    local fnct:proc;
+
+    par1 = pvPutParVector(par1,pvGetParVector(par1)+d);
+    x1 = pvGetParVector(par1);
+
+    f0 = sumc(c1.weights.*fnct(par1,data1));
+    if lagr1 /= 0;
+        if rows(c1.A) /= 0;
+            f0 = f0 + lagr1 * sumc(abs(c1.A * x1 - c1.B));
+        endif;
+        if c1.eqproc /= 0;
+            EqProc = c1.eqproc;
+            local eqproc:proc;
+            f0 = f0 + lagr1 * sumc(abs(EqProc(par1,data1)));
+        endif;
+    endif;
+    if lagr2 /= 0;
+        if rows(c1.C) > 0;
+            zz = c1.C * x1 - c1.D;
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if c1.ineqproc /= 0;
+            ineqproc = c1.ineqproc;
+            local ineqproc:proc;
+            zz = IneqProc(par1,data1);
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+        if not scalmiss(c1.bounds);
+            zz = x1 - c1.bounds[.,1];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+            zz = -x1 + c1.bounds[.,2];
+            zz = zz .* (zz .< 0);
+            f0 = f0 - lagr2 * sumc(zz);
+        endif;
+
+    endif;
+    retp(f0);
+endp;
+
+
+
+/*
+**> sqpSolveMTlagrangeCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTlagrange set to
+**                  default values
+**
+**  Format:     s = sqpSolveMTlagrangeCreate;
+**
+**  Output:     s      instance of type sqpSolveMTlagrangeCreate
+**
+*/
+
+proc sqpSolveMTlagrangeCreate;
+    struct SQPsolveMTlagrange lagr1;
+    lagr1.lineq = error(0);
+    retp(lagr1);
+endp;
+
+
+
+
+/*
+**> sqpSolveMToutCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTout set to
+**                  default values
+**
+**  Format:     s = sqpSolveControlCreate;
+**
+**  Output:     s      instance of type sqpSolveControlCreate
+**
+*/
+
+proc sqpSolveMToutCreate;
+    struct SQPsolveMTout out1;
+    out1.par = pvCreate;
+    out1.lagr = sqpSolveMTLagrangeCreate;
+    retp(out1);
+endp;
+
+
+
+
+/*
+**> sqpSolveMTcontrolCreate
+**
+**  Purpose:    creates an instance of type sqpSolveMTcontrol set to
+**                  default values
+**
+**  Format:     s = sqpSolveMTcontrolCreate;
+**
+**  Output:     s      instance of type sqpSolveMTcontrolCreate
+**
+*/
+
+
+
+proc sqpSolveMTcontrolCreate;
+    struct SQPsolveMTcontrol c1;
+    c1.output = 0;
+    retp(c1);
+endp;

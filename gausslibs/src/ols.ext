@@ -1,0 +1,11 @@
+/*
+** ols.ext - Ordinary least squares regression.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** External variable declarations for procedures OLS, OLSQR.
+*/
+
+external matrix _olsqtol;
+external matrix _olsres;
+external string _olsrnam;

@@ -1,0 +1,41 @@
+/*
+** ds.src - data structure functions
+**
+** (C) Copyright 2002 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+*/
+#include ds.sdf
+
+
+
+
+/*
+**> dsCreate
+**
+**  Purpose:    creates an instance of type DS set to default values
+**
+**  Format:     s = dsCreate;
+**
+**  Output:     s      instance of type dsCreate
+**
+*/
+
+
+
+proc dsCreate;
+   struct DS d0;
+   d0.dataMatrix = 0;
+   retp(d0);
+endp;
+

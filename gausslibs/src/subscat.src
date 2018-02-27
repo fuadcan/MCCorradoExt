@@ -1,0 +1,126 @@
+#ifDLLCALL
+#else
+
+/*
+** subscat.src
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** This function requires GAUSS-386.
+**
+**> subscat
+**
+**  Purpose:    Substitutes new values for old in a vector, according to which
+**              category an element falls into.
+**
+**  Format:     y = subscat(x,v,s);
+**
+**  Inputs:     x    Nx1 vector.
+**
+**              v    Px1 numeric vector, containing break-points
+**                   specifying the ranges within which substitution
+**                   is to be made. This MUST be sorted in ascending
+**                   order.
+**
+**                   If v is a scalar, the comparison must be an exact
+**                   match for the substitution to be made.
+**
+**                   If v contains a missing, to specify that
+**                   missing is a separate category, then the missing
+**                   must be the first element in v.
+**
+**              s    Px1 vector, containing values to be
+**                   substituted.
+**
+**  Output:     y    Nx1 vector, with the elements in s substituted for
+**                   the original elements of x according to which of
+**                   the regions the elements of x fall into:
+**
+**                               x <= v[1] -->         s[1]
+**                        v[1] < x <= v[2] -->         s[2]
+**                            . . .                 . . .
+**                      v[p-1] < x <= v[p] -->         s[p]
+**                               x > v[p]  -->  the original value of x
+**
+**                   If missing is not a category specified in v (as
+**                   the first element), then missings in x are just
+**                   passed through to y.
+**
+**  Globals:    _subsct
+**
+**  Example:    let x = 1 2 3 4 5 6 7 8 9 10;
+**              let v = 4 5 8;
+**              let s = 10 5 0;
+**              y = subscat(x,v,s);
+**
+**              y =  10
+**                   10
+**                   10
+**                   10
+**                    5
+**                    0
+**                    0
+**                    0
+**                    9
+**                   10
+*/
+
+#include flibuff.ext
+
+proc subscat(x,v,s);
+    local xrow,vrow;
+
+    /* check for complex input */
+    if iscplx(x);
+        if hasimag(x);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            x = real(x);
+        endif;
+    endif;
+
+    if iscplx(v);
+        if hasimag(v);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            v = real(v);
+        endif;
+    endif;
+
+    if iscplx(s);
+        if hasimag(s);
+            errorlog "ERROR: Not implemented for complex matrices.";
+            end;
+        else;
+            s = real(s);
+        endif;
+    endif;
+
+    xrow = rows(x);
+    vrow = rows(v);
+    if vrow /= rows(s) or cols(x) /= 1 or cols(s) /= 1 or cols(v) /= 1;
+        errorlog "Matrices not conformable";
+        end;
+    endif;
+    if rows(_subsct) /= 38 or _subsct[1] $== 0;
+        _subsct = zeros(38,1);
+        loadexe _subsct = subscat.rex;
+    endif;
+    callexe _subsct(x,xrow,s,v,vrow);
+    retp(x);
+endp;
+
+#endif

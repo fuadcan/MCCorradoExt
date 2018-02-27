@@ -1,0 +1,953 @@
+/*
+** arma2.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  {A,J,H} = arma_to_VAR1(beta,p,q);
+**                                VAR(1) representation of a Vector
+**                                ARMA process                             49
+**
+**  roots = arma_roots(beta,p,q);
+**                                roots of the VAR(1) representation
+**                                of a Vector ARMA process                 67
+**
+**  call canonical_arma(beta,p,q,N);
+**                                Infinite autoregressive and moving average
+**                                representations of a Vector ARMA process 87
+**
+**  call arma_autocov(beta,p,q,SIGMA,N);
+**                                Compute the theoretical autocovariances
+**                                and autocorrelations of Vector
+**                                ARMA process                            110
+**
+**  call arma_impulse(beta,p,q,N);
+**                                Compute the responses to forecast errors
+**                                (and the interim multipliers) of a
+**                                Vector ARMA process                     136
+**
+**  call arma_orthogonal(beta,p,q,SIGMA,N);
+**                                Compute the responses to orthogonal impulses
+**                                (and the interim multipliers) of a Vector
+**                                ARMA process                            162
+**
+**  call arma_fevd(beta,p,q,SIGMA,N);
+**                                Compute the Forecast Error Variance
+**                                Decomposition of a Vector ARMA process  189
+**
+**  {Z,d,H,T,c,R,QQ} = arma_to_SSM(beta,p,q,SIGMA);
+**                                State space form of a multivariate ARMA
+**                                time series model                       214
+**
+**  H = Hankel(y,J);              Compute the Hankel matrix of a
+**                                multivariate time series                237
+*/
+
+
+/*
+** arma_to_VAR1
+**
+** Purpose: VAR(1) representation of a Vector ARMA process
+**
+** Format:  {A,J,H} = arma_to_VAR1(beta,p,q);
+**
+** Input:   beta - np*1 vector, the coefficients of the ARMA model
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**
+** Output:  A - matrix A of the VAR(1) form
+**          J - matrix J of the VAR(1) form
+**          H - matrix H of the VAR(1) form
+**
+*/
+
+
+/*
+** arma_roots
+**
+** Purpose: Compute the roots of the reverse characteristic polynomial
+**          of the VAR(1) representation of a Vector ARMA process
+**
+** Format:  roots = arma_roots(beta,p,q);
+**
+** Input:   beta - np*1 vector, the coefficients of the Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**
+** Output:  roots - S*1 vector, roots
+**
+** Remarks: This procedure may be used to study the stability of the Vector
+**          ARMA process.
+**
+*/
+
+
+/*
+** canonical_arma
+**
+** Purpose: Infinite autoregressive and moving average representations
+**          of a Vector ARMA process
+**
+** Format:  call canonical_arma(beta,p,q,N);
+**
+** Input:   beta - np*1 vector, the coefficients of the ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**             N - scalar, the maximum order of the matrices to be evaluated
+**
+** Output:
+**          The matrices of the infinite AR and MA representations can be read
+**          with the varget command. For the matrices PHI, the generic string
+**          name is "AR" followed by the index i. For example, if we want to
+**          know the matrix PHI(17), we write x = varget("AR17").
+**          For the matrices THETA, the generic string name is "MA".
+**
+*/
+
+
+/*
+** arma_autocov
+**
+** Purpose: Compute the theoretical autocovariances and autocorrelations
+**          of a Vector ARMA process
+**
+** Format:  call arma_autocov(beta,p,q,SIGMA,N);
+**
+** Input:   beta - np*1 vector, the coefficients of the Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         SIGMA - K*K matrix, the SIGMA matrix
+**             N - scalar, the maximum order of the autocovariances
+**                         and autocorrelations to be computed
+**
+** Output:
+**          Autocovariances and autocorrelations can be read with the
+**          varget command. For the autocovariances of order i, the
+**          generic (string) name is "ACV" followed by the index i.
+**          For example, if we want the autocovariances of order 6, we
+**          write x = varget("ACV6").
+**          For the autocorrelations, the generic (string) name is "ACR".
+**
+*/
+
+
+/*
+** arma_impulse
+**
+** Purpose: Compute the responses to forecast errors (and the interim
+**          multipliers) of a Vector ARMA process
+**
+** Format:  call arma_impulse(beta,p,q,N);
+**
+** Input:   beta - np*1 vector, the coefficients of the Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**             N - scalar, the maximum order of the impulse function to
+**                         be computed
+**
+** Output:
+**          The responses to Forecast Errors and the accumulated impulses
+**          function (or the interim multipliers) can be read with the
+**          varget command. For the responses to forecast errors of order i,
+**          the generic string name is "IMPULSE" followed by the index i. For
+**          example, if we want the responses to forecast errors of order 3,
+**          we write x = varget("IMPULSE3"). For the interim multipliers, the
+**          generic string name is "_IMPULSE".
+**
+*/
+
+
+/*
+** arma_orthogonal
+**
+** Purpose: Compute the responses to orthogonal impulses (and the interim
+**          multipliers) of a Vector ARMA process
+**
+** Format:  call arma_orthogonal(beta,p,q,SIGMA,N);
+**
+** Input:   beta - np*1 vector, the coefficients of a Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         SIGMA - K*K matrix, the SIGMA matrix
+**             N - scalar, the maximum order of the impulse function
+**                         to be evaluated
+**
+** Output:
+**          The responses to orthogonal impulses and the accumulated impulses
+**          function (or the interim multipliers) can be read with the varget
+**          command. For the responses to orthogonal impulses of order i, the
+**          generic string name is "IMPULSE" followed by the index i. For exam-
+**          ple, if we want the responses to orthogonal impulses of order 20,
+**          we write x = varget("IMPULSE20"). For the interim multipliers, the
+**          generic string name is "_IMPULSE".
+**
+*/
+
+
+/*
+** arma_fevd
+**
+** Purpose: Compute the Forecast Error Variance Decomposition matrices
+**          of a Vector ARMA process
+**
+** Format:  call arma_fevd(beta,p,q,SIGMA,N);
+**
+** Input:   beta - np*1 vector, the coefficients of the Vector ARMA process
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         SIGMA - K*K matrix, the SIGMA matrix
+**             N - scalar, the maximum order of the variance decomposition
+**                         to be computed
+**
+** Output:
+**          The Forecast Error Variance decomposition matrices can be read with
+**          the varget command. For the forecast error variance decomposition of
+**          order i, the generic string name is "ERROR" followed by the index i.
+**          For example, if we want the forecast error variance decomposition
+**          of order 1, we specify x = varget("ERROR1").
+**
+*/
+
+
+/*
+** arma_to_SSM
+**
+** Purpose: State space form of a multivariate ARMA time series model
+**
+** Format:  {Z,d,H,T,c,R,QQ} = arma_to_SSM(beta,p,q,SIGMA);
+**
+** Input:   beta - np*1 vector, the coefficients of the ARMA model
+**             p - scalar, the autoregressive order
+**             q - scalar, the moving average order
+**         SIGMA - K*K matrix, the SIGMA matrix
+**
+** Output:     Z - the Z matrix of the state space model
+**             d - the d vector of the SSM
+**             H - the H matrix of the SSM
+**             T - the T matrix of the SSM
+**             c - the c vector of the SSM
+**             R - the R matrix of the SSM
+**            QQ - the Q matrix of the SSM
+**
+*/
+
+
+/*
+** Hankel
+**
+** Purpose: Compute the Hankel matrix of a multivariate time series
+**
+** Format:  H = Hankel(y,J);
+**
+** Input:   y - Nobs*K matrix, data
+**          J - scalar, the order of the Hankel matrix
+**
+** Output:  H - (K*J)*(K*J) matrix, the H(j) Hankel matrix
+**
+*/
+
+
+/*
+** VAR(1) Representation of Vector ARMA processes
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 223-224
+*/
+
+
+/*
+** arma_to_VAR1
+*/
+
+proc (3) = arma_to_VAR1(beta,p,q);
+  local Np,w1,k,w2,w3,w4,Ik,L0,L1,L2,L,L_,s,s_,BB,PHI,THETA,i;
+  local A,H,J;
+
+  Np = rows(beta);
+  w1 = p+q; k = sqrt(np/w1);
+
+  if p == 0;
+    p = 1;
+    w1 = w1+1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    w1 = w1+1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+  w2 = k*w1; w3 = k*p; w4=k*q;
+  Ik = eye(k);
+  L0 = zeros(k,k);
+  if (w2-k) <= 0;
+    L1 = {};
+  else;
+    L1 = zeros(k,w2-k);
+  endif;
+  L2 = zeros(k,w2);
+  L = Ik~L1;
+  s = seqa(k,k,w1+1); s_ = seqa(1,k,w1+1);
+
+
+  BB = reshape(beta,w2,k)';
+
+  if p == 0;
+    PHI = {};
+  else;
+    PHI = BB[.,1:w3];
+  endif;
+
+  if q == 0;
+    THETA = {};
+  else;
+    THETA = BB[.,w3+1:w2];
+  endif;
+
+  /* Build the A and H matrices */
+
+  A = zeros(w2,w2);
+  H = zeros(w2,k);
+  BB = PHI~(-THETA);
+  A[s_[1]:s[1],.] = BB;  H[1:s[1],.] = Ik;
+  L_ = L;
+
+  i = 2;
+  do until i>p;
+    A[s_[i]:s[i],.] = L_; H[s_[i]:s[i],.] = L0;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+  endo;
+
+
+  if s_[i] <= w2;
+
+    A[s_[i]:s[i],.] = L2;  H[s_[i]:s[i],.] = Ik;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+    do until i>w1;
+      A[s_[i]:s[i],.] = L_;
+      L_ = shiftr(L_,k,0);
+      i = i+1;
+    endo;
+
+  endif;
+
+
+  /* Build the J matrix */
+
+  if (w2-k) >0;
+    J = Ik~zeros(k,w2-k);
+  else;
+    J = Ik;
+  endif;
+
+  retp(A,J,H);
+endp;
+
+
+/*
+** Roots of the reverse characteristic polynomial
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, page 224
+*/
+
+
+/*
+** arma_roots
+*/
+
+proc (1) = arma_roots(beta,p,q);
+  local Np,w,k,A,J,H,roots;
+
+  if p == 0 and q == 0;
+    retp(error(0));
+  endif;
+
+  Np = rows(beta);
+  w = p+q; k = sqrt(np/w);
+
+  if k /= trunc(k);
+
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp;
+
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+
+  roots = eig(A);
+  roots = 1./miss(roots,0);
+  roots = packr(roots);
+
+  retp(roots);
+endp;
+
+
+/*
+** Canonical Representations (infinite AR and MA orders)
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 220-226
+*/
+
+
+/*
+** canonical_arma
+*/
+
+proc (0) = canonical_arma(beta,p,q,order);
+  local Np,k,BB,PHI,THETA;
+  local w1,w2,w3,w4,Ik,L0,L1,L2,L,L_,s,s_,A,M,i,H1,H2,J;
+  local A_i,M_i,PI_i,THETA_i,ch;
+
+  if p == 0 and q == 0;
+    retp;
+  endif;
+
+  Np = rows(beta);
+  w1 = p+q; k = sqrt(np/w1);
+
+  if k /= trunc(k);
+
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp;
+
+  endif;
+
+  if p == 0;
+    p = 1;
+    w1 = w1+1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    w1 = w1+1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+
+  w2 = k*w1; w3 = k*p; w4=k*q;
+  Ik = eye(k);
+  L0 = zeros(k,k);
+  if (w2-k) <= 0;
+    L1 = {};
+  else;
+    L1 = zeros(k,w2-k);
+  endif;
+  L2 = zeros(k,w2);
+  L = Ik~L1;
+  s = seqa(k,k,w1+1); s_ = seqa(1,k,w1+1);
+
+
+  BB = reshape(beta,w2,k)';
+
+  if p == 0;
+    PHI = {};
+  else;
+    PHI = BB[.,1:w3];
+  endif;
+
+  if q == 0;
+    THETA = {};
+  else;
+    THETA = BB[.,w3+1:w2];
+  endif;
+
+  /* Build the A and H1 matrices --- Lutkepohl, pages 223-224 */
+
+  A = zeros(w2,w2);
+  H1 = zeros(w2,k);
+  BB = PHI~(-THETA);
+  A[s_[1]:s[1],.] = BB;  H1[1:s[1],.] = Ik;
+  L_ = L;
+
+  i = 2;
+  do until i>p;
+    A[s_[i]:s[i],.] = L_; H1[s_[i]:s[i],.] = L0;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+  endo;
+
+
+  if s_[i] <= w2;
+
+    A[s_[i]:s[i],.] = L2;
+    H1[s_[i]:s[i],.] = Ik;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+    do until i>w1;
+      A[s_[i]:s[i],.] = L_;
+      L_ = shiftr(L_,k,0);
+      i = i+1;
+    endo;
+
+  endif;
+
+  /* Build the M and H2 matrices --- Lutkepohl, pages 223-224 */
+
+  M = zeros(w2,w2);
+  BB = (THETA)~(-PHI);
+  H2 = zeros(w2,k);
+  M[1:s[1],.] = BB; H2[1:s[1],.] = Ik;
+  L_ = L;
+
+  i = 2;
+  do until i>q;
+    M[s_[i]:s[i],.] = L_;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+  endo;
+
+  if s_[i] <= w2;
+    M[s_[i]:s[i],.] = L2;
+    H2[s_[i]:s[i],.] = Ik;
+    L_ = shiftr(L_,k,0);
+    i = i+1;
+    do until i>w1;
+      M[s_[i]:s[i],.] = L_;
+      L_ = shiftr(L_,k,0);
+      i = i+1;
+    endo;
+  endif;
+
+  /* Build the J matrix --- Lutkepohl, pages 223-224 */
+
+  if (w2-k) >0;
+    J = Ik~zeros(k,w2-k);
+  else;
+    J = Ik;
+  endif;
+
+  /* Infinite MA Representation */
+
+  A_i = eye(w2);
+
+  i = 0;
+  do until i > order;
+    THETA_i = J*A_i*H1;
+    ch = "MA" $+ ftos(i,"%lf",1,0);
+    call varput(THETA_i,ch);
+    A_i = A_i*A;
+    i = i+1;
+  endo;
+
+  /* Infinite AR Representation */
+
+  M_i = eye(w2);
+
+  ch = "AR" $+ ftos(0,"%lf",1,0);
+  call varput(eye(k),ch);
+
+  i = 1;
+  do until i > order;
+    M_i = M_i*M;
+    PI_i = -J*M_i*H2;
+    ch = "AR" $+ ftos(i,"%lf",1,0);
+    call varput(PI_i,ch);
+    i = i+1;
+  endo;
+
+  retp;
+endp;
+
+
+/*
+** Autocovariances and Autocorrelations of a Vector ARMA Process
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag, pages 226-228
+*/
+
+
+/*
+** arma_autocov
+*/
+
+proc (0) = arma_autocov(beta,p,q,SIGMA,order);
+  local Np,k,w0,w1,w2,w2_inv,w3,w4,oldtrap;
+  local PHI,MM,acv,acr,i,D,str,A,J,H,roots;
+
+  if p == 0 and q == 0;
+    retp;
+  endif;
+
+  Np = rows(beta);
+  w0 = p+q; k = sqrt(np/w0);
+
+  if k /= trunc(k);
+
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    retp;
+
+  endif;
+
+  if rows(SIGMA) /= k or cols(SIGMA) /= k;
+
+    ERRORLOG "error: Wrong size format of the SIGMA matrix.";
+    retp;
+
+  endif;
+
+  if p == 0;
+    p = 1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+
+  if p <= q;
+    w0 = q-p+1;
+    w1 = w0*k^2;
+    beta = beta[1:p*k^2]|zeros(w1,1)|beta[1+p*k^2:(p+q)*k^2];
+    p = p+w0;
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+  roots = arma_roots(beta,p,q);
+
+  if minc(abs(roots)) <= 1;
+
+    ERRORLOG "error: The Vector ARMA process is not stable.";
+    retp;
+
+  endif;
+
+  SIGMA = H*SIGMA*H';
+
+  w0 = (p+q)*k;
+  w1 = w0^2;
+  w2 =  eye(w1) - A.*.A;
+  oldtrap = trapchk(1);
+  trap 1,1;
+  w2_inv = inv(w2);
+  trap oldtrap,1;
+  if scalerr(w2_inv);
+    ERRORLOG "error: The Vector ARMA process is not stable.";
+    retp;
+  endif;
+  w3 = w2_inv*vec(SIGMA);
+  w3 = reshape(w3,w0,w0)';
+  PHI = A[1:K,1:p*K];
+  w4 = sqrt(diag(w3[1:k,1:k]));
+  D = diagrv(eye(k),1./w4);
+  MM = {};
+  i = 0;
+  do until i>p-1;
+    acv = w3[1:k,1+i*k:(1+i)*k];
+    acr = D*acv*D;
+    str = "ACV" $+ ftos(i,"%lf",1,0);
+    call varput(acv,str);
+    str = "ACR" $+ ftos(i,"%lf",1,0);
+    call varput(acr,str);
+    MM = acv|MM;
+    i = i+1;
+  endo;
+
+  do until i>order;
+    acv = PHI*MM;
+    acr = D*acv*D;
+    str = "ACV" $+ ftos(i,"%lf",1,0);
+    call varput(acv,str);
+    str = "ACR" $+ ftos(i,"%lf",1,0);
+    call varput(acr,str);
+    MM = acv|trimr(MM,0,k);
+    i = i+1;
+  endo;
+
+  retp;
+endp;
+
+
+/*
+** Forecast Error Variance Decomposition
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag
+*/
+
+
+/*
+** arma_fevd
+*/
+
+proc (0) = arma_fevd(beta,p,q,SIGMA,order);
+  local Np,w0,k;
+  local A,J,H,A_i,PHI,THETA,OMEGA,i,S,Pchol,oldtrap;
+
+  if p == 0 and q == 0;
+    retp;
+  endif;
+
+  Np = rows(beta);
+  w0 = p+q; k = sqrt(np/w0);
+
+  if k /= trunc(k);
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp;
+  endif;
+
+  if rows(SIGMA) /= k or cols(SIGMA) /= k;
+    ERRORLOG "error: Wrong size format of the SIGMA matrix.";
+    call pause(2);
+    retp;
+  endif;
+
+  if p == 0;
+    p = 1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Pchol = chol(SIGMA)';
+  trap oldtrap,1;
+  if scalerr(Pchol);
+    ERRORLOG "error: SIGMA is not a positive definite matrix.";
+    call pause(2);
+    retp;
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+
+  w0 = (p+q)*k;
+  A_i = eye(w0);
+  PHI = J*A_i*H;
+  THETA = PHI*Pchol;
+  S = 0;
+
+  i = 1;
+  do until i > order;
+    S = S + THETA^2;
+    OMEGA = S./sumc(S');
+    call varput(OMEGA,"ERROR"$+ftos(i,"%lf",1,0));
+    A_i = A_i*A;
+    PHI = J*A_i*H;
+    THETA = PHI*Pchol;
+    i = i+1;
+  endo;
+
+  retp;
+endp;
+
+
+/*
+** Responses to Forecast Errors
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag
+*/
+
+
+/*
+** arma_impulse
+*/
+
+proc (0) = arma_impulse(beta,p,q,order);
+  local Np,w0,k;
+  local A,J,H,A_i,PHI,i,PSI;
+
+  if p == 0 and q == 0;
+    retp;
+  endif;
+
+  Np = rows(beta);
+  w0 = p+q; k = sqrt(np/w0);
+
+  if k /= trunc(k);
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp;
+  endif;
+
+  if p == 0;
+    p = 1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+
+  w0 = (p+q)*k;
+  A_i = eye(w0);
+  PSI = 0;
+
+  i = 0;
+  do until i > order;
+    PHI = J*A_i*H;
+    PSI = PSI + PHI;
+    call varput(PHI,"IMPULSE"$+ftos(i,"%lf",1,0));
+    call varput(PSI,"_IMPULSE"$+ftos(i,"%lf",1,0));
+    A_i = A_i*A;
+    i = i+1;
+  endo;
+
+  retp;
+endp;
+
+
+/*
+** Responses to Orthogonal Impulses
+**
+** LUTKEPOHL [1991], Introduction to Multiple Time Series Analysis,
+** Berlin: Springer-Verlag
+*/
+
+/*
+** arma_orthogonal
+*/
+
+proc (0) = arma_orthogonal(beta,p,q,SIGMA,order);
+  local Np,w0,k;
+  local A,J,H,A_i,PHI,i,THETA,KSI,Pchol,oldtrap;
+
+  if p == 0 and q == 0;
+    retp;
+  endif;
+
+  Np = rows(beta);
+  w0 = p+q; k = sqrt(np/w0);
+
+  if k /= trunc(k);
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    call pause(2);
+    retp;
+  endif;
+
+  if p == 0;
+    p = 1;
+    beta = zeros(k^2,1)|beta;
+  endif;
+
+  if q == 0;
+    q = 1;
+    beta = beta|zeros(k^2,1);
+  endif;
+
+  oldtrap = trapchk(1);
+  trap 1,1;
+  Pchol = chol(SIGMA)';
+  trap oldtrap,1;
+  if scalerr(Pchol);
+    ERRORLOG "error: SIGMA is not a positive definite matrix.";
+    call pause(2);
+    retp;
+  endif;
+
+  {A,J,H} = arma_to_VAR1(beta,p,q);
+
+  w0 = (p+q)*k;
+  A_i = eye(w0);
+  KSI = 0;
+
+  i = 0;
+  do until i > order;
+    PHI = J*A_i*H;
+    THETA = PHI*Pchol;
+    KSI = KSI + THETA;
+    call varput(THETA,"IMPULSE"$+ftos(i,"%lf",1,0));
+    call varput(KSI,"_IMPULSE"$+ftos(i,"%lf",1,0));
+    A_i = A_i*A;
+    i = i+1;
+  endo;
+
+  retp;
+endp;
+
+
+/*
+** State Space Form of vector ARMA processes
+*/
+
+
+/*
+** arma_to_SSM
+*/
+
+proc (7) = arma_to_SSM(beta,p,q,SIGMA);
+  local Np,K,w;
+  local A,J,HH;
+  local Z,d,H,T,c,R,QQ;
+
+  if p == 0 and q == 0;
+    retp(error(0));
+  endif;
+
+  Np = rows(beta);
+  w = p+q; K = sqrt(np/w);
+
+  if K /= trunc(K);
+
+    ERRORLOG "error: Wrong size format of the beta vector.";
+    end;
+
+  endif;
+
+  {A,J,HH} = arma_to_VAR1(beta,p,q);
+
+  /* matrices T,c,R,QQ */
+
+  T = A;
+  c = zeros(rows(T),1);
+  R = HH;
+  QQ = SIGMA;
+
+  /* matrices Z,d,H */
+
+  H = zeros(K,K);
+  d = zeros(K,1);
+  Z = J;
+
+  retp(Z,d,H,T,c,R,QQ);
+endp;
+
+
+/*
+** Hankel Matrix
+**
+** AOKI [1987], State Space Modeling of Time Series,
+** Berlin Heidelberg: Springer-Verlag, pages 254-255
+*/
+
+proc (1) = Hankel(y,J);
+  local y_,K,T,Yh,s,H_,H,i;
+
+  y_ = packr(y);
+  K = cols(y_);
+  T = rows(y_);
+
+  y_ = zeros((2*J-1)*K,K)|y_;
+  Yh = ones(T+(2*J-1)*K,(2*J-1)*K)*~y_;
+  s = seqa(-1,-1,(2*J-1)*K).*.ones(K,1);
+  Yh = shiftr(Yh',s,0);
+  H_ = y_'*Yh'; H_ = H_/T;
+
+  H = zeros(K*J,K*J);
+  i = 1;
+  do until i>J;
+    H[1+(i-1)*K:i*K,.] = H_[.,1+(i-1)*K:(i+J-1)*K];
+    i = i+1;
+  endo;
+
+  retp(H);
+endp;

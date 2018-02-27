@@ -1,0 +1,51 @@
+
+acv0
+      computed with arma_autocov         computed with sgf_SSM    
+
+      0.13123055      0.066098146       0.13123055      0.066098146 
+     0.066098146       0.18130995      0.066098146       0.18130995 
+
+acv1
+      computed with arma_autocov         computed with sgf_SSM    
+
+     0.072225091      0.051180068      0.072225091      0.051180068 
+      0.10359757       0.14299363       0.10359757       0.14299363 
+
+acv2
+      computed with arma_autocov         computed with sgf_SSM    
+
+     0.046472302      0.039889397      0.046472302      0.039889397 
+      0.11349646       0.10849338       0.11349646       0.10849338 
+
+acv3
+      computed with arma_autocov         computed with sgf_SSM    
+
+     0.034585797      0.030794036      0.034585797      0.030794036 
+     0.093393422      0.082997465      0.093393422      0.082997465 
+
+
+Press any key to continue...
+
+acr0
+      computed with arma_autocov         computed with sgf_SSM    
+
+       1.0000000       0.42851001        1.0000000       0.42851001 
+      0.42851001        1.0000000       0.42851001        1.0000000 
+
+acr1
+      computed with arma_autocov         computed with sgf_SSM    
+
+      0.55036796       0.33179708       0.55036796       0.33179708 
+      0.67161634       0.78866948       0.67161634       0.78866948 
+
+acr2
+      computed with arma_autocov         computed with sgf_SSM    
+
+      0.35412715       0.25860039       0.35412715       0.25860039 
+      0.73579021       0.59838622       0.73579021       0.59838622 
+
+acr3
+      computed with arma_autocov         computed with sgf_SSM    
+
+      0.26354988       0.19963575       0.26354988       0.19963575 
+      0.60546353       0.45776562       0.60546353       0.45776562 

@@ -1,0 +1,296 @@
+/*
+** cmlsupr.src    CMLSupreme - Constrained Seemingly Unrelated Poisson
+**                             Regression Model
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+**  FORMAT:     { bg,vc,llik } = CMLSupreme(dataset,dep1,dep2,ind1,ind2);
+**
+**  INPUT:
+**      dataset = name of Gauss dataset or name of matrix in memory
+**      dep1    = first dependent variable name or column number
+**      dep2    = second dependent variable name or column number
+**      ind1    = vector of independent variable names or column numbers
+**                for first dependent variable
+**      ind2    = vector of independent variable names or column numbers
+**                for second dependent variable
+**
+**  OUTPUT:
+**      bg    = vector of effect parameters that maximize the likelihood
+**             on top of parameter(s) corresponding to vind.
+**             PARAMETERIZATION: bg=b|g;
+**                 E(dep1) = exp(ind1*b)
+**                 E(dep2) = exp(ind2*g)
+**                 xi = constant covariance parameter.
+**      vc   = variance-covariance matrix of b
+**      llik = value of the log-likelihood at the maximum
+**
+**  GLOBALS:
+**
+**  _cmlc_Inference   = CML for constrained maximum likelihood (default)
+**                    = BOOT for bootstrapped estimates
+**                    = BAYES for Bayesian inference
+**
+**      _cmlc_Start   choose method of calculating starting values.
+**                     0 = LS (default),
+**                     1 = vector stored in _cmcl_StartValues,
+**                     2 = rndu-0.5,
+**                     3 = zeros, or set to vector
+**
+**      __output    1 = print output to screen (default),
+**                  0 = do not print to screen
+**
+**  OTHER GLOBALS:
+**      see CML
+**
+**  EXAMPLE:
+**      dep1 = { warsz };
+**      dep2 = { coups };
+**      ind1 = { unemploy, inflation };
+**      ind2 = { unemploy, gnp };
+**      dataset = "sample";
+**      call CMLSupreme(dataset,dep1,dep2,ind1,ind2);
+**
+**  REFERENCE:  Gary King, 1989. "A Seemingly Unrelated Poisson Regression
+**              Model," SOCIOLOGICAL METHODS AND RESEARCH. 17, 3 (February):
+**              235-255.
+*/
+#include cml.ext
+#include gauss.ext
+#include cmlcount.ext
+
+
+proc 3 = CMLSupreme(dataset,dep1,dep2,ind1,ind2);
+    local b,logl,g,vc,vars,st,ret;
+    clearg _cmlc_c1,_cmlc_c2;
+    _cml_CovPar = 3;
+    _cmlc_fn = dataset;
+    if (dep1$==0) or (dep2$==0);
+        errorlog "DEP1 and DEP2 must = variable name or number";
+        end;
+    endif;
+    if type(dataset) /= 13;
+           if (maxc(ind1) > cols(dataset)) or
+              (maxc(ind2) > cols(dataset)) or
+              (dep1 > cols(dataset)) or (dep2>cols(dataset));
+              if not trapchk(4);
+                  errorlog "If DATASET=matrix, DEP1,DEP2,IND1,IND2 must"\
+                     " be column numbers of the input matrix.\g";
+                  end;
+              endif;
+              retp(error(0),error(0),error(0));
+           endif;
+    endif;
+    vars = dep1|dep2;
+    if ind1==0;
+        _cmlc_c1 = 0;
+    else;
+        _cmlc_c1 = seqa(3,1,rows(ind1));
+        vars = vars|ind1;
+    endif;
+    if ind2==0;
+        _cmlc_c2 = 0;
+    else;
+        _cmlc_c2 = seqa(rows(vars)+1,1,rows(ind2));
+        vars = vars|ind2;
+    endif;
+
+    st = _cmlc_svsup(dataset,dep1,dep2,ind1,ind2);
+    if __title $== "";
+       __title = "Seemingly Unrelated Poisson Regression Model";
+    endif;
+
+    local infm,inf0,lcInf;
+    infm = { CML, BOOT, BAYES, FAST };
+    inf0 = { 1, 2, 3, 4 };
+    LcInf = _cml_check(_cmlc_Inference,1,infm,inf0,1);
+    if _cmlc_fast == 0;
+        if LcInf == 1;
+             { b,logl,g,vc,ret } = cml(dataset,vars,&_cmlc_lisup,st);
+        elseif LcInf == 2;
+            { b,logl,g,vc,ret } = cmlboot(dataset,vars,&_cmlc_lisup,st);
+        elseif LcInf == 3;
+            { b,logl,g,vc,ret } = cmlbayes(dataset,vars,&_cmlc_lisup,st);
+        endif;
+    else;
+        if LcInf == 1;
+             { b,logl,g,vc,ret } = fastcml(dataset,vars,&_cmlc_lisup,st);
+        elseif LcInf == 2;
+            { b,logl,g,vc,ret } = fastcmlboot(dataset,vars,&_cmlc_lisup,st);
+        elseif LcInf == 3;
+            { b,logl,g,vc,ret } = fastcmlbayes(dataset,vars,&_cmlc_lisup,st);
+        endif;
+    endif;
+    if ret /= 0;
+        errorlog "ERROR: Model estimation failed.";
+        end;
+    endif;
+    if type(dataset)==13;
+        vars = "beta1";
+        if ind1/=0;
+            vars = vars|ind1;
+        endif;
+        vars = vars|"beta2";
+        if ind2/=0;
+            vars = vars|ind2;
+        endif;
+    else;
+        vars = "beta1";
+        if ind1/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind1),1))$+_cmlc_ftosm(ind1,2));
+        endif;
+        vars = vars|"beta2";
+        if ind2/=0;
+            vars = vars|
+            ((0 $+ "Col." $+ zeros(rows(ind2),1))$+_cmlc_ftosm(ind2,2));
+        endif;
+    endif;
+    _cmlc_vr = vars|"xi";
+    _cmlc_dp = dep1|dep2;
+    ndpclex;
+    retp(b,vc,logl*_cml_NumObs);
+endp;
+
+
+
+
+
+
+proc _cmlc_svsup(dataset,dep1,dep2,ind1,ind2);
+    local b,b0,b1,pars;
+    if _cmlc_Dispersion == 3;
+        _cmlc_Dispersion = .5;
+    endif;
+    pars = 3;
+    if ind1/=0;
+        pars = pars+rows(ind1);
+    endif;
+    if ind2/=0;
+        pars = pars+rows(ind2);
+    endif;
+    if _cmlc_Start==0;
+        if ind1==0;
+            b0 = 0;
+        else;
+            b0 = clols(dataset,dep1,ind1);
+        endif;
+        if ind2==0;
+            b1 = 0;
+        else;
+            b1 = clols(dataset,dep2,ind2);
+        endif;
+        b = b0|b1|_cmlc_Dispersion;
+    elseif _cmlc_Start==1;
+        b = _cmlc_StartValues;
+        if rows(b)/=pars;
+            "b is the wrong size for _cmlc_Start\g";
+            end;
+        endif;
+    elseif _cmlc_Start==2;
+        if _cml_RandType;
+            { b,_cml_state } = rndLCu(pars,1,_cml_state);
+        else;
+            { b,_cml_state } = rndKMu(pars,1,_cml_state);
+        endif;
+        b = b - 0.5;
+    elseif _cmlc_Start==3;
+        b = zeros(pars,1);
+    else;
+        b = _cmlc_Start;
+        if rows(b)/=pars;
+            errorlog "rows(_cmlc_Start) is wrong.\g";
+            end;
+        endif;
+    endif;
+    retp(b);
+endp;
+
+proc _cmlc_tays(x,j,lrg);
+    local k,rj,res;
+    rj = rows(j);
+    res = zeros(rj,1);
+    if maxc(j)<=20;
+        res = ((x.*lrg).^j)./j!;
+        goto done;
+    endif;
+    k = 1;
+    do while k<=rj;
+        if j[k,1]==0;
+            res[k,1] = 1;
+        else;
+            res[k,1] = prodc(x/seqa(1,1,j[k,1]));
+        endif;
+        k = k+1;
+    endo;
+done:
+
+    retp(res);
+endp;
+
+proc _cmlc_lisup(b,dta);
+    local n,i,res,b1,b2,b3,t,boundy,boundn,penalty,x1,x2,y1,y2,k1,k2,miny,
+        j,lrg,e1,e2,t1,t2,d1,d2;
+    n = rows(dta);
+    y1 = dta[.,1];
+    y2 = dta[.,2];
+    x1 = ones(n,1);
+    if _cmlc_c1/=0;
+        x1 = x1~dta[.,_cmlc_c1];
+    endif;
+    x2 = ones(n,1);
+    if _cmlc_c2/=0;
+        x2 = x2~dta[.,_cmlc_c2];
+    endif;
+    k1 = cols(x1);
+    k2 = cols(x2);
+
+    b1 = b[1:k1];
+    b2 = b[k1+1:k1+k2];
+    b3 = b[k1+k2+1];
+    res = zeros(n,1);
+    i = 1;
+    do while i<=n;
+        miny = minc(y1[i,1]|y2[i,1]);
+        j = seqa(0,1,(miny+1));
+        lrg = ones(miny+1,1);
+        e1 = exp(x1[i,.]*b1);
+        e2 = exp(x2[i,.]*b2);
+        t1 = (e1-b3);
+        t2 = (e2-b3);
+        d1 = y1[i,1]-j;
+        d2 = y2[i,1]-j;
+        res[i,1] = sumc(_cmlc_tays(b3,j,lrg).*_cmlc_tays(t1,d1,lrg)
+                       .*_cmlc_tays(t2,d2,lrg));
+        i = i+1;
+    endo;
+
+    boundy = (res.<=0);
+    boundn = (res.>0);
+    if sumc(boundy)>=1;
+        locate 2,40;
+        "Penalty function used";
+    endif;
+    t = (res.*boundn)+boundy;
+
+    penalty = (999+999*((abs(boundy.*res)+1)^2)).*boundy;
+
+    t = b3-exp(x1*b1)-exp(x2*b2)+ln(t)-penalty;
+    retp(t);
+endp;
+

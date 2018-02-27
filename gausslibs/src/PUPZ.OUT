@@ -1,0 +1,10 @@
+True model is not cointegrated.
+PU statistic for no-cointegration       6.6349759 
+5% critical value   =        25.877200 
+Accept null of no-cointegration.
+ 
+True model is co-integrated.
+PZ statistic for no-cointegration       98.621634 
+5% critical value   =        40.502800 
+Reject null of no-cointegration.
+run sj.ex;

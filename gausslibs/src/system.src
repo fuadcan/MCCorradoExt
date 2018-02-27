@@ -1,0 +1,48 @@
+/*
+** system.src - Miscellaneous functions - 32-bit version.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS-386.
+**
+**> maxvec
+**
+**  Purpose:  returns maximum vector length.
+**
+**  Format:    y = maxvec;
+**
+**  Remarks:   For GAUSS-386 you can use 536870910.
+**
+**             For GAUSS-386 VM a smaller value like 20000-30000 is
+**             necessary to prevent excessive disk thrashing. The trick
+**             is to allow the algorithm making the disk reads to execute
+**             entirely in core. NEVER use 8190 or you will cause your
+**             programs to think they are running under the 16-bit version.
+*/
+
+#iflight
+
+proc maxvec;
+    retp(8192);      /* GAUSS Light version -- do not modify */
+endp;
+
+#else
+
+#include system.ext
+
+proc maxvec;
+    retp(__maxvec);
+endp;
+
+#endif

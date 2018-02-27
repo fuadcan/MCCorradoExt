@@ -1,0 +1,629 @@
+/*
+** spectral.src - Time Series Modelling.
+** (C) Copyright 1996 by Global Design/Thierry Roncalli.
+** All Rights Reserved.
+**
+**  Format                        Purpose                                 Line
+** ============================================================================
+**  d = fourier(x);               Compute the Fourier transform of
+**                                a univariate time series                 36
+**
+**  x = inverse_fourier(d);       Inverse Fourier transform                57
+**
+**  {dx,dy} = fourier2(x,y);      Compute the Fourier transform of two     78
+**                                real time series
+**
+**  {lambda,I} = PDGM(x);         Compute the periodogram of a
+**                                univariate time series                  101
+**
+**  {lambda,Ixy} = CPDGM(x,y);    Compute the cross-periodogram between
+**                                two time series                         120
+**
+**  {w,alpha,phi} = CSpectrum(Ix,Iy,Ixy);
+**                                Compute the coherency, the cross-amplitude
+**                                spectra and the phase spectra between
+**                                two time series                         140
+**
+**  fs = smoothing(f);            Compute a data windowing in the
+**                                frequency domain                        165
+**
+**  {lambda,I} = PDGM2(x);        Compute the periodogram of a
+**                                multivariate time series                201
+*/
+
+
+/*
+** fourier
+**
+** Purpose: Computes the fourier transform of a data vector
+**
+** Format:  d = fourier(x);
+**
+** Input:   x - Nobs*1 vector, data
+**
+** Output:  d - Nstar*1 vector, the Fourier transform
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+**
+** remarks:
+**          The scale factor is 1
+**
+*/
+
+
+/*
+** inverse_fourier
+**
+** Purpose: Computes the inverse Fourier transform
+**
+** Format:  x = inverse_fourier(d);
+**
+** Input:   d - Nstar*1 vector, data
+**
+** Output:  d - Nstar*1 vector, the inverse Fourier transform
+**
+** Globals: _fourier - 1 for the inverse discrete transform (dffti)
+**                     - or -
+**                     0 for the inverse fast transform (ffti)
+**
+** remarks:
+**          The scale factor is 1
+**
+*/
+
+
+/*
+** fourier2
+**
+** Purpose: Compute the Fourier transform of two REAL time series
+**
+** Format:  {dx,dy} = fourier2(x,y);
+**
+** Input:   x - Nobs*1 vector, REAL data
+**          y - Nobs*1 vector, REAL data
+**
+** Output:  dx - Nstar*1 vector, the Fourier transform of the x serie
+**          dy - Nstar*1 vector, the Fourier transform of the y serie
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+**
+** remarks:
+**          The scale factor is 1
+**
+*/
+
+
+/*
+** PDGM
+**
+** Purpose: Compute the periodogram of an univariate time series
+**
+** Format:  {lambda,I} = PDGM(x);
+**
+** Input:   x - Nobs*1 vector, data
+**
+** Output:  lambda - Nstar*1 vector, the Fourier frequencies lambda_j
+**               I - Nstar*1 vector, the periodogram I(lambda_j)
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+**
+*/
+
+
+/*
+** CPDGM
+**
+** Purpose: Compute the cross-periodogram between two times series
+**
+** Format:  {lambda,Ixy} = CPDGM(x,y);
+**
+** Input:   x - Nobs*1 vector, first time series
+**          y - Nobs*1 vector, second time series
+**
+** Output:  lambda - Nstar*1 vector, the fourier frequencies lambda_j
+**              Ix - Nstar*1 vector, the cross-periodogram   Ixy(lambda_j)
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+**
+*/
+
+
+/*
+** CSpectrum
+**
+** Purpose: Compute the coherency, the cross-amplitude spectra and
+**          the phase spectra between two time series
+**
+** Format:  {w,alpha,phi} = CSpectrum(Ix,Iy,Ixy);
+**
+** Input:   Ix - Nstar*1 vector, the periodogram (or smoothed periodogram)
+**                               of the X series
+**          Iy - Nstar*1 vector, the periodogram (or smoothed periodogram)
+**                               of the Y series
+**         Ixy - Nstar*1 vector, the cross-periodogram (or smoothed
+**                               cross-periodogram) between the X and Y series
+**
+** Output:  w - Nstar*1 vector, the coherency omega(lambda_j)
+**      alpha - Nstar*1 vector, the cross-amplitude spectra alpha(lambda_j)
+**        phi - Nstar*1 vector, the phase spectra phi(lambda_j)
+**
+** Remarks: We can use the smoothed spectra in place of periodogram
+**          and cross-periodogram
+**
+*/
+
+
+/*
+** Smoothing
+**
+** Purpose: Compute a data windowing in the FREQUENCY domain
+**
+** Format:  fs = Smoothing(f);
+**
+** Input:   f - Nstar*1 vector, data spectra
+**                              (periodogram, cross-periodogram, etc)
+**
+** Output:  fs - Nstar*1 vector, the smoothed spectra
+**
+** Globals: _smoothing - 4*1 vector, controls the different parameters of the
+**                                   smoothing
+**                       _smoothing[1] - window width M
+**                       _smoothing[2] - lag window generator
+**                                       = 0, user
+**                                       = 1, rectangular
+**                                       = 2, Bartlett
+**                                       = 3, Daniell
+**                                       = 4, Tukey
+**                                       = 5, Parzen
+**                                       = 6, Bartlett-Priestley
+**                       _smmothing[3] - treatment of low and high frequencies
+**                                       = 1, first method
+**                                       = 2, second method
+**                       _smoothing[4] - parameter a for the Tukey lag window
+**                       default = {0,1,1,0.23}
+**          _window - scalar 0, if we don't employ user window
+**                    (2*M+1)*1 vector, the user lag window generator
+**
+**          _window - (2*M+1)*1 vector, the lag window generator
+**
+*/
+
+
+/*
+** PDGM2
+**
+** Purpose: Compute the periodogram of a multivariate time series
+**
+** Format:  {lambda,I} = PDGM(x);
+**
+** Input:   x - Nobs*K matrix, data
+**
+** Output:  lambda - Nstar*1 vector, the Fourier frequencies lambda_j
+**               I - Nstar*K^2 matrix, the periodogram I(lambda_j)
+**
+** Globals: _fourier - 1 for the discrete transform (dfft)
+**                     - or -
+**                     0 for the fast transform (fft)
+**
+** Remarks: The K*K matrices I(lambda_j) are stored in the following way:
+**                       I[j,.] = vec(I(lambda_j)).';
+**          To obtain I(lambda_j), you may use the xpnd2 procedure:
+**                       I(lambda_j) = xpnd2(I,j);
+**
+*/
+
+
+/*
+** Fourier transform
+*/
+
+
+/*
+** fourier
+*/
+
+proc (1) = fourier(x);
+  local d;
+  if _fourier == 1;
+    d = dfft(x);
+  else;
+    d = fft(x);
+  endif;
+  d = rows(d)*d;
+  retp(d);
+endp;
+
+
+/*
+** inverse_fourier
+*/
+
+proc (1) = inverse_fourier(d);
+  local x;
+  if _fourier == 1;
+    x = dffti(d);
+  else;
+    x = ffti(d);
+  endif;
+  x = x/rows(x);
+  retp(x);
+endp;
+
+
+/*
+** fourier2
+*/
+
+proc (2) = fourier2(x,y);
+  local z,d,N,dx,dy;
+  local c1,c2,d_;
+
+  if ( cols(x) /= cols(y) ) or ( cols(x) /= 1 ) or ( rows(x) /= rows(y) );
+    ERRORLOG "error: the dimensions of X and Y must be N*1.";
+    retp(error(0),error(0));
+  endif;
+
+  if iscplx(x~y);
+    ERRORLOG "error: X and Y must be REAL data vectors.";
+    retp(error(0),error(0));
+  endif;
+
+
+  z = complex(x,y);
+  d = fourier(z);
+
+  N = rows(d);
+  dx = zeros(N,1); dy = dx;
+
+  dx[1] = real(d[1]);
+  dy[1] = imag(d[1]);
+
+  c1 = complex(0.5,0); c2 = complex(0,-0.5);
+
+  d = trimr(d,1,0);
+  d_ = rev(d);
+  d_ = conj(d_);
+
+  dx[2:N] = c1*(d+d_);
+  dy[2:N] = c2*(d-d_);
+
+  retp(dx,dy);
+endp;
+
+
+/*
+** fourier3
+*/
+
+proc (2) = fourier3(x);
+  local N,K,D,i,x1,x2,d1,d2,Nstar,lambda;
+
+  x = packr(x);
+  N = rows(x);
+  K = cols(x);
+  D = {};
+
+  if iscplx(x);
+
+    i = 1;
+    do until i > K;
+      x1 = x[.,i];
+      d1 = fourier(x1);
+      D = D~d1;
+      i = i + 1;
+    endo;
+
+  else;
+
+    i = 1;
+    do until i > K-1;
+      x1 = x[.,i];
+      x2 = x[.,i+1];
+      {d1,d2} = fourier2(x1,x2);
+      D = d~d1~d2;
+      i = i+2;
+    endo;
+
+    if i == K;
+      x1 = x[.,K];
+      d1 = fourier(x1);
+      D = D~d1;
+    endif;
+
+  endif;
+
+  Nstar = rows(D);
+  lambda = 2*pi*seqa(0,1,Nstar)/Nstar;
+
+  retp(lambda,D);
+endp;
+
+
+/*
+** Periodogram
+**
+** PRIESTLEY [1994], Spectral Analysis and Times Series,
+** London: Academic Press, page 395
+**
+** Note: The scaling factor is 1/N.
+*/
+
+
+/*
+** PDGM
+*/
+
+proc (2) = PDGM(x);
+  local N,d,T,I,lambda;
+
+  if cols(x) /= 1;
+    ERRORLOG "error: Wrong size format of the x vector.";
+    call pause(2);
+    retp(error(0),error(0));
+  endif;
+
+  x = packr(x);
+  N = rows(x);
+  d = fourier(x); T=rows(d);
+  I = abs(d)^2; I= I/N;
+  lambda = 2*pi*seqa(0,1,T)/T;
+  retp(lambda,I);
+endp;
+
+
+/*
+** PDGM2
+*/
+
+proc (2) = PDGM2(x);
+  local N,K,lambda,D,Nstar,Ix,j,Dj;
+
+  x = packr(x);
+  N = rows(x);
+  K = cols(x);
+
+  {lambda,D} = fourier3(x);
+  Nstar = rows(D);
+
+  Ix = zeros(Nstar,K^2);
+
+  j = 1;
+  do until j > Nstar;
+    Dj = D[j,.];
+    Dj = Dj.';
+    Ix[j,.] = vec(Dj*Dj').';
+    j = j + 1;
+  endo;
+
+  Ix = Ix/N;
+
+  retp(lambda,Ix);
+endp;
+
+
+/*
+** Cross-periodogram
+**
+** PRIESTLEY [1994], Spectral Analysis and Times Series,
+** London: Academic Press, page 694
+**
+** Note: The scaling factor is 1/N.
+*/
+
+/*
+** CPDGM
+*/
+
+proc (2) = CPDGM(x,y);
+  local data,N,dx,dy,T,Ixy,lambda;
+
+  if ( cols(x) /= 1 ) or ( cols(y) /= 1) or ( rows(x) /= rows(y) );
+    ERRORLOG "error: Wrong size format of the x or y vectors.";
+    call pause(2);
+    retp(error(0),error(0));
+  endif;
+
+  data = packr(x~y); x = data[.,1]; y = data[.,2];
+  N = rows(x);
+  dx = fourier(x); dy = fourier(y); T=rows(dx);
+  Ixy = dx.*conj(dy); Ixy = Ixy/N;
+  lambda = 2*pi*seqa(0,1,T)/T;
+  retp(lambda,Ixy);
+endp;
+
+
+/*
+** Coherency, cross-amplitude spectra and phase spectra
+**
+** PRIESTLEY [1994], Spectral Analysis and Times Series,
+** London: Academic Press, page 660
+*/
+
+
+/*
+** Cspectrum
+*/
+
+proc (3) = CSpectrum(Ix,Iy,Ixy);
+  local err,N;
+  local w,alpha,phi;
+
+  err = error(0);
+  N = rows(Ix);
+
+  if ( rows(Iy) /= N ) or ( rows(Ixy) /= N) ;
+    ERRORLOG "error: Ix, Iy and Ixy must have the same dimension.";
+    call pause(2);
+    retp(err,err,err,err,err);
+  endif;
+
+  if ismiss(Ix~Iy~Ixy);
+    ERRORLOG "error: Missing values have been encoutered.";
+    retp(err,err,err,err,err);
+  endif;
+
+  w = Ixy./sqrt(Ix.*Iy);
+  {alpha,phi} = topolar(w);
+
+  retp(w,alpha,phi);
+endp;
+
+
+/*
+** Data windowing (or smoothing)
+**
+** PRIESTLEY [1994], Spectral Analysis and Times Series,
+** London: Academic Press, pages 446-447 and chapter 7
+*/
+
+
+/*
+** Smoothing
+*/
+
+proc _bartlett(M);
+  local u,w;
+  u = seqa(-M,1,2*M+1)/M;
+  w = 1-abs(u);
+  retp(w);
+endp;
+
+proc _parzen(M);
+  local u,k,E,w;
+  u = seqa(-M,1,2*M+1)/M;
+  k = abs(u);
+  E = k.<0.5;
+  w = E.*(1-6*k^2+6*k^3) + (1-E).*(2*(1-k)^3);
+  retp(w);
+endp;
+
+proc _tukey(M);
+  local a,u,w;
+  a = _smoothing[4];
+  if a<0 or a>0.25;
+    retp(error(0));
+  endif;
+  u = seqa(-M,1,2*M+1)/M;
+  w = 1 - 2*a + 2*a*cos(pi*u);
+  retp(w);
+endp;
+
+proc _rectangular(M);
+  local w;
+  w = ones(2*M+1,1);
+  retp(w);
+endp;
+
+proc _daniell(M);
+  local u,w;
+  u = seqa(-M,1,2*M+1)/M;
+  u = miss(u,0);
+  w = sin(pi*u)./(pi*u);
+  w[M+1] = 1;
+  retp(w);
+endp;
+
+proc _priestley(M);
+  local u,x,w;
+  u = seqa(-M,1,2*M+1)/M;
+  u[M+1] = 1;
+  x = pi*u;
+  w = 3*(sin(x)./x-cos(x));
+  w = w./(x^2);
+  w[M+1] = 1;
+  retp(w);
+endp;
+
+proc (1) = smoothing(I);
+  local Nstar,Lw,Tw,Mw,M,N,w,Is,X,Is_;
+  local ws,u;
+
+  Nstar = rows(I);
+  Lw = _smoothing[1];
+  Tw = _smoothing[2];
+  Mw = _smoothing[3];
+
+  if Lw > 0;
+    M = floor(Lw);
+  else;
+    M = floor(0.375*sqrt(Nstar));
+  endif;
+
+  N = 2*M+1;
+  Is = zeros(Nstar,1);
+
+  if Tw == 6;
+    w = _priestley(M);
+  elseif Tw == 5;
+    w = _parzen(M);
+  elseif Tw == 4;
+    w = _tukey(M);
+  elseif Tw == 3;
+    w = _daniell(M);
+  elseif Tw == 2;
+    w = _bartlett(M);
+  elseif Tw == 1;
+    w = _rectangular(M);
+  else;
+    w = _window;
+    N = rows(w);
+    M = (N-1)/2;
+    if not ( ( N%2 == 1) and  (w >= zeros(N,1)) and (w /= 0) );
+
+      ERRORLOG "The procedure computes a user lag window generator.";
+      ERRORLOG "error: Invalid vector _window.";
+      retp(error(0));
+
+    endif;
+  endif;
+
+  /* Until the version 1.2.5, the code is */
+
+  X = I;
+
+  if Mw == 1;
+
+    ws = sumc(w);
+    Is_ = w[M+1]*I[2] + 2*w[M+2:N]'I[3:M+2];
+    Is_ = Is_/ws;
+    X[1] = Is_;
+    X = X[Nstar-M+1:Nstar]|X|X[1:M];
+    Is = Linear_Filter(X,w,-M,M);
+    Is = trimr(Is,M,M);
+    Is = Is/ws;
+    Is[1] = Is_;
+
+  else;
+
+    X[1] = 0;
+    X = zeros(M,1)|X|zeros(M,1);
+    Is = Linear_Filter(X,w,-M,M);
+    Is = trimr(Is,M,M);
+    X = zeros(M+1,1)|ones(Nstar-1,1)|zeros(M,1);
+    ws = Linear_Filter(X,w,-M,M);
+    ws = trimr(ws,M,M);
+    Is = Is./ws;
+
+    /* Sometimes,... */
+
+    /*
+      Is[1] = (w[M+1:N-1]'I[2:M+1])/(sumc(w[M+1:N-1]));
+    */
+
+  endif;
+
+  _window = w;
+
+  retp(Is);
+endp;
+
+
+

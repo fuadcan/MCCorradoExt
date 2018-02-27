@@ -1,0 +1,90 @@
+/*
+** qrsol.src - Procedures related to the QR decomposition.
+** (C) Copyright 1988-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+** These functions require GAUSS 3.1.1
+**
+**  Format                   Purpose                             Line
+** ------------------------------------------------------------------
+**   x = QRSOL(b,R);        QR Solve where R is upper triangular   26
+**   x = QRTSOL(b,L);       QR Solve where L is lower triangular   59
+*/
+
+/*
+**> qrsol
+**
+**  Purpose:    Computes the solution of R x = b where R is an
+**              upper triangular matrix.
+**
+**  Format:     x = qrsol(b,R);
+**
+**  Input:      R    PxP upper triangular matrix.
+**
+**              b    PxK matrix.
+**
+**  Output:     x    PxK matrix.
+**
+**  Remarks:    qrsol applies a backsolve to
+**
+**                    R x = b
+**
+**              to solve for x.  Generally R will be the R matrix from
+**              a qr factorization.  It may be used, however, in any
+**              situation where R is upper triangular.
+**              If b has more than one column, each column will be
+**              solved for separately, i.e., qrsol will apply a back-
+**              solve to R x[.,i] = b[.,i].
+**
+**   See Also: qqr, qr, qtyr, qrtsol
+**
+*/
+
+proc qrsol(b,r);
+    retp(utrisol(b,r));
+endp;
+
+/*
+**> qrtsol
+**
+**  Purpose:    Computes the solution of L x = b where L is a
+**              lower triangular matrix.
+**
+**  Format:     x = qrtsol(b,L);
+**
+**  Input:      L    PxP lower triangular matrix.
+**
+**              b    PxK matrix.
+**
+**  Output:     x    PxK matrix.
+**
+**  Remarks:    qrtsol applies a forward solve to
+**
+**                    L x = b
+**
+**              to solve for x.  Generally L will be the R' matrix from
+**              a QR factorization.  It may be used, however, in any
+**              situation where L is lower triangular.
+**              If b has more than one column, each column will be
+**              solved for separately, i.e., qrtsol will apply a forward
+**              solve to L x[.,i] = b[.,i].
+**
+**  See Also: qqr, qr, qtyr, qrsol
+**
+*/
+
+proc qrtsol(b,rt);
+     retp(ltrisol(b,rt));
+endp;
+

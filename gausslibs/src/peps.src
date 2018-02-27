@@ -1,0 +1,149 @@
+/*
+** peps.src - Publication Quality Graphics PostScript Support.
+** (C) Copyright 2000, 2001 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**
+**> tkf2eps
+**
+**  Purpose:      Converts .tkf file to Encapsulated PostScript file.
+**
+**  Library:      pgraph
+**
+**  Format:       ret = tkf2eps(tekfile, epsfile);
+**
+**  Input:        tekfile     string, name of .tkf file
+**
+**                epsfile     string, name of Encapsulated PostScript file
+**
+**  Output:       ret         scalar, 0 if successful
+**
+**  Remarks:      The conversion is done using the global parameters in
+**                peps.dec.  You can modify these globally by editing the
+**                .dec file, or locally by setting them in your program
+**                before calling tkf2eps.
+**
+**                See the header of the output Encapsulated PostScript
+**                file and a PostScript manual if you want to modify
+**                these parameters.
+**
+**
+**
+**> tkf2ps
+**
+**  Purpose:      Converts .tkf file to PostScript file.
+**
+**  Library:      pgraph
+**
+**  Format:       ret = tkf2ps(tekfile, psfile);
+**
+**  Input:        tekfile     string, name of .tkf file
+**
+**                psfile      string, name of PostScript file
+**
+**  Output:       ret         scalar, 0 if successful
+**
+**  Remarks:      The conversion is done using the global parameters in
+**                peps.dec.  You can modify these globally by editing the
+**                .dec file, or locally by setting them in your program
+**                before calling tkf2eps.
+**
+**                See the header of the output PostScript file and a
+**                PostScript manual if you want to modify these parameters.
+**
+**
+**
+**> tkf2ps_margin
+**
+**  Purpose:      Converts .tkf file to PostScript file with margin specification
+**
+**  Library:      pgraph
+**
+**  Format:       ret = tkf2ps_margin(tekfile, psfile, margin);
+**
+**  Input:        tekfile     string, name of .tkf file
+**
+**                psfile      string, name of PostScript file
+**
+**                margin      scalar, sets margin in inches
+**
+**  Output:       ret         scalar, 0 if successful
+**
+**  Remarks:      The quantity in the third argument sets all four margins
+**                to that value in inches, top, bottom, left, and right.
+**
+**                The conversion is done using the global parameters in
+**                peps.dec.  You can modify these globally by editing the
+**                .dec file, or locally by setting them in your program
+**                before calling tkf2eps.
+**
+**                See the header of the output PostScript file and a
+**                PostScript manual if you want to modify these parameters.
+*/
+
+
+#include peps.ext
+
+proc tkf2eps(tkffile, epsfile);
+    local boundingbox, translate, rotate;
+
+    if lower(_pqg_ps_Orientation) $== "landscape";
+        boundingbox = { 0, 0, 3119, 4095 };
+        translate = { 0, 0 };
+        rotate = 0;
+    elseif lower(_pqg_ps_Orientation) $== "portrait";
+        boundingbox = { 0, 0, 4095, 3119 };
+        translate = { 0, 4096 };
+        rotate = -90;
+    else;
+        boundingbox = _pqg_eps_BoundingBox;
+        translate = _pqg_eps_Translate;
+        rotate = _pqg_eps_Rotate;
+    endif;
+
+    retp(graphsev3(tkffile, epsfile, _pqg_eps_Scale, translate, rotate,
+        _pqg_ps_Monochrome, _pqg_ps_MinLineWidth, _pqg_ps_WhiteBecomes,
+        _pqg_ps_RGBColors, boundingbox, 102));
+endp;
+
+
+proc tkf2ps_margin(tkffile, psfile, margin);
+    local ymarginpts, scale, translate, rotate;
+
+    if lower(_pqg_ps_Orientation) $== "landscape";
+        scale = reshape((11-2*margin)*72/4096, 2, 1);
+        ymarginpts = (8.5*72-3120*scale[2])/2;
+        translate = ymarginpts/scale[2] | 4095+(72*margin)/scale[1];
+        rotate = -90;
+    elseif lower(_pqg_ps_Orientation) $== "portrait";
+        scale = reshape((11-2*margin)*72/4096, 2, 1);
+        ymarginpts = (8.5*72-3120*scale[2])/2;
+        translate = ymarginpts/scale[2] | (72*margin)/scale[1];
+        rotate = 0;
+    else;
+        scale = _pqg_ps_Scale;
+        translate = _pqg_ps_Translate;
+        rotate = _pqg_ps_Rotate;
+    endif;
+
+    retp(graphsev3(tkffile, psfile, scale, translate, rotate,
+        _pqg_ps_Monochrome, _pqg_ps_MinLineWidth, _pqg_ps_WhiteBecomes,
+        _pqg_ps_RGBColors, 101));
+endp;
+
+
+proc tkf2ps(tkffile, psfile);
+    retp( tkf2ps_margin(tkffile, psfile, 1) );
+endp;
+

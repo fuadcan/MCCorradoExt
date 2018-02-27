@@ -1,0 +1,2337 @@
+weights = zeros(1,1) ;
+DECLARE _NoDet != 0 ;
+DECLARE _Eigerr != 0 ;
+DECLARE _Times  != 1 ;
+proc (8) = cregr(y,x,d,l);
+     local reg ;
+     reg = VARGET("_cregr");
+     local reg:proc ;
+     retp( reg(y,x,d,l) );
+endp ;
+proc (2) = hstat(y,x,p,q,l);
+     local reg ;
+     reg = VARGET("_hstat");
+     local reg:proc ;
+     retp( reg(y,x,p,q,l) );
+endp ;
+/*
+** SJ_CRIT_EIGEN_MAX
+**
+** Purpose:    Returns critical values for the Johansen procedure
+**             Percentiles of the maximum eigen value.
+**
+**             Computed using 8000 iterations and 500 observations.
+**
+** Format:     c-values = c_sja(n,p);
+**
+**             n     -- dimension of the system
+**             p     -- order of the time-polynomoal in the fitted regression
+**
+*/
+proc c_sja(n,p) ;
+     local jc, i ;
+     let jc[35,6] =
+0.000112722 0.00563980  0.0233518    2.85044    3.95282    6.74349
+0.00353381  0.0785061   0.273587    6.48467    8.10581    11.5139
+  0.122658   0.820204    1.45635    9.69231    11.6256    15.5858
+  0.784025    2.16688    3.04997    12.4869    14.4716    18.9033
+   2.04083    3.52774    4.48286    15.0673    17.1803    21.8432
+   3.22600    5.03041    6.07109    17.5541    19.9121    24.6143
+   4.37777    6.44369    7.54971    20.1910    22.7242    27.8821
+   1.05242    1.70458    2.19270    9.39177    11.1404    14.9012
+   2.25148    3.35988    4.09745    12.8635    14.8388    18.4018
+   4.03887    5.37956    6.18791    16.1762    18.2534    22.1725
+   5.48296    7.15227    8.13376    19.1302    21.5503    26.1887
+   6.93317    8.79261    9.96182    22.2015    24.4754    29.2945
+   8.28460    10.5077    11.8946    24.7780    27.4402    32.8270
+   10.0844    12.3492    13.7129    27.2794    29.9303    35.5074
+   3.89153    5.17231    5.96182    15.6326    17.5779    22.1708
+   5.69420    7.28550    8.26520    19.0585    21.1440    26.0117
+   7.65754    9.42600    10.5365    22.2178    24.4821    28.8253
+   9.69571    11.5783    12.7282    25.2348    27.5393    32.7279
+   11.5489    13.7858    15.1060    28.3280    30.8484    36.4080
+   13.4071    15.6125    16.9640    31.0361    33.5647    38.7406
+   15.1762    17.6530    19.2473    33.7858    36.4639    42.3755
+   7.42825    9.24674    10.2424    21.6673    23.9687    28.6447
+   9.68886    11.5503    12.7136    24.8513    27.0734    31.9659
+   11.8104    14.0466    15.3544    28.3580    30.9160    36.3585
+   13.8436    16.5076    17.9035    31.2400    33.7903    39.2630
+   15.9762    18.4863    19.9448    34.3255    36.8009    42.1812
+   17.7324    20.6228    22.1052    37.1262    39.9550    45.7779
+   20.1397    22.6889    24.3679    39.8415    42.9747    48.8794
+   11.4894    13.4245    14.7609    27.6087    30.2195    35.1906
+   13.9084    16.0112    17.4468    30.9372    33.5377    39.2592
+   16.0913    18.5898    19.9206    34.4337    36.8548    41.8969
+   18.3674    21.0154    22.5599    37.3869    40.1017    45.8359
+   20.4908    23.4252    24.8309    40.2284    43.0752    48.7216
+   22.7397    25.5551    27.2737    43.2486    46.4302    52.5507
+   25.1681    27.9686    29.7454    46.2290    49.1314    55.6327 ;
+   if ((p>5) OR (p<-1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   if ((n > 5) OR (n < 1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   i = (n-1)*7 + p + 2 ;
+retp(jc[i,.]');
+endp ;
+/*
+** SJ_CRIT_EIGEN_TRACE
+**
+** Purpose:    Returns critical values for the Johansen procedure
+**             Percentiles of the trace.
+**
+** Format:     c-values = c_sja(n,p);
+**
+**             n     -- dimension of the system
+**             p     -- order of the time-polynomoal in the fitted regression
+**
+*/
+proc c_sjt(n,p) ;
+     local jc, i ;
+     let jc[35,6] =
+0.000112722 0.00563980  0.0233518    2.85044    3.95282    6.74349
+0.00353381  0.0785061   0.273587    6.48467    8.10581    11.5139
+  0.122658   0.820204    1.45635    9.69231    11.6256    15.5858
+  0.784025    2.16688    3.04997    12.4869    14.4716    18.9033
+   2.04083    3.52774    4.48286    15.0673    17.1803    21.8432
+   3.22600    5.03041    6.07109    17.5541    19.9121    24.6143
+   4.37777    6.44369    7.54971    20.1910    22.7242    27.8821
+   1.22403    1.95771    2.53320    10.4580    12.2799    16.1579
+   2.76578    4.06349    5.05861    15.5518    17.6517    21.9676
+   5.34698    7.21906    8.48217    21.2156    23.4531    28.6185
+   7.89032    10.2954    11.8089    26.1962    28.8153    34.1229
+   10.2741    13.3319    15.0157    31.1075    34.2069    40.3663
+   13.0945    16.4128    18.3271    35.7951    38.9320    45.3087
+   16.0778    19.4231    21.5395    40.1372    43.5597    50.0667
+   6.40557    8.05140    9.19606    21.7492    24.2286    29.5202
+   9.91729    12.2981    13.7117    28.7789    31.6177    37.3965
+   14.1512    17.2699    19.0710    36.2145    39.0979    44.9100
+   18.3512    22.0809    24.2061    43.0094    46.4724    53.0261
+   23.3911    27.4906    29.8312    50.3031    53.9610    60.5874
+   27.7697    32.0615    34.5059    56.7545    60.3489    68.8311
+   32.4565    36.9996    39.8665    63.4219    67.4975    75.4931
+   14.9175    17.9948    19.8042    36.7716    39.8157    46.6494
+   20.7398    24.1774    26.3151    45.6484    49.0972    55.5632
+   27.2190    31.3415    33.8949    55.2509    58.9566    67.1535
+   33.2809    38.3589    41.1010    64.1519    67.7740    75.6810
+   40.2560    45.2018    48.1072    73.0359    77.4086    85.7060
+   45.8608    51.9562    55.1466    81.5496    86.3145    94.6022
+   53.0030    58.7869    61.9696    90.1854    94.8898    104.496
+   27.6618    31.9744    34.2359    55.6339    59.4009    67.0217
+   34.9004    40.1273    42.7848    66.3171    70.5168    78.7976
+   43.5169    49.2773    52.0605    78.0565    82.5513    91.1168
+   52.3723    58.0998    61.4793    89.1508    93.9702    102.914
+   60.8712    66.6307    69.9420    99.9741    105.114    113.397
+   69.0303    75.3345    79.2879    110.184    115.551    124.968
+   77.0570    84.6590    88.7883    120.958    126.156    136.711  ;
+   if ((p>5) OR (p<-1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   if ((n > 5) OR (n < 1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   i = (n-1)*7 + p + 2 ;
+retp(jc[i,.]');
+endp ;
+/*
+** GPCBIV
+**
+** Purpose:  Computes Phillips (1988) spectral estimator for cointegrated
+**           systems, allowing for instruments.
+**
+** Format:   {beta,vcov,se_beta,tstats}=gpcbiv(y,x,z,d,f,M);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           z     -- instruments
+**           d     -- deterministic part
+**           f     -- filter : for band-width estimation; filter over (0,2*pi)
+**           M     -- band width parameter
+**
+**           nb:   -- nt() rounds out the # of observations to the nearest
+**                    power of 2.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x) by cols(x)
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = gpcbiv(y,x,z,d,f,M);
+
+     local NTIMES,NVARS,NOBS,SCALE,XD,ZD,XZ,ZZ,YZ,V,BHAT,RBHAT,ERR,XACT;
+     local YACT,ZACT,XACTZ,YACTZ,ZACTZ,I,TMP,RF,K,E,BETA,ERRX,ERRT,E_SPECT;
+     local INV_FVV,E_SPR,YS,XR_T,ZR_T,YR_T,XN,ZN,YN,VAR_BETA,T_STATS,S;
+
+     ntimes   = 2*M ;
+     nvars    = cols(x);
+     nobs     = nt(y) ;
+     scale    = nobs/sqrt(2*pi*rows(y));
+
+     if (_NoDet NE 1) ;
+	 xd = x~d ;
+	 zd = z~d ;
+	 xz = x - d*inv(d'd)*(d'x);
+	 zz = z - d*inv(d'd)*(d'z);
+	 yz = y - d*inv(d'd)*(d'y);
+     else ;
+	 xd = x ;
+	 zd = z ;
+	 xz = x ;
+	 zz = z ;
+	 yz = y ;
+     endif ;
+
+     v        = zeros(rows(y),nvars+1) ;
+     bhat     = inv((xd'zd)*inv(zd'zd)*(zd'xd))*(xd'zd)*inv(zd'zd)*(zd'y) ;
+     rbhat    = y - xd*bhat ;
+     v[.,2:nvars+1] = zeros(1,nvars)|detrend(diff(xz,1),0) ;
+     v[.,1]   = rbhat;
+
+     err      = rfft(v[.,1]) * scale ;
+     xact     = rfft(xd[.,1]) * scale ;
+     yact     = rfft(y[.,1]) * scale ;
+     zact     = rfft(zd[.,1]) * scale ;
+
+     xactz    = rfft(xz[.,1]) * scale ;
+     yactz    = rfft(yz[.,1]) * scale ;
+     zactz    = rfft(zz[.,1]) * scale ;
+
+     i = 2 ;
+     do while (i <= cols(xd)) ;
+	tmp      = rfft(xd[.,i])*scale;
+	xact     = xact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zd)) ;
+	tmp      = rfft(zd[.,i])*scale;
+	zact     = zact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(v)) ;
+	tmp      = rfft(v[.,i]) * scale ;
+	err      = err~tmp ;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(xz)) ;
+	tmp      = rfft(xz[.,i]) * scale ;
+	xactz    = xactz~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zz)) ;
+	tmp      = rfft(zz[.,i]) * scale ;
+	zactz    = zactz~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     rf = (nobs/2) - nobs/(4*M) - 1 ;
+
+     xact   = (rotater((xact.'),rf).') ;
+     zact   = (rotater((zact.'),rf).') ;
+
+     yact   = (rotater((yact.'),rf).') ;
+
+     xr_t   = zeros(rows(xact),cols(xact));
+     yr_t   = zeros(rows(yact),cols(yact));
+     zr_t   = zeros(rows(zact),cols(zact));
+
+     xactz   = (rotater((xactz.'),rf).');
+     zactz   = (rotater((zactz.'),rf).');
+     yactz   = (rotater((yactz.'),rf).');
+
+     err     = (rotater((err.'),rf).') ;
+
+     k       = round(rows(err)/ntimes) ;
+     s       = 1 ;
+     e       = k ;
+     i       = 1 ;
+
+     do while (i <= ntimes) ;
+
+	beta     = give(xactz[s:e,.],zactz[s:e,.],yactz[s:e,.]);
+	errx     = yactz[s:e,.]-(xactz[s:e,.]*beta) ;
+
+	if (i == M) ;
+	    errt      = err[s:e,.];
+	    errt[.,1] = errx[.,1];
+	else ;
+	    errt      = errx[.,1];
+	endif ;
+
+	e_spect  = (errt'errt)/rows(errt);
+	inv_fvv  = inv(e_spect);
+
+	e_spr    = inv_fvv ;
+
+	if (i == M) ;
+
+	     ys       = (yact[s:e,.]~errt[.,2:cols(errt)])*inv_fvv[.,1];
+	     ys       = ys./e_spr[1,1] ;
+
+	else ;
+
+	     ys       = yact[s:e,.];
+
+	endif ;
+
+	xr_t[s:e,.] = xact[s:e,.]*sqrt(e_spr[1,1]) ;
+	zr_t[s:e,.] = zact[s:e,.]*sqrt(e_spr[1,1]) ;
+	yr_t[s:e,.] = ys[.,1]*sqrt(e_spr[1,1]);
+
+	i        = i + 1 ;
+	s        = e + 1 ;
+	e        = e + k ;
+
+	if (i == ntimes) ;
+	      e = rows(xact);
+	endif ;
+
+	endo ;
+
+    xn = (((rotater((xr_t.'),-rf).'))) .* f;
+    zn = (((rotater((zr_t.'),-rf).'))) .* f;
+    yn = (((rotater((yr_t.'),-rf).'))) .* f;
+
+     beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))*((xn'zn)*inv(zn'zn)*(zn'yn)));
+     var_beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))) ;
+
+     t_stats  = beta./sqrt(diag(var_beta)) ;
+
+retp(beta,var_beta,sqrt(diag(var_beta)),t_stats);
+endp ;
+/*
+** GPCBZIV
+**
+** Purpose:  Computes Phillips (1988) spectral estimator for cointegrated
+**           systems, using only freq 0 estimates, allowing for instruments.
+**
+** Format:   {beta,vcov,se_beta,tstats}=gpcbZiv(y,x,z,d,f,M);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           z     -- instruments
+**           d     -- deterministic part
+**           f     -- filter : for band-width estimation; filter over (0,2*pi)
+**           M     -- band width parameter
+**
+**           nb:   -- nt() rounds out the # of observations to the nearest
+**                    power of 2.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x) by cols(x)
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = gpcbZiv(y,x,z,d,f,M);
+
+     local NTIMES,NVARS,NOBS,SCALE,XD,ZD,XZ,ZZ,YZ,V,BHAT,RBHAT,ERR,XACT;
+     local YACT,ZACT,XACTZ,YACTZ,ZACTZ,I,TMP,RF,K,E,BETA,ERRX,ERRT,E_SPECT;
+     local INV_FVV,E_SPR,YS,XR_T,ZR_T,YR_T,XN,ZN,YN,VAR_BETA,T_STATS,S;
+
+     ntimes   = 2*M ;
+     nvars    = cols(x);
+     nobs     = nt(y) ;
+     scale    = nobs/sqrt(2*pi*rows(y));
+
+
+     if (_NoDet NE 1) ;
+	 xd = x~d ;
+	 zd = z~d ;
+	 xz = x - d*inv(d'd)*(d'x);
+	 zz = z - d*inv(d'd)*(d'z);
+	 yz = y - d*inv(d'd)*(d'y);
+     else ;
+	 xd = x ;
+	 zd = z ;
+	 xz = x ;
+	 zz = z ;
+	 yz = y ;
+     endif ;
+
+     v        = zeros(rows(y),nvars+1) ;
+     bhat     = inv((xd'zd)*inv(zd'zd)*(zd'xd))*(xd'zd)*inv(zd'zd)*(zd'y) ;
+     rbhat    = y - xd*bhat ;
+     v[.,2:nvars+1] = zeros(1,nvars)|detrend(diff(xz,1),0) ;
+     v[.,1]   = rbhat;
+
+     err      = rfft(v[.,1]) * scale ;
+
+     xact     = rfft(xd[.,1]) * scale ;
+     yact     = rfft(y[.,1]) * scale ;
+     zact     = rfft(zd[.,1]) * scale ;
+
+     xactz    = rfft(xz[.,1]) * scale ;
+     yactz    = rfft(yz[.,1]) * scale ;
+     zactz    = rfft(zz[.,1]) * scale ;
+
+     i = 2 ;
+     do while (i <= cols(xd)) ;
+	tmp      = rfft(xd[.,i])*scale;
+	xact     = xact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zd)) ;
+	tmp      = rfft(zd[.,i])*scale;
+	zact     = zact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(v)) ;
+	tmp      = rfft(v[.,i]) * scale ;
+	err      = err~tmp ;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(xz)) ;
+	tmp      = rfft(xz[.,i]) * scale ;
+	xactz    = xactz~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zz)) ;
+	tmp      = rfft(zz[.,i]) * scale ;
+	zactz    = zactz~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     rf = (nobs/2) - nobs/(4*M) - 1 ;
+
+     xact   = rotater(xact',rf)' ;
+     zact   = rotater(zact',rf)' ;
+     yact   = rotater(yact',rf)';
+
+     xr_t   = zeros(rows(xact),cols(xact));
+     yr_t   = zeros(rows(yact),cols(yact));
+     zr_t   = zeros(rows(zact),cols(zact));
+
+
+     xactz   = rotater(xactz',rf)' ;
+     zactz   = rotater(zactz',rf)' ;
+     yactz   = rotater(yactz',rf)';
+
+     err     = rotater(err',rf)' ;
+
+     k       = round(rows(err)/ntimes) ;
+     s       = 1 ;
+     e       = k ;
+     i       = 1 ;
+
+     do while (i <= ntimes) ;
+
+	beta     = give(xactz[s:e,.],zactz[s:e,.],yactz[s:e,.]);
+	errx     = yactz[s:e,.]-(xactz[s:e,.]*beta) ;
+
+	if (i == M) ;
+	    f[s:e,1]  = ones(e-s+1,1);
+	    errt      = err[s:e,.];
+	    errt[.,1] = errx[.,1];
+	else ;
+	    errt      = errx[.,1];
+	endif ;
+
+	e_spect  = (errt'errt)/rows(errt);
+	inv_fvv  = inv(e_spect);
+
+	e_spr    = inv_fvv ;
+
+	if (i == M) ;
+
+	     ys       = (yact[s:e,.]~errt[.,2:cols(errt)])*inv_fvv[.,1];
+	     ys       = ys./e_spr[1,1] ;
+
+	else ;
+
+	     ys       = yact[s:e,.];
+
+	endif ;
+
+	xr_t[s:e,.] = xact[s:e,.]*sqrt(e_spr[1,1]) ;
+	zr_t[s:e,.] = zact[s:e,.]*sqrt(e_spr[1,1]) ;
+	yr_t[s:e,.] = ys[.,1]*sqrt(e_spr[1,1]);
+
+	i        = i + 1 ;
+	s        = e + 1 ;
+	e        = e + k ;
+
+	if (i == ntimes) ;
+	      e = rows(xact);
+	endif ;
+
+	endo ;
+
+    xn = (rotater(xr_t',-rf)') .* f;
+    zn = (rotater(zr_t',-rf)') .* f;
+    yn = (rotater(yr_t',-rf)') .* f;
+
+     beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))*((xn'zn)*inv(zn'zn)*(zn'yn)));
+     var_beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))) ;
+
+     t_stats  = beta./sqrt(diag(var_beta)) ;
+
+retp(beta,var_beta,sqrt(diag(var_beta)),t_stats);
+endp ;
+/*
+** GHANIV
+**
+** Purpose:  Computes Hannan's (1988) spectral estimator
+**           allowing for instruments.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats}=ghaniv(y,x,z,d,M) ;
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           z     -- instruments
+**           d     -- deterministic part
+**           f     -- filter: for band-width estimation: [0, 2*pi]
+**           M     -- band width parameter
+**
+**           nb:   -- nt() rounds out the # of observations to the nearest
+**                    power of 2.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x) by cols(x)
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = ghaniv(y,x,z,d,f,M);
+
+     local NTIMES,NVARS,NOBS,SCALE,XD,ZD,XZ,ZZ,YZ,V,BHAT,RBHAT,ERR,XACT,YACT;
+     local ZACT,XACTZ,YACTZ,ZACTZ,I,TMP,RF,XR_T,ZR_T,YR_T,K,E,BETA,ERRX,E_SPECT;
+     local INV_FVV,E_SPR,YS,XI_T,ZI_T,YI_T,XN,ZN,YN,VAR_BETA,T_STATS,S;
+
+     ntimes   = 2*M ;
+     nvars    = cols(x);
+     nobs     = nt(y) ;
+     scale    = nobs/sqrt(2*pi*rows(y));
+
+     if (_NoDet NE 1) ;
+	 xd = x~d ;
+	 zd = z~d ;
+	 xz = x - d*inv(d'd)*(d'x);
+	 zz = z - d*inv(d'd)*(d'z);
+	 yz = y - d*inv(d'd)*(d'y);
+     else ;
+	 xd = x ;
+	 zd = z ;
+	 xz = x ;
+	 zz = z ;
+	 yz = y ;
+     endif ;
+
+     v        = zeros(rows(y),nvars+1) ;
+     bhat     = inv((xd'zd)*inv(zd'zd)*(zd'xd))*(xd'zd)*inv(zd'zd)*(zd'y) ;
+     rbhat    = y - xd*bhat ;
+     v[.,1]   = rbhat;
+
+     err      = rfft(v[.,1]) * scale ;
+     xact     = rfft(xd[.,1]) * scale ;
+     yact     = rfft(y[.,1]) * scale ;
+     zact     = rfft(zd[.,1]) * scale ;
+
+     xactz    = rfft(xz[.,1]) * scale ;
+     yactz    = rfft(yz[.,1]) * scale ;
+     zactz    = rfft(zz[.,1]) * scale ;
+
+     i = 2 ;
+     do while (i <= cols(xd)) ;
+	tmp      = rfft(xd[.,i]) * scale ;
+	xact     = xact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zd)) ;
+	tmp      = rfft(zd[.,i]) * scale ;
+	zact     = zact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(xz)) ;
+	tmp     = rfft(xz[.,i]) * scale ;
+    xactz   = xactz~tmp;
+	i       = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zz)) ;
+	tmp     = rfft(zz[.,i]) * scale ;
+	zactz   = zactz~tmp;
+	i       = i + 1 ;
+     endo ;
+
+     rf = (nobs/2) - nobs/(4*M) - 1 ;
+
+     xact    = rotater(xact',rf)' ;
+     zact    = rotater(zact',rf)' ;
+     yact    = rotater(yact',rf)';
+
+     xactz   = rotater(xactz',rf)' ;
+     zactz   = rotater(zactz',rf)' ;
+     yactz   = rotater(yactz',rf)';
+
+     err = rotater(err',rf)' ;
+
+     xr_t     = xact;
+     zr_t     = zact;
+     yr_t     = yact;
+
+     k        = round(rows(err)/ntimes) ;
+     s        = 1 ;
+     e        = k ;
+     i        = 1 ;
+
+     do while (i <= ntimes) ;
+
+	beta     = give(xactz[s:e,.],zactz[s:e,.],yactz[s:e,.]);
+
+	errx     = (yactz[s:e,.])-(xactz[s:e,.]*beta);
+
+	err      = errx[.,1];
+
+	e_spect  = (err'err)/rows(err);
+
+	inv_fvv  = inv(e_spect) ;
+
+	e_spr    = inv_fvv ;
+
+	ys       = yact[s:e,.];
+
+	xr_t[s:e,.] = xact[s:e,.]*sqrt(e_spr[1,1]) ;
+	zr_t[s:e,.] = zact[s:e,.]*sqrt(e_spr[1,1]) ;
+
+	yr_t[s:e,.] = ys[.,1]*sqrt(e_spr[1,1]);
+
+	i        = i + 1 ;
+	s        = e + 1 ;
+	e        = e + k ;
+
+	if (i == ntimes) ;
+	      e = rows(xact);
+	endif ;
+
+	endo ;
+
+    xn = (rotater(xr_t',-rf)') .* f;
+    zn = (rotater(zr_t',-rf)') .* f;
+    yn = (rotater(yr_t',-rf)') .* f;
+
+    beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))*((xn'zn)*inv(zn'zn)*(zn'yn)));
+    var_beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn)));
+
+    t_stats  = beta./sqrt(diag(var_beta)) ;
+
+retp(beta,var_beta,sqrt(diag(var_beta)),t_stats);
+endp ;
+/*
+** GHANZIV
+**
+** Purpose:  Computes Hannan's (1988) spectral estimator
+**           allowing for instruments.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats}=ghanZiv(y,x,z,d,M) ;
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           z     -- instruments
+**           d     -- deterministic part
+**           f     -- filter: for band-width estimation: [0, 2*pi]
+**           M     -- band width parameter
+**
+**           nb:   -- nt() rounds out the # of observations to the nearest
+**                    power of 2.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x) by cols(x)
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = ghanZiv(y,x,z,d,f,M);
+
+     local NTIMES,NVARS,NOBS,SCALE,XD,ZD,XZ,ZZ,YZ,V,BHAT,RBHAT,ERR,XACT,YACT;
+     local ZACT,XACTZ,YACTZ,ZACTZ,I,TMP,RF,XR_T,ZR_T,YR_T,K,E,BETA,ERRX,E_SPECT;
+     local INV_FVV,E_SPR,YS,XI_T,ZI_T,YI_T,XN,ZN,YN,VAR_BETA,T_STATS,S;
+
+     ntimes   = 2*M ;
+     nvars    = cols(x);
+     nobs     = nt(y) ;
+     scale    = nobs/sqrt(2*pi*rows(y));
+
+
+     if (_NoDet NE 1) ;
+	 xd = x~d ;
+	 zd = z~d ;
+	 xz = x - d*inv(d'd)*(d'x);
+	 zz = z - d*inv(d'd)*(d'z);
+	 yz = y - d*inv(d'd)*(d'y);
+     else ;
+	 xd = x ;
+	 zd = z ;
+	 xz = x ;
+	 zz = z ;
+	 yz = y ;
+     endif ;
+
+     v        = zeros(rows(y),nvars+1) ;
+     bhat     = inv((xd'zd)*inv(zd'zd)*(zd'xd))*(xd'zd)*inv(zd'zd)*(zd'y) ;
+     rbhat    = y - xd*bhat ;
+     v[.,1]   = rbhat;
+
+     err      = rfft(v[.,1]) * scale ;
+     xact     = rfft(xd[.,1]) * scale ;
+     yact     = rfft(y[.,1]) * scale ;
+     zact     = rfft(zd[.,1]) * scale ;
+     xactz    = rfft(xz[.,1]) * scale ;
+     yactz    = rfft(yz[.,1]) * scale ;
+     zactz    = rfft(zz[.,1]) * scale ;
+
+     i = 2 ;
+     do while (i <= cols(xd)) ;
+	tmp      = rfft(xd[.,i]) * scale ;
+	xact     = xact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zd)) ;
+	tmp      = rfft(zd[.,i]) * scale ;
+	zact     = zact~tmp;
+	i        = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(xz)) ;
+	tmp     = rfft(xz[.,i]) * scale ;
+    xactz   = xactz~tmp;
+	i       = i + 1 ;
+     endo ;
+
+     i = 2 ;
+     do while (i <= cols(zz)) ;
+	tmp     = rfft(zz[.,i]) * scale ;
+    zactz   = zactz~tmp;
+	i       = i + 1 ;
+     endo ;
+
+     rf = (nobs/2) - nobs/(4*M) - 1 ;
+
+     xact    = rotater(xact',rf)' ;
+     zact    = rotater(zact',rf)' ;
+     yact    = rotater(yact',rf)';
+
+     xr_t    = zeros(rows(xact),cols(xact));
+     yr_t    = zeros(rows(yact),cols(yact));
+     zr_t    = zeros(rows(zact),cols(zact));
+
+     xactz   = rotater(xactz',rf)' ;
+     zactz   = rotater(zactz',rf)' ;
+     yactz   = rotater(yactz',rf)';
+
+     err = rotater(err',rf)' ;
+
+     xr_t     = xact;
+     zr_t     = zact;
+     yr_t     = yact;
+
+     k        = round(rows(err)/ntimes) ;
+     s        = 1 ;
+     e        = k ;
+     i        = 1 ;
+
+     do while (i <= ntimes) ;
+
+	if ( i == M ) ;
+	    f[s:e,1] = ones(e-s+1,1) ;
+	endif ;
+
+	beta     = give(xactz[s:e,.],zactz[s:e,.],yactz[s:e,.]);
+
+	errx     = (yactz[s:e,.])-(xactz[s:e,.]*beta);
+
+	err      = errx[.,1];
+
+	e_spect  = (err'err)/rows(err);
+
+	inv_fvv  = inv(e_spect) ;
+
+	e_spr    = inv_fvv ;
+
+	ys       = yact[s:e,.];
+
+	xr_t[s:e,.] = xact[s:e,.]*sqrt(e_spr[1,1]) ;
+	zr_t[s:e,.] = zact[s:e,.]*sqrt(e_spr[1,1]) ;
+
+	yr_t[s:e,.] = ys[.,1]*sqrt(e_spr[1,1]);
+
+	i        = i + 1 ;
+	s        = e + 1 ;
+	e        = e + k ;
+
+	if (i == ntimes) ;
+	      e = rows(xact);
+	endif ;
+
+	endo ;
+
+    xn = (rotater(xr_t',-rf)') .* f;
+    zn = (rotater(zr_t',-rf)') .* f;
+    yn = (rotater(yr_t',-rf)') .* f;
+
+
+    beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))*((xn'zn)*inv(zn'zn)*(zn'yn)));
+    var_beta = REAL(inv((xn'zn)*inv(zn'zn)*(zn'xn))) ;
+
+	t_stats  = beta./sqrt(diag(var_beta)) ;
+
+retp(beta,var_beta,sqrt(diag(var_beta)),t_stats);
+endp ;
+/*
+** PZ_CRITICAL values
+**
+** Purpose:    Returns critical values for the PZ Procedure
+**
+**
+** Format:     c-values = c_pz(n,p);
+**
+**             n     -- dimension of the system
+**             p     -- order of the time-polynomoal in the fitted regression
+**
+*/
+proc c_pz(n,p) ;
+     local jc, i ;
+     let jc[35,6] =
+   4.12756    6.20116    7.76055    33.7342    40.5028    54.2527
+   8.45085    11.6294    14.0288    47.1683    54.6874    70.2129
+   18.6935    24.4800    28.1673    70.3179    79.3062    96.1817
+   29.0370    36.4218    40.5827    92.5254    103.631    126.951
+   39.9686    48.4269    53.8907    113.024    124.065    146.581
+   50.8867    61.7260    68.7081    133.487    145.851    171.945
+   63.3259    75.2483    82.1484    153.717    166.225    190.430
+   14.8216    19.7432    22.8673    62.8376    70.9338    89.4543
+   22.6853    29.4841    33.6007    80.9800    89.8720    106.405
+   40.4857    50.3241    55.8662    112.855    123.198    145.684
+   58.0793    70.6825    77.0218    143.919    156.775    183.805
+   77.5726    91.2877    99.5629    173.373    186.946    214.657
+   95.5726    110.805    119.263    203.465    217.291    248.224
+   114.437    130.917    140.918    230.113    246.011    279.976
+   32.6583    40.8758    45.9233    99.3083    108.816    128.690
+   46.0983    55.0413    60.9664    120.943    130.912    154.338
+   72.7990    84.3999    91.9797    163.910    177.241    200.646
+   96.7679    111.962    120.941    201.672    216.095    247.985
+   123.299    140.139    150.305    241.227    256.984    289.131
+   146.252    168.485    179.934    280.942    299.330    333.181
+   174.607    197.144    210.254    315.916    334.494    367.397
+   61.0313    71.6274    77.9991    141.818    153.679    176.222
+   77.1250    88.8304    96.2220    169.671    183.190    210.794
+   109.862    125.491    135.016    218.958    232.826    261.890
+   144.893    162.471    173.033    269.011    285.022    315.239
+   179.156    199.805    212.338    314.236    332.261    371.537
+   211.482    236.453    248.817    361.938    380.867    419.624
+   244.913    269.651    283.737    406.768    425.869    469.050
+   94.6787    109.391    116.731    196.931    209.021    237.136
+   115.283    130.678    140.858    224.483    238.525    273.160
+   156.891    176.310    187.657    283.724    301.374    331.693
+   199.859    221.331    233.894    339.826    358.397    391.134
+   239.322    265.336    279.208    398.604    419.036    456.385
+   282.316    307.029    321.308    453.792    474.194    516.957
+   321.553    354.179    370.381    506.720    531.038    576.993 ;
+   if ((p>5) OR (p<-1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   if ((n > 6) OR (n < 2));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   i = (n-2)*7 + p + 2 ;
+retp(jc[i,.]');
+endp ;
+/*
+** PZ
+**
+** Purpose: Computes Phillips and Ouliaris Pz statistic for the null hypothesis
+**          that a matrix of time series variables are not cointegrated.
+**
+** Format:    pz_stat = pz(y,x,p,l);
+**
+** Input:      y     -- dependent variable
+**             x     -- explanatory variables
+**
+**             p     -- order of the time-polynomial to include in the
+**                      null hypothesis.
+**
+**             l     -- number of ordinates to use when computing the
+**                      spectral density matrix
+**
+** Output:     pz    -- pz statistic
+**             c_pz  -- critical values of the pz statistic
+**                      { 1, 5, 10, 90, 95, 99 }
+**
+*/
+proc (2) = pz(y,x,p,k) ;
+     local xl, r,pz, sp, mzz, nobs, pz_stat, f ;
+     x    =  detrend(y~x,p) ;
+     xl   =  trimr(lagn(x,1),1,0);
+     x    =  trimr(x,1,0);
+     r    =  x - xl*(inv(xl'xl)*xl'x);
+     nobs =  rows(x) ;
+     sp   =  lrvar(r,k) ;
+     mzz  =  (x'x)/nobs ;
+     pz_stat   =  nobs*sumc(diag(sp*inv(mzz))) ;
+retp(pz_stat, c_pz(cols(x),p));
+endp ;
+/*
+** PU_CRITICAL values
+**
+** Purpose:    Returns critical values for the PU Procedure
+**
+**
+** Format:     c-values = c_pu(n,p);
+**
+**             n     -- dimension of the system
+**             p     -- order of the time-polynomoal in the fitted regression
+**
+*/
+proc c_pu(n,p) ;
+     local jc, i ;
+     let jc[35,6] =
+  0.530076    1.07493    1.71520    20.0743    25.8772    38.6876
+   1.77470    3.03361    4.16878    28.1486    34.7000    49.0010
+   5.53145    8.27350    10.2445    40.9761    47.7712    64.9959
+   9.36437    13.2419    15.8593    52.9992    61.1097    80.7975
+   13.5908    18.7690    22.1320    62.7660    71.4461    93.7648
+   18.2239    24.4284    28.2936    74.6835    83.6059    103.053
+   22.6342    29.4718    34.2934    85.4239    96.0624    115.858
+  0.961382    2.23012    3.36769    27.5815    33.9584    44.7926
+   2.61025    4.62211    6.04493    34.5700    41.4158    56.7243
+   6.70114    9.99074    12.2337    46.4697    53.9746    70.7633
+   10.8647    15.3631    18.1563    58.1072    65.2829    84.7605
+   15.3366    20.7580    24.3759    68.5469    77.1437    95.5006
+   20.0570    26.1995    30.3218    79.4079    88.6473    109.668
+   23.9358    31.3843    36.5342    89.7721    99.9837    123.639
+   1.85960    3.80667    5.46068    33.2623    40.0599    55.1121
+   3.51345    6.27878    8.40356    39.5117    47.9327    62.4948
+   8.11536    11.9503    14.3653    51.9634    60.1583    77.8102
+   12.0655    17.3244    20.6312    63.0308    72.4200    91.6916
+   16.5019    22.7324    26.8475    74.7000    83.8830    106.867
+   20.9761    28.5868    33.6788    84.5655    95.7617    116.442
+   27.0613    35.2202    40.3359    94.5476    104.507    127.915
+   3.04502    6.00427    7.93824    38.6766    45.4087    61.2717
+   4.91829    8.11926    10.6245    44.9382    52.7082    70.9542
+   9.09426    13.7468    16.8205    56.8491    65.4795    84.3714
+   14.2697    19.5511    23.4191    68.3578    77.2661    97.3976
+   18.8254    25.7454    30.1105    78.3393    88.4597    111.139
+   23.3302    31.0154    36.0821    89.4817    99.9913    123.447
+   27.8916    36.7110    42.2414    99.3853    111.182    135.702
+   4.36903    7.71636    10.2136    45.0870    53.3719    71.1790
+   6.27015    10.3664    13.4603    51.0175    59.1486    77.7033
+   11.0279    16.1562    19.6593    60.9318    69.4330    87.3615
+   15.2363    21.2888    25.2408    72.4119    82.1563    104.206
+   20.2523    27.6864    32.0267    83.7678    94.0035    115.811
+   25.2382    33.7960    38.7520    93.7675    104.901    128.228
+   30.2278    39.5218    45.2927    103.831    115.875    142.951 ;
+   if ((p>5) OR (p<-1));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   if ((n > 6) OR (n < 2));
+       retp((0~0~0~0~0~0)');
+   endif ;
+   i = (n-2)*7 + p + 2 ;
+retp(jc[i,.]');
+endp ;
+/*
+** PU
+**
+** Purpose: Computes Phillips and Ouliaris Pu statistic for the null hypothesis
+**          that a matrix of time series variables are not cointegrated.
+**
+** Format:     {pu_stat, pu_crit} = pu(y,x,p,l);
+**
+** Input:      y     -- dependent variable
+**             x     -- explanatory variables
+**
+**             p     -- order of the time-polynomial to include in the
+**                      null hypothesis.
+**
+**             l     -- number of ordinates to use when computing the
+**                      spectral density matrix
+**
+** Output:     pu_stat    -- pu statistic
+**             pu_crit    -- (6 x 1) statistic of critical values
+**                           {1, 5, 10, 90, 95, 99}
+**
+*/
+proc (2) = pu(y,x,p,k) ;
+     local xl, r, pz, sp, mzz, nobs, res, o11, pu_stat, f;
+     y    =  detrend(y,p) ;
+     x    =  detrend(x,p) ;
+     res  =  y - x*(y/x) ;
+     x    =  y~x ;
+     xl   =  trimr(lagn(x,1),1,0);
+     x    =  trimr(x,1,0);
+     r    =  x - (xl*(inv(xl'xl)*xl'x));
+     nobs =  rows(x) ;
+     sp   =  lrvar(r,k);
+     o11  =  det(sp)/det(sp[2:rows(sp),2:rows(sp)]) ;
+     pu_stat = (nobs^2)*o11/(res'res) ;
+retp(pu_stat,c_pu(cols(x),p));
+endp ;
+/*
+** CCR
+**
+** Purpose:  Computes Parks'(1988) CCR estimator for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid,tests}
+**           = ccr(y,x,d,l);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**
+**           d     -- deterministic part in the regression
+**
+**           l     -- number of auto-covariances for computing the spectrum
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1)
+**
+**                     beta[cols(x)+1:rows(beta)] --- coefficients on the
+**                     deterministic part of the fitted regression
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x)+(q+1) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x)+(q+1) by 1 ;
+**           tests -- dummy argument for future expansion
+*/
+proc (8) = ccr(y,x,d,l) ;
+
+     local q,m;
+     local ahatx, bhat, ehat, shat , t1, t2, a, adj;
+     local nobs, trend, k, parm, what, var, al_pq, resid ;
+     local alpha, rss, hs, fstat, d12, w22, s22, sig, data ;
+     local xres, yres, tx, ty, true_vec, sigma, beta, vcov;
+     local t_stats, yn, xn, tz, xd, del, tests, dx, n, z ;
+
+
+     tests = 0 ;
+     nobs  = rows(y);
+     m     = cols(x);
+     n     = cols(y);
+
+     if (_NoDet NE 1);
+	 xd    = x-(d*inv(d'd)*(d'x));
+	 z     = x~d ;
+     else ;
+	 xd    = x ;
+	 z     = x ;
+     endif ;
+
+     a     = y/z ; yres = y-(z * a);
+     what  = trimr(yres,1,0)~diff(xd,1) ;
+
+     var   = what'what/rows(what) ;
+     sig   = lrvar(what,l) ;
+     del   = delta(what,l)';
+
+     d12      = del[.,n+1:n+m];
+     true_vec = inv(sig[n+1:n+m,n+1:n+m])*sig[n+1:n+m,1:n]  ;
+     adj      = inv(var)*d12*a[1:m,.] + (zeros(1,n)|true_vec);
+
+     yn     =   trimr(y,1,0) - (what*adj) ;
+     xn     =   trimr(x,1,0) - (what*inv(var)*d12) ;
+
+
+     if (_NoDet NE 1) ;
+	 data   =   xn~trimr(d,1,0) ;
+     else ;
+	 data   =   xn ;
+     endif ;
+
+     beta   =   yn/data ;
+
+     resid  =   trimr(y,1,0) - data*beta ;
+     rss    =   resid'resid ;
+
+     sigma  =   sig[1:n,1:n] - (sig[n+1:m+n,1:n]'true_vec);
+
+     vcov   =   sigma*inv(data'data) ;
+     t_stats =  beta./sqrt(diag(vcov)) ;
+
+retp(beta,vcov,sqrt(diag(vcov)),sqrt(sigma),t_stats,rss,resid,tests);
+endp ;
+/*
+** CCRQ
+**
+** Purpose:  Computes Parks'(1988) CCR estimator for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid}
+**              = ccrq(y,x,q,l);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**
+**           q     -- order of the time-polynomial to include in the
+**                    fitted regression.
+**
+**           l     -- number of lagged changes of x to include in the
+**                    fitted regression.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1)
+**
+**                     beta[cols(x)+1:rows(beta)] --- coefficients on the
+**                     time polynomials included in the fitted regression
+**                     staring with 0 ... q;
+**
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x)+(q+1) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x)+(q+1) by 1 ;
+*/
+proc (8) = ccrq(y,x,q,l) ;
+     local m;
+     local ahatx, bhat, ehat, shat , t1, t2, a, adj;
+     local nobs, trend, k, parm, what, var, al_pq, resid ;
+     local alpha, rss, hs, fstat, d12, w22, s22, sig, data ;
+     local xres, yres, tx, ty, true_vec, sigma, beta, vcov ;
+     local t_stats, yn, xn, tz ;
+
+     if (q < 0);
+	"Error: q must be >= 0";
+	 retp(0,0,0,0,0,0,0);
+     endif ;
+
+     nobs  = rows(y) ;
+     m     = cols(x) ;
+
+     if (nobs <= (q+1+m)) ;
+	"Error: not enough observations to proceed";
+	retp(0,0,0,0,0,0,0);
+     endif ;
+
+     trend = seqa(1,1,nobs)/nobs;
+     t1    = ones(nobs,1) ;
+
+     k     = 1 ;
+     do until k > q ;
+	t1 = t1~(trend^k) ;
+	k  = k + 1 ;
+     endo ;
+
+retp(ccr(y,x,t1,l));
+endp ;
+/*
+** HSTATC
+**
+** Purpose: Computes Parks'(1988) H(p,q) statistic for the null hypothesis
+**          that the residuals of the cointegrating reression are stationary
+**          around a p-th order polynomial trend (including a constant term)
+**
+**
+** Format:     {hstat, p-value} = hstatc(y,x,p,q,l);
+**
+** Input:      y     -- dependent variable
+**             x     -- explanatory variables
+**
+**             p     -- order of the time-polynomial to include in the
+**                      null hypothesis.
+**
+**             q     -- order of the time-polynomial to include in the
+**                      fiited regression.
+**
+**             l     -- number of lagged changes of x to include in the
+**                      fitted regression.
+**
+**
+** Output:     hstat  -- h(p,q) statistic
+**
+**             p-value - p-value of the computed statistic.
+**
+*/
+proc (2) = hstatc(y,x,p,q,l);
+     local b, vcov, se_beta, se, t_stats, rss, resid ;
+     local hstat, r, tests, zz;
+     if (p >= q) ;
+	"Error: q must be > p";
+	retp(0,0);
+     endif ;
+     zz = VARPUT(1,"_skip") ;
+     {b,vcov,se_beta,se,t_stats,rss,resid,tests}= ccrq(y,x,q,l);
+     r = zeros(q-p,cols(x)+1+p)~eye(q-p);
+     hstat = (r*b)'inv(R*vcov*R')*(r*b) ;
+     zz = VARPUT(0,"_skip") ;
+retp(hstat,cdfchic(hstat,q-p)) ;
+endp ;
+/*
+** FMREG
+**
+** Purpose:  Computes the Phillips and Hansen (1990) Fully Modified Estimator
+**           for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid}
+	     =fmivreg(y,x,z,d,l);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**
+**           d     -- deterministic part in the fitted regression.
+**
+**           l     -- number of auto-covariances for computing the spectrum at
+**                    frequency zero.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1)
+**
+**                     beta[cols(x)+1:rows(beta)] --- coefficients on the
+**                     deterministic part of the fitted regression.
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x)+(q+1) by 1 ;
+**
+**           se_res  ---  standard error of the residuals
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x)+(q+1) by 1 ;
+**
+**           rss     ---  residual sum of squares
+**
+**           resid   ---  residual vector
+**                        order:   rows(y) by 1
+*/
+
+DECLARE _sbstart != 0.15 ;
+DECLARE _sbend   != 0.85 ;
+DECLARE _skip    != 0 ;
+
+proc (8) = fm(y,x,d,l);
+     local t, m, trip, dx, xk, xxi, xy, beta, u, e, z;
+     local j, v, sig, del21, sd, ys, sig11, rho, var, ee, s21, s112;
+     local k, rss, tr, zk, xd, dmat, del,sc, t1, t2, lc, f,sj ;
+     local vj, mj, ixx, tests, n ;
+
+     t     = rows(y) - 1;
+     m     = cols(x);
+     n     = cols(y);
+
+     if ( _NoDet NE 1 ) ;
+	 xd    = x-(d*inv(d'd)*(d'x));
+	 z     = x~d;
+     else ;
+	 xd    = x ;
+	 z     = x ;
+     endif ;
+
+     xxi   = inv(z'z);
+     xy    = z'y ;
+     beta  = y/z ;
+
+     u     = y - (z*beta) ;
+     e     = trimr(u,1,0)~diff(xd,1) ;
+
+     del   = delta(e,l);
+     sig   = lrvar(e,l);
+
+     sig11 = sig[1:n,1:n];
+     s21   = invpd(sig[n+1:m+n,n+1:m+n])*sig[n+1:m+n,1:n];
+     rho   = (sig[1:n,n+1:m+n]*s21)*inv(sig11) ;
+     s112  = sig11 - (sig[1:n,n+1:m+n])*s21 ;
+
+     ys    = trimr(y,1,0) - diff(xd,1)*s21 ;
+     del21 = rows(e)*(del[n+1:m+n,1:n]-(del[n+1:m+n,n+1:m+n]*s21));
+
+     if (_NoDet NE 1) ;
+	del21 = del21|zeros(cols(d),n);
+     endif ;
+
+     xk    = trimr(z,1,0);
+     ixx   = inv(xk'xk) ;
+     beta  = ixx*((xk'ys)-del21);
+     var   = ixx*s112 ;
+     sd    = sqrt(diag(var)) ;
+     e     = trimr(y,1,0) - xk*beta ;
+
+     if (VARGET("_skip") EQ 0) ;
+	 sc    = xk.*(ys-(xk*beta)) - (del21'/rows(ys));
+	 sc    = cumsumc(sc);
+	 lc    = sumc(diag((sc'sc) * ixx))/(s112*rows(ys));
+	 t1    = round(t*VARGET("_sbstart"));
+	 t2    = round(t*VARGET("_sbend"));
+	 f     = zeros(t2-t1+1,1);
+	 j     = t1;
+	 do while j <= t2;
+	    sj  = sc[j,.]';
+	    vj  = moment(xk[1:j,.],0);
+	    mj  = vj - vj*ixx*vj;
+	    f[j-t1+1] = sj'invpd(mj)*sj;
+	    j   = j + 1;
+	 endo;
+	 f = f./s112;
+	 tests = lc|meanc(f)|maxc(f);
+     else ;
+	 Tests = 0|0|0 ;
+     endif ;
+     retp(beta,var,sd,sqrt(s112),beta./sd,e'e,e,tests) ;
+endp ;
+/*
+** FMQ
+**
+** Purpose:  Computes Phillips' and Hansen's (1990) estimator
+**           for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid}
+	      = fmq(y,x,q,l);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           q     -- order of the time-polynomial to include in the
+**                    fitted regression.
+**
+**           l     -- number of lagged changes of x to include in the
+**                    fitted regression.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1)
+**
+**                     beta[cols(x)+1:rows(beta)] --- coefficients on the
+**                     time polynomials included in the fitted regression
+**                     staring with 0 ... q;
+**
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x)+(q+1) by cols(x)+(q+1);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x)+(q+1) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x)+(q+1) by 1 ;
+*/
+proc (8) = fmq(y,x,q,l) ;
+     local m;
+     local ahatx, bhat, ehat, shat , t1, t2, a, adj, resid ;
+     local nobs, trend, k, parm, what, var, al_pq ;
+     local alpha, rss, hs, fstat, d12, w22, s22, sig, data ;
+     local xres, yres, tx, ty, true_vec, sigma, beta, vcov ;
+     local t_stats, yn, xn, tz ;
+
+     if (q < 0);
+	"Error: q must be >= 0";
+	 retp(0,0,0,0,0,0,0);
+     endif ;
+
+     nobs  = rows(y) ;
+     m     = cols(x) ;
+
+     if (nobs <= (q+1+m)) ;
+	"Error: not enough observations to proceed";
+	retp(0,0,0,0,0,0,0);
+     endif ;
+
+     trend = seqa(1,1,nobs)/nobs;
+     t1    = ones(nobs,1) ;
+
+     k     = 1 ;
+     do until k > q ;
+	t1 = t1~(trend^k) ;
+	k  = k + 1 ;
+     endo ;
+
+retp(fm(y,x,t1,l));
+endp ;
+/*
+** HSTATF
+**
+** Purpose: Computes Parks'(1988) H(p,q) statistic for the null hypothesis
+**          that the residuals of the cointegrating reression are stationary
+**          around a p-th order polynomial trend (including a constant term)
+**          This procedure computes the statistic using the FM estimator for
+**          cointegrated systems.
+**
+** Format:     {hstat, p-value} = hstatf(y,x,p,q,l);
+**
+** Input:      y     -- dependent variable
+**             x     -- explanatory variables
+**
+**             p     -- order of the time-polynomial to include in the
+**                      null hypothesis.
+**
+**             q     -- order of the time-polynomial to include in the
+**                      fiited regression.
+**
+**             l     -- number of lagged changes of x to include in the
+**                      fitted regression.
+**
+**
+** Output:     hstat  -- h(p,q) statistic
+**
+**             p-value - p-value of the computed statistic.
+**
+*/
+proc (2) = hstatf(y,x,p,q,l);
+     local beta, vcov, se_beta, se, t_stats, rss, resid,tests ;
+     local hstat, r, zz;
+     if (p >= q) ;
+	"Error: q must be > p";
+	retp(0,0);
+     endif ;
+     zz = VARPUT(1,"_skip") ;
+     {beta,vcov,se_beta,se,t_stats,rss,resid,tests}= fmq(y,x,q,l);
+     r = zeros(q-p,cols(x)+1+p)~eye(q-p);
+     hstat = (r*beta)'inv(R*vcov*R')*(r*beta) ;
+     zz = VARPUT(0,"_skip") ;
+retp(hstat,cdfchic(hstat,q-p)) ;
+endp ;
+proc (4) = sj(x,p,k);
+     local dx, z, q, r0t, rkt, sig,a,c,b,d,e,lr1,lr2, zz ;
+     local s00, sk0, skk, tmp, crit,i,lx, s, alpha ;
+
+     dx    = diff(x,1) ;
+     q     = 2 ;
+     z     = lagn(dx,1) ;
+     do until (q >= k);
+    z  = z~lagn(dx,q);
+	q  = q + 1 ;
+     endo ;
+
+     if (_NoDet NE 1) ;
+	  z     = detrend(trimr(z,k,0),p);
+	  dx    = detrend(trimr(dx,k,0),p);
+	  r0t   = dx - z*(dx/z);
+      lx    = detrend(trimr(lagn(x,k),k+1,0),p);
+	  rkt   = lx - z*(lx/z);
+     else ;
+	  z     = trimr(z,k,0);
+	  dx    = trimr(dx,k,0);
+	  r0t   = dx - z*(dx/z);
+      lx    = trimr(lagn(x,k),k+1,0);
+	  lx    = lx~ptrend(p,rows(lx)) ;
+	  rkt   = lx - z*(lx/z);
+     endif ;
+
+     skk   = rkt'rkt/rows(rkt) ;
+     sk0   = rkt'r0t/rows(rkt) ;
+     s00   = r0t'r0t/rows(r0t) ;
+     sig   = sk0*inv(s00)*(sk0');
+
+     {a,b,d,c} = eigrg2(inv(skk)*sig);
+
+     d = d*inv(chol(d'skk*d)) ;
+
+     if (_eigerr NE 0) ;
+	"WARNING: _eigerr NOT zero! Eigerr = " _eigerr ;
+     endif ;
+
+/* Order the eigen values and eigen vectors */
+
+     zz    = (-a)~(d') ;
+     zz    = sortc(zz,1) ;
+     a     = -zz[.,1] ;
+     d     = zz[.,2:cols(zz)]' ;  /* Done */
+
+/* Compute the trace statistics */
+
+     lr1   =  zeros(rows(a),1);
+     i     =  1 ;
+     do while (i <= rows(a));
+	lr1[i,1] = -rows(rkt)*sumc(trimr(ln(1-a),i-1,0));
+	i = i + 1 ;
+     endo ;
+
+ /*  Max eigen value statistics */
+
+     lr2   = -rows(rkt)*ln(1-a) ;
+
+retp(-sortc(-a,1),d,lr1,lr2);
+endp ;
+proc (7) = ps(y,x,d,lg,ld);
+     local tmp, z, beta, sd, s, vc, res, i ;
+     tmp = diff(x,1) ;
+     z   = trimr(x,1,0) ;
+     if (lg > 0) ;
+	i = 1 ;
+	do while (i <= lg);
+       z = z~lagn(tmp,i);
+	   i = i + 1 ;
+	endo ;
+     endif ;
+     if (ld > 0) ;
+	i = 1 ;
+	do while (i <= ld) ;
+       z = z~lagn(tmp,-i);
+	   i = i + 1 ;
+	endo ;
+     endif ;
+     if ((lg > 0) OR (ld > 0)) ;
+	z = z~tmp ;
+     endif ;
+     z = trimr(z,lg,ld);
+     d = trimr(d,lg+1,ld);
+     y = trimr(y,lg+1,ld);
+     if ( _Nodet NE 1) ;
+	z = d~z;
+     endif ;
+     beta = y/z ;
+     res  = y - z*beta;
+     s    = (res'res)/(rows(res)-cols(z));
+     vc   = s*inv(z'z) ;
+     sd   = sqrt(diag(vc)) ;
+     retp(beta,vc,sd,s,beta./sd,res'res,res) ;
+endp ;
+/*
+** PCBZIV
+**
+** Purpose:  Computes the Phillips (0) Estimator for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid} = pcbZiv(y,x,z,d,m,s);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           d     -- deterministic part of the co-integrating regression.
+**           z     -- instruments
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**                     order:   cols(x) by cols(x)
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = pcbZiv(y,x,z,d,m);
+     local t, trip, dx, xk, xxi, xy, beta, u, e;
+     local j, v, sig, del21, sd, ys, sig11, rho, var, ee, s21, s112;
+     local t1, k, rss, tr, ti,i, err, scale, zr, zi ;
+     local f22r, f22i, f2yr, f2yi, f22ir, f22ii, f2ysi, f2ysr, ysr, ysi ;
+     local sigr, sigi, tmp, mm, nn, xd, zd, tt, yd ;
+
+     t     = rows(y);
+     mm    = cols(x);
+     nn    = nt(y) ;
+     scale = nn/sqrt(2*pi*rows(y));
+
+     if (_NoDet NE 1) ;
+	xd = x - d*inv(d'd)*(d'x) ;
+	zd = z - d*inv(d'd)*(d'z) ;
+	yd = y - d*inv(d'd)*(d'y) ;
+     else ;
+	xd = x ;
+	zd = z ;
+	yd = y ;
+     endif ;
+
+     dx    = zeros(1,mm)|detrend(diff(xd,1),0) ;
+     xxi   = inv((xd'zd)*inv(zd'zd)*(zd'xd));
+     xy    = (xd'zd)*inv(zd'zd)*(zd'yd) ;
+     beta  = xxi * xy;
+
+     u     = yd - (xd*beta) ;
+     e     = u~dx ;
+
+     tmp   = rfft(e[.,1]) ;
+
+     err   = tmp * scale ;
+
+     i = 1 ;
+     do while (i < cols(e)) ;
+	i        = i + 1 ;
+	tmp      = rfft(e[.,i]) * scale ;
+	err      = err~tmp;
+     endo ;
+
+     err   = err[1:(nn/(4*m)),.];
+     err   = (rev((trimr(err,1,0)').'))|err;
+
+     sig   = (err'err)/rows(err) ;
+
+     sig11 = sig[1,1] ;
+     s21   = inv(sig[2:mm+1,2:mm+1])*sig[2:mm+1,1];
+     s112  = sig11 - ((sig[1,2:mm+1])*s21) ;
+
+     if (REAL(s112) > REAL(sig11)) ;
+	"Warning: spectral density matrix @ 0 is not psd ";
+     endif ;
+
+     ys    = y - dx*REAL(s21) ;
+     tmp   = rfft(ys) ;
+     ys    = tmp[1:(nn/(4*m)),1]*scale;
+
+     if (_NoDet NE 1) ;
+	tt    = x~d ;
+     else ;
+	tt    = x ;
+     endif ;
+
+     z     = zeros(nn/(4*m),cols(tt)) ;
+
+     i     = 0 ;
+     do while (i < cols(tt)) ;
+	i        = i + 1 ;
+	tmp      = rfft(tt[.,i]) * scale ;
+	z[.,i]   = tmp[1:(nn/(4*m)),1];
+     endo ;
+
+     z     = (rev((trimr(z,1,0)').'))|z;
+     ys    = (rev((trimr(ys,1,0)').'))|ys ;
+
+     beta  = REAL(inv(z'z)*(z'ys));
+
+     var   = REAL(s112*inv(z'z));
+     sd    = sqrt(diag(var));
+
+     retp(beta,var,sd,beta./sd) ;
+endp ;
+/*
+** HANZIV
+**
+** Purpose:  Computes the Hannan (0) Estimator for cointegrated systems.
+**
+** Format:   {beta,vcov,se_beta,se_res,tstats,rss,resid} = hanziv(y,x,z,d,m);
+**
+** Input:    y     -- dependent variable
+**           x     -- explanatory variables
+**           z     -- instruments
+**           d     -- deterministic part of the co-integrating regression.
+**
+** Output:   beta ---  beta[1:cols(x)] --- coefficients on the x variables.
+**
+**           vcov ---  variance-covariance matrix
+**                     order:   cols(x) by cols(x);
+**
+**           se_beta ---  standard errors of the parameters
+**                        order:   cols(x) by 1 ;
+**
+**           tstats  ---  t-statistics for the parameter estimates
+**                        order:   cols(x) by 1 ;
+**
+*/
+proc (4) = hanZiv(y,x,z,d,m);
+     local t, trip, dx, xk, xxi, xy, beta, u, e;
+     local j, v, sig, del21, sd, ys, sig11, rho, var, ee, s21, s112;
+     local t1, k, rss, tr, ti,i, err, scale, zr, zi ;
+     local f22r, f22i, f2yr, f2yi, f22ir, f22ii, f2ysi, f2ysr, ysr, ysi ;
+     local sigr, sigi, tmp, mm, nn, xd, zd, tt, yd ;
+
+     t     = rows(y);
+     mm    = cols(x);
+     nn    = nt(y) ;
+     scale = nn/sqrt(2*pi*rows(y));
+
+     if (_NoDet NE 1) ;
+	xd = x - d*inv(d'd)*(d'x) ;
+	zd = z - d*inv(d'd)*(d'z) ;
+	yd = y - d*inv(d'd)*(d'y) ;
+     else ;
+	xd = x ;
+	zd = z ;
+	yd = y ;
+     endif ;
+
+     xxi   = inv((xd'zd)*inv(zd'zd)*(zd'xd));
+     xy    = (xd'zd)*inv(zd'zd)*(zd'yd) ;
+     beta  = xxi * xy;
+
+     u     = yd - (xd*beta) ;
+     e     = u ;
+
+     tmp   = rfft(e[.,1]) ;
+
+     err   = tmp * scale ;
+
+     err   = err[1:(nn/(4*m)),.];
+     err   = (rev((trimr(err,1,0)').'))|err;
+
+     sig   = (err'err)/rows(err) ;
+
+     ys    = y ;
+     tmp   = rfft(ys) ;
+     ys    = tmp[1:(nn/(4*m)),1]*scale;
+
+     if (_NoDet NE 1) ;
+	tt    = x~d ;
+     else ;
+	tt    = x ;
+     endif ;
+
+     z     = zeros(nn/(4*m),cols(tt)) ;
+
+     i     = 0 ;
+     do while (i < cols(tt)) ;
+	i        = i + 1 ;
+	tmp      = rfft(tt[.,i]) * scale ;
+	z[.,i]   = tmp[1:(nn/(4*m)),1];
+     endo ;
+
+     z     = (rev((trimr(z,1,0)').'))|z;
+     ys    = (rev((trimr(ys,1,0)').'))|ys ;
+
+     beta  = REAL(inv(z'z)*(z'ys));
+
+     var   = REAL(sig*inv(z'z));
+     sd    = sqrt(diag(var));
+
+     retp(beta,var,sd,beta./sd) ;
+endp ;
+proc (4) = pcb(y,x,d,M) ;
+     local f ;
+     f = ones(nt(y),1) ;
+     retp(gpcbiv(y,x,x,d,f,M));
+endp ;
+proc (4) = han(y,x,d,M) ;
+     local f ;
+     f = ones(nt(y),1) ;
+     retp(ghaniv(y,x,x,d,f,M));
+endp ;
+proc (4) = gpcbbw(y,x,z,d,f,M) ;
+     retp(gpcbiv(y,x,z,d,f,M));
+endp ;
+proc (4) = pcbbw(y,x,d,f,M) ;
+     retp(gpcbiv(y,x,x,d,f,M));
+endp ;
+proc (4) = hanbw(y,x,d,f,M) ;
+     retp(ghaniv(y,x,x,d,f,M));
+endp ;
+proc (4) = hanZ(y,x,d,M);
+     retp(hanZiv(y,x,x,d,M));
+endp;
+proc (4) = pcbZ(y,x,d,M);
+     retp(pcbZiv(y,x,x,d,M));
+endp;
+proc (4) = gpcb(y,x,z,d,M) ;
+     local f;
+     f = ones(nt(y),1) ;
+     retp(gpcbiv(y,x,z,d,f,M)) ;
+endp;
+proc (4) = ghan(y,x,z,d,M) ;
+     local f ;
+     f = ones(nt(y),1) ;
+     retp(ghaniv(y,x,z,d,f,M)) ;
+endp;
+proc (4) = gpcbz(y,x,z,d,M) ;
+     local f;
+     f = zeros(nt(y),1) ;
+     retp(gpcbZiv(y,x,z,d,f,M)) ;
+endp;
+proc (4) = ghanz(y,x,z,d,M) ;
+     local f ;
+     f = zeros(nt(y),1) ;
+     retp(ghanZiv(y,x,z,d,f,M)) ;
+endp;
+proc (2) = fm_ols(y,x,d,l);
+
+     /* Multivariate FM */
+     /* Returns Beta (k x n)
+	Variance matrix --- kn x kn */
+     /* Formulae from Phillips (1993) CFDP 1047 */
+
+     local t, m, n, xd, z, ixx, xy, beta, u, e, del, sig, sigxx;
+     local true, ys, dels, xk, j, temp, var, bige, delxx;
+
+     t     = rows(y) - 1;
+     m     = cols(x);
+     n     = cols(y);
+
+     if ( _NoDet NE 1 ) ;
+	 xd    = x-(d*inv(d'd)*(d'x));
+	 z     = x~d;
+     else ;
+	 xd    = x ;
+	 z     = x ;
+     endif ;
+
+     ixx   = inv(z'z);
+     xy    = z'y ;
+     beta  = y/z ;
+
+     u     = y - (z*beta) ;
+     e     = trimr(u,1,0)~diff(xd,1) ;
+
+     del   = delta(e,l);
+     del   = trimr(trimr(del',n,0)',0,m);
+     sig   = lrvar(e,l) ;
+     sigxx = trimr(trimr(sig,n,0)',n,0);
+
+     delxx = delta(diff(xd,1),l);
+
+     true  = del*inv(sigxx) ;
+
+     ys    = trimr(y,1,0) - diff(xd,1)*(true');
+     dels  = del' - (delxx*(true')) ;
+
+     if (_NoDet NE 1) ;
+	dels = dels|zeros(cols(d),n);
+     endif ;
+
+     xk    = trimr(z,1,0);
+     ixx   = inv(xk'xk);
+     beta  = ixx*((xk'ys)-(rows(xk)*dels)); /* Mutivariate FM */
+
+/*   Okay, compute the co-variance matrix.... */
+
+     temp  = trimr(u[.,1],1,0) .* xk ;
+     j = 1 ;
+     do while (j < cols(u));
+	j = j + 1 ;
+	temp = temp~(trimr(u[.,j],1,0) .* xk);
+     endo ;
+
+     bige  = lrvar(temp,l);
+     temp  = eye(cols(u)) .*. (sqrt(rows(xk))*ixx);
+
+     var   = temp * bige * temp;
+
+     retp(beta,var) ;
+endp ;
+
+proc (2) = fm_var(y,d,k,l);
+
+     /* Multivariate FM-VAR */
+     /* Returns Beta (z x n), z = (k+1)*n */ /* Changed by DEH, 06/02/96 */
+     /* Variance matrix --- (z*n) x (z*n)   */
+     /* Formulae from Phillips (1993) CFDP 1047 */
+     /* Corrected for bugs (reported by Hiro Toda) 6 Jan, 1995 */
+     /* Corrected for bugs in k = 1 case, as found and reported by */
+     /* Daniel E. Houser, U. of Minnisota, 06/01/96 */
+
+     local x,t, m, n, xd, z, ixx, xy, beta, u, e, del, sig, sigxx, f;
+     local true, ys, dels, xk, j, temp, var, bige, delxx, tmp, yl, zp;
+     local a ;
+
+
+     t     = rows(y) - 1;
+     n     = cols(y);
+
+     if (k LT 0) ; /* Changed by DEH, 06/02/96 */
+
+        "Error FM-VAR: k must not be less than 0!";
+         retp(0,0);
+
+     endif;
+
+     if (k GE 1) ; /* Changed by DEH, 06/02/96 */
+
+         tmp  = lagn(zeros(1,cols(y))|diff(y,1),1);
+         zp   = tmp ;
+
+         j    = 1;
+         do while (j LE k-1);
+            zp = zp~lagn(tmp,j); /* Changed by DEH, 06/02/96 */
+            j = j + 1 ;
+         endo;
+
+         x = trimr(zp~lagn(y,1),k+1,0);
+         y = trimr(y,k+1,0);
+
+         yl = x[.,1+cols(zp):cols(x)];
+
+     else;
+
+         yl = trimr(lagn(y,1),1,0);
+         y  = trimr(y,1,0); /* Corrected, 06/01/96 */
+         x  = yl;
+
+     endif;
+
+     m     = cols(yl);
+
+     if ( _NoDet NE 1 ) ;
+        d = trimr(d,k+1,0);
+        xd    = x-(d*inv(d'd)*(d'x));
+        z     = x~d;
+     else ;
+        xd    = x ;
+        z     = x ;
+     endif ;
+
+     ixx   = inv(z'z);
+     xy    = z'y ;
+
+     beta  = y/z ;
+
+     u     = y - (z*beta) ;
+
+     if (k GE 1);   /* Changed by DEH, 06/02/96 */ /* Corrected 06/01/96 */
+         e     = u~xd[.,1:cols(y)];
+     else;
+         xd    = zeros(1,cols(y))|diff(xd[.,1:cols(y)],1);
+         e     = u~xd;
+     endif;
+     
+     del   = lrvar(e,l); /* Changed by DEH, 06/02/96 */
+     del   = trimr(trimr(del',n,0)',0,m);
+
+     sig   = lrvar(e,l) ;
+     sigxx = trimr(trimr(sig,n,0)',n,0);
+
+     delxx = delta(xd[.,1:cols(y)],l)';
+
+     true  = del*inv(sigxx) ;
+
+     ys    = y - (xd[.,1:cols(y)]*true');
+     dels  = -true*delxx;   /* Changed by DEH, 06/02/96 */
+
+     if k > 0; /* Changed by DEH, 06/02/96 */
+
+        a = (y'x[.,1:cols(zp)])~(ys'yl - (rows(ys)*dels));
+
+     else ;
+
+        a = (ys'yl - (rows(ys)*dels));
+
+     endif;
+
+
+     if (_NoDet NE 1) ;
+
+         a = a~(y'd);
+
+     endif ;
+
+
+     f = a*ixx; beta = f';
+
+     u = y - (z*beta);
+
+/*   Okay, compute the co-variance matrix.... */
+
+     var   = (u'u/rows(u)) .*. ixx;
+
+     retp(beta,var) ;
+
+endp;
+
+proc wt(u,p);
+     local iz, tmp, all_c, res_e, nobs, r, z, t, s_e, w;
+     iz = 1 ;
+     nobs = rows(u) ;
+     tmp = lagn(u,iz) ;
+     do while (iz < p) ;
+	iz = iz + 1;
+	tmp = tmp~lagn(u,iz);
+     endo ;
+     tmp  = zeros(p,cols(tmp))|trimr(tmp,p,0) ;
+     all_c = inv(tmp'tmp)*(tmp'u) ;
+     res_e = u-(tmp*all_c);
+     all_c = all_c' ;
+     s_e   = chol(inv((res_e'res_e)/rows(res_e)));
+     r = 0 ;
+     do while (r <= p) ;
+	z = zeros(nobs,nobs);
+	iz = 0 ;
+	do while (iz <= nobs-1-r) ;
+	   iz = iz + 1 ;
+	   z[iz,iz+r] = 1.0 ;
+	endo ;
+
+/* instead of setting p initial values to zero, as in the KP paper, the value
+** at time = 1 is used */
+
+	z[1,1:r+1] = ones(1,r+1);
+	z = z';
+	if (r == 0) ;
+	    w = s_e .*. z ;
+	else ;
+	    t = s_e * all_c[1:cols(u),1+((r-1)*cols(u)):r*cols(u)];
+	    w = w - (t .*. z) ;
+	endif ;
+	r = r + 1 ;
+     endo ;
+retp(w);
+endp;
+proc (4) = fm_give(y,x,z,l,lvar);
+     local ahatx, agive, uhat0, uhatgive, szt, sigma, sigmal;
+     local sigmazz, sigmazl, sztl, vecagive, tmp, tmp1, tmp2;
+     local omega, omega0a, omegaaa, del, n, m, nz, del0z, yplus ;
+     local deluz, delp0z, times, lromega, lrscores, s1, s2, st, iters ;
+     local zt, xt, yt, tempz, dof, pvalue, what_t, xstar,zstar ;
+     local vecystr, omega0ux, omega0xx, deluxz,iu, t2, nobs, s ;
+     local del0zpls, uhatgivs;
+     local uhatgivn;
+
+     n = cols(y);
+     m = cols(x);
+     nz = cols(z) ;
+
+     if (_times EQ 0) ;
+	_times = 1 ;
+     endif ;
+
+     /* naive instrumental variable estimation */
+
+     ahatx = (y'z)*inv(z'z)*(z'x)*inv(x'z*inv(z'z)*(z'x));
+
+     what_t = wt(y - x*(ahatx'),lvar) ;
+
+     /* now transform the X, Y, Z matrices using the weight matrix, what_t */
+
+     xstar = what_t*(eye(n) .*. x) ;
+     zstar = what_t*(eye(n) .*. z) ;
+     vecystr = what_t*vecr(y') ;
+
+     /* compute GIVE */
+
+     vecagive = inv((xstar'zstar)*inv(zstar'zstar)*(zstar'xstar))
+		* (xstar'zstar)*(inv(zstar'zstar)*(zstar'vecystr));
+     agive = reshape(vecagive,n,m) ;
+
+     uhatgive = y - x*(agive') ;
+
+     /* uhatgivn is the UM(unmodified)-GIVE residual (may be used in tests) */
+     uhatgivn = uhatgive;
+
+     /* set up a loop to compute the FM-GIVE estimator and then iterate */
+
+     iters = 0 ;
+     do while (iters < _times) ;
+
+	/* re-calculate GLS-transformation matrix  */
+	what_t = wt(uhatgive,lvar) ;
+
+	/* now transform the X, Y, Z matrices using the weight matrix, what_t*/
+
+	xstar   = what_t*(eye(n) .*. x) ;
+	zstar   = what_t*(eye(n) .*. z) ;
+	vecystr = what_t*vecr(y') ;
+
+	iters = iters + 1 ;
+
+	/* compute Omega and Delta matrices */
+
+	tmp1 = trimr(uhatgive,1,0)~diff(x~z,1);
+	tmp2 = kernel(tmp1,l) ;
+
+	del   = (tmp1'tmp1)/rows(tmp1) + tmp2;
+	omega = del + tmp2';
+
+	/* extract the required matrices ... */
+
+	omega0ux = trimr(trimr(omega, 0, m + nz)',n,nz)';
+	omega0xx = trimr(trimr(omega, n,nz)',n,nz)';
+	deluxz   = trimr(trimr(del, n, nz)',n+m,0)';
+
+	/*  Compute the FM-GIVE estimator ... */
+
+	zt = trimr(z,1,0) ;
+	tmp = inv(omega0xx)*((diff(x,1)'zt)-(rows(zt)*deluxz))*inv(zt'zt) ;
+	tmp = (omega0ux * tmp);
+
+	vecagive = inv((xstar'zstar)*inv(zstar'zstar)*(zstar'xstar))
+	  * (xstar'zstar)*(inv(zstar'zstar)*zstar'vecystr-vecr(tmp));
+
+	agive = reshape(vecagive,n,m) ;
+	uhatgive = y - x*(agive') ;
+
+    Endo ;  /* End of iteration loop --- _Times */
+
+/****************************************************************/
+/*          End of FM-GIVE estimation   &                       */
+/*          Beggining of IV validity test procedure             */
+/****************************************************************/
+
+     what_t = wt(uhatgive,lvar) ;
+
+     /* now transform the X, Y, Z matrices using the weight matrix, what_t */
+
+     xstar = what_t*(eye(n) .*. x) ;
+     zstar = what_t*(eye(n) .*. z) ;
+     vecystr = what_t*vecr(y') ;
+
+    /* Recompute Omega and Delta matrices */
+
+    tmp1 = trimr(uhatgive,1,0)~diff(x~z,1);
+    tmp2 = kernel(tmp1,l) ;
+
+    del = (tmp1'tmp1)/rows(tmp1) + tmp2;
+    omega = del + tmp2';
+
+    omega0ux = trimr(trimr(omega, 0, m + nz)',n,nz)';
+    omega0xx = trimr(trimr(omega, n,nz)',n,nz)';
+
+    /* Compute the delta matrix --- not very sure of this step. Please check */
+    /* Note: "weights[iu]" are the kernel weights. They are re-computed in */
+    /* KERNEL.SRC every time kernel() is called. */
+
+    deluxz   = trimr(trimr(del, n, nz)',n+m,0)';
+
+    tmp1 = trimr(uhatgive,1,0)~diff(z,1);
+    tmp2 = kernel(tmp1,l) ;
+    del  = (tmp1'tmp1)/rows(tmp1) + tmp2;
+    del0z    = trimr(trimr(del, 0, nz)',n,0)';
+    tmp = kernel(uhatgive,l);
+
+    nobs = rows(z) ;
+    s = 0;
+    do while ( s < n ) ;
+	tmp = diff(zstar[(1+s*nobs):((s+1)*nobs),.],1);
+	if (s == 0);
+	    tmp1 = zeros(1,cols(tmp))|tmp;
+	     /* zeros compensate for the differencing */
+	else ;
+	    tmp1 = tmp1|zeros(1,cols(tmp))|tmp;
+	endif;
+	s = s + 1;
+    endo;
+
+    /* calculate delta_u0-zdot star  */
+    /* uhatgive = naivegive residual */
+    tmp  = tmp1'(what_t*vecr(uhatgivn'))/nobs;
+    tmp2 = what_t*vecr(uhatgivn');
+    tmp2 = (reshape(tmp2,n,cols(uhatgivn') ))';
+
+    iu = 0 ;
+    do while (iu < l) ;
+       iu  = iu + 1 ;
+       tmp2 = trimr(tmp2,1,0)|zeros(1,cols(uhatgivn));
+       tmp = tmp + weights[iu]*tmp1'vecr(tmp2')/nobs ;
+    endo ;
+
+    /* calculate the corrected GIVE residual */
+
+    tmp1 = zeros(1,cols(x))|diff(x,1) ;
+
+    uhatgivs
+	= uhatgive-(tmp1*inv(omega0xx)*(omega0ux')) ;
+
+    /* long-run covariance matrix */
+
+    tmp1 = kernel(uhatgivs,l) ;
+
+    lromega = (uhatgivs'uhatgivs)/rows(uhatgivs) + tmp1 + tmp1' ;
+
+  /* Fully modified score matrix */
+    t2 = uhatgivs'Z ;
+    del0zpls = del0z - (omega0ux)*inv(omega0xx)*deluxz;
+    t2 = t2 - nobs*del0zpls;
+
+
+    s1 = (nobs^2) * tmp'inv(zstar'zstar)*tmp ;
+    s2 = vecr(t2)'inv(lromega .*. (z'z))*vecr(t2) ;
+
+    st  = s1 + s2 ;
+    pvalue = 0 ;
+    if n*(nz-m) > 0 ;
+       pvalue = cdfchic(st, n*(nz-m)) ;
+    endif ;
+
+retp(agive,lromega,s1,s2);
+endp ;
+proc (4) = fm_gmm(y,x,z,l);
+     local ahatx, ahatgmm, uhat0, uhat0gmm, szt, sigma, sigmal;
+     local sigmazz, sigmazl, sztl, vecagmm, tmp, tmp1, tmp2;
+     local omega, omega0a, omegaaa, del, n, m, nz, del0z, yplus ;
+     local deluz, delp0z, times, lromega, lrscores, s1, s2, st, iters ;
+     local zt, xt, yt, tempz, dof, pvalue ;
+     local uhatgmmp ;
+
+     n = cols(y);
+     m = cols(x);
+     nz = cols(z) ;
+
+     if ( _times EQ 0) ;
+	_times = 1 ;
+     endif ;
+
+/*   Naive IV...  */
+
+     ahatx = (y'z)*inv(z'z)*(z'x)*inv(x'z*inv(z'z)*(z'x));
+
+/*   Naive Residuals.... */
+
+     uhat0 = y - x*(ahatx') ;
+
+/*   Compute sztl matrix using uhat0 and z .... */
+/*   Construct observation matrix of (u times z) */
+     tmp    = (uhat0 .*. ones(1,cols(z)) ) .* ( ones(1,cols(uhat0)) .*. z);
+     sigmal = kernel(tmp,l);
+     sztl   = ((tmp'tmp)/rows(tmp)) + sigmal + sigmal';
+
+/*   Compute GMM estimator  (Step 2) */
+
+     tmp    = (eye(n).*.(x'z))*inv(sztl) ;
+     vecagmm = inv(tmp* (eye(n) .*. (z'x)))*tmp*(vecr(y'z));
+
+/*   Reshape the estimator matrix back to an (n x m) matrix */
+
+     ahatgmm   = reshape(vecagmm,n, m);
+
+/*   Compute the GMM residuals */
+
+     uhat0gmm = y - x*(ahatgmm') ;
+
+     iters = 0 ;
+     Do While (iters < _times) ;
+	iters = iters + 1 ;
+
+	/* Recompute sztl using GMM residuals... */
+
+	tmp     = (uhat0gmm .*. ones(1,cols(z)) ) .* ( ones(1,cols(uhat0gmm))
+		.*. z);
+	 sigmal = kernel(tmp,l);
+	 sztl = ((tmp'tmp)/rows(tmp)) + sigmal + sigmal';
+
+	/* Compute Omega and Delta matrices */
+
+	tmp1 = trimr(uhat0gmm,1,0)~diff(x~z,1);
+	tmp2 = kernel(tmp1,l) ;
+
+	del   = (tmp1'tmp1)/rows(tmp1) + tmp2;
+	omega = del + tmp2';
+
+	/* Extract the required matrices ... */
+
+	omega0a = trimr(trimr(omega, 0, m + nz)',n,0)';
+	omegaaa = trimr(trimr(omega, n,0)',n,0)';
+
+	del0z   = del[1:n,1+n+m:m+n+nz];
+	deluz   = trimr(trimr(del, n, 0)',n+m,0)';
+
+	delp0z  = del0z - (omega0a*inv(omegaaa)*deluz) ;
+	yplus    = trimr(y,1,0) - (diff(x~z,1) * (omega0a * inv( omegaaa) )') ;
+	yt       = trimr(y,1,0) ;
+	zt       = trimr(z,1,0) ;
+	xt       = trimr(x,1,0) ;
+
+	/*  Compute the estimator ... */
+
+	tmp    = (eye(n).*.(xt'zt))*inv(sztl) ;
+    vecagmm = inv(tmp*(eye(n).*.(zt'xt)))*tmp*(vecr(yplus'zt-(rows(y)*delp0z)));
+
+	/* Reshape the estimator matrix back to (n x m) */
+
+	ahatgmm = reshape(vecagmm,n, m);
+
+	/* Recompute the residuals */
+
+	uhat0gmm = y - (x*ahatgmm') ;
+
+    Endo ;  /* End of iteration loop --- _Times */
+
+/****************************************************************/
+/*          End of FM-GMM estimation   &                        */
+/*          Beginning of IV validity test procedure             */
+/****************************************************************/
+
+    /*  Step 4: ....  */
+
+    /*  Recompute Sztl... */
+
+/* construct observation matrix of (u times z)  */
+    tmp = (uhat0gmm .*. ones(1,cols(z)) ) .* ( ones(1,cols(uhat0gmm)) .*. z);
+    sigmal = kernel(tmp,l);
+    sztl = ((tmp'tmp)/rows(tmp)) + sigmal + sigmal';
+
+    /* Recompute Omega and Delta matrices */ /*tmp*/
+
+    tmp1 = trimr(uhat0gmm,1,0)~diff(x~z,1);
+    tmp2 = kernel(tmp1,l) ;
+
+    del = (tmp1'tmp1)/rows(tmp1) + tmp2;
+    omega = del + tmp2';
+
+    omega0a = trimr(trimr(omega, 0, m + nz)',n,0)';
+    omegaaa = trimr(trimr(omega, n,0)',n,0)';
+
+/* Compute corrected GMM residuals */
+
+/* Note: omegaaa will be singular if z = x (i.e. instruments are the x) */
+/* So don't compute next part if this is just happens to be the case. */
+
+    st = 0 ;
+    s1 = 0 ;
+    s2 = 0 ;
+    lromega = 0 ;
+    dof = n*(nz-m) ;
+
+    if (det(omegaaa) NE 0)  AND (dof GT 0);
+       uhat0gmm = trimr(uhat0gmm,1,0) ;
+       tempz = ( omega0a * inv(omegaaa) )';
+
+       uhatgmmp = uhat0gmm - (diff(x~z,1)*tempz) ;
+
+    /*Compute long-run covariance matrix of the GMM residuals */
+
+       tmp2     = kernel(uhatgmmp,l) ;
+       lromega  = (uhatgmmp'uhatgmmp)/rows(uhatgmmp) + tmp2 + tmp2';
+
+    /* Step 5: Long-run scores... */
+
+       del0z  = del[1:n,1+n+m:m+n+nz];
+       deluz  = trimr(trimr(del, n, 0)',n+m,0)';
+       delp0z  = del0z - (omega0a*inv(omegaaa)*deluz) ;
+
+    /* construct obs matrix of (u times z)  :by Y.K.*/
+   tmp = (uhat0gmm .*. ones(1,cols(zt)) ) .* ( ones(1,cols(uhat0gmm)) .*. zt);
+   sigmal = kernel(tmp,l);
+   sztl = ((tmp'tmp)/rows(tmp)) + sigmal + sigmal';
+
+       lrscores = (uhatgmmp'zt) - (rows(y)*delp0z);
+
+       s1 = rows(yt)*vecr(del0z)'inv(sztl)*vecr(del0z) ;
+       s2 = vecr(lrscores)'inv(lromega.*.(zt'zt))*vecr(lrscores);
+
+       st = s1 + s2 ;
+
+       pvalue = cdfchic(st,dof);
+
+    endif ;
+retp(ahatgmm,lromega,s1,s2);
+endp ;

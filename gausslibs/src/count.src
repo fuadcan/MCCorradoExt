@@ -1,0 +1,626 @@
+/*
+** count.src - Event Count and Duration Regression
+**
+**
+** (C) Copyright 1988-2005  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+**
+** LOLS
+**
+** Purpose:    To compute LOGGED least squares regression. Ln(y+.5)/x
+**
+**          b = LOLS(dataset,depvar,indvars);
+** Format:
+**
+** Input:      dataset -- string, name of data set.
+**
+**                        If this is a null string, the procedure assumes
+**                        that the actual data has been passed in the
+**                        next two arguments.
+**
+**             depvar -- dependent variable.
+**
+**                       If dataset contains the name of a dataset, this is
+**                       interpreted as:
+**
+**                           string, name of dependent variable
+**                               or
+**                           scalar, index of dependent variable. If scalar 0,
+**                           the last column of the data set will be used.
+**
+**                       If dataset is a null string or 0, this is
+**                       interpreted as:
+**
+**                           Nx1 vector, the dependent variable
+**
+**             indvars -- independent variables.
+**
+**                        If dataset contains the name of a dataset, this is
+**                        interpreted as:
+**
+**                            Kx1 character vector, names of independent
+**                            variables
+**                                 or
+**                            Kx1 numeric vector, indices of independent
+**                            variables
+**
+**                            These can be any size subset of the variables in
+**                            the data set, and can be in any order.  If a
+**                            scalar 0 is passed, all columns of the data set
+**                            will be used except for the one used for the
+**                            dependent variable.
+**
+**                        If dataset is a null string or 0, this is
+**                        interpreted as:
+**
+**                            Nx1 vector, the dependent variable
+**
+** Globals:
+**             __con -- global scalar, default 1.
+**
+**                         1   a constant term will be added, D = K+1.
+**
+**                         0   no constant term will be added, D = K.
+**
+**                         A constant term is always used in
+**                         constructing the moment matrix m.
+**
+**
+**
+**             __miss -- global scalar, default 1.
+**
+**                         0   there are no missing values (fastest).
+**
+**                         1   listwise deletion, (default) drop any
+**                             cases in which missings occur.
+**
+**                         2   pairwise deletion, this is equivalent to
+**                             setting missings to 0 when calculating m.
+**                             The number of cases computed is equal to
+**                             the total number of cases in the data set.
+**
+**             __row -- global scalar, the number of rows to read per
+**                      iteration of the read loop. Default 0.
+**
+**                      If 0, the number of rows will be calculated
+**                      internally.  If you get an "Insufficient memory"
+**                      error while executing OLS you can supply a value
+**                      for __row that works on your system.
+**
+**                      The answers may vary slightly due to rounding
+**                      error differences when a different number of
+**                      rows is read per iteration.  You can use __row
+**                      to control this if you want to get exactly the
+**                      same rounding effects between several runs.
+**
+**
+** Output:
+**             b -- Dx1 vector, the least squares estimates of parameters
+**
+*/
+
+/* common external declarations */
+
+#include count.ext
+#include maxlik.ext
+#include gauss.ext
+
+#ifDLLCALL
+external proc indices2;
+#else
+external proc indices2,indexcat;
+#endif
+
+proc lols(dataset,depvar,indvars);
+
+    local idat,fin,tobs,depindx,indindx,nvar,nr,dta,y0,mn,nc,cy, i,
+        constflg,constvlu,vardx,cxx,cxxi,cxy,nobs,mobs, b,nvar1,cvec,old,m,
+        constant,oldtrp,cov;
+
+    clear constflg,mobs,constant;
+    fin = -1;
+    constvlu = 1;
+    if type(dataset) == 13;
+        dataset = "" $+ dataset;
+        idat = 0;
+    /* open file using name in variable DATASET */
+        open fin = ^dataset;
+        if fin == -1;
+#ifUNIX
+            errorlog "ERROR:  Data set " $+ dataset $+ " not found";
+#else
+            errorlog "ERROR:  Data set " $+ upper(dataset) $+ " not found";
+#endif
+            retp(zeros(rows(indvars)+1,1));
+        endif;
+        tobs = rowsf(fin);
+        { depvar,depindx,indvars,indindx } = indices2(dataset,depvar,indvars);
+        vardx = indindx|depindx;
+        nobs = tobs;
+        nvar = rows(indindx);
+        nvar1 = nvar+1;
+
+    /* Computation of max number of rows to read at one time */
+        nr = getnr(3.5,colsf(fin));
+    else;
+        dta = dataset[.,indvars]~dataset[.,depvar];
+        idat = 1;
+        tobs = rows(dta);
+        nobs = tobs;
+        nvar1 = cols(dta);
+        nvar = nvar1-1;
+        vardx = seqa(1,1,nvar1);
+    endif;
+
+    if __miss == 2;
+        old = ndpcntrl(0,0);
+        call ndpcntrl(1,1);
+        clear mn,nc,m,i,nobs;
+        constflg = ones(1,nvar1);
+        do until i == tobs;
+            i = i+1;
+            if idat;
+                y0 = dta[i,.];
+            else;
+                y0 = readr(fin,1);
+                y0 = y0[vardx];
+            endif;
+            cy = (y0 .> 0 .or y0 .< 1);
+            ndpclex;
+            y0 = missrv(y0,0);
+            y0[.,nvar1] = ln(y0[.,nvar1] + 0.5);
+            m = m+y0'*y0;
+            mn = mn + y0'*cy;
+            nc = nc+cy'*cy;
+            nobs = nobs+(cy /= 0);
+        endo;
+        call ndpcntrl(old,0xffff);
+        if nc == 0;
+            errorlog "ERROR:  No cases left.";
+            retp(zeros(nvar1,1));
+        endif;
+        mobs = tobs-nobs;
+        mn = mn./nc;
+        m = m./nc;
+    elseif idat;
+        if __miss == 0 and ismiss(dta);
+            errorlog "ERROR:  Missing data found - __miss set to 1 (listwise)";
+            __miss = 1;
+        endif;
+        if __miss == 1;
+            dta = packr(dta);
+            if scalmiss(dta);
+                errorlog "ERROR:  No cases left.";
+                retp(zeros(nvar1,1));
+            endif;
+            nobs = rows(dta);
+            mobs = tobs-nobs;
+        endif;
+        dta[.,nvar1] = ln(dta[.,nvar1] + 0.5);
+        mn = meanc(dta);
+        m = moment(dta,0)/nobs;
+    else;
+        clear mn,m,nc;
+        do until eof(fin);
+            y0 = readr(fin,nr);
+            y0 = y0[.,vardx];
+            if __miss == 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            elseif ismiss(y0);
+                errorlog "ERROR:  Missing data found.  __miss set to 1 (lis"\
+                    "twise deletion)";
+                __miss = 1;
+                y0 = packr(y0);
+                nc = nc+rows(y0);
+            endif;
+            if not scalmiss(y0);
+                y0[.,nvar1] = ln(y0[.,nvar1] + 0.5);
+                m = m+moment(y0,0);
+                mn = mn + sumc(y0);
+            endif;
+        endo;
+        if __miss == 1;
+            if nc == 0;
+                errorlog "ERROR:  No cases left.";
+                retp(zeros(nvar1,1));
+            endif;
+            nobs = nc;
+            mobs = tobs-nobs;
+        endif;
+        mn = mn/nobs;
+        m = m/nobs;
+    endif;
+
+    if __miss == 2;
+        constflg = indexcat(dotfeq(diag(m),diag(mn)^2),1);
+    else;
+        constflg = indexcat(dotfeq(diag(m),mn^2),1);
+    endif;
+
+    if scalmiss(constflg);
+        constflg = 0;
+    elseif rows(constflg) > 1;
+        errorlog "ERROR:  Too many constants.";
+        retp(zeros(nvar1,1));
+    endif;
+
+    if constflg;
+        cvec = packr(miss(seqa(1,1,rows(mn)),constflg));
+        if __miss == 2;
+            constvlu = mn[constflg,constflg];
+            mn = mn[cvec,cvec];
+        else;
+            constvlu = mn[constflg];
+            mn = mn[cvec];
+        endif;
+        m = m[cvec,cvec];
+        nvar1 = rows(cvec);
+        nvar = nvar1 - 1;
+    endif;
+
+    if __miss == 2;
+        mn = diag(mn);
+    endif;
+
+    if __con == 1 and constflg;
+        errorlog "ERROR:  A column of constant value has been included amon"\
+            "g the independent variables.";
+        __con = 0;
+    endif;
+
+    if __con or constflg;
+        cov = m - mn*mn';
+    else;
+        cov = m;
+    endif;
+
+    cxy = cov[1:nvar,nvar1];
+    cxx = cov[1:nvar,1:nvar];
+
+    oldtrp = trapchk(1);
+    trap 1,1;
+    cxxi = invpd(cxx);
+    trap oldtrp,1;
+    if scalmiss(cxxi);
+        errorlog "ERROR:  Covariance matrix of independent variables failed"\
+            " to invert; regression coefficients set to zero";
+        retp(zeros(nvar1,1));
+    endif;
+    b = cxxi*cxy;
+    if __con or constflg;
+        constant = (mn[nvar1]-mn[1:nvar]'*b)/constvlu;
+        b = constant|b;
+    endif;
+    if fin > 0;
+        fin = close(fin);
+    endif;
+    retp(b);
+endp;
+
+/* LNG - log of the gamma function of x.
+**
+*/
+
+proc _cn_lng(x);
+    local x2, x3, ys, yp, mask, brkpnt;
+    brkpnt = 1;     /* for x below this, use direct computation */
+    if not (x >= 0);        /* some negative x's */
+        errorlog "ERROR: Arguments must all be non-negative.";
+        end;
+    endif;
+    brkpnt = brkpnt + 1;
+    if (x > brkpnt);        /* all x's greater than this -- use stirling's
+                            :: approx.
+                            */
+        gosub stirling;
+        retp( ys );
+    elseif (x <= brkpnt);           /* all x's less than this -- use
+                                    :: ln(gamma)
+                                    */
+        gosub lngamma;
+        retp( yp );
+    else;           /* some x's of each type -- combine estimates */
+        gosub stirling;
+        gosub lngamma;
+        mask = (x .> brkpnt);
+        retp( ys.*mask + yp.*(.not mask) );
+    endif;
+    /* ----------------- subroutines follow -----------------------  */
+stirling:
+
+    /* stirling's approx */
+    x2 = x.*x;
+    x3 = x.*x2;
+    ys = 0.5 * ln(2*pi) + (x - 0.5) .* ln(x) - x + 1./(12.*x) -
+        1./(360.*x3) + 1./(1260.*x3.*x2) - 1./(1680.*x3.*x2.*x2) +
+        1./(1188.*x3.*x2.*x2.*x2);
+    return;
+lngamma:
+
+    yp = ln( gamma(x) );
+    return;
+endp;
+
+/*
+** _cn_ftosm - matrix field to string
+**
+**  y = _cn_ftosm(sym,n);
+**
+**  input:  sym = a vector of symbols
+**          n = number of characters to use in each symbol
+**
+**  output: y = a character vector of numbers
+*/
+
+proc _cn_ftosm(sym,n);
+    local i,res;
+    res = zeros(rows(sym),1);
+    i = 1;
+    do while i<=rows(sym);
+        res[i] = ftos(sym[i],"*.*lf",n,0);
+        i = i+1;
+    endo;
+    retp(res);
+endp;
+
+/* COUNTPRT -- Print Parameters and Estimates
+**
+**     { b,vc,logl } = COUNTPRT(b,vc,logl);
+**
+** INPUT:
+**      b = kx1 coefficient vector
+**      vc = kxk variance-covariance matrix
+**      logl = log-likelihood
+**
+** OUTPUT:
+**      b = kx1 coefficient vector
+**      vc = kxk variance-covariance matrix
+**      logl = log-likelihood
+**
+** GLOBALS:
+**  _cn_Fix = variable name or column number of var with param
+**             constrained to 1.
+**  __title = a string with a message to be printed at the top of the output.
+**
+*/
+
+proc(3) = countprt(b,vc,logl);
+    local x,mask,fmt,hdr,se,t,rse;
+    local dataset,dep,vars;
+    print;
+    dataset = _cn_fn;
+    dep = _cn_dp;
+    vars = _cn_vr;
+
+    if type(_cn_fn) == 13;
+        call header("COUNT",_cn_fn,_ml_ver);
+    else;
+        call header("COUNT","",_ml_ver);
+    endif;
+
+    if upper(_cn_Inference) $== "MAXLIK" or upper(_cn_Inference) $== "PROFILE";
+        rse = real(sqrt(diag(vc)));
+        se = real(sqrt(diag(_max_HessCov)));
+        if ismiss(se);
+            errorlog "ERROR:  Covariance matrix of parameters not invertible";
+            se = miss(zeros(rows(b),1),0);
+        endif;
+        if ismiss(rse);
+            errorlog "ERROR:  H-S Covariance matrix of parameters not inver"\
+                "tible";
+            rse = miss(zeros(rows(b),1),0);
+        endif;
+        mask = zeros(rows(b),1)~ones(rows(b),3);
+        fmt = ("*.*s"~ 10~ 8)| ("*.*lf"~ 10~ _cn_Precision)| ("*.*lf"~ 10~
+            _cn_Precision)| ("*.*lf"~ 10~ _cn_Precision);
+        if type(dataset)/=13;
+            dataset = "Matrix Input";
+            if rows(dep)==1;
+                dep = "Col."$+ftos(dep,"*.*lf",2,0);
+            else;
+                dep = "Col."$+ftos(dep[1],"*.*lf",2,0)$+" & " $+ "Col." $+
+                    ftos(dep[2],"*.*lf",2,0);
+            endif;
+            t = ones(rows(vars)-1,1);
+            vars[2:rows(vars)] = t.*vars[2:rows(vars)];
+        else;
+            if rows(dep)==1;
+                dep = "" $+ lower(dep);
+            else;
+                dep = "" $+ lower(dep[1]) $+ " & " $+ lower(dep[2]);
+            endif;
+        endif;
+        vars = lower(vars);
+        x = vars~b~se~rse;
+        print;
+        print "Dependent Variable: "$+dep;
+        print;
+        print " Parameter  Estimate     S.E.   Het-con S.E.";
+        print;
+        call printfm(x,mask,fmt);
+        print;
+        print "log-likelihood = " ftos(logl,"-*.*lf",10,_cn_Precision) " ";;
+        print " n = " ftos(_max_NumObs,"-*.*lf",10,0);
+        if _cn_Fix/=0;
+            if round(_cn_Fix) == _cn_Fix and _cn_Fix >= 1 and _cn_Fix < 131072;
+                print ("Coefficient set to 1.0:    " $+ "Col." $+
+                    ftos(_cn_Fix,"*.*lf ",3,0) $+ _cn_Fix);
+            else;
+                print ("Coefficient set to 1.0:     " $+ _cn_Fix);
+            endif;
+        endif;
+
+    elseif upper(_cn_Inference) $== "BOOT";
+
+        se = real(sqrt(diag(vc)));
+        if ismiss(se);
+            errorlog "ERROR:  Covariance matrix of parameters failed";
+            se = miss(zeros(rows(b),1),0);
+        endif;
+        mask = (zeros(rows(b),1)~ones(rows(b),2));
+        fmt = ones(3,1).*("*.*lf"~ 10~ _cn_Precision);
+        if type(dataset)/=13;
+            dataset = "Matrix Input";
+            if rows(dep)==1;
+                dep = "Col."$+ftos(dep,"*.*lf",2,0);
+            else;
+                dep = "Col."$+ftos(dep[1],"*.*lf",2,0)$+" & " $+ "Col." $+
+                    ftos(dep[2],"*.*lf",2,0);
+            endif;
+            t = ones(rows(vars)-1,1);
+            vars[2:rows(vars)] = t.*vars[2:rows(vars)];
+        else;
+            if rows(dep)==1;
+                dep = "" $+ lower(dep);
+            else;
+                dep = "" $+ lower(dep[1]) $+ " & " $+ lower(dep[2]);
+            endif;
+        endif;
+        vars = lower(vars);
+        x = (vars~b~se);
+        print;
+        print "Dependent Variable: "$+dep;
+        print;
+        print " Parameter  Estimate   Boot S.E.";
+        call printfm(x,mask,fmt);
+        print;
+        hdr = "bootstrap log-likelihood = " $+ ftos(logl,"-*.*lf",10,
+            _cn_Precision) $+ " ";
+        print hdr;
+        print " n = " ftos(_max_NumObs,"-*.*lf",10,0);
+        if _cn_Fix /= 0;
+            if round(_cn_Fix) == _cn_Fix and _cn_Fix >= 1 and _cn_Fix < 131072;
+                print ("Coefficient set to 1.0:    " $+ "Col." $+
+                    ftos(_cn_Fix,"*.*lf ",3,0) $+ _cn_Fix);
+            else;
+                print ("Coefficient set to 1.0:     " $+ _cn_Fix);
+            endif;
+        endif;
+    endif;
+    __title = "";
+
+    ndpclex;
+    retp(b,vc,logl);
+
+endp;
+
+/* COUNTCLPrt -- Print Parameters and Estimates
+**
+**     { b,cl,logl } = COUNTCLPrt(b,cl,logl);
+**
+** INPUT:
+**      b = kx1 coefficient vector
+**      cl = kx2 confidence limits
+**      logl = log-likelihood
+**
+** OUTPUT:
+**      b = kx1 coefficient vector
+**      cl = kx2 confidence limits
+**      logl = log-likelihood
+**
+** GLOBALS:
+**  _cn_Fix = variable name or column number of var with param
+**             constrained to 1.
+**  __title = a string with a message to be printed at the top of the output.
+**
+*/
+
+proc(3) = countclprt(b,cl,logl);
+    local x,mask,fmt,hdr,se,t,rse;
+    local dataset,dep,vars;
+    print;
+    dataset = _cn_fn;
+    dep = _cn_dp;
+    vars = _cn_vr;
+
+    if type(_cn_fn) == 13;
+        call header("COUNT",_cn_fn,_ml_ver);
+    else;
+        call header("COUNT","",_ml_ver);
+    endif;
+
+    if rows(cl) /= rows(b);
+        if not trapchk(4);
+            errorlog "first and second arguments not conformable";
+            retp(b,cl,logl);
+        endif;
+    endif;
+    mask = zeros(rows(b),1)~ones(rows(b),3);
+    fmt = ("*.*s"~ 10~ 8)| ("*.*lf"~ 12~ _cn_Precision)| ("*.*lf"~ 12~
+        _cn_Precision)| ("*.*lf"~ 12~ _cn_Precision);
+    if type(dataset)/=13;
+        dataset = "Matrix Input";
+        if rows(dep)==1;
+            dep = "Col."$+ftos(dep,"*.*lf",2,0);
+        else;
+            dep = "Col."$+ftos(dep[1],"*.*lf",2,0)$+" & " $+ "Col." $+
+                ftos(dep[2],"*.*lf",2,0);
+        endif;
+        t = ones(rows(vars)-1,1);
+        vars[2:rows(vars)] = t.*vars[2:rows(vars)];
+    else;
+        if rows(dep)==1;
+            dep = "" $+ lower(dep);
+        else;
+            dep = "" $+ lower(dep[1]) $+ " & " $+ lower(dep[2]);
+        endif;
+    endif;
+    vars = lower(vars);
+    x = vars~b~cl;
+    print;
+    print "Dependent Variable: "$+dep;
+    print;
+    print "                           "$+ftos(1-_max_Alpha,"%*.*lf",3,2)$+""\
+        " confidence limits";
+    print " Parameter    Estimate   Lower Limit   Upper Limit";
+    print;
+    call printfm(x,mask,fmt);
+    print;
+    print "log-likelihood = " ftos(logl,"-*.*lf",10,_cn_Precision) " ";;
+    print " n = " ftos(_max_NumObs,"-*.*lf",10,0);
+    if _cn_Fix/=0;
+        if round(_cn_Fix) == _cn_Fix and _cn_Fix >= 1 and _cn_Fix < 131072;
+            print ("Coefficient set to 1.0:    " $+ "Col." $+ ftos(_cn_Fix,
+                "*.*lf ",3,0) $+ _cn_Fix);
+        else;
+            print ("Coefficient set to 1.0:     " $+ _cn_Fix);
+        endif;
+    endif;
+    __title = "";
+
+    ndpclex;
+    retp(b,cl,logl);
+
+endp;
+
+proc(0) = countset;
+    maxset;
+    _cn_Start = 0;
+    _cn_Precision = 4;
+    _cn_ZeroTruncate = 1;
+    _cn_Fix = 0;
+    _cn_Dispersion = 3;
+    _cn_Censor = 0;
+    _cn_Inference = "MAXLIK";
+    _cn_c1 = 0;
+    _cn_c2 = 0;
+    _cn_c3 = 0;
+    _cn_fn = "";
+    _cn_dp = "";
+    _cn_vr = "";
+endp;

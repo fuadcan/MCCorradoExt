@@ -1,0 +1,11 @@
+ADF statistic for random walk without drift
+Autoregressive parameter =       0.98233837 
+ADF t-statistic; 5% critical value   =      -0.83016957       -1.9497600 
+Woops!; p < -1
+Error: p cannot be set < -1
+Woops!; p > 5; critical values not available
+Autoregressive parameter =       0.58496965 
+ADF t-statistic; 5% critical value   =       -3.7822604       0.00000000 
+run cadf/ex;
+File not found: CADF/EX
+run cadf.ex;

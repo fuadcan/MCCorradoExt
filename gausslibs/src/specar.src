@@ -1,0 +1,42 @@
+/*
+
+PROC (3) = specestar(y,p,nf,conf);
+
+ LOCAL n,alpha,res,freq,fdach,sigma2,gam,u,v,sa,c,b,b1,b2,d,ind,s2,j,bound,h;
+ y = y-tsmean(y);
+ n = ROWS(y); 
+ alpha = arest(y,p,"yw");
+ res = armaresid(y,alpha,0); 
+ sigma2 = res'*res/(n-p); 
+ freq = SEQA(0,1,nf+1)/(2*nf);
+ gam = (1/sigma2)*UPMAT(TOEPLITZ(1|-alpha))*(1|-alpha);
+ u = LOWMAT(TOEPLITZ(1|-alpha[1:p-1]));
+ v = LOWMAT(TOEPLITZ(-alpha[p:1]));
+ sa = u*u'-v*v';
+ c = ZEROS(p+1,p+1);
+ c[1:p,1:p]= sa;
+ c[p+1,p+1] = 2/sigma2^2;
+ b1 = SHIFTR(RESHAPE(-alpha,p+1,p),seqa(0,-1,p+1),0);
+ b2 = SHIFTR(RESHAPE(1|-alpha[1:p-1],p,p),seqa(0,1,p),0);
+ b2 = (-alpha')|b2;
+ b = (b1+b2)/sigma2;
+ b = b~(gam*sigma2);
+ d = b*c*b';
+ ind = 2*PI*SEQA(1,1,p);
+ s2 = MISS(ZEROS(ROWS(freq),1),0);
+ h = ZEROS(ROWS(freq),1);
+ j=0;
+ DO WHILE j<ROWS(freq); 
+   j=j+1;   
+   h[j] =  (1~(2*COS(freq[j]*ind')))*gam;
+   s2[j] = (1~(2*COS(freq[j]*ind')))*d*(1|(2*COS(freq[j]*ind)));
+ ENDO;
+ fdach = h^-1;
+ IF conf > 0;
+  s2 = SQRT(CDFCHII(conf,p+1)*s2/n);
+  bound = (h+s2)~(h-s2);
+  bound = bound.*(bound.>0);
+  bound = MISS(bound,0)^-1;  
+ ENDIF;
+RETP(fdach,bound,freq);
+ENDP; 

@@ -1,0 +1,113 @@
+/*
+** svdmt.src - Procedures related to the singular value decomposition.
+**
+**
+** (C) Copyright 2004-2006 Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC. This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**> pinvmt
+**
+**  Purpose:    Compute the Moore-Penrose pseudo-inverse of a
+**              matrix, using the singular value decomposition.
+**
+**              This pseudo-inverse is one particular type of
+**              generalized inverse.
+**
+**  Format:     { y,svderr } = pinvmt(x,svdtol);
+**
+**  Input:      x          NxM matrix.
+**
+**              svdtol     scalar, any singular values less than
+**                         svdtol are treated as zero in determining the
+**                         rank of the input matrix. 
+**
+**  Output:     y          MxN matrix that satisfies the 4 Moore-Penrose
+**                         conditions:
+**
+**                         1). X*Y*X = X;           2). Y*X*Y = Y;
+**                         3). X*Y is symmetric     4). Y*X is symmetric
+**
+**              svderr     scalar, if not all of the singular values
+**                         can be computed, svderr will be nonzero. The
+**                         singular values in s[svderr+1], ... s[M]
+**                         will be correct.
+**
+**  Remarks:    Error handling is controlled with the low bit of the
+**              trap flag.
+**
+**                    TRAP 0     terminate with message
+**
+**                    TRAP 1     set svderr and continue execution, if
+**                               the input matrix contains only zeros,
+**                               a scalar error code 33 is returned in
+**                               both outputs
+**
+*/
+
+proc (2) = pinvmt(x,svdtol);
+    local n,p,tflag,mask,k,r,u,s,v,svderr;
+
+    n = rows(x);
+    p = cols(x);
+    if n == 1 and p == 1;
+        if x == 0;
+           retp(error(33),error(33));
+        else;
+           retp(1/x,0);
+        endif;
+    endif;
+    if p > n;
+        x = x';
+        tflag = 1;
+        n = rows(x);
+        p = cols(x);
+    else;
+        tflag = 0;
+    endif;
+    { u,s,v } = svdcusv(x);
+    s = diag(s);
+    if scalerr(s[1]);
+        svderr = scalerr(s[1]);
+        if not trapchk(1);
+            errorlog "Singular values not all computed";
+            end;
+        endif;
+        s[1] = 0;
+    else;
+        svderr = 0;
+    endif;
+    mask = (abs(s) .> svdtol);
+
+    k = sumc(mask);         /* rank of the matrix */
+    r = rows(s);
+    if k == 0;
+        if not trapchk(1);
+            errorlog "Singular values all zero";
+            end;
+        else;
+            retp(error(33),error(33));
+        endif;
+    endif;
+    s = trimr(s,0,r-k);     /* trim off nonzero elements of s */
+    v = trimr(v',0,p-k);     /* trim off last p-k cols of v */
+    u = trimr(u',0,p-k);     /* trim off last p-k cols of u */
+
+    if tflag;
+        x = (v' ./s')*u;
+        retp(x',svderr);
+    else;
+        retp( (v'./s')*u,svderr );
+    endif;
+endp;
+

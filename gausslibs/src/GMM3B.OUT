@@ -1,0 +1,36 @@
+
+Total observations:                                          999  
+Usable observations:                                         999  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                          996  
+Value of the maximized log-likelihood function:       2621.31583  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+a               0.793658        0.007426       106.869682        0.000000
+b               0.092995        0.007363        12.630806        0.000000
+sigma           0.057704        0.001291        44.695361        0.000000
+
+Covariance matrix: inverse of the negative Hessian.
+
+Total observations:                                          999  
+Usable observations:                                         999  
+Number of parameters to be estimated:                          3  
+Degrees of freedom:                                          996  
+Number of moment conditions:                                   3  
+Value of the criterion function:                         0.00000  
+
+
+Parameters      estimates       std.err.      t-statistic         p-value   
+--------------------------------------------------------------------------
+a               0.793658        0.005550       142.996203        0.000000
+b               0.092995        0.007355        12.643108        0.000000
+sigma           0.057704        0.001273        45.319835        0.000000
+
+
+
+                 True values        TDML            GMM
+       a              0.8        0.7936581       0.79365811 
+       b              0.1      0.092994521      0.092994528 
+   sigma             0.06      0.057704066      0.057704066 

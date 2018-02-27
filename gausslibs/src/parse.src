@@ -1,0 +1,88 @@
+#ifDLLCALL
+#else
+
+/*
+** parse.src - String parsing function.
+** (C) Copyright 1991-1998 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+*/
+
+/*
+**> parse
+**
+**  Purpose:    Parses a string, returning a character vector of tokens.
+**
+**  Format:     tok = parse(str,delim);
+**
+**  Input:      str      string consisting of a series of tokens and/or
+**                       delimiters.
+**
+**              delim    NxK character matrix of delimiters that might be found
+**                       in str.
+**
+**  Output:     tok      Mx1 character vector consisting of the tokens contained
+**                       in str.  All tokens are returned; any delimiters found
+**                       in str are ignored.
+**
+**  Remarks:    To clear the code buffer to reclaim memory, use:
+**
+**                       clear _parse;
+**
+**  Globals:    _parse
+*/
+
+proc parse ( str, delim );
+
+    local delimlen, tok, savlen, toklen, erridx;
+
+    /* Make sure delim is a character matrix */
+    if type ( delim ) /= 6;
+        print "Error -- second argument must be character matrix.";
+        end;
+    endif;
+
+    /* Get number of delimiters */
+    delimlen = rows ( delim ) * cols ( delim );
+
+    /* Build return value vector */
+    savlen = strlen ( str );
+    tok = zeros ( savlen, 1 );
+    toklen = 0;
+
+    /* Initialize error return code */
+    erridx = 0;
+
+    /* Call FLI code - 2037 minimum nec. */
+    _parse = zeros ( 2037, 1 );
+    loadexe _parse = parse.rex;
+    callexe _parse ( str, delim, delimlen, tok, toklen, erridx );
+
+    if erridx;
+        print ftos( erridx, "Error -- item in string too long at index "\
+                    "%*.*lf.", 1, 0 );
+        end;
+    endif;
+
+    /* Fix up the return vector */
+    if ( savlen - toklen );
+        tok = trimr ( tok, 0, savlen - toklen );
+    endif;
+
+    /* Return */
+    retp ( tok );
+
+endp;
+
+#endif

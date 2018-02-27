@@ -1,0 +1,848 @@
+/**************************************************************************
+**************                 BAYES.SRC                *******************
+**************  BAYESIAN POSTERIOR DENSITY PROCEDURES   *******************
+**************************************************************************/
+
+DECLARE nn   != 0;
+DECLARE phi  != 0;
+DECLARE qx   != 0;
+DECLARE b    != 0;
+DECLARE g    != 0;
+DECLARE g2   != 0;
+DECLARE g3   != 0;
+DECLARE ahat != 0;
+DECLARE u2   != 0;
+DECLARE db   != 0;
+DECLARE h    != 0;
+DECLARE hx   != 0;
+DECLARE klag != 0;
+DECLARE qtrend != 0;
+DECLARE _eps   != 0;
+
+proc  prior(x);
+    local i,mm,xm,ro,as,rseq,a1,a2,mx,r1,aa,gma,mu,beta,s,p1,ym;
+    mm = rows(x);
+    xm = miss(x,1);
+    ym = missrv(xm,100+1);
+    p1 = nn*(nn-1)/2;
+    s = (nn-(xm^(2*nn)-1)./(xm^2-1))./(1-xm^2).*(ym .< 100) + p1*(ym .> 100);
+    s = s^0.5;
+    retp(s);
+endp;
+
+proc( 2 ) = postpdf(x);
+    local xm,c,cc,s,pdf1,pdf2,pdfs,s1;
+    xm = x;
+    c  = (1+(db/u2)*(ahat-xm)^2 )^g;
+    cc = (1+(db/u2)*(ahat-xm)^2 )^g2;
+    s  = prior(xm);
+    pdf1 = s./c;
+    pdf2 = 1/cc;
+    retp(pdf1,pdf2);
+endp;
+
+proc postpdf1(x);
+    local xm,c,s,pdf1,s1;
+    xm = x;
+    c = (1+(db/u2)*(ahat-xm)^2 )^g;
+    s = prior(xm);
+    pdf1 = s./c;
+    retp(pdf1);
+endp;
+
+proc postpdf2(x);
+    local xm,c,pdf2;
+    xm = x;
+    c = (1+(db/u2)*(ahat-xm)^2 )^g2;
+    pdf2 = 1./c;
+    retp(pdf2);
+endp;
+
+proc (2) = intpdff(limits);
+    local intgral1,intgral2,intgrals;
+    intgral1 = intsimp(&postpdf1, limits, 1e-3);
+    intgral2 = intsimp(&postpdf2, limits, 1e-3);
+    retp(intgral1,intgral2);
+endp;
+
+proc zbeta(y);
+    local bet1,bet2,bet,betall,x,z;
+    bet1 = y';
+    betall = phi + qx*(ahat-y');
+    x = rows(betall);
+    z = cols(betall);
+    bet2 = betall[3:klag+1,.];
+    bet = bet1|bet2;
+    retp(bet);
+endp;
+
+proc( 2 ) = matprior(y);
+    local mn,bet,m,prior,priora, priorb,k,psi,a,r,d,sig;
+    local sum,ssum,nt,rs,j1,j2,kk,priorc,lx,ycut,eps;
+    eps = _eps;
+    mn  = rows(y);
+    bet = zbeta(y);
+    m   = rows(bet);
+    priora = zeros(mn,1);
+    priorb = zeros(mn,1);
+    k = 1;
+    do until k>mn;
+        psi = hx'bet[.,k];
+        a = eye(m-1)~zeros(m-1,1);
+        r = psi'|a;
+        d = 1|zeros(m-1,1);
+        sig = diagrv(zeros(m,m),d);
+        sum = sig;
+        ssum = sig;
+        nt = 1;
+        j2 = 1;
+        rs = eye(m);
+        do until nt>nn-1;
+            do until j2>nt;
+                rs = rs*r;
+                sum = sum +rs*sig*rs';
+                j2 = j2+1;
+            endo;
+            ssum = ssum+sum;
+            nt = nt+1;
+        endo;
+        ssum = h'ssum*h;
+        priora[k] = (ssum[1,1])^0.5;
+        priorb[k] = (prodc(diag(ssum)))^0.5;
+        k = k+1;
+    endo;
+    lx = -1./(4*eps)+(1./(4*eps)).*(1+4*eps*nn*klag)^0.5;
+    ycut = y.*(y.>0) + 0*(y.<=0);
+    priorc = priorb.*exp(-ycut^lx');
+    retp(priora,priorc);
+endp;
+
+proc( 2 ) = zpostpdf(x);
+    local xm,c,cc,sa,sb,pdf1,pdf2;
+    xm = miss(x,1);
+    c = (1+(db/u2)*(ahat-xm)^2 )^g;
+    cc = (1+(db/u2)*(ahat-xm)^2 )^g2;
+    { sa,sb } = matprior(xm);
+    pdf1 = sb./c;
+    pdf2 = 1./cc;
+    retp(pdf1,pdf2);
+endp;
+
+proc zpdf1(x);
+    local xm,c,sa,sb,pdf1;
+    xm = miss(x,1);
+    c = (1+(db/u2)*(ahat-xm)^2 )^g;
+    { sa,sb } = matprior(xm);
+    pdf1 = sb./c;
+    retp(pdf1);
+endp;
+
+proc zpdf2(x);
+    local xm,c,pdf2;
+    xm = miss(x,1);
+    c = (1+(db/u2)*(ahat-xm)^2 )^g2;
+    pdf2 = 1./c;
+    retp(pdf2);
+endp;
+
+proc (2) = zintpdff(limits);
+    local intgral1,intgral2;
+    intgral1 = intsimp(&zpdf1, limits, 1e-2);
+    intgral2 = intsimp(&zpdf2, limits, 1e-2);
+    retp(intgral1,intgral2);
+endp;
+
+proc(3) = bec0(sdat,nstd,npoints);
+    local y,zz,zb, sz,ng,cn,tn,tg,y1,y2,x,q,uh,u2n, mat,k,pdf1,pdf2,pdfs,
+        val1,val3,vax2, v1,v2,vs,v3,vs3,v4,vx1,vxs,vx2,vx3, vx4,nm,vx3s,
+        limits1,limits2,limits3,lim,ns,pt,timep,t,m,xmat,
+        md,m1,m2,m3,w1,w2,w3,b3,d3;
+    clear nn,qx,b,g,g2,ahat,u2,db,h;
+    y = sdat;
+    nn = rows(y);
+    nm = npoints;
+    zz = zeros(nm,1);
+    sz = zeros(nm,1);
+    ng = nn-1;
+    cn = ones(ng,1);
+    pt = qtrend;
+if pt >= 0;
+    if pt > 0 ;
+        timep = zeros(ng,pt) ;
+        t = seqa(1,1,ng)/ng ;
+        m = 1 ;
+        do while m <= pt ;
+            timep[.,m] = t^m ;
+            m = m + 1 ;
+        endo ;
+        xmat = cn~timep ;
+    else ;
+        xmat = cn ;
+    endif ;
+    y1 = y[2:nn];
+    y2 = y[1:nn-1];
+    x = y2~xmat;
+    b = y1/x;
+    ahat = b[1];
+    q = xmat;
+    qx = y2/q;
+    db = y2'y2-y2'q*qx;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/ng;
+    mat = inv(x'x)*u2n;
+    md = sqrt(diag(mat));
+    m1 = md[1];
+    m2 = md[2];
+    if pt > 0;
+       m3 = md[3:2+pt];
+    endif;
+    w1 = (b[1]-1)/m1;
+    w2 = b[2]/m2;
+    if pt > 0;
+       b3 = b[3:2+pt];
+       w3 = b3./m3;
+       d3 = seqa(1,1,pt);
+    endif;
+    print;
+    print "        Estimated coefficients and standard errors " ;
+    print;
+    print "AR coeff., t-ratio(at 1), st.error  = "
+        b[1]~(b[1]-1)/mat[1,1]^.5~mat[1,1]^.5;
+    print "intercept, t-ratio, st.error        = "
+        b[2]~b[2]/mat[2,2]^.5~mat[2,2]^.5;
+    if pt > 0;
+       print "trend degree, trend coeff., t-ratio, st.error  ";
+       d3~b3~w3~m3;
+    endif;
+elseif pt == -1;
+    y1 = y[2:nn];
+    y2 = y[1:nn-1];
+    x = y2;
+    b = y1/x;
+    ahat = b[1];
+    db = y2'y2;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/ng;
+    mat = inv(x'x)*u2n;
+    print;
+    print "     Estimated AR coefficient and standard error " ;
+    print;
+    print "AR coeff., t-ratio(at 1), st.error  = "
+        b[1]~(b[1]-1)/mat[1,1]^.5~mat[1,1]^.5;
+elseif pt < -1;
+    " ptrend is set < -1; reset >= -1";
+    retp(0,0,0);
+endif;
+    k = 1;
+    g = nn/2;
+    g2 = g-1;
+    ns = 1.0*nstd;
+    lim  = ahat + ns*mat[1,1]^0.5| ahat - ns*mat[1,1]^0.5;
+    zb       = seqa(lim[2],(lim[1]-lim[2])/npoints,npoints);
+    { pdf1,pdf2 } = postpdf(zb);
+    limits1  = ahat + nstd*mat[1,1]^0.5| ahat - nstd*mat[1,1]^0.5;
+    limits2  = 0.999| ahat - nstd*mat[1,1]^0.5;
+    limits3  = 0.975| ahat - nstd*mat[1,1]^0.5;
+    { val1,vax2 } = intpdff(limits1);
+    if limits2[1] > limits2[2];
+       { v1,v2 } = intpdff(limits2);
+    else;
+         v1 = 0; v2 = 0;
+    endif;
+    if limits3[1] > limits3[2];
+       { v3,v4 } = intpdff(limits3);
+    else;
+         v3 = 0; v4 = 0;
+    endif;
+
+    if limits2[1] < limits1[1];
+       vx1 = (val1-v1)/val1;
+    else;
+       vx1 = 0;
+    endif;
+    if limits2[1] < limits1[1];
+       vx2 = (vax2-v2)/vax2;
+    else;
+       vx2 = 0;
+    endif;
+    if limits3[1] < limits1[1];
+       vx3 = (val1-v3)/val1;
+    else;
+       vx3 = 0;
+    endif;
+    if limits3[1] < limits1[1];
+       vx4 = (vax2-v4)/vax2;
+    else;
+       vx4 = 0;
+    endif;
+    print;
+    print;
+    print "        Probabilities of stochastic nonstationarity  ";
+    print "        based on Jeffreys' (_J) and flat (_F) priors ";
+    print;
+    print "Prob_J( rho >= 1 )     = " vx1;
+    print "Prob_F( rho >= 1)      = " vx2;
+    print;
+    print "Prob_J( rho >= 0.975 ) = " vx3;
+    print "Prob_F( rho >= 0.975 ) = " vx4;
+    pdf1 = pdf1/val1;
+    pdf2 = pdf2/vax2;
+    retp(pdf1,pdf2,zb);
+endp;
+
+proc  bec00(sdat,nstd,npoints);
+    local y,zz, sz,ng,cn,tn,tg,y1,y2,x,q,uh,u2n, mat,k,pdf1,pdf2,pdfs,
+        val1,val3,vax2, v1,v2,vs,v3,vs3,v4,vx1,vxs,vx2,vx3, vx4,nm,vx3s,
+        limits1,limits2,limits3,zb,lim,ns,pt,timep,t,m,xmat,
+        md,m1,m2,m3,w1,w2,w3,b3,d3;
+    clear nn,qx,b,g,g2,ahat,u2,db,h;
+    y = sdat;
+    nn = rows(y);
+    nm = npoints;
+    zz = zeros(nm,1);
+    sz = zeros(nm,1);
+    ng = nn-1;
+    cn = ones(ng,1);
+    pt = qtrend;
+if pt >= 0;
+    if pt > 0 ;
+        timep = zeros(ng,pt) ;
+        t = seqa(1,1,ng)/ng ;
+        m = 1 ;
+        do while m <= pt ;
+            timep[.,m] = t^m ;
+            m = m + 1 ;
+        endo ;
+        xmat = cn~timep ;
+    else ;
+        xmat = cn ;
+    endif ;
+    y1 = y[2:nn];
+    y2 = y[1:nn-1];
+    x = y2~xmat;
+    b = y1/x;
+    ahat = b[1];
+    q = xmat;
+    qx = y2/q;
+    db = y2'y2-y2'q*qx;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/ng;
+    mat = inv(x'x)*u2n;
+    md = sqrt(diag(mat));
+    m1 = md[1];
+    m2 = md[2];
+    if pt > 0;
+       m3 = md[3:2+pt];
+    endif;
+    w1 = (b[1]-1)/m1;
+    w2 = b[2]/m2;
+    if pt > 0;
+       b3 = b[3:2+pt];
+       w3 = b3./m3;
+       d3 = seqa(1,1,pt);
+    endif;
+elseif pt == -1;
+    y1 = y[2:nn];
+    y2 = y[1:nn-1];
+    x = y2;
+    b = y1/x;
+    ahat = b[1];
+    db = y2'y2;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/ng;
+    mat = inv(x'x)*u2n;
+elseif pt < -1;
+    " ptrend is set < -1; reset >= -1";
+    retp(0,0,0);
+endif;
+    k = 1;
+    g = nn/2;
+    g2 = g-1;
+    ns = 1.0*nstd;
+    lim  = ahat + ns*mat[1,1]^0.5| ahat - ns*mat[1,1]^0.5;
+    zb       = seqa(lim[2],(lim[1]-lim[2])/npoints,npoints);
+    retp(zb);
+endp;
+
+proc( 2 ) = bec3(sdat,nstd,zb);
+    local y,zz,m1,m2,m3,w1,w2,w3,j1,ydif, sz,ng,cn,tn,tg,y1,y2,x,q,uh,
+        u2n, mat,k,pdf1,pdf2,pdfs,val1,val3,vax2, v1,v2,vs,v3,vs3,v4,vx1,
+        vxs,vx2,vx3, vx4,nm,vx3s,md,limits1,limits2,limits3,xmat,
+        pt,timep,t,b3,m,d3;
+    clear nn,qx,b,g,g2,ahat,u2,db,h;
+    nm = rows(zb);
+    zz = zeros(nm,1);
+    sz = zeros(nm,1);
+    y = sdat;
+    nn = rows(y);
+    if klag <= 1;
+        print " klag is set <= 1; reset to klag > 1" ;
+        retp(0,0);
+    endif;
+    ydif = zeros(nn-klag,klag-1);
+    j1 = 1;
+    do until j1>klag-1;
+        ydif[.,j1] = y[klag-j1+1:nn-j1] - y[klag-j1:nn-j1-1];
+        j1 = j1+1;
+    endo;
+    ng = nn-klag;
+    cn = ones(ng,1);
+
+    pt = qtrend;
+if pt >= 0;
+    if pt > 0 ;
+        timep = zeros(ng,pt) ;
+        t = seqa(1,1,ng)/ng ;
+        m = 1 ;
+        do while m <= pt ;
+            timep[.,m] = t^m ;
+            m = m + 1 ;
+        endo ;
+        xmat = cn~timep ;
+    else ;
+        xmat = cn ;
+    endif ;
+    y1 = y[klag+1:nn];
+    y2 = y[klag:nn-1];
+    x = y2~xmat~ydif;
+    b = y1/x;
+    ahat = b[1];
+    q = xmat~ydif;
+    qx = y2/q;
+    db = y2'y2-y2'q*qx;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/nn;
+    mat = inv(x'x)*u2n;
+    md = sqrt(diag(mat));
+    m1 = md[1];
+    m2 = md[2];
+    if pt > 0;
+       m3 = md[3:2+pt];
+    endif;
+    w1 = (b[1]-1)/m1;
+    w2 = b[2]/m2;
+    if pt > 0;
+       b3 = b[3:2+pt];
+       w3 = b3./m3;
+       d3 = seqa(1,1,pt);
+    endif;
+    print;
+    print "        Estimated coefficients and standard errors:  " ;
+    print;
+    print "l_r AR coeff., t-ratio(at 1.00), st.error = " b[1]~w1~m1;
+    print "intercept, t-ratio, st.error              = " b[2]~w2~m2;
+    if pt > 0;
+       print "trend degree, trend coeff., t-ratio, st.error  ";
+       d3~b3~w3~m3;
+    endif;
+    print;
+elseif pt == -1;
+    y1 = y[klag+1:nn];
+    y2 = y[klag:nn-1];
+    x = y2~ydif;
+    b = y1/x;
+    ahat = b[1];
+    q = ydif;
+    qx = y2/q;
+    db = y2'y2-y2'q*qx;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/nn;
+    mat = inv(x'x)*u2n;
+    md = sqrt(diag(mat));
+    m1 = md[1];
+    m2 = md[2];
+    w1 = (b[1]-1)/m1;
+    w2 = b[2]/m2;
+    print;
+    print "        Estimated coefficients and standard errors:  " ;
+    print;
+    print "l_r AR coeff., t-ratio(at 1.00), st.error = " b[1]~w1~m1;
+    print;
+elseif pt < -1;
+    " ptrend is set < -1; reset >= -1";
+    retp(0,0);
+endif;
+
+    g = nn/2;
+    g2 = g-(klag+1)/2;
+    { pdf1,pdf2 } = postpdf(zb);
+    limits1  = ahat + nstd*m1| ahat - nstd*m1;
+    limits2  = 0.999| ahat - nstd*m1;
+    limits3  = 0.975| ahat - nstd*m1;
+    { val1,vax2 } = intpdff(limits1);
+    if limits2[1] > limits2[2];
+       { v1,v2 } = intpdff(limits2);
+    else;
+         v1 = 0 ; v2 = 0;
+    endif;
+    if limits3[1] > limits3[2];
+       { v3,v4 } = intpdff(limits3);
+    else;
+         v3 = 0; v4 = 0;
+    endif;
+
+    if limits2[1] < limits1[1];
+       vx1 = (val1-v1)/val1;
+    else;
+       vx1 = 0;
+    endif;
+    if limits2[1] < limits1[1];
+       vx2 = (vax2-v2)/vax2;
+    else;
+       vx2 = 0;
+    endif;
+    if limits3[1] < limits1[1];
+       vx3 = (val1-v3)/val1;
+    else;
+       vx3 = 0;
+    endif;
+    if limits3[1] < limits1[1];
+       vx4 = (vax2-v4)/vax2;
+    else;
+       vx4 = 0;
+    endif;
+
+    print;
+    print "        Probabilities of stochastic nonstationarity  ";
+    print "        based on Jeffreys' (_J) and flat (_F) priors ";
+    print;
+    print "Prob_J( rho >= 1 )     = " vx1;
+    print "Prob_F( rho >= 1)      = " vx2;
+    print;
+    print "Prob_J( rho >= 0.975 ) = " vx3;
+    print "Prob_F( rho >= 0.975 ) = " vx4;
+    pdf1 = pdf1/val1;
+    pdf2 = pdf2/vax2;
+    retp(pdf1,pdf2);
+endp;
+
+proc(3) = bartr(x,nstd,npoints,jlag,pt);
+    qtrend  = pt;
+    if jlag == 1;
+       retp( bec0(x,nstd,npoints) );
+    elseif jlag > 1;
+       klag    = jlag;
+       npoints = bec00(x,nstd,npoints);
+       retp( bec3(x,nstd,npoints), npoints);
+    endif;
+endp;
+
+proc(4) = bartr2(x,nstd,npoints,jlag,pt);
+    local pdf1,pdf2,pdf3,pdfx;
+    qtrend  = pt;
+    klag    = 1;
+    { pdf1,pdfx,npoints } =  bec0(x,nstd,npoints);
+    klag    = jlag;
+    { pdf2,pdf3 } =  bec3(x,nstd,npoints);
+    retp(pdf1,pdf2,pdf3,npoints);
+endp;
+
+proc(4) = cbare(x,nstd,npoints,jlag);
+    local pdf1,pdf2,pdf3,pdfx;
+    qtrend  = -1;
+    klag    = 1;
+    { pdf1,pdfx,npoints } =  bec0(x,nstd,npoints);
+    klag    = jlag;
+    { pdf2,pdf3 } =  bmat3(x,nstd,npoints);
+    retp(pdf1,pdf2,pdf3,npoints);
+endp;
+
+proc( 2 ) = bmat3(sdat,nstd,zx);
+    local y,zz,zb,m1,m2,m3,w1,w2,w3,j1,ydif, sz,ng,cn,tn,tg,y1,y2,x,q,uh,
+        u2n, mat,k,pdf1,pdf2,pdfs,val1,val3,vax2, v1,v2,vs,v3,vs3,v4,vx1,
+        vxs,vx2,vx3, vx4,nm,vx3s,kg,g1,gg,limits1,limits2,limits3;
+    nm = rows(zx);
+    zz = zeros(nm,1);
+    sz = zeros(nm,1);
+    zb = zx;
+    y = sdat;
+    nn = rows(y);
+    if klag <= 1;
+        print " klag set <= 1; reset to klag > 1" ;
+        retp(0,0);
+    endif;
+
+    ydif = zeros(nn-klag,klag-1);
+    ng = nn-klag;
+    cn = ones(ng,1);
+    tn = seqa(1,1,nn);
+    tg = tn[1:ng];
+
+    kg = klag-1;
+    g1 = zeros(1,kg);
+    g2 = -ones(kg,kg);
+    g3 = lowmat(g2);
+    gg = g1|g3;
+    h  = ones(klag,1)~gg;
+    hx = inv(h);
+    j1 = 1;
+    do until j1>klag-1;
+        ydif[.,j1] = y[klag-j1+1:nn-j1] - y[klag-j1:nn-j1-1];
+        j1 = j1+1;
+    endo;
+
+    y1 = y[klag+1:nn];
+    y2 = y[klag:nn-1];
+    x = y2~cn~tg~ydif;
+    b = y1/x;
+    ahat = b[1];
+    phi = b[2:klag+2];
+    q = cn~tg~ydif;
+    qx = y2/q;
+    db = y2'y2-y2'q*qx;
+    uh = y1-x*b;
+    u2 = uh'uh;
+    u2n = u2/nn;
+    mat = inv(x'x)*u2n;
+    m1 = sqrt(mat[1,1]);
+    m2 = sqrt(mat[2,2]);
+    m3 = sqrt(mat[3,3]);
+    w1 = (b[1]-1)/m1;
+    w2 = b[2]/m2;
+    w3 = b[3]/m3;
+
+    print;
+    print "        Estimated coefficients and standard errors: AR lag = " klag;
+    print;
+    print "l_r AR coeff., t-ratio(at 1.0), st.error      = " b[1]~w1~m1;
+    print "intercept, t-ratio, st.error                  = " b[2]~w2~m2;
+    print "trend coeff., t-ratio, st.error               = " b[3]~w3~m3;
+    print;
+
+    g = nn/2;
+    g2 = g-(klag+1)/2;
+    g3 = g-(klag-1)/2;
+
+    { pdf1,pdf2 } = zpostpdf(zb);
+
+    limits1  = ahat + nstd*m1^0.5| ahat - nstd*m1^0.5;
+    limits2  = 0.999| ahat - nstd*m1^0.5;
+    limits3  = 0.975| ahat - nstd*m1^0.5;
+    { val1,vax2 } = zintpdff(limits1);
+    if limits2[1] > limits2[2];
+       { v1,v2 } = zintpdff(limits2);
+    else;
+         v1 = 0 ; v2 = 0;
+    endif;
+    if limits3[1] > limits3[2];
+       { v3,v4 } = zintpdff(limits3);
+    else;
+         v3 = 0; v4 = 0;
+    endif;
+
+    vx1 = (val1-v1)/val1;
+    vx2 = (vax2-v2)/vax2;
+    vx3 = (val1-v3)/val1;
+    vx4 = (vax2-v4)/vax2;
+
+    print;
+    print "        Probabilities of stochastic nonstationarity  ";
+    print "        based on Jeffreys' (_J) and flat (_F) priors ";
+    print;
+    print "Prob_J( rho >= 1 )     = " vx1;
+    print "Prob_F( rho >= 1)      = " vx2;
+    print;
+
+    print "Prob_J( rho >= 0.975 ) = " vx3;
+    print "Prob_F( rho >= 0.975 ) = " vx4;
+
+    pdf1 = pdf1/val1;
+    pdf2 = pdf2/vax2;
+    retp(pdf1,pdf2);
+endp;
+
+proc(5) = quickols(sdat);
+local x,nn,y,z,b,zc,c,cn,tg,
+      olsu,u2n,mat,b_t,b_st,so;
+x=sdat;
+nn=rows(x);c=cols(x);
+y=x[.,1];
+zc=x[.,2:c];
+"    number of observations = " nn;
+"    number of variables    = " c;
+print;
+print;
+" OLS COINTEGRATING REGRESSION: (estimated coefficients + intercept )  "  ;
+print;
+cn=ones(nn,1);
+tg=seqa(1,1,nn);
+z=zc~cn;
+b=y/z;
+olsu=y-z*b;
+so=olsu'olsu/nn;
+mat=inv(x'x)*so;
+b_st=(diag(mat)^.5);
+b_t =(b./(diag(mat)^.5));
+"Regression coefficients      =" b';
+"Standard errors              =" b_st';
+" t-ratios                    =" b_t';
+"Standard error of regression = " so;
+retp(b,b_st,b_t,so,olsu);
+endp;
+
+proc(0) = dgraph(zx,zy,name,dates,klag,nobs,ngraph);
+local fmat,nr1,ymax,zxx,zyy,xmin,xmax,
+      xs,ys,figname,model,tr1,param,cpw,v,rc;
+      rc = MakeWin("Dgraph");
+      if rc < 1; retp; endif;
+
+graphset;
+
+/* set parameters for graphics    */
+fmat  = "%*.*lf";
+nr1   = ftos(klag,fmat,1,0);
+tr1   = ftos(qtrend,fmat,2,0);
+
+begwind;
+xs=9.0;
+ys=6.855;
+makewind(xs,ys,0,0,1);
+makewind(xs,ys,0,0,1);
+
+setwind(1);
+margin(0,0,0.8,1.2);
+_paxes = 1;
+_pltype = {6,1,3,3};
+_ptek = "dpost.tkf";
+_pdate = "";
+_psilent = 1;
+_pnum    = 2;
+_pypmax  = 2;
+_pxpmax  = 2;
+_ptitlht = 0.20;
+ylabel("density");
+xlabel("l_r AR coeff.");
+ymax = maxc(maxc(zy));
+ymax = 1.1*ymax;
+
+zyy = delif(zy, zy*ones(cols(zy),1) .< 0.005*ymax );
+zxx = delif(zx, zy*ones(cols(zy),1) .< 0.005*ymax );
+xmin = minc(zxx);
+xmax = maxc(zxx);
+xtics(xmin,xmax,(xmax-xmin)/4,2);
+
+/* set legend control parameters   */
+
+_plegctl = { 2 5.2 0.75 0.05 } ;
+if ngraph == 0;
+ _plegstr = "Ignorance prior: AR(" $+ nr1 $+ ")\000Flat prior: AR("$+nr1 $+")";
+elseif ngraph == 1;
+ _plegstr = "Ignorance prior: AR(1)\000Ignorance prior: AR(" $+ nr1 $+ ")"\
+ "\000Flat prior: AR(" $+ nr1 $+ ") " ;
+endif;
+
+xy(zxx,zyy);
+
+nextwind;
+fonts("simplex simgrma");
+_paxes = 0;
+xlabel("");
+ylabel("");
+figname = "    POSTERIOR DENSITIES FOR L_R AR COEFFICIENT\000";
+model   = "\000Model = AR(k) + Trend(p)";
+param   = "\000   k = " $+ nr1 $+ ";  p = " $+ tr1 ;
+_pmsgstr =  figname $+ name $+ model $+ param;
+_pmsgctl =  { 0.3 6.60 0.20 0.02 2 4 0.1 ,
+              1.1 6.20 0.18 0.02 2 4 0.1 ,
+              4.7 0.65 0.18 0.02 2 4 0.1 ,
+              4.7 0.25 0.18 0.02 2 4 0.1 };
+draw;
+endwind;
+Cpause("Dgraph");
+endp;
+
+
+proc(0) = datgraph(sdat,scr1,name);
+local fmat,nr1,ymax,zxx,zyy,xmin,xmax,
+      xs,ys,figname,nn,trend,v,cpw,rc;
+      rc = MakeWin("Datgraph");
+      if rc < 1; retp; endif;
+   graphset;
+/* set parameters for graphics    */
+   nn    = rows(sdat);
+   trend = seqa(1,1,nn);
+   _pnum    = 2;
+   _psilent = 1;
+   _pdate = "";
+   _pscreen =  scr1;
+   _pnum    = 2;
+   _pypmax  = 2;
+   _pxpmax  = 2;
+   _ptitlht = 0.20;
+   title(name);
+   xy(trend,sdat);
+Cpause("Datgraph");
+endp;
+
+proc(0) = dgraphe(zx,zy,eqnname,filegr,yname,xname);
+local fmat,nr1,nr2,ymax,zxx,zyy,xmin,xmax,xs,ys,fign1,fign2,
+      prn1,prn2,prna,prnb,pprn,cpw,v,rc;
+      rc = MakeWin("Dgraphe");
+      if rc < 1; retp; endif;
+graphset;
+fonts("simplex simgrma");
+fmat  = "%*.*lf";
+nr1   = ftos(klag,fmat,1,0);
+nr2   = ftos(_eps,fmat,1,2);
+
+prna = "Ignorance prior: AR(1)\000\202\101\201(=" $+ nr2 ;
+prnb = ")-prior: AR(" $+ nr1 $+ ")";
+prn1 = prna $+ prnb;
+prn2 = "\000Flat prior: AR(" $+ nr1 $+ ")" ;
+pprn = prn1 $+ prn2;
+
+/* set parameters for graphics    */
+begwind;
+xs=9.0;
+ys=6.855;
+makewind(xs,ys,0,0,1);
+makewind(xs,ys,0,0,1);
+
+setwind(1);
+margin(0,0,0.8,1.2);
+_paxes = 1;
+_pltype = {6,1,3,3};
+_ptek = filegr;
+_pdate = "";
+_psilent = 1;
+_pnum    = 2;
+_pypmax  = 2;
+_pxpmax  = 2;
+_ptitlht = 0.20;
+ylabel(yname);
+xlabel(xname);
+
+ymax = maxc(maxc(zy));
+ymax = 1.1*ymax;
+zyy = delif(zy, zy*ones(cols(zy),1) .< 0.005*ymax );
+zxx = delif(zx, zy*ones(cols(zy),1) .< 0.005*ymax );
+xmin = minc(zxx);
+xmax = maxc(zxx);
+xtics(xmin,xmax,(xmax-xmin)/4,2);
+
+/* set legend control parameters   */
+_plegstr = pprn;
+_plegctl = { 2 5.2 1.75 0.05 } ;
+
+xy(zx,zy);
+
+nextwind;
+_paxes = 0;
+xlabel("");
+ylabel("");
+fign1 = " POSTERIOR DENSITIES: COINTEGRATING REGRESSION RESIDUALS\000";
+fign2 = " from:" $+ eqnname;
+_pmsgstr =  fign1 $+ fign2 ;
+_pmsgctl =  { 0.3 6.60 0.18 0.02 2 4 0.1 ,
+              1.1 6.20 0.18 0.02 2 4 0.1 };
+draw;
+endwind;
+Cpause("Dgraphe");
+endp;
+

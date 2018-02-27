@@ -1,0 +1,11 @@
+/*
+** ols.dec - Ordinary least squares regression.
+** (C) Copyright 1988-1996 by Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** Global variable definitions for procedures OLS, OLSQR.
+*/
+
+declare matrix _olsqtol = 1e-14;
+declare matrix _olsres  = 0;
+declare string _olsrnam = "_olsres";

@@ -1,0 +1,41 @@
+/*
+** cmlcount.ext   external declarations for globals used in CMLCOUNT.
+**
+**
+** (C) Copyright 1994-2001  Aptech Systems, Inc.
+** All Rights Reserved.
+**
+** This Software Product is PROPRIETARY SOURCE CODE OF APTECH
+** SYSTEMS, INC.    This File Header must accompany all files using
+** any portion, in whole or in part, of this Source Code.   In
+** addition, the right to create such files is strictly limited by
+** Section 2.A. of the GAUSS Applications License Agreement
+** accompanying this Software Product.
+**
+** If you wish to distribute any portion of the proprietary Source
+** Code, in whole or in part, you must first obtain written
+** permission from Aptech Systems.
+**
+**-------------------**------------------**-------------------**-----------**
+**-------------------**------------------**-------------------**-----------**
+*/
+
+
+external matrix _cmlc_Start;
+external matrix _cmlc_ZeroTruncate;
+external matrix _cmlc_Fix;
+external matrix _cmlc_Dispersion;
+external matrix _cmlc_Censor;
+external matrix _cmlc_Precision;
+external matrix _cmlc_StartValues;
+external string _cmlc_Inference;
+external matrix _cmlc_fast;
+
+@ scratch globals - not to be changed by user @
+external matrix _cmlc_c1;
+external matrix _cmlc_c2;
+external matrix _cmlc_c3;
+external string _cmlc_fn;
+external string _cmlc_dp;
+external string _cmlc_vr;
+
