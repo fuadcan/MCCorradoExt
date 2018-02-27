@@ -1,14 +1,14 @@
 # Tm=50;n=10;k=2; frho=.2; ind=1; noCons =T; nopois=F
 library("stringr")
 
-mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
+mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
   
-  inDirHFm  <- if(noCons){"Data/noCons/multiClub/"} else {"Data/withCons/multiClub/"}
-  outDirHFm <- if(noCons){"Output/noCons/multiClub/"} else {"Output/withCons/multiClub/"}
+  inDirCWm  <- if(noCons){"Data/noCons/multiClub/"} else {"Data/withCons/multiClub/"}
+  outDirCWm <- if(noCons){"Output/noCons/multiClub/"} else {"Output/withCons/multiClub/"}
   
   cat("initializing parameters\n")
   
-  dirname  <- inDirHFm
+  dirname  <- inDirCWm
   
   nocStr   <- if(noCons){"-noConsMlt"} else {"-withConsMlt"}
   poistr  <- if(nopois){NULL} else {"pois"}
@@ -42,15 +42,15 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
     
     RtoGauss <- function(crit="05"){
     ########################################################
-      tempHF <- shell(paste0("C:/gauss6.0/tgauss -b ",'RUN hfcodes\\main',crit,'.gss'), intern=TRUE,wait=TRUE)
-      tempHF <- tempHF[1:(which(grepl("GAUSS",tempHF))[1]-2)]
+      tempCW <- shell(paste0("C:/gauss6.0/tgauss -b ",'RUN hfcodes\\main',crit,'.gss'), intern=TRUE,wait=TRUE)
+      tempCW <- tempCW[1:(which(grepl("GAUSS",tempCW))[1]-2)]
       
-      aCrude<- strsplit(tempHF[1:((which(tempHF=="brkpnt"))-1)]," ")
+      aCrude<- strsplit(tempCW[1:((which(tempCW=="brkpnt"))-1)]," ")
       aCrude<-lapply(1:length(aCrude), function(x) aCrude[[x]] <- aCrude[[x]][aCrude[[x]]!=""])
       aCrude<-lapply(1:length(aCrude), function(x) as.numeric(str_replace_all(aCrude[[x]],"c","")))
       absList<- aCrude[sapply(1:length(aCrude), function(x) length(aCrude[[x]])!=1)]
       
-      rCrude<- strsplit(tempHF[((which(tempHF=="brkpnt"))+1):length(tempHF)]," ")
+      rCrude<- strsplit(tempCW[((which(tempCW=="brkpnt"))+1):length(tempCW)]," ")
       rCrude<-lapply(1:length(rCrude), function(x) rCrude[[x]] <- rCrude[[x]][rCrude[[x]]!=""])
       rCrude<-lapply(1:length(rCrude), function(x) as.numeric(str_replace_all(rCrude[[x]],"c","")))
       relList<- rCrude[sapply(1:length(rCrude), function(x) length(rCrude[[x]])!=1)]
@@ -66,43 +66,43 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
       # cat("Pre-Evaluation\n")
       listCode <- unlist(lapply(list, function(x) c(x,0)))
       
-      sccHFabs05<- suppressWarnings(mean(unlist(lapply(absList, function(x) c(sort(x),0)))==listCode)==1)
-      sccHFrel05<- suppressWarnings(mean(unlist(lapply(relList, function(x) c(sort(x),0)))==listCode)==1)
+      sccCWabs05<- suppressWarnings(mean(unlist(lapply(absList, function(x) c(sort(x),0)))==listCode)==1)
+      sccCWrel05<- suppressWarnings(mean(unlist(lapply(relList, function(x) c(sort(x),0)))==listCode)==1)
       
-      repHF <- matrix(c(sccHFabs05,sccHFrel05),1)
-      gmmlHF <- t(matrix(rep("",2*n),n))
-      for(i in 1:length(absList)){gmmlHF[1,][absList[[i]]] <- paste0("c",i)} 
-      for(i in 1:length(relList)){gmmlHF[2,][relList[[i]]] <- paste0("c",i)}
+      repCW <- matrix(c(sccCWabs05,sccCWrel05),1)
+      gmmlCW <- t(matrix(rep("",2*n),n))
+      for(i in 1:length(absList)){gmmlCW[1,][absList[[i]]] <- paste0("c",i)} 
+      for(i in 1:length(relList)){gmmlCW[2,][relList[[i]]] <- paste0("c",i)}
       
     
-    return(list(repHF,gmmlHF))
+    return(list(repCW,gmmlCW))
     ############################## END REPORT ##############################
   }
     
     temp    <- lapply(c("01","05","1"), RtoGauss) 
-    repHFs  <- do.call(rbind,lapply(temp, function(t) t[[1]]))
-    gmmlHFs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
-    rownames(gmmlHFs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
-    rownames(repHFs)  <- c("crit01","crit05","crit1")
-    return(list(repHFs,gmmlHFs))
+    repCWs  <- do.call(rbind,lapply(temp, function(t) t[[1]]))
+    gmmlCWs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
+    rownames(gmmlCWs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
+    rownames(repCWs)  <- c("crit01","crit05","crit1")
+    return(list(repCWs,gmmlCWs))
   }
   
   consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
   cat("Consolidating Results\n")
   
-  reportHF  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
-  gmmlsHF   <- do.call(rbind,lapply(consConcs, function(c) c[[2]]))
+  reportCW  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
+  gmmlsCW   <- do.call(rbind,lapply(consConcs, function(c) c[[2]]))
   
   
-  savedir <- outDirHFm
-  outdir  <- paste0(savedir,"Results_",n,"-",k,nocStr,"_HF/")
+  savedir <- outDirCWm
+  outdir  <- paste0(savedir,"Results_",n,"-",k,nocStr,"_CW/")
   filedir <- paste0(Tm,"-",frho,poistr,".rda")
   
   
   dir.create(outdir,recursive = TRUE)
   cat("Saving\n")
-  save(reportHF,file = paste0(outdir,"reportHF-",filedir))
-  save(gmmlsHF,file = paste0(outdir,"gmmlHF-",filedir))
+  save(reportCW,file = paste0(outdir,"reportCW-",filedir))
+  save(gmmlsCW,file = paste0(outdir,"gmmlCW-",filedir))
   
   cat("Finished\n")
   

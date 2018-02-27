@@ -3,7 +3,7 @@
 dir.create("logs",showWarnings = F)
 if(!file.exists("logs/mcerror.log")){
   cat(c("Single","Tm","n","clsize","frho","noCons",
-        "noPois","ind","crit\n"),file = "logs/mcerror.log",append = T)
+        "noPois","ind","crit\n"),file = "logs/mcerrorHF.log",append = T)
 }
 library("stringr")
 
@@ -88,8 +88,16 @@ mcHF <- function(Tm,n,clsize,frho,noCons){
   
   
   ############################# CONSOLIDATION ######################
-  
-  consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
+  begin <- c(1, lenz/2-2+1, lenz-4+1)
+  end   <- c(lenz/2-2, lenz-4, lenz)
+  consConcs1 <- mclapply(begin[1]:end[1],function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores = 8)
+  cat("Finished: Part 1\n")
+  consConcs2 <- mclapply(begin[2]:end[2],function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores = 8)
+  cat("Finished: Part 2\n")
+  consConcs3 <- mclapply(begin[3]:end[3],function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores = 4)
+  cat("Finished: Part 3\n")
+  consConcs <- c(consConcs1,consConcs2,consConcs3)
+  rm(list = c("consConcs1","consConcs2","consConcs3"))
   cat("Consolidating\n")
   
   reportHF  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
