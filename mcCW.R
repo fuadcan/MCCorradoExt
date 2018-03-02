@@ -11,9 +11,9 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
 
   inDirCW  <- if(noCons){"Data/noCons/singleClub/"} else {"Data/withCons/singleClub/"}
   outDirCW <- if(noCons){"Output/noCons/singleClub/"} else {"Output/withCons/singleClub/"}
-  
   dirname  <- inDirCW
   nocStr   <- if(noCons){"-noCons"} else {"-withCons"}
+  tempdir  <- paste0(outDirCW,"tempres_",Tm,"-",n,"-",clsize,"-",frho,nocStr,"_CW/")  
   
   cat("Initializing variables\n")
   
@@ -25,7 +25,7 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
   
   #########################
   # write.table(c(Tm,n),"hfcodes/dims.csv",row.names = FALSE,col.names = FALSE)
-  
+  dir.create(tempdir,F)
   repForDat <- function(ind){
     
     z      <- zz[[1]][[ind]]
@@ -71,32 +71,32 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
     gmmlCW <- t(matrix(rep("",2*n),n))
     gmmlCW[1,][maxlAbs] <- "c";  gmmlCW[2,][maxlRel] <- "c"
     return(list(repCW,gmmlCW))
-    
   }
-    
     temp <- lapply(c(.01,.05,.1), RtoGauss) 
     repCWs  <- do.call(rbind,lapply(temp, function(t) t[[1]]))
     gmmlCWs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
     rownames(gmmlCWs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
     rownames(repCWs)  <- c("crit01","crit05","crit1")
-  return(list(repCWs,gmmlCWs))
-    
-    
+    tempdir <- paste0(savedir,"Results_",n,"-",clsize,nocStr,"_CW/")
+    tempres <- list(repCWs,gmmlCWs) 
+    save(tempres, file = paste0(tempdir,"res",ind,".rda"))
+    return(tempres)
     ############################## END REPORT ##############################
   }
   
   
   
   ############################# CONSOLIDATION ######################
-  
-  consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
+  completed <- dir(tempdir)
+  range_ind <- as.numeric(gsub("res|.rda","", completed))
+  range_ind <- setdiff(1:lenz,range_ind)
+  consConcs <- lapply(range_ind, function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
   cat("Consolidating\n")
   
+  consConcs <- lapply(dir(tempdir), function(d) get(load(paste0(tempdir,d))))
   reportCW  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
   gmmlsCW   <- do.call(rbind,lapply(consConcs, function(c) c[[2]]))
   gmmlsCW   <- rbind(gammas,gmmlsCW)
-  
-  
   savedir <- outDirCW
   outdir  <- paste0(savedir,"Results_",n,"-",clsize,nocStr,"_CW/")
   filedir <- paste0(Tm,"-",frho,".rda")
@@ -107,5 +107,5 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
   
   save(reportCW,file = paste0(outdir,"reportCW-",filedir))
   save(gmmlsCW,file = paste0(outdir,"gmmlCW-",filedir))
-  
+  unlink(tempdir,T)
 }

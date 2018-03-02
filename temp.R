@@ -109,4 +109,4 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
   save(gmmlsCW,file = paste0(outdir,"gmmlCW-",filedir))
   
 }
-mcCW(100,10,3,0.6,F)
+mcCW(100,10,5,0.6,T)
