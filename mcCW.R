@@ -1,4 +1,4 @@
-# Tm=100;n=10;clsize=3; frho=.2; ind=17; noCons=T
+# Tm=100;n=10;clsize=3; frho=.2; ind=2; noCons=F
 #########################
 
 library("stringr")
@@ -36,7 +36,7 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
 
   cat("Analyzing")
   
-  RtoGauss <- function(crit){
+  RtoGauss <- function(crit=){
     script <- paste0("cd CLUSTERB && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLOB",datind,".GSS'")
     tempCW <- system(script, intern=TRUE,wait=TRUE)
     if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW))){
@@ -47,7 +47,7 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
       tempCW <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):length(tempCW)]
       tempPC <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)-1)]
       tempRC <- tempCW[(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)):length(tempCW)]
-      extractClubs <- function(temp){sapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}    
+      extractClubs <- function(temp){lapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}    
       clpattern <- "\\s+c[0-9]\\s+"
       tempPC  <- tempPC[grep(clpattern,tempPC)]
       absList <- extractClubs(tempPC)

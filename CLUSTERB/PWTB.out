@@ -1,7 +1,7 @@
 ===========================================================================
 OUTPUT CLUSTER ALGORITHM FOR MONTECARLO Bootstrap
 ---------------------------------------------------------------------------
-Stopcriterion =  0.1000  
+Stopcriterion =  0.0500  
 Bandwidth for Bartlett Window =  2.0000  
  
  

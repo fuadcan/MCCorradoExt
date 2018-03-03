@@ -251,7 +251,7 @@ overallAnlys <- function(TmVec,n,clsize,noCons) {
   nlyCW    <- lapply(1:length(nlyCW[[1]]), function(x)  do.call(rbind,lapply(nlyCW, function(n) n[[x]])))
   
   nocstr <- if(noCons){"A"} else {"R"}
-  ovrNly   <- lapply(1:length(nlyAGK), function(x) cbind(nlyAGK[[x]],nlyHF[[x]][,grepl(nocstr,colnames(nlyHF[[x]]))],nlyCW[[x]][,grepl(nocstr,colnames(nlyCW[[x]]))]))
+  ovrNly   <- lapply(1:length(nlyAGK), function(x) cbind(nlyAGK[[x]],nlyHF[[x]][,grepl(nocstr,colnames(nlyHF[[x]]))],nlyCW[[x]][,grepl("A",colnames(nlyCW[[x]]))]))
   ovrNly   <- lapply(1:length(nlyAGK), function(x) ovrNly[[x]][order(rep(c(.2,.6),length(TmVec))),])
   for(i in 1:length(ovrNly)){colnames(ovrNly[[i]]) <- sapply(c("MCL","HF","CW"), function(m) paste0(m, c(".01",".05",".1")))}
   
@@ -260,10 +260,17 @@ overallAnlys <- function(TmVec,n,clsize,noCons) {
 }
 
 overallAnlys(c(50,100),10,3,T)
-overallAnlys(c(50,100),20,3,F)
-
-overallAnlys(c(50,100),10,5,F)
+overallAnlys(c(50,100),10,3,F)
 overallAnlys(c(50,100),10,5,T)
+overallAnlys(c(50,100),10,5,F)
+overallAnlys(c(50,100),20,3,T)
+overallAnlys(c(50,100),20,3,F)
+overallAnlys(c(50,100),20,5,T)
+overallAnlys(c(50,100),20,5,F)
+overallAnlys(c(50,100),20,7,T)
+overallAnlys(c(50,100),20,7,F)
+overallAnlys(c(50,100),20,10,T)
+overallAnlys(c(50,100),20,10,F)
 
 overallAnlys(c(50,100),20,3,T)
 overallAnlys(c(50,100),20,5,F)

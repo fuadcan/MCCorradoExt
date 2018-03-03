@@ -88,7 +88,7 @@ mcHF <- function(Tm,n,clsize,frho,noCons){
   
   
   ############################# CONSOLIDATION ######################
-  consConcs <- mclapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores = 4)
+  consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
   cat("Consolidating\n")
   
   reportHF  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))

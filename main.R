@@ -167,7 +167,26 @@ mcAGK(50,20,5,0.2,F)
 mcAGK(100,20,5,0.2,F)
 mcAGK(50,20,5,0.6,F)
 mcAGK(100,20,5,0.6,F)
-
+# m=7
+mcAGK(50,20,7,0.2,T)
+mcAGK(100,20,7,0.2,T)
+mcAGK(50,20,7,0.6,T)
+mcAGK(100,20,7,0.6,T)
+# with intercept
+mcAGK(50,20,7,0.2,F)
+mcAGK(100,20,7,0.2,F)
+mcAGK(50,20,7,0.6,F)
+mcAGK(100,20,7,0.6,F)
+# m=10
+mcAGK(50,20,10,0.2,T)
+mcAGK(100,20,10,0.2,T)
+mcAGK(50,20,10,0.6,T)
+mcAGK(100,20,10,0.6,T)
+# with intercept
+mcAGK(50,20,10,0.2,F)
+mcAGK(100,20,10,0.2,F)
+mcAGK(50,20,10,0.6,F)
+mcAGK(100,20,10,0.6,F)
 # Commands for detection of clubs via HF algorithm 
 # no intercept
 mcHF(50,10,3,0.2,T)
@@ -211,7 +230,26 @@ mcHF(50,20,5,0.2,F)
 mcHF(100,20,5,0.2,F)
 mcHF(50,20,5,0.6,F)
 mcHF(100,20,5,0.6,F)
-
+# m=7
+mcHF(50,20,7,0.2,T)
+mcHF(100,20,7,0.2,T)
+mcHF(50,20,7,0.6,T)
+mcHF(100,20,7,0.6,T)
+# with intercept
+mcHF(50,20,7,0.2,F)
+mcHF(100,20,7,0.2,F)
+mcHF(50,20,7,0.6,F)
+mcHF(100,20,7,0.6,F)
+# m=10
+mcHF(50,20,10,0.2,T)
+mcHF(100,20,10,0.2,T)
+mcHF(50,20,10,0.6,T)
+mcHF(100,20,10,0.6,T)
+# with intercept
+mcHF(50,20,10,0.2,F)
+mcHF(100,20,10,0.2,F)
+mcHF(50,20,10,0.6,F)
+mcHF(100,20,10,0.6,F)
 
 ####  CW  ####
 mcCW(50,10,3,0.2,T)
