@@ -147,6 +147,27 @@ mcAGK(100,10,5,0.2,F)
 mcAGK(50,10,5,0.6,F)
 mcAGK(100,10,5,0.6,F)
 
+# no intercept
+mcAGK(50,20,3,0.2,T)
+mcAGK(100,20,3,0.2,T)
+mcAGK(50,20,3,0.6,T)
+mcAGK(100,20,3,0.6,T)
+# with intercept
+mcAGK(50,20,3,0.2,F)
+mcAGK(100,20,3,0.2,F)
+mcAGK(50,20,3,0.6,F)
+mcAGK(100,20,3,0.6,F)
+#
+mcAGK(50,20,5,0.2,T)
+mcAGK(100,20,5,0.2,T)
+mcAGK(50,20,5,0.6,T)
+mcAGK(100,20,5,0.6,T)
+# with intercept
+mcAGK(50,20,5,0.2,F)
+mcAGK(100,20,5,0.2,F)
+mcAGK(50,20,5,0.6,F)
+mcAGK(100,20,5,0.6,F)
+
 # Commands for detection of clubs via HF algorithm 
 # no intercept
 mcHF(50,10,3,0.2,T)
@@ -168,6 +189,30 @@ mcHF(50,10,5,0.2,F)
 mcHF(100,10,5,0.2,F)
 mcHF(50,10,5,0.6,F)
 mcHF(100,10,5,0.6,F)
+# N=20
+# m=3
+# no intercept
+mcHF(50,20,3,0.2,T)
+mcHF(100,20,3,0.2,T)
+mcHF(50,20,3,0.6,T)
+mcHF(100,20,3,0.6,T)
+# with intercept
+mcHF(50,20,3,0.2,F)
+mcHF(100,20,3,0.2,F)
+mcHF(50,20,3,0.6,F)
+mcHF(100,20,3,0.6,F)
+# m=5
+mcHF(50,20,5,0.2,T)
+mcHF(100,20,5,0.2,T)
+mcHF(50,20,5,0.6,T)
+mcHF(100,20,5,0.6,T)
+# with intercept
+mcHF(50,20,5,0.2,F)
+mcHF(100,20,5,0.2,F)
+mcHF(50,20,5,0.6,F)
+mcHF(100,20,5,0.6,F)
+
+
 ####  CW  ####
 mcCW(50,10,3,0.2,T)
 mcCW(100,10,3,0.2,T)
@@ -209,6 +254,28 @@ mcAplus(50,10,3,.2,F,F)
 mcAplus(50,10,3,.6,F,F)
 mcAplus(100,10,3,.2,F,F)
 mcAplus(100,10,3,.6,F,F)
+# m=4
+mcAplus(50,20,4,.2,T,F)
+mcAplus(50,20,4,.6,T,F)
+mcAplus(100,20,4,.2,T,F)
+mcAplus(100,20,4,.6,T,F)
+# with constant
+mcAplus(50,20,4,.2,F,F)
+mcAplus(50,20,4,.6,F,F)
+mcAplus(100,20,4,.2,F,F)
+mcAplus(100,20,4,.6,F,F)
+# m=5
+mcAplus(50,20,5,.2,T,F)
+mcAplus(50,20,5,.6,T,F)
+mcAplus(100,20,5,.2,T,F)
+mcAplus(100,20,5,.6,T,F)
+# with constant
+mcAplus(50,20,5,.2,F,F)
+mcAplus(50,20,5,.6,F,F)
+mcAplus(100,20,5,.2,F,F)
+mcAplus(100,20,5,.6,F,F)
+
+
 ####  HF  ####
 mcHFplus(50,10,2,.2,T,F)
 mcHFplus(100,10,2,.2,T,F)
@@ -229,7 +296,26 @@ mcHFplus(50,10,3,.2,F,F)
 mcHFplus(50,10,3,.6,F,F)
 mcHFplus(100,10,3,.2,F,F)
 mcHFplus(100,10,3,.6,F,F)
-
+# m=4
+mcHFplus(50,20,4,.2,T,F)
+mcHFplus(50,20,4,.6,T,F) # from here 12:21
+mcHFplus(100,20,4,.2,T,F)
+mcHFplus(100,20,4,.6,T,F)
+# with constant
+mcHFplus(50,20,4,.2,F,F)
+mcHFplus(50,20,4,.6,F,F)
+mcHFplus(100,20,4,.2,F,F)
+mcHFplus(100,20,4,.6,F,F)
+# m=5
+mcHFplus(50,20,5,.2,T,F)
+mcHFplus(50,20,5,.6,T,F)
+mcHFplus(100,20,5,.2,T,F)
+mcHFplus(100,20,5,.6,T,F)
+# with constant
+mcHFplus(50,20,5,.2,F,F)
+mcHFplus(50,20,5,.6,F,F)
+mcHFplus(100,20,5,.2,F,F)
+mcHFplus(100,20,5,.6,F,F)
 
 # Evaluating and Generating Results
 suppressWarnings(overallRep())

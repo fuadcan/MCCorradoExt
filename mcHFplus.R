@@ -1,4 +1,4 @@
-# Tm=50;n=10;k=2; frho=.2; ind=1; noCons =T; nopois=F
+# Tm=50;n=10;k=2; frho=.2; ind=5; noCons =T; nopois=F
 library("stringr")
 
 mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
@@ -22,43 +22,52 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
   gammas   <- zz[[3]]
   
   list <- list[sapply(list, length)!=1]
-  fsts<- sapply(list, function(x) x[1])  
-  list<- list[order(fsts)]
+  fsts <- sapply(list, function(x) x[1])  
+  list <- list[order(fsts)]
   
   
   # write.table(c(Tm,n),"hfcodes/dims.csv",row.names = FALSE,col.names = FALSE)
   
-  
+  senderHF <- if(Sys.info()[1] == "Linux"){function(crit,Tm,n,datind){
+      script <- paste0("cd CLUSTERHF && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLO",datind,".GSS'")
+      system(script,intern=TRUE,wait=TRUE)
+  }} else {function(crit,Tm,n,datind){ # check gauss version; and sys.name; and method (HF or CW)
+      script <- paste0("cd C:\\Users\\", Sys.info()[7] ,"\\Documents\\MCCorradoExt\\CLUSTERHF && C:\\gauss10\\tgauss -o -b -e stopval=",crit,";rown=",Tm,";coln=",n,";RUN MONTECARLO",datind,".GSS")
+      shell(script,intern=TRUE,wait=TRUE)}}  
   
   repForDat <- function(ind){
     
-  z      <- zz[[1]][[ind]]
-    
-    
-    
-   datind <- ((ind -1) %% 8) + 1
+    z      <- zz[[1]][[ind]]
+    datind <- ((ind -1) %% 8) + 1
     write.table(z,file = paste0("CLUSTERHF/datt",datind,".csv"),row.names = FALSE,col.names = FALSE)
  
     cat("Analyzing\n")
     
     RtoGauss <- function(crit){
     ########################################################
-    script <- paste0("cd CLUSTERHF && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLO",datind,".GSS'")
-      tempHF <- system(script, intern=TRUE,wait=TRUE)
+    
+      tempHF  <- senderHF(crit,Tm,n,datind)
       if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempHF))){
-        cat(c(F,Tm,n,clsize,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerrorHF.log",append = T)
+        # cat(c(F,Tm,n,clsize,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerrorHF.log",append = T)
         absList <- list(rep(NA,3),rep(NA,3))
         relList <- list(rep(NA,3),rep(NA,3))
       } else {
         tempHF <- tempHF[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempHF)):length(tempHF)]
         tempPC <- tempHF[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempHF)):(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempHF)-1)]
         tempRC <- tempHF[(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempHF)):length(tempHF)]
-        extractClubs <- function(temp){sapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}
+        extractClubs <- function(temp){lapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}
         clpattern <- "\\s+c[0-9]\\s+"
         tempPC  <- tempPC[grep(clpattern,tempPC)]
         absList <- extractClubs(tempPC)
+        absList <- absList[sapply(absList, length)!=1]
+        fsts    <- sapply(absList, function(x) x[1])  
+        absList <- absList[order(fsts)]
+        
         tempRC  <- tempRC[grep(clpattern,tempRC)]
         relList <- extractClubs(tempRC)
+        relList <- relList[sapply(relList, length)!=1]
+        fsts    <- sapply(relList, function(x) x[1])  
+        relList <- relList[order(fsts)]
       }
     
       ############################## Evaluation ##############################
@@ -78,7 +87,7 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
     ############################## END REPORT ##############################
   }
     
-    temp    <- lapply(c("01","05","1"), RtoGauss) 
+    temp    <- lapply(c(.01,.05,.1), RtoGauss) 
     repHFs  <- do.call(rbind,lapply(temp, function(t) t[[1]]))
     gmmlHFs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
     rownames(gmmlHFs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
@@ -86,6 +95,7 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
     return(list(repHFs,gmmlHFs))
   }
   
+  # consConcs <- mclapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores=4)
   consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
   cat("Consolidating Results\n")
   
@@ -104,5 +114,5 @@ mcHFplus <- function(Tm,n,k,frho,noCons,nopois){
   save(gmmlsHF,file = paste0(outdir,"gmmlHF-",filedir))
   
   cat("Finished\n")
-  
+  # return(list(reportHF,gmmlsHF))
 }

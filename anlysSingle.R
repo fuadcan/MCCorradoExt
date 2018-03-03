@@ -240,6 +240,7 @@ anlysofoutptCW <- function(Tm,n,clsize,noCons){
 
 # TmVec <- c(50,75,100,200); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
 # TmVec <- c(50,75,100); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
+# TmVec <- c(50,100); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
 
 overallAnlys <- function(TmVec,n,clsize,noCons) {
   nlyAGK   <- lapply(TmVec, function(Tm) anlysofoutptAGK(Tm,n,clsize,noCons))
@@ -258,7 +259,14 @@ overallAnlys <- function(TmVec,n,clsize,noCons) {
   
 }
 
-overallAnlys(c(50,75,100),10,3,T)
+overallAnlys(c(50,100),10,3,T)
+overallAnlys(c(50,100),20,3,F)
+
+overallAnlys(c(50,100),10,5,F)
+overallAnlys(c(50,100),10,5,T)
+
+overallAnlys(c(50,100),20,3,T)
+overallAnlys(c(50,100),20,5,F)
 
 overall <- function(TmVec,nVec,clsize,noCons) {
   

@@ -1,7 +1,7 @@
 ===========================================================================
 OUTPUT CLUSTER ALGORITHM FOR DATA FROM PENN WORLD TABLE
 ---------------------------------------------------------------------------
-Stopcriterion =  1.0000  
+Stopcriterion =  0.1000  
 Bandwidth for Bartlett Window =  2.0000  
  
  
@@ -9,71 +9,41 @@ ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC
 OUTPUT CLUSTER ALGORITHM:
  
 # Series     :  10 
-# Clusters   :  10 
+# Clusters   :  4 
  
  
 CLUSTER  1 
-Number of series in cluster :  1 
+Number of series in cluster :  5 
 Series in cluster: 
-             c10 
+              c1               c3               c4               c5 
+              c7 
  
  
 CLUSTER  2 
-Number of series in cluster :  1 
+Number of series in cluster :  3 
 Series in cluster: 
-              c9 
+              c6               c8               c9 
  
  
 CLUSTER  3 
 Number of series in cluster :  1 
 Series in cluster: 
-              c8 
+             c10 
  
  
 CLUSTER  4 
 Number of series in cluster :  1 
 Series in cluster: 
-              c7 
- 
- 
-CLUSTER  5 
-Number of series in cluster :  1 
-Series in cluster: 
-              c6 
- 
- 
-CLUSTER  6 
-Number of series in cluster :  1 
-Series in cluster: 
-              c5 
- 
- 
-CLUSTER  7 
-Number of series in cluster :  1 
-Series in cluster: 
-              c4 
- 
- 
-CLUSTER  8 
-Number of series in cluster :  1 
-Series in cluster: 
-              c3 
- 
- 
-CLUSTER  9 
-Number of series in cluster :  1 
-Series in cluster: 
               c2 
  
  
-CLUSTER  10 
-Number of series in cluster :  1 
-Series in cluster: 
-              c1 
- 
- 
 Size Number
- 1        10      
+
+ 1        2       
+ 2        0       
+ 3        1       
+ 4        0       
+ 5        1       
 END OF OUTPUT
  
  
@@ -82,71 +52,36 @@ ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC
 OUTPUT CLUSTER ALGORITHM:
  
 # Series     :  10 
-# Clusters   :  10 
+# Clusters   :  3 
  
  
 CLUSTER  1 
-Number of series in cluster :  1 
+Number of series in cluster :  6 
 Series in cluster: 
-             c10 
+              c1               c2               c3               c4 
+              c5               c7 
  
  
 CLUSTER  2 
-Number of series in cluster :  1 
+Number of series in cluster :  3 
 Series in cluster: 
-              c9 
+              c6               c8               c9 
  
  
 CLUSTER  3 
 Number of series in cluster :  1 
 Series in cluster: 
-              c8 
- 
- 
-CLUSTER  4 
-Number of series in cluster :  1 
-Series in cluster: 
-              c7 
- 
- 
-CLUSTER  5 
-Number of series in cluster :  1 
-Series in cluster: 
-              c6 
- 
- 
-CLUSTER  6 
-Number of series in cluster :  1 
-Series in cluster: 
-              c5 
- 
- 
-CLUSTER  7 
-Number of series in cluster :  1 
-Series in cluster: 
-              c4 
- 
- 
-CLUSTER  8 
-Number of series in cluster :  1 
-Series in cluster: 
-              c3 
- 
- 
-CLUSTER  9 
-Number of series in cluster :  1 
-Series in cluster: 
-              c2 
- 
- 
-CLUSTER  10 
-Number of series in cluster :  1 
-Series in cluster: 
-              c1 
+             c10 
  
  
 Size Number
- 1        10      
+
+ 1        1       
+ 2        0       
+ 3        1       
+ 4        0       
+ 5        0       
+ 6        1       
 END OF OUTPUT
  
  
