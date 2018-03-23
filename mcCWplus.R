@@ -12,7 +12,7 @@ mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
   
   nocStr   <- if(noCons){"-noConsMlt"} else {"-withConsMlt"}
   poistr  <- if(nopois){NULL} else {"pois"}
-  
+  tempdir  <- paste0(outDirCWm,"tempres_",Tm,"-",n,"-",k,"-",frho,nocStr,poistr,"_CW/")  
   
   filename <- paste0("zZ_",Tm,"-",n,"-",k,"-",frho,nocStr,poistr,".rda")
   
@@ -35,11 +35,12 @@ mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
     script <- paste0("cd C:\\Users\\", Sys.info()[7] ,"\\Documents\\MCCorradoExt\\CLUSTERB && C:\\gauss10\\tgauss -o -b -e stopval=",crit,";rown=",Tm,";coln=",n,";RUN MONTECARLOB",datind,".GSS")
     shell(script,intern=TRUE,wait=TRUE)}}  
   
+  dir.create(tempdir,F)
   repForDat <- function(ind){
     
     z      <- zz[[1]][[ind]]
     datind <- ((ind -1) %% 8) + 1
-    write.table(z,file = paste0("CLUSTERCW/datt",datind,".csv"),row.names = FALSE,col.names = FALSE)
+    write.table(z,file = paste0("CLUSTERB/datt",datind,".csv"),row.names = FALSE,col.names = FALSE)
     
     cat("Analyzing\n")
     
@@ -48,7 +49,7 @@ mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
       
       tempCW  <- senderCW(crit,Tm,n,datind)
       if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW))){
-        cat(c(F,Tm,n,clsize,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerrorCW.log",append = T)
+        cat(c(F,Tm,n,k,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerrorCW.log",append = T)
         absList <- list(rep(NA,3),rep(NA,3))
         relList <- list(rep(NA,3),rep(NA,3))
       } else {
@@ -92,11 +93,18 @@ mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
     gmmlCWs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
     rownames(gmmlCWs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
     rownames(repCWs)  <- c("crit01","crit05","crit1")
-    return(list(repCWs,gmmlCWs))
+    # tempdir <- paste0(savedir,"Results_",n,"-",k,nocStr,"_CW/")
+    tempres <- list(repCWs,gmmlCWs) 
+    save(tempres, file = paste0(tempdir,"res",ind,".rda"))
+    return(tempres)
   }
-  
-  # consConcs <- mclapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores=4)
-  consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
+  cat(paste0(outDirCWm,"Results_",n,"-",k,nocStr,"_CW/reportCW-",paste0(Tm,"-",frho,poistr,".rda")),"\n")
+  if(!file.exists(paste0(outDirCWm,"Results_",n,"-",k,nocStr,"_CW/reportCW-",paste0(Tm,"-",frho,poistr,".rda")))){
+  completed <- dir(tempdir)
+  range_ind <- as.numeric(gsub("res|.rda","", completed))
+  range_ind <- setdiff(1:lenz,range_ind)
+  # consConcs <- mclapply(range_ind,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores=4)
+  consConcs <- lapply(range_ind,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
   cat("Consolidating Results\n")
   
   reportCW  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
@@ -112,7 +120,8 @@ mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
   cat("Saving\n")
   save(reportCW,file = paste0(outdir,"reportCW-",filedir))
   save(gmmlsCW,file = paste0(outdir,"gmmlCW-",filedir))
-  
   cat("Finished\n")
   # return(list(reportCW,gmmlsCW))
+  }
+  unlink(tempdir,T)
 }

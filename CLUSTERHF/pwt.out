@@ -9,94 +9,112 @@ ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC
 OUTPUT CLUSTER ALGORITHM:
  
 # Series     :  20 
-# Clusters   :  15 
+# Clusters   :  18 
  
  
 CLUSTER  1 
-Number of series in cluster :  3 
+Number of series in cluster :  2 
 Series in cluster: 
-              c6              c10              c15 
+              c7               c9 
  
  
 CLUSTER  2 
-Number of series in cluster :  3 
+Number of series in cluster :  2 
 Series in cluster: 
-              c2              c11              c14 
+             c19              c20 
  
  
 CLUSTER  3 
-Number of series in cluster :  2 
-Series in cluster: 
-              c8               c9 
- 
- 
-CLUSTER  4 
 Number of series in cluster :  1 
 Series in cluster: 
              c17 
  
  
-CLUSTER  5 
+CLUSTER  4 
 Number of series in cluster :  1 
 Series in cluster: 
              c16 
  
  
+CLUSTER  5 
+Number of series in cluster :  1 
+Series in cluster: 
+             c15 
+ 
+ 
 CLUSTER  6 
 Number of series in cluster :  1 
 Series in cluster: 
-             c13 
+             c14 
  
  
 CLUSTER  7 
 Number of series in cluster :  1 
 Series in cluster: 
-             c12 
+             c13 
  
  
 CLUSTER  8 
 Number of series in cluster :  1 
 Series in cluster: 
-             c20 
+             c12 
  
  
 CLUSTER  9 
 Number of series in cluster :  1 
 Series in cluster: 
-              c7 
+             c11 
  
  
 CLUSTER  10 
 Number of series in cluster :  1 
 Series in cluster: 
-             c18 
+             c10 
  
  
 CLUSTER  11 
 Number of series in cluster :  1 
 Series in cluster: 
-              c5 
+              c8 
  
  
 CLUSTER  12 
 Number of series in cluster :  1 
 Series in cluster: 
-              c4 
+             c18 
  
  
 CLUSTER  13 
 Number of series in cluster :  1 
 Series in cluster: 
-              c3 
+              c6 
  
  
 CLUSTER  14 
 Number of series in cluster :  1 
 Series in cluster: 
-             c19 
+              c5 
  
  
 CLUSTER  15 
+Number of series in cluster :  1 
+Series in cluster: 
+              c4 
+ 
+ 
+CLUSTER  16 
+Number of series in cluster :  1 
+Series in cluster: 
+              c3 
+ 
+ 
+CLUSTER  17 
+Number of series in cluster :  1 
+Series in cluster: 
+              c2 
+ 
+ 
+CLUSTER  18 
 Number of series in cluster :  1 
 Series in cluster: 
               c1 
@@ -104,9 +122,8 @@ Series in cluster:
  
 Size Number
 
- 1        12      
- 2        1       
- 3        2       
+ 1        16      
+ 2        2       
 END OF OUTPUT
  
  
@@ -115,50 +132,49 @@ ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC
 OUTPUT CLUSTER ALGORITHM:
  
 # Series     :  20 
-# Clusters   :  10 
+# Clusters   :  12 
  
  
 CLUSTER  1 
-Number of series in cluster :  7 
+Number of series in cluster :  4 
 Series in cluster: 
-              c3               c4               c6              c10 
-             c15              c17              c19 
+              c4               c6               c8              c12 
  
  
 CLUSTER  2 
 Number of series in cluster :  3 
 Series in cluster: 
-              c8               c9              c13 
+             c15              c19              c20 
  
  
 CLUSTER  3 
-Number of series in cluster :  3 
+Number of series in cluster :  2 
 Series in cluster: 
-              c2              c11              c14 
+              c7               c9 
  
  
 CLUSTER  4 
-Number of series in cluster :  1 
+Number of series in cluster :  2 
 Series in cluster: 
-             c12 
+              c5              c13 
  
  
 CLUSTER  5 
-Number of series in cluster :  1 
+Number of series in cluster :  2 
 Series in cluster: 
-             c20 
+              c1              c11 
  
  
 CLUSTER  6 
 Number of series in cluster :  1 
 Series in cluster: 
-              c7 
+             c18 
  
  
 CLUSTER  7 
 Number of series in cluster :  1 
 Series in cluster: 
-              c5 
+             c14 
  
  
 CLUSTER  8 
@@ -170,24 +186,33 @@ Series in cluster:
 CLUSTER  9 
 Number of series in cluster :  1 
 Series in cluster: 
-             c18 
+             c17 
  
  
 CLUSTER  10 
 Number of series in cluster :  1 
 Series in cluster: 
-              c1 
+              c3 
+ 
+ 
+CLUSTER  11 
+Number of series in cluster :  1 
+Series in cluster: 
+              c2 
+ 
+ 
+CLUSTER  12 
+Number of series in cluster :  1 
+Series in cluster: 
+             c10 
  
  
 Size Number
 
  1        7       
- 2        0       
- 3        2       
- 4        0       
- 5        0       
- 6        0       
- 7        1       
+ 2        3       
+ 3        1       
+ 4        1       
 END OF OUTPUT
  
  

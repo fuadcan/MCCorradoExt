@@ -1,112 +1,128 @@
-# Tm=100;n=10;clsize=3; frho=.2; ind=17; noCons=T
-#########################
-
+# Tm=50;n=10;k=2; frho=.2; ind=5; noCons =T; nopois=F
 library("stringr")
-mcCW <- function(Tm,n,clsize,frho,noCons){
-  
-  dir.create("logs",F)
-  if(!file.exists("logs/mcerror.log")){
-    cat(c("Single","Tm","n","clsize","frho","noCons","noPois","ind","crit\n"),file = "logs/mcerror.log",append = T)
-  }
 
-  inDirCW  <- if(noCons){"Data/noCons/singleClub/"} else {"Data/withCons/singleClub/"}
-  outDirCW <- if(noCons){"Output/noCons/singleClub/"} else {"Output/withCons/singleClub/"}
+mcCWplus <- function(Tm,n,k,frho,noCons,nopois){
   
-  dirname  <- inDirCW
-  nocStr   <- if(noCons){"-noCons"} else {"-withCons"}
+  inDirCWm  <- if(noCons){"Data/noCons/multiClub/"} else {"Data/withCons/multiClub/"}
+  outDirCWm <- if(noCons){"Output/noCons/multiClub/"} else {"Output/withCons/multiClub/"}
   
-  cat("Initializing variables\n")
+  cat("initializing parameters\n")
   
-  filename <- paste0("zZ_",Tm,"-",n,"-",clsize,"-",frho,nocStr,".rda")
+  dirname  <- inDirCWm
+  
+  nocStr   <- if(noCons){"-noConsMlt"} else {"-withConsMlt"}
+  poistr  <- if(nopois){NULL} else {"pois"}
+  tempdir  <- paste0(outDirCWm,"tempres_",Tm,"-",n,"-",k,"-",frho,nocStr,poistr,"_CW/")  
+  
+  filename <- paste0("zZ_",Tm,"-",n,"-",k,"-",frho,nocStr,poistr,".rda")
+  
   zz       <- get(load(paste0(dirname,filename)))
-  lenz     <- length(zz[[1]])
+  lenz     <-length(zz[[1]])
   list     <- zz[[2]]
-  gammas   <- zz[[3]][1:n]
+  gammas   <- zz[[3]]
   
-  #########################
+  list <- list[sapply(list, length)!=1]
+  fsts <- sapply(list, function(x) x[1])  
+  list <- list[order(fsts)]
+  
+  
   # write.table(c(Tm,n),"hfcodes/dims.csv",row.names = FALSE,col.names = FALSE)
   
+  senderCW <- if(Sys.info()[1] == "Linux"){function(crit,Tm,n,datind){
+    script <- paste0("cd CLUSTERB && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLOB",datind,".GSS'")
+    system(script,intern=TRUE,wait=TRUE)
+  }} else {function(crit,Tm,n,datind){ # check gauss version; and sys.name; and method (HF or CW)
+    script <- paste0("cd C:\\Users\\", Sys.info()[7] ,"\\Documents\\MCCorradoExt\\CLUSTERB && C:\\gauss10\\tgauss -o -b -e stopval=",crit,";rown=",Tm,";coln=",n,";RUN MONTECARLOB",datind,".GSS")
+    shell(script,intern=TRUE,wait=TRUE)}}  
+  
+  dir.create(tempdir,F)
   repForDat <- function(ind){
     
     z      <- zz[[1]][[ind]]
-    
     datind <- ((ind -1) %% 8) + 1
     write.table(z,file = paste0("CLUSTERB/datt",datind,".csv"),row.names = FALSE,col.names = FALSE)
-    ########################################################
-
-  cat("Analyzing")
-  
-  RtoGauss <- function(crit){
-    script <- paste0("cd CLUSTERB && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLOB",datind,".GSS'")
-    tempCW <- system(script, intern=TRUE,wait=TRUE)
-    if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW))){
-      cat(c(T,Tm,n,clsize,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerror.log",append = T)
-      absList <- list(rep(NA,3),rep(NA,3))
-      relList <- list(rep(NA,3),rep(NA,3))
-    } else {
-      tempCW <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):length(tempCW)]
-      tempPC <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)-1)]
-      tempRC <- tempCW[(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)):length(tempCW)]
-      extractClubs <- function(temp){sapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}    
-      clpattern <- "\\s+c[0-9]\\s+"
-      tempPC  <- tempPC[grep(clpattern,tempPC)]
-      absList <- extractClubs(tempPC)
-      tempRC  <- tempRC[grep(clpattern,tempRC)]
-      relList <- extractClubs(tempRC)
-    }
+    
+    cat("Analyzing\n")
+    
+    RtoGauss <- function(crit){
+      ########################################################
       
-    ############################## Pre-evaluation ##############################
+      tempCW  <- senderCW(crit,Tm,n,datind)
+      if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW))){
+        cat(c(F,Tm,n,k,frho,noCons,F,ind,crit,"\n"),file = "logs/mcerrorCW.log",append = T)
+        absList <- list(rep(NA,3),rep(NA,3))
+        relList <- list(rep(NA,3),rep(NA,3))
+      } else {
+        tempCW <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):length(tempCW)]
+        tempPC <- tempCW[(grep("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC",tempCW)):(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)-1)]
+        tempRC <- tempCW[(grep("ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW)):length(tempCW)]
+        extractClubs <- function(temp){lapply(strsplit(temp,"\\s|c"), function(cl) {cl <- as.numeric(cl); cl[!is.na(cl)]})}
+        clpattern <- "\\s+c[0-9]\\s+"
+        tempPC  <- tempPC[grep(clpattern,tempPC)]
+        absList <- extractClubs(tempPC)
+        absList <- absList[sapply(absList, length)!=1]
+        fsts    <- sapply(absList, function(x) x[1])  
+        absList <- absList[order(fsts)]
+        
+        tempRC  <- tempRC[grep(clpattern,tempRC)]
+        relList <- extractClubs(tempRC)
+        relList <- relList[sapply(relList, length)!=1]
+        fsts    <- sapply(relList, function(x) x[1])  
+        relList <- relList[order(fsts)]
+      }
+      
+      ############################## Evaluation ##############################
+      # cat("Pre-Evaluation\n")
+      listCode <- unlist(lapply(list, function(x) c(x,0)))
+      
+      sccCWabs05 <- suppressWarnings(mean(unlist(lapply(absList, function(x) c(sort(x),0)))==listCode)==1)
+      sccCWrel05 <- suppressWarnings(mean(unlist(lapply(relList, function(x) c(sort(x),0)))==listCode)==1)
+      
+      repCW  <- matrix(c(sccCWabs05,sccCWrel05),1)
+      gmmlCW <- t(matrix(rep("",2*n),n))
+      for(i in 1:length(absList)){gmmlCW[1,][absList[[i]]] <- paste0("c",i)} 
+      for(i in 1:length(relList)){gmmlCW[2,][relList[[i]]] <- paste0("c",i)}
+      
+      
+      return(list(repCW,gmmlCW))
+      ############################## END REPORT ##############################
+    }
     
-    indAbs    <- sapply(1:length(absList), function(x) length(intersect(absList[[x]],list)))
-    maxIndAbs <- sample(which(max(indAbs)==indAbs),1)
-    maxlAbs   <- absList[[maxIndAbs]]
-    indRel    <- sapply(1:length(relList), function(x) length(intersect(relList[[x]],list)))
-    maxIndRel <- sample(which(max(indRel)==indRel),1)
-    maxlRel   <- relList[[maxIndRel]]
-    
-    maxCWabs <- length(intersect(maxlAbs,list)); excCWabs<- length(setdiff(maxlAbs,list))
-    maxCWrel <- length(intersect(maxlRel,list)); excCWrel<- length(setdiff(maxlRel,list))
-    repCW <- matrix(c(maxCWabs,excCWabs,maxCWrel,excCWrel),1,4)
-    
-    gmmlCW <- t(matrix(rep("",2*n),n))
-    gmmlCW[1,][maxlAbs] <- "c";  gmmlCW[2,][maxlRel] <- "c"
-    return(list(repCW,gmmlCW))
-    
-  }
-    
-    temp <- lapply(c(.01,.05,.1), RtoGauss) 
+    temp    <- lapply(c(.01,.05,.1), RtoGauss) 
     repCWs  <- do.call(rbind,lapply(temp, function(t) t[[1]]))
     gmmlCWs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
     rownames(gmmlCWs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
     rownames(repCWs)  <- c("crit01","crit05","crit1")
-  return(list(repCWs,gmmlCWs))
-    
-    
-    ############################## END REPORT ##############################
+    # tempdir <- paste0(savedir,"Results_",n,"-",k,nocStr,"_CW/")
+    tempres <- list(repCWs,gmmlCWs) 
+    save(tempres, file = paste0(tempdir,"res",ind,".rda"))
+    return(tempres)
   }
-  
-  
-  
-  ############################# CONSOLIDATION ######################
-  
-  consConcs <- lapply(1:lenz,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
-  cat("Consolidating\n")
+  cat(paste0(outDirCWm,"Results_",n,"-",k,nocStr,"_CW/reportCW-",paste0(Tm,"-",frho,poistr,".rda")),"\n")
+  if(!file.exists(paste0(outDirCWm,"Results_",n,"-",k,nocStr,"_CW/reportCW-",paste0(Tm,"-",frho,poistr,".rda")))){
+  completed <- dir(tempdir)
+  range_ind <- as.numeric(gsub("res|.rda","", completed))
+  range_ind <- setdiff(1:lenz,range_ind)
+  # consConcs <- mclapply(range_ind,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)},mc.cores=4)
+  consConcs <- lapply(range_ind,function(x){cat(paste0(frho,"-",x,"\n")); repForDat(x)})
+  cat("Consolidating Results\n")
   
   reportCW  <- do.call(rbind,lapply(consConcs, function(c) c[[1]]))
   gmmlsCW   <- do.call(rbind,lapply(consConcs, function(c) c[[2]]))
-  gmmlsCW   <- rbind(gammas,gmmlsCW)
   
   
-  savedir <- outDirCW
-  outdir  <- paste0(savedir,"Results_",n,"-",clsize,nocStr,"_CW/")
-  filedir <- paste0(Tm,"-",frho,".rda")
+  savedir <- outDirCWm
+  outdir  <- paste0(savedir,"Results_",n,"-",k,nocStr,"_CW/")
+  filedir <- paste0(Tm,"-",frho,poistr,".rda")
   
   
   dir.create(outdir,recursive = TRUE)
   cat("Saving\n")
-  
   save(reportCW,file = paste0(outdir,"reportCW-",filedir))
   save(gmmlsCW,file = paste0(outdir,"gmmlCW-",filedir))
-  
+  cat("Finished\n")
+  # return(list(reportCW,gmmlsCW))
+  }
+  unlink(tempdir,T)
 }
-mcCW(100,10,5,0.6,T)
+mcCWplus(100,20,4,.6,F,F)

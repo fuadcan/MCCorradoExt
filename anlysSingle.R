@@ -98,7 +98,7 @@ anlysofoutptAGK<- function(Tm,n,clsize,noCons){
     repss <- cbind(adf.01,adf.05,adf.1)
     prfs  <- prfs / repss[3,]
     
-    hitReps <- sapply(1:3, function(x) hitRat(repss[1,x],repss[2,x],clsize*repss[3,x],n*repss[3,x]))
+    hitReps <- sapply(1:3, function(x) unlist(hitRat(repss[1,x],repss[2,x],clsize*repss[3,x],n*repss[3,x])))
     rownames(hitReps) <- c("HitR", "H", "F", "KS")
     
     anlysPT <- PTestAGK(gmml[[ind]][c(T,!errorind),])
@@ -240,7 +240,7 @@ anlysofoutptCW <- function(Tm,n,clsize,noCons){
 
 # TmVec <- c(50,75,100,200); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
 # TmVec <- c(50,75,100); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
-# TmVec <- c(50,100); nVec <- c(10,20,30,40); clsize <- c(3,5,7,10)
+# TmVec <- c(50,100); nVec <- c(10,20)
 
 overallAnlys <- function(TmVec,n,clsize,noCons) {
   nlyAGK   <- lapply(TmVec, function(Tm) anlysofoutptAGK(Tm,n,clsize,noCons))
@@ -259,21 +259,19 @@ overallAnlys <- function(TmVec,n,clsize,noCons) {
   
 }
 
-overallAnlys(c(50,100),10,3,T)
-overallAnlys(c(50,100),10,3,F)
-overallAnlys(c(50,100),10,5,T)
-overallAnlys(c(50,100),10,5,F)
-overallAnlys(c(50,100),20,3,T)
-overallAnlys(c(50,100),20,3,F)
-overallAnlys(c(50,100),20,5,T)
-overallAnlys(c(50,100),20,5,F)
-overallAnlys(c(50,100),20,7,T)
-overallAnlys(c(50,100),20,7,F)
-overallAnlys(c(50,100),20,10,T)
-overallAnlys(c(50,100),20,10,F)
+# overallAnlys(c(50,100),10,3,T)
+# overallAnlys(c(50,100),10,3,F)
+# overallAnlys(c(50,100),10,5,T)
+# overallAnlys(c(50,100),10,5,F)
+# overallAnlys(c(50,100),20,3,T)
+# overallAnlys(c(50,100),20,3,F)
+# overallAnlys(c(50,100),20,5,T)
+# overallAnlys(c(50,100),20,5,F)
+# overallAnlys(c(50,100),20,7,T)
+# overallAnlys(c(50,100),20,7,F)
+# overallAnlys(c(50,100),20,10,T)
+# overallAnlys(c(50,100),20,10,F)
 
-overallAnlys(c(50,100),20,3,T)
-overallAnlys(c(50,100),20,5,F)
 
 overall <- function(TmVec,nVec,clsize,noCons) {
   
@@ -285,27 +283,27 @@ overall <- function(TmVec,nVec,clsize,noCons) {
 }
 
 
-overallRep<-function(){
-  rep3T  <- overall(c(50,75,100,200),c(10,20,30,40), 3,T)
-  rep5T  <- overall(c(50,75,100,200),c(10,20,30,40), 5,T)
-  rep7T  <- overall(c(50,75,100,200),c(20,30,40)   , 7,T)
-  rep10T <- overall(c(50,75,100,200),c(20,30,40)   , 10,T)
-  rep3F  <- overall(c(50,75,100,200),c(10,20,30,40), 3,F)
-  rep5F  <- overall(c(50,75,100,200),c(10,20,30,40), 5,F)
-  rep7F  <- overall(c(50,75,100,200),c(20,30,40)   , 7,F)
-  rep10F <- overall(c(50,75,100,200),c(20,30,40)   , 10,F)
+overallRep<-function(TmVec,nVec){
+  rep3T  <- overall(TmVec,nVec, 3,T)
+  rep5T  <- overall(TmVec,nVec, 5,T)
+  rep7T  <- overall(TmVec,nVec[!nVec==10], 7,T)
+  rep10T <- overall(TmVec,nVec[!nVec==10], 10,T)
+  rep3F  <- overall(TmVec,nVec, 3,F)
+  rep5F  <- overall(TmVec,nVec, 5,F)
+  rep7F  <- overall(TmVec,nVec[!nVec==10], 7,F)
+  rep10F <- overall(TmVec,nVec[!nVec==10], 10,F)
   
-  noConst   <- lapply(1:length(rep3T), function(x) rbind(rep3T[[x]],rep5T[[x]],rep7T[[x]],rep10T[[x]]))
-  withConst <- lapply(1:length(rep3F), function(x) rbind(rep3F[[x]],rep5F[[x]],rep7F[[x]],rep10F[[x]]))
+  noConst   <- lapply(1:length(rep3T), function(x) round(rbind(rep3T[[x]],rep5T[[x]],rep7T[[x]],rep10T[[x]]),2))
+  withConst <- lapply(1:length(rep3F), function(x) round(rbind(rep3F[[x]],rep5F[[x]],rep7F[[x]],rep10F[[x]]),2))
   
-  dtType3  <- sapply(c(10,20,30,40), function(n) 
-    sapply(c(.2,.6), function(frho) sapply(c(50,75,100,200), function(Tm) paste(3,n,frho,Tm,sep = "-"))))
-  dtType5  <- sapply(c(10,20,30,40), function(n) 
-    sapply(c(.2,.6), function(frho) sapply(c(50,75,100,200), function(Tm) paste(5,n,frho,Tm,sep = "-"))))
-  dtType7  <- sapply(c(20,30,40), function(n) 
-    sapply(c(.2,.6), function(frho) sapply(c(50,75,100,200), function(Tm) paste(7,n,frho,Tm,sep = "-"))))
-  dtType10 <- sapply(c(20,30,40), function(n) 
-    sapply(c(.2,.6), function(frho) sapply(c(50,75,100,200), function(Tm) paste(10,n,frho,Tm,sep = "-"))))
+  dtType3  <- sapply(nVec, function(n) 
+    sapply(c(.2,.6), function(frho) sapply(TmVec, function(Tm) paste(3,n,frho,Tm,sep = "-"))))
+  dtType5  <- sapply(nVec, function(n) 
+    sapply(c(.2,.6), function(frho) sapply(TmVec, function(Tm) paste(5,n,frho,Tm,sep = "-"))))
+  dtType7  <- sapply(nVec[!nVec==10], function(n) 
+    sapply(c(.2,.6), function(frho) sapply(TmVec, function(Tm) paste(7,n,frho,Tm,sep = "-"))))
+  dtType10 <- sapply(nVec[!nVec==10], function(n) 
+    sapply(c(.2,.6), function(frho) sapply(TmVec, function(Tm) paste(10,n,frho,Tm,sep = "-"))))
   dtType   <-c(c(dtType3),c(dtType5),c(dtType7),c(dtType10))
   
   for(i in 1:6){rownames(noConst[[i]]) <- dtType}; noConst   <- noConst[2:6]
@@ -329,3 +327,5 @@ overallRep<-function(){
 #   return(list(KSrepNoConst,PTSnoConst,KSrepWithConst,PTSwithConst))
 }
 
+TmVec <- c(50,100); nVec <- c(10,20)
+overallRep(TmVec,nVec)

@@ -36,7 +36,7 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
 
   cat("Analyzing")
   
-  RtoGauss <- function(crit=){
+  RtoGauss <- function(crit){
     script <- paste0("cd CLUSTERB && wine ~/.wine/drive_c/gauss6.0/tgauss -o -b -e 'stopval=",crit,"; rown=",Tm,"; coln=",n,"; RUN MONTECARLOB",datind,".GSS'")
     tempCW <- system(script, intern=TRUE,wait=TRUE)
     if(!any(grepl("ASYMPTOTICALLY PERFECT CONVERGENCE FOR MC|ASYMPTOTICALLY RELATIVE CONVERGENCE FOR MC",tempCW))){
@@ -77,7 +77,7 @@ mcCW <- function(Tm,n,clsize,frho,noCons){
     gmmlCWs <- do.call(rbind,lapply(temp, function(t) t[[2]]))
     rownames(gmmlCWs) <- sapply(c("01","05","1"), function(c) paste0(c("abs","rel"),c))
     rownames(repCWs)  <- c("crit01","crit05","crit1")
-    tempdir <- paste0(savedir,"Results_",n,"-",clsize,nocStr,"_CW/")
+    # tempdir <- paste0(savedir,"Results_",n,"-",clsize,nocStr,"_CW/")
     tempres <- list(repCWs,gmmlCWs) 
     save(tempres, file = paste0(tempdir,"res",ind,".rda"))
     return(tempres)
