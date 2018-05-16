@@ -78,6 +78,49 @@ dataGen(100,20,10,0.2,numofrep,F)
 dataGen(50,20,10,0.6,numofrep,F)
 dataGen(100,20,10,0.6,numofrep,F)
 
+## N = 30 ##
+## m=3 ##
+dataGen(50,30,3,0.2,numofrep,T)
+dataGen(100,30,3,0.2,numofrep,T)
+dataGen(50,30,3,0.6,numofrep,T)
+dataGen(100,30,3,0.6,numofrep,T)
+# with intercept
+dataGen(50,30,3,0.2,numofrep,F)
+dataGen(100,30,3,0.2,numofrep,F)
+dataGen(50,30,3,0.6,numofrep,F)
+dataGen(100,30,3,0.6,numofrep,F)
+## m=5 ##
+dataGen(50,30,5,0.2,numofrep,T)
+dataGen(100,30,5,0.2,numofrep,T)
+dataGen(50,30,5,0.6,numofrep,T)
+dataGen(100,30,5,0.6,numofrep,T)
+# with intercept
+dataGen(50,30,5,0.2,numofrep,F)
+dataGen(100,30,5,0.2,numofrep,F)
+dataGen(50,30,5,0.6,numofrep,F)
+dataGen(100,30,5,0.6,numofrep,F)
+## m=7 ##
+dataGen(50,30,7,0.2,numofrep,T)
+dataGen(100,30,7,0.2,numofrep,T)
+dataGen(50,30,7,0.6,numofrep,T)
+dataGen(100,30,7,0.6,numofrep,T)
+# with intercept
+dataGen(50,30,7,0.2,numofrep,F)
+dataGen(100,30,7,0.2,numofrep,F)
+dataGen(50,30,7,0.6,numofrep,F)
+dataGen(100,30,7,0.6,numofrep,F)
+## m=10 ##
+dataGen(50,30,10,0.2,numofrep,T)
+dataGen(100,30,10,0.2,numofrep,T)
+dataGen(50,30,10,0.6,numofrep,T)
+dataGen(100,30,10,0.6,numofrep,T)
+# with intercept
+dataGen(50,30,10,0.2,numofrep,F)
+dataGen(100,30,10,0.2,numofrep,F)
+dataGen(50,30,10,0.6,numofrep,F)
+dataGen(100,30,10,0.6,numofrep,F)
+
+
 #### MULTI CLUB CASE ####
 ## k=2
 # no intercept
@@ -123,6 +166,29 @@ dataGenplus(50,20,5,0.2,numofrep,F)
 dataGenplus(100,20,5,0.2,numofrep,F)
 dataGenplus(50,20,5,0.6,numofrep,F)
 dataGenplus(100,20,5,0.6,numofrep,F)
+## N = 30
+## k = 5
+# no intercept
+dataGenplus(50,30,5,0.2,numofrep,T)
+dataGenplus(100,30,5,0.2,numofrep,T)
+dataGenplus(50,30,5,0.6,numofrep,T)
+dataGenplus(100,30,5,0.6,numofrep,T)
+# with intercept
+dataGenplus(50,30,5,0.2,numofrep,F)
+dataGenplus(100,30,5,0.2,numofrep,F)
+dataGenplus(50,30,5,0.6,numofrep,F)
+dataGenplus(100,30,5,0.6,numofrep,F)
+## k=6
+# no intercept
+dataGenplus(50,30,6,0.2,numofrep,T)
+dataGenplus(100,30,6,0.2,numofrep,T)
+dataGenplus(50,30,6,0.6,numofrep,T)
+dataGenplus(100,30,6,0.6,numofrep,T)
+# with intercept
+dataGenplus(50,30,6,0.2,numofrep,F)
+dataGenplus(100,30,6,0.2,numofrep,F)
+dataGenplus(50,30,6,0.6,numofrep,F)
+dataGenplus(100,30,6,0.6,numofrep,F)
 
 #########################################################
 # Commands for detection of clubs via maximal clique algorithm
@@ -187,6 +253,48 @@ mcAGK(50,20,10,0.2,F)
 mcAGK(100,20,10,0.2,F)
 mcAGK(50,20,10,0.6,F)
 mcAGK(100,20,10,0.6,F)
+
+# no intercept
+mcAGK(50,30,3,0.2,T)
+mcAGK(100,30,3,0.2,T)
+mcAGK(50,30,3,0.6,T)
+mcAGK(100,30,3,0.6,T)
+# with intercept
+mcAGK(50,30,3,0.2,F)
+mcAGK(100,30,3,0.2,F)
+mcAGK(50,30,3,0.6,F)
+mcAGK(100,30,3,0.6,F)
+#
+mcAGK(50,30,5,0.2,T)
+mcAGK(100,30,5,0.2,T)
+mcAGK(50,30,5,0.6,T)
+mcAGK(100,30,5,0.6,T)
+# with intercept
+mcAGK(50,30,5,0.2,F)
+mcAGK(100,30,5,0.2,F)
+mcAGK(50,30,5,0.6,F)
+mcAGK(100,30,5,0.6,F)
+# m=7
+mcAGK(50,30,7,0.2,T)
+mcAGK(100,30,7,0.2,T)
+mcAGK(50,30,7,0.6,T)
+mcAGK(100,30,7,0.6,T)
+# with intercept
+mcAGK(50,30,7,0.2,F)
+mcAGK(100,30,7,0.2,F)
+mcAGK(50,30,7,0.6,F)
+mcAGK(100,30,7,0.6,F)
+# m=10
+mcAGK(50,30,10,0.2,T)
+mcAGK(100,30,10,0.2,T)
+mcAGK(50,30,10,0.6,T)
+mcAGK(100,30,10,0.6,T)
+# with intercept
+mcAGK(50,30,10,0.2,F)
+mcAGK(100,30,10,0.2,F)
+mcAGK(50,30,10,0.6,F)
+mcAGK(100,30,10,0.6,F)
+
 # Commands for detection of clubs via HF algorithm 
 # no intercept
 mcHF(50,10,3,0.2,T)
