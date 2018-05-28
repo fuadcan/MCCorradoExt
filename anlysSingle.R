@@ -1,4 +1,4 @@
-# n <- 10;clsize=3;Tm=100;frho=.2;noCOns=T
+# n <- 20; clsize=10;Tm=100;frho=.2;noCons=T
 library("rugarch")
 
 hitRat <- function(maxScc,exc,clsize,n){
@@ -259,18 +259,18 @@ overallAnlys <- function(TmVec,n,clsize,noCons) {
   
 }
 
-# overallAnlys(c(50,100),10,3,T)
-# overallAnlys(c(50,100),10,3,F)
-# overallAnlys(c(50,100),10,5,T)
-# overallAnlys(c(50,100),10,5,F)
-# overallAnlys(c(50,100),20,3,T)
-# overallAnlys(c(50,100),20,3,F)
-# overallAnlys(c(50,100),20,5,T)
-# overallAnlys(c(50,100),20,5,F)
-# overallAnlys(c(50,100),20,7,T)
-# overallAnlys(c(50,100),20,7,F)
-# overallAnlys(c(50,100),20,10,T)
-# overallAnlys(c(50,100),20,10,F)
+overallAnlys(c(50,100),10,3,T)
+overallAnlys(c(50,100),10,3,F)
+overallAnlys(c(50,100),10,5,T)
+overallAnlys(c(50,100),10,5,F)
+overallAnlys(c(50,100),20,3,T)
+overallAnlys(c(50,100),20,3,F)
+overallAnlys(c(50,100),20,5,T)
+overallAnlys(c(50,100),20,5,F)
+overallAnlys(c(50,100),20,7,T)
+overallAnlys(c(50,100),20,7,F)
+overallAnlys(c(50,100),20,10,T)
+overallAnlys(c(50,100),20,10,F)
 
 
 overall <- function(TmVec,nVec,clsize,noCons) {
@@ -327,5 +327,5 @@ overallRep<-function(TmVec,nVec){
 #   return(list(KSrepNoConst,PTSnoConst,KSrepWithConst,PTSwithConst))
 }
 
-TmVec <- c(50,100); nVec <- c(10,20)
+TmVec <- c(50,100); nVec <- c(10,20,30)
 overallRep(TmVec,nVec)
