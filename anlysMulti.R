@@ -59,8 +59,8 @@ overallnlyz <- function(TmVec,n,k,noCons){
   anlyzCW_P <- lapply(c(.2,.6), function(frho) t(sapply(TmVec, function(Tm)  tryCatch(nlyzCW(Tm,n,k,frho,noCons,F), error = function(e) rep(NA,3)))))
   
   
-  nlyz   <- cbind(do.call(rbind,anlyzA),do.call(rbind,anlyzHF),do.call(rbind,anlyzCW)) / 100 ; warning("Change 100 here")
-  nlyz_P <- cbind(do.call(rbind,anlyzA_P),do.call(rbind,anlyzHF_P),do.call(rbind,anlyzCW_P)) / 100
+  nlyz   <- cbind(do.call(rbind,anlyzA),do.call(rbind,anlyzHF),do.call(rbind,anlyzCW)) / numofrep
+  nlyz_P <- cbind(do.call(rbind,anlyzA_P),do.call(rbind,anlyzHF_P),do.call(rbind,anlyzCW_P)) / numofrep
   
   rownames(nlyz)   <- c(paste0("nopois.2","-",TmVec),paste0("nopois.6","-",TmVec))
   rownames(nlyz_P) <- c(paste0("pois.2","-",TmVec),paste0("pois.6","-",TmVec))
@@ -95,3 +95,5 @@ write.csv(rep, file="Results/multi_perfectScores.csv", sep = ";",row.names = T, 
 
 
 }
+
+# overallRepMulti()

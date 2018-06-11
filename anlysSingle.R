@@ -271,6 +271,14 @@ overallAnlys(c(50,100),20,7,T)
 overallAnlys(c(50,100),20,7,F)
 overallAnlys(c(50,100),20,10,T)
 overallAnlys(c(50,100),20,10,F)
+overallAnlys(c(50,100),30,3,T)
+overallAnlys(c(50,100),30,3,F)
+overallAnlys(c(50,100),30,5,T)
+overallAnlys(c(50,100),30,5,F)
+overallAnlys(c(50,100),30,7,T)
+overallAnlys(c(50,100),30,7,F)
+overallAnlys(c(50,100),30,10,T)
+overallAnlys(c(50,100),30,10,F)
 
 
 overall <- function(TmVec,nVec,clsize,noCons) {
